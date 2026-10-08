@@ -1,0 +1,14 @@
+# 데이터베이스 연결 설정
+database:
+  host: "mysql-39633839-finalproject-db.i.aivencloud.com"
+  port: 23751
+  username: "DB USERNAME"
+  password: "DB PASSWORD"
+
+# 외부 API 및 서비스 의존성
+api:
+  timeout: 5000
+  secret_key: "YOUR_API_SECRET_KEY"  #팀원이 발급받아 채워 넣을 공간
+
+# 개발 환경 모드 (dev, prod, test)
+environment: "dev"
