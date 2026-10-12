@@ -26,4 +26,4 @@ public class MemberController {
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(memberId));
     }
-}g
+}
