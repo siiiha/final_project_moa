@@ -1,40 +1,76 @@
-HELP.md
-.gradle
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
+# ========================================
+# Frontend - React
+# ========================================
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
+# Logs
+/front/logs
+/front/*.log
+/front/npm-debug.log*
+/front/yarn-debug.log*
+/front/yarn-error.log*
+/front/pnpm-debug.log*
+/front/lerna-debug.log*
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+# Dependencies & Build
+/front/node_modules/
+/front/dist/
+/front/dist-ssr/
+/front/*.local
 
-### VS Code ###
-.vscode/
+# Editor directories and files
+/front/.vscode/*
+!/front/.vscode/extensions.json
+/front/.idea/
+/front/.DS_Store
+/front/*.suo
+/front/*.ntvs*
+/front/*.njsproj
+/front/*.sln
+/front/*.sw?
 
-# 확장자가 .yaml
-*.yaml
+
+# ========================================
+# Backend - Spring Boot
+# ========================================
+
+/back/HELP.md
+/back/.gradle/
+/back/build/
+!/back/gradle/wrapper/gradle-wrapper.jar
+!/back/**/src/main/**/build/
+!/back/**/src/test/**/build/
+
+# STS
+/back/.apt_generated
+/back/.classpath
+/back/.factorypath
+/back/.project
+/back/.settings
+/back/.springBeans
+/back/.sts4-cache
+/back/bin/
+!/back/**/src/main/**/bin/
+!/back/**/src/test/**/bin/
+
+# IntelliJ IDEA
+/back/.idea/
+/back/*.iws
+/back/*.iml
+/back/*.ipr
+/back/out/
+!/back/**/src/main/**/out/
+!/back/**/src/test/**/out/
+
+# NetBeans
+/back/nbproject/private/
+/back/nbbuild/
+/back/dist/
+/back/nbdist/
+/back/.nb-gradle/
+
+# VS Code
+/back/.vscode/
+
+# YAML files
+/back/*.yaml
