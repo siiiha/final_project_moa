@@ -1,14 +1,15 @@
 package com.nightstudy.moa.post.controller;
 
 import com.nightstudy.moa.post.dto.PostDto;
-import com.nightstudy.moa.post.dto.PostListDto;
-import com.nightstudy.moa.post.dto.PostSearchDto;
+import com.nightstudy.moa.post.dto.PostListResult;
+import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,18 +25,20 @@ public class PostController {
     }
 
     @PostMapping("/write")
-    public String write(@ModelAttribute PostDto postDto) {
-        Long postId = postService.writePost(postDto);
-        return "redirect:/community/detail/" + postId;
+    public Long write(@RequestBody PostDto postDto) {
+        return postService.writePost(postDto);
     }
 
     @GetMapping("/list")
-    public String list(@ModelAttribute Model model, PostSearchDto searchDto) {
-        PostListDto result = postService.getPostList(searchDto);
-        model.addAttribute("postList", result.getPostList());
-        model.addAttribute("pageInfo", result.getpageInfo());
-        
-        return "board/list";
+    public PostListResult list(
+            @ModelAttribute PostSearchCondition condition
+    ) {
+        return postService.getPostList(condition);
+    }
+
+    @GetMapping("/detail/{postId}")
+    public PostDto detail(@PathVariable Long postId) {
+        return postService.getPostDetail(postId);
     }
 
 

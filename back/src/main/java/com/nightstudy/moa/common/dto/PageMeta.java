@@ -16,7 +16,13 @@ public class PageMeta {
     private final int totalPages;
 
     public static PageMeta of(int page, int size, int total) {
-        int totalPages = (total + size - 1) / size; // 올림 나눗셈
-        return new PageMeta(page, size, total, totalPages);
+        int normalizedPage = Math.max(page, 1);
+        int normalizedTotal = Math.max(total, 0);
+        int totalPages = (normalizedTotal + size - 1) / size; // 올림 나눗셈
+        return new PageMeta(normalizedPage, size, normalizedTotal, totalPages);
+    }
+
+    public int getOffset() {
+        return (page - 1) * size;
     }
 }

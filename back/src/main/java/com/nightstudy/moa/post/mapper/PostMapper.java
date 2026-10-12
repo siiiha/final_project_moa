@@ -1,13 +1,19 @@
 package com.nightstudy.moa.post.mapper;
 
 import com.nightstudy.moa.post.dto.PostDto;
-import com.nightstudy.moa.post.dto.PostListDto;
+import com.nightstudy.moa.post.dto.PostSearchCondition;
+import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
 public interface PostMapper {
     int insertPost(PostDto postDto);
-    List<PostDto> selectPostList(PostListDto postListDto)
+
+    List<PostDto> selectPostList(PostSearchCondition condition);
+
+    PostDto selectPostDetail(Long postId);
+
+    int selectPostListCount(PostSearchCondition condition);
 
 }
 

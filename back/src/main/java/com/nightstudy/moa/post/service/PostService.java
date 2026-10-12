@@ -1,15 +1,14 @@
 package com.nightstudy.moa.post.service;
 
 import com.nightstudy.moa.post.dto.PostDto;
-import com.nightstudy.moa.post.dto.PostListDto;
-import com.nightstudy.moa.post.dto.PostSearchDto;
+import com.nightstudy.moa.post.dto.PostListResult;
+import com.nightstudy.moa.post.dto.PostSearchCondition;
 
 
 public interface PostService {
     Long writePost(PostDto postDto);
 
-    PostListDto getPostList(PostSearchDto postSearchDto);
+    PostListResult getPostList(PostSearchCondition condition);
 
-    int selectPostListCount(PostListDto postListDto);
-
+    PostDto getPostDetail(Long PostId);
 }

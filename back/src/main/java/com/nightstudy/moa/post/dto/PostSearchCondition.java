@@ -1,7 +1,15 @@
 package com.nightstudy.moa.post.dto;
 
-public class PostSearchDto {
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class PostSearchCondition {
     private String categoryId;
+
+    private String keyword;
+    private String searchType;
 
     //사용자가 보고자하는 페이지 (기본1)
     private int page = 1;

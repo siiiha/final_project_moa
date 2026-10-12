@@ -12,8 +12,28 @@
             맨 앞에 남는 불필요한 AND/OR은 자동으로 제거해준다
                 -->
         <where>
-            // TODO: 이건 검색용! 키워드 넣고 그럴예정. 앞에붙이는거 생각해보기
+            <!--<when>의 test는 조건이 참(true)인지 거짓(false)인지 검사하는 속성-->
+            <if test="categoryId != null and categoryId != '' and categoryId != '전체'">
+                AND p.category = #{category}
+            </if>
 
+            <if test="keyword != null and keyword != ''">
+                <choose>
+                    <when test="searchType == 'title'">
+                        And p.title LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <when test="searchType == 'content'">
+                        And p.content LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <when test="searchType == 'writer'">
+                        And p.writer LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <otherwise>
+                        AND (p.title LIKE CONCAT('%', #{keyword}, '%')
+                        OR p.content LIKE CONCAT('%', #{keyword}, '%'))
+                    </otherwise>
+                </choose>
+            </if>
         </where>
     </sql>
     <!--
@@ -26,12 +46,35 @@
         VALUES (#{writerId}, #{categoryId}, #{title}, #{content}, 0)
     </insert>
 
-    <select id="PostListDto" parameterType="PostSearchDto" resultType="PostDto">
-        SELECT post_id, writer_id, category_id, created_at, title, view_count
-        FROM post
-        ORDER BY post_id DESC
+    <select id="selectPostList" parameterType="PostSearchCondition" resultType="PostDto">
+        SELECT p.post_id, p.writer_id, p.category_id, p.title,
+        p.content, p.view_count, p.created_at,
+        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        m.nickname AS writer_nickname
+        FROM post p
+        LEFT JOIN members m ON p.writer_id = m.member_id
+        <include refid="searchWhere"/>
+        ORDER BY p.post_id DESC
         LIMIT #{offset}, #{limit}
     </select>
 
+    <select id="selectPostDetail" parameterType="long" resultType="PostDto">
+        SELECT p.post_id, p.category_id, p.writer_id, m.nickname AS writer_nickname, p.title,
+        p.content, p.view_count, p.created_at
+        FROM post p
+        JOIN members m
+        ON p.writer_id = m.member_id
+        WHERE p.post_id = #{postId}
+        AND p.deleted_at IS NULL
+    </select>
+
+    <select id="selectPostListCount"
+            parameterType="PostSearchCondition"
+            resultType="int">
+        SELECT COUNT(*)
+        FROM post p
+        LEFT JOIN members m ON p.writer_id = m.member_id
+        <include refid="searchWhere"/>
+    </select>
 
 </mapper>
