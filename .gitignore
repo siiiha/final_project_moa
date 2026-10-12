@@ -74,3 +74,6 @@
 
 # YAML files
 /back/*.yaml
+
+# 비밀번호가 포함된 로컬 DB 설정 제외
+/back/src/main/resources/application.yaml
