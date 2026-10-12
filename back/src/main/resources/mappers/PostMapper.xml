@@ -26,5 +26,12 @@
         VALUES (#{writerId}, #{categoryId}, #{title}, #{content}, 0)
     </insert>
 
+    <select id="PostListDto" parameterType="PostSearchDto" resultType="PostDto">
+        SELECT post_id, writer_id, category_id, created_at, title, view_count
+        FROM post
+        ORDER BY post_id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
 
 </mapper>
