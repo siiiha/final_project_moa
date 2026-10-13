@@ -25,7 +25,7 @@ public class PostDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    //JSTL표시용
+    //화면 표시용
     private String createdAtStr;
     private String updatedAtStr;
 

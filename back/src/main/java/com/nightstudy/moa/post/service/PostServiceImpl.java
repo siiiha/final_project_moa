@@ -18,7 +18,7 @@ public class PostServiceImpl implements PostService {
         int categoryCount =
                 postMapper.countCategoryById(postDto.getCategoryId());
 
-        if (categoryCount == 0) {
+        if (categoryCount != 1) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_CATEGORY",
@@ -26,7 +26,15 @@ public class PostServiceImpl implements PostService {
             );
         }
 
-        postMapper.insertPost(postDto);
+        int insertedRows = postMapper.insertPost(postDto);
+        if (insertedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "POST_WRITE_FAILED",
+                    "게시글 등록에 실패했습니다."
+            );
+        }
+        
         return postDto.getPostId();
     }
 }
