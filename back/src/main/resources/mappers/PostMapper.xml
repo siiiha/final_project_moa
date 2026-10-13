@@ -80,4 +80,20 @@
         <include refid="searchWhere"/>
     </select>
 
+    <select id="countCategoryById" resultType="int">
+        SELECT COUNT(*)
+        FROM post_category
+        WHERE category_id = #{categoryId}
+    </select>
+
+    <update id="editPost">
+        UPDATE post
+        SET category_id = #{request.categoryId},
+        title = #{request.title},
+        content = #{request.content},
+        updated_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+        AND deleted_at IS NULL
+    </update>
+
 </mapper>

@@ -2,15 +2,18 @@ package com.nightstudy.moa.post.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.service.PostService;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,5 +52,14 @@ public class PostController {
     ) {
         PostDto post = postService.getPostDetail(postId);
         return ApiResponse.ok(post);
+    }
+
+    @PutMapping("/edit/{postId}")
+    public ApiResponse<Long> editPost(
+            @PathVariable Long postId,
+            @Valid @RequestBody PostEditRequest request) {
+        Long editPostId = postService.editPost(postId, request);
+
+        return ApiResponse.ok(editPostId);
     }
 }
