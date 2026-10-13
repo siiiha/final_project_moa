@@ -26,18 +26,18 @@ public class MemberSignupRequest {
     private String password;
 
     @NotBlank(message = "이름을 입력해주세요.")
-    @Size(max = 50, message = "이름은 50자 이내로 입력해주세요.")
+    @Size(max = 10, message = "이름은 10자 이내로 입력해주세요.")
     private String name;
 
     @NotBlank(message = "닉네임을 입력해주세요.")
-    @Size(max = 50, message = "닉네임은 50자 이내로 입력해주세요.")
+    @Size(max = 12, message = "닉네임은 12자 이내로 입력해주세요.")
     private String nickname;
 
     @NotBlank(message = "전화번호를 입력해주세요.")
     @Size(max = 20, message = "전화번호는 20자 이내로 입력해주세요.")
     private String phone;
 
-    @NotNull(message = "생년월일을 입력해주세요.")
+    @NotNull(message = "생년월일을 입력해주세요.") //문자열이 아니라 날짜를 담는 필드라서 @NotBlank 사용 x
     @Past(message = "생년월일은 오늘보다 이전 날짜여야 합니다.")
     private LocalDate birthDate;
 
@@ -54,4 +54,7 @@ public class MemberSignupRequest {
 
     @NotNull(message = "약관 동의 정보를 보내주세요.")
     private List<@NotNull @Positive Long> agreedTermIds;
+
+    @NotNull(message = "관심사 정보를 보내주세요.")
+    private  List<@NotNull @Positive Long> interestIds;
 }

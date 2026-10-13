@@ -104,4 +104,25 @@
         WHERE nickname = #{nickname}
     </select>
 
+    <!-- 해당 관심사 번호가 존재하는지 확인 -->
+    <select id="countInterestById" resultType="int">
+        SELECT COUNT(*)
+        FROM interest
+        WHERE interest_id = #{interestId}
+    </select>
+
+    <!-- 회원이 선택한 관심사 저장 -->
+    <insert id="insertMemberInterest">
+        INSERT INTO member_interest (member_id, interest_id)
+        VALUES (#{memberId}, #{interestId})
+    </insert>
+
+    <!-- 약관 번호가 실제로 존재하는지 확인 -->
+    <select id="countTermById" resultType="int">
+        SELECT COUNT(*)
+        FROM term
+        WHERE term_id = #{termId}
+    </select>
+
+
 </mapper>

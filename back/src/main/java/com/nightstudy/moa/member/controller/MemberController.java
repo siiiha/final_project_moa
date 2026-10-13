@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.nightstudy.moa.member.dto.EmailCheckRequest;
+import com.nightstudy.moa.member.dto.NicknameCheckRequest;
+
 
 @RestController
 @RequiredArgsConstructor
@@ -25,5 +28,25 @@ public class MemberController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.ok(memberId));
+    }
+
+    @PostMapping("/check-email")
+    public ResponseEntity<ApiResponse<Boolean>> checkEmail(
+            @Valid @RequestBody EmailCheckRequest request
+    ) {
+        boolean available =
+                memberService.isEmailAvailable(request.getEmail());
+
+        return ResponseEntity.ok(ApiResponse.ok(available));
+    }
+
+    @PostMapping("/check-nickname")
+    public ResponseEntity<ApiResponse<Boolean>> checkNickname(
+            @Valid @RequestBody NicknameCheckRequest request
+    ) {
+        boolean available =
+                memberService.isNicknameAvailable(request.getNickname());
+
+        return ResponseEntity.ok(ApiResponse.ok(available));
     }
 }

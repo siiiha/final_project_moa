@@ -1,5 +1,7 @@
 package com.nightstudy.moa.member.service;
 
+import java.util.HashSet;
+import java.util.ArrayList;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.MemberInsertDto;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
@@ -49,13 +51,49 @@ public class MemberService {
             );
         }
 
-        // BCrypt가 처리할 수 있는 비밀번호 길이 확인
+        // Bcrypt가 처리할 수 있는 비밀번호 길이 확인
         if (request.getPassword()
                 .getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "PASSWORD_TOO_LONG",
                     "비밀번호는 UTF-8 기준 72바이트 이내여야 합니다."
+            );
+        }
+        HashSet<Long> interestIds = new HashSet<>
+                (request.getInterestIds());
+
+        for (Long interestId : interestIds) {
+            if (memberMapper.countInterestById(interestId) == 0) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "INVALID_INTEREST",
+                        "존재하지 않는 관심사입니다."
+                );
+            }
+        }
+        ArrayList<Long> termIds =
+                new ArrayList<>(new HashSet<>(request.getAgreedTermIds()));
+
+        for  (Long termId : termIds) {
+            if (memberMapper.countTermById(termId) == 0) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "INVALID_TERM",
+                        "존재하지 않는 약관입니다."
+                );
+            }
+        }
+
+        int requiredCount = memberMapper.countRequiredTerms();
+        int agreedRequiredCount =
+                memberMapper.countRequiredAgreedTerms(termIds);
+
+        if (requiredCount != agreedRequiredCount) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "REQUIRED_TERMS_NOT_AGREED",
+                    "필수 약관에 모두 동의해주세요."
             );
         }
 
@@ -90,6 +128,61 @@ public class MemberService {
             );
         }
 
+        // 회원이 선택한 관심사 저장
+        for (Long interestId : interestIds) {
+            int savedRows = memberMapper.insertMemberInterest(
+                    member.getMemberId(),
+                    interestId
+            );
+
+            if (savedRows != 1) {
+                throw new ApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "SIGNUP_FAILED",
+                        "관심사 저장에 실패했습니다."
+                );
+            }
+        }
+        for (Long termId : termIds) {
+            int saveRows = memberMapper.insertTermAgreement(
+                    member.getMemberId(),
+                    termId
+            );
+
+            if (saveRows != 1) {
+                throw new ApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "SIGNUP_FAILED",
+                        "약관 동의 저장에 실패했습니다."
+                );
+            }
+        }
         return member.getMemberId();
+    }
+
+    // 이메일 사용 가능 여부 확인
+    public boolean isEmailAvailable(String email) {
+        if (email == null || email.isBlank()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_INPUT",
+                    "이메일을 입력해주세요."
+            );
+        }
+
+        return memberMapper.countByEmail(email.trim()) == 0;
+    }
+
+    // 닉네임 사용 가능 여부 확인
+    public boolean isNicknameAvailable(String nickname) {
+        if (nickname == null || nickname.isBlank()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_INPUT",
+                    "닉네임을 입력해주세요."
+            );
+        }
+
+        return memberMapper.countByNickname(nickname.trim()) == 0;
     }
 }

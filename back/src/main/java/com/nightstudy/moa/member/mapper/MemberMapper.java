@@ -27,4 +27,13 @@ public interface MemberMapper {
     );
 
     int countByNickname(@Param("nickname") String nickname);
+
+    int countInterestById(@Param("interestId") Long interestId);
+
+    int insertMemberInterest(
+            @Param("memberId") Long memberId,
+            @Param("interestId") Long interestId
+    );
+
+    int countTermById(@Param("termId") Long termId);
 }
