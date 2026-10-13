@@ -62,7 +62,7 @@ public class PostServiceImpl implements PostService {
         int categoryCount =
                 postMapper.countCategoryById(request.getCategoryId());
 
-        if (categoryCount == 0) {
+        if (categoryCount != 1) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_CATEGORY",
@@ -72,7 +72,7 @@ public class PostServiceImpl implements PostService {
 
         Long editCount = postMapper.editPost(postId, request);
 
-        if (editCount == 0) {
+        if (editCount != 1) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "POST_NOT_FOUND",
