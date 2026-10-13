@@ -44,6 +44,16 @@ public class PostServiceImpl implements PostService {
     public PostDto getPostDetail(Long postId) {
         PostDto post = postMapper.selectPostDetail(postId);
 
+        int updatedRows = postMapper.increaseViewCount(postId);
+
+        if (updatedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
+
         if (post == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,

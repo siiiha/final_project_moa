@@ -15,5 +15,7 @@ public interface PostMapper {
 
     int selectPostListCount(PostSearchCondition condition);
 
+    int increaseViewCount(Long postId);
+
 }
 
