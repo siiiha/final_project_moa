@@ -78,4 +78,4 @@
 /back/.vscode/
 
 # YAML files
-/back/*.yaml
+/back/src/main/resources/application.yaml
