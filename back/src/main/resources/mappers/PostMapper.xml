@@ -80,4 +80,18 @@
         <include refid="searchWhere"/>
     </select>
 
+    <update id="increaseViewCount">
+        UPDATE post
+        SET view_count = view_count + 1
+        WHERE post_id = #{postId}
+        AND deleted_at IS NULL
+        AND (#{loginMemberId} IS NULL
+        OR writer_id != #{loginMemberId})
+        <!--
+        비로그인 사용자거나 작성자가 아닌 경우에만 조회수를 올린다
+        -->
+
+    </update>
+
+
 </mapper>

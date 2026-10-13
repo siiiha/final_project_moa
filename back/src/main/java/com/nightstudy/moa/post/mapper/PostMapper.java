@@ -4,6 +4,7 @@ import com.nightstudy.moa.post.dto.PostDto;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface PostMapper {
@@ -15,7 +16,10 @@ public interface PostMapper {
 
     int selectPostListCount(PostSearchCondition condition);
 
-    int increaseViewCount(Long postId);
+    int increaseViewCount(
+            @Param("postId") Long postId,
+            @Param("loginMemberId") Long loginMemberId
+    );
 
 }
 

@@ -47,7 +47,9 @@ public class PostController {
     public ApiResponse<PostDto> detail(
             @PathVariable Long postId
     ) {
-        PostDto post = postService.getPostDetail(postId);
+        // TODO: 토큰 인증 구현 후 로그인 회원 ID를 전달하도록 변경
+        PostDto post = postService.getPostDetail(postId, null);
         return ApiResponse.ok(post);
     }
+
 }
