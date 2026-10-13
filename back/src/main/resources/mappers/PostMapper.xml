@@ -12,9 +12,10 @@
             맨 앞에 남는 불필요한 AND/OR은 자동으로 제거해준다
                 -->
         <where>
+            p.deleted_at IS NULL
             <!--<when>의 test는 조건이 참(true)인지 거짓(false)인지 검사하는 속성-->
             <if test="categoryId != null and categoryId != '' and categoryId != '전체'">
-                AND p.category = #{category}
+                AND p.category_id = #{categoryId}
             </if>
 
             <if test="keyword != null and keyword != ''">
@@ -26,7 +27,7 @@
                         And p.content LIKE CONCAT('%', #{keyword}, '%')
                     </when>
                     <when test="searchType == 'writer'">
-                        And p.writer LIKE CONCAT('%', #{keyword}, '%')
+                        AND m.nickname LIKE CONCAT('%', #{keyword}, '%')
                     </when>
                     <otherwise>
                         AND (p.title LIKE CONCAT('%', #{keyword}, '%')
@@ -48,7 +49,7 @@
 
     <select id="selectPostList" parameterType="PostSearchCondition" resultType="PostDto">
         SELECT p.post_id, p.writer_id, p.category_id, p.title,
-        p.content, p.view_count, p.created_at,
+        p.content, p.view_count, p.created_at, p.updated_at,
         DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
         m.nickname AS writer_nickname
         FROM post p
@@ -60,7 +61,9 @@
 
     <select id="selectPostDetail" parameterType="long" resultType="PostDto">
         SELECT p.post_id, p.category_id, p.writer_id, m.nickname AS writer_nickname, p.title,
-        p.content, p.view_count, p.created_at
+        p.content, p.view_count, p.created_at, p.updated_at,
+        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str
         FROM post p
         JOIN members m
         ON p.writer_id = m.member_id

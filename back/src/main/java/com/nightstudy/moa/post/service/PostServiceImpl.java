@@ -1,12 +1,14 @@
 package com.nightstudy.moa.post.service;
 
 import com.nightstudy.moa.common.dto.PageMeta;
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.dto.PostDto;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -41,6 +43,14 @@ public class PostServiceImpl implements PostService {
 //    게시글 번호를 받아서 → 조회수를 증가시키고 → 게시글 정보를 조회하고 → 이미지까지 추가한 다음 → 완성된 게시글 정보를 반환하는 코드
     public PostDto getPostDetail(Long postId) {
         PostDto post = postMapper.selectPostDetail(postId);
+
+        if (post == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
         return post;
     }
 }
