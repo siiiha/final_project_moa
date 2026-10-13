@@ -1,0 +1,81 @@
+# ========================================
+# Frontend - React
+# ========================================
+
+# Logs
+/front/logs
+/front/*.log
+/front/npm-debug.log*
+/front/yarn-debug.log*
+/front/yarn-error.log*
+/front/pnpm-debug.log*
+/front/lerna-debug.log*
+
+# Dependencies & Build
+/front/node_modules/
+/front/dist/
+/front/dist-ssr/
+/front/*.local
+
+# Editor directories and files
+/front/.vscode/*
+!/front/.vscode/extensions.json
+/front/.idea/
+/front/.DS_Store
+/front/*.suo
+/front/*.ntvs*
+/front/*.njsproj
+/front/*.sln
+/front/*.sw?
+
+# ========================================
+# Backend - IntelliJ IDEA
+# ========================================
+
+# 저장소 최상위 IntelliJ 설정
+/.idea/
+
+# ========================================
+# Backend - Spring Boot
+# ========================================
+
+/back/HELP.md
+/back/.gradle/
+/back/build/
+!/back/gradle/wrapper/gradle-wrapper.jar
+!/back/**/src/main/**/build/
+!/back/**/src/test/**/build/
+
+# STS
+/back/.apt_generated
+/back/.classpath
+/back/.factorypath
+/back/.project
+/back/.settings
+/back/.springBeans
+/back/.sts4-cache
+/back/bin/
+!/back/**/src/main/**/bin/
+!/back/**/src/test/**/bin/
+
+# IntelliJ IDEA
+/back/.idea/
+/back/*.iws
+/back/*.iml
+/back/*.ipr
+/back/out/
+!/back/**/src/main/**/out/
+!/back/**/src/test/**/out/
+
+# NetBeans
+/back/nbproject/private/
+/back/nbbuild/
+/back/dist/
+/back/nbdist/
+/back/.nb-gradle/
+
+# VS Code
+/back/.vscode/
+
+# YAML files
+/back/*.yaml
