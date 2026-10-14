@@ -109,4 +109,12 @@
         AND deleted_at IS NULL
     </update>
 
+    <update id="deletePost">
+        UPDATE post
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+        AND writer_id = #{writerId}
+        AND deleted_at IS NULL
+    </update>
+
 </mapper>

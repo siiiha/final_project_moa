@@ -60,7 +60,6 @@ public class PostServiceImpl implements PostService {
         } else {
             System.out.println("작성자 본인이거나 존재하지 않는 게시글입니다.");
         }
-
         return post;
     }
 
@@ -90,7 +89,6 @@ public class PostServiceImpl implements PostService {
         return postDto.getPostId();
     }
 
-
     @Override
     public Long editPost(Long postId, PostEditRequest request) {
 
@@ -116,6 +114,13 @@ public class PostServiceImpl implements PostService {
         }
         return postId;
     }
+
+    @Override
+    public void deletePost(Long postId, Long writerId){
+
+
+    }
+
 
 
 }

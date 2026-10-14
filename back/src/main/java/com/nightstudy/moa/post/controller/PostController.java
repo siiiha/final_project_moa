@@ -69,4 +69,10 @@ public class PostController {
         return ApiResponse.ok(editPostId);
     }
 
+    @PostMapping("/{postId}")
+    public ApiResponse<String> deletePost(
+            @PathVariable Long PostId,
+
+    )
+
 }
