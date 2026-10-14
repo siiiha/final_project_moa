@@ -8,6 +8,7 @@ import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -116,11 +117,34 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public void deletePost(Long postId, Long writerId){
+    public Long deletePost(Long postId, Long loginMemberId) {
+        PostDto post = postMapper.selectPostDetail(postId);
 
+        if (post == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
 
+        if (!Objects.equals(post.getWriterId(), loginMemberId)){
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "POST_DELETE_FORBIDDEN",
+                    "게시글 삭제 권한이 없습니다."
+            );
+        }
+
+        int deletedRows = postMapper.deletePost(postId, loginMemberId);
+
+        if (deletedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "POST_DELETE_FAILED",
+                    "게시글 삭제에 실패했습니다."
+            );
+        }
+        return postId;
     }
-
-
-
 }

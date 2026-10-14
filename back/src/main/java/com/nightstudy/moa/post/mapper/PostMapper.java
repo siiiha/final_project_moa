@@ -29,5 +29,10 @@ public interface PostMapper {
             @Param("postId") Long postId,
             @Param("loginMemberId") Long loginMemberId
     );
+
+    int deletePost(
+            @Param("postId") Long postId,
+            @Param("writerId") Long writerId
+    );
 }
 
