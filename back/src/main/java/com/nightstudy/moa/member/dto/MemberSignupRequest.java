@@ -44,17 +44,17 @@ public class MemberSignupRequest {
     @NotBlank(message = "성별을 선택해주세요.")
     @Pattern(
             regexp = "MALE|FEMALE",
-            message = "성별은 MALE 또는 FEMALE이어야 합니다."
+            message = "성별을 다시 선택해주세요."
     )
     private String gender;
 
     @NotNull(message = "지역을 선택해주세요.")
-    @Positive(message = "지역 번호는 양수여야 합니다.")
+    @Positive(message = "지역을 다시 선택해주세요.")
     private Long regionId;
 
-    @NotNull(message = "약관 동의 정보를 보내주세요.")
+    @NotNull(message = "약관 동의 여부를 확인해주세요.")
     private List<@NotNull @Positive Long> agreedTermIds;
 
-    @NotNull(message = "관심사 정보를 보내주세요.")
+    @NotNull(message = "관심사 선택 정보를 확인해주세요.")
     private  List<@NotNull @Positive Long> interestIds;
 }
