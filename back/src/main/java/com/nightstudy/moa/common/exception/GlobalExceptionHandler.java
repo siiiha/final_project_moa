@@ -1,9 +1,11 @@
 package com.nightstudy.moa.common.exception;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -34,6 +36,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         return ResponseEntity.badRequest().body(ApiResponse.fail("BAD_REQUEST", e.getName() + " 값이 올바르지 않습니다."));
+    }
+
+    // @Valid 입력값 검증 실패
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(
+            MethodArgumentNotValidException e
+    ) {
+        String message = e.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> error.getDefaultMessage())
+                .distinct()
+                .collect(Collectors.joining(" "));
+
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.fail("BAD_REQUEST", message));
     }
 
     // 그 밖의 모든 예외 → 500. 원인은 서버 로그에만 남기고 응답에는 노출하지 않는다.
