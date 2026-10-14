@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    namespace : 해당 XML파일을 어떤 Mapper 인터페이스와 연결할지를 정해주는 속성.
+-->
+<mapper namespace="com.nightstudy.moa.post.mapper.PostMapper">
+    <sql id="searchWhere">
+        <!--
+            <where> : 내부의 <if>들 중 하나라도 참이면 자동으로 WHERE키워드를 붙여주고,
+            맨 앞에 남는 불필요한 AND/OR은 자동으로 제거해준다
+                -->
+        <where>
+            // TODO: 이건 검색용! 키워드 넣고 그럴예정. 앞에붙이는거 생각해보기
+
+        </where>
+    </sql>
+    <!--
+    useGeneratedKeys="true" : DB가 자동으로 생성해주는 키를 mybatis로 가져올 수 있게 허용
+    keyProperty="boardId" : DB에서 자동으로 생성된 PK값을 파라미터의 어떤 변수에 넣을 것인가
+    -->
+    <insert id="insertPost" parameterType="com.nightstudy.moa.post.dto.PostDto" useGeneratedKeys="true"
+            keyProperty="postId">
+        INSERT INTO post (writer_id, category_id, title, content, view_count)
+        VALUES (#{writerId}, #{categoryId}, #{title}, #{content}, 0)
+    </insert>
+
+    <select id="countCategoryById" resultType="int">
+        SELECT COUNT(*)
+        FROM post_category
+        WHERE category_id = #{categoryId}
+    </select>
+
+
+</mapper>
