@@ -2,26 +2,38 @@ package com.nightstudy.moa.member.service;
 
 import java.util.HashSet;
 import java.util.ArrayList;
+
+import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.MemberInsertDto;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
 import com.nightstudy.moa.member.mapper.MemberMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.nightstudy.moa.member.dto.MemberLoginDto;
+import com.nightstudy.moa.member.dto.MemberLoginRequest;
 
 import java.nio.charset.StandardCharsets;
 
 @Service
-@RequiredArgsConstructor
 public class MemberService {
 
     private final MemberMapper memberMapper;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
+    public MemberService(
+            MemberMapper memberMapper,
+            PasswordEncoder passwordEncoder,
+            JwtTokenProvider jwtTokenProvider
+    ) {
+        this.memberMapper = memberMapper;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtTokenProvider = jwtTokenProvider;
+    }
     @Transactional
     public Long signup(MemberSignupRequest request) {
         String email = request.getEmail().trim();
@@ -184,5 +196,40 @@ public class MemberService {
         }
 
         return memberMapper.countByNickname(nickname.trim()) == 0;
+    }
+
+    // 이메일과 비밀번호 확인 후 로그인 토큰 발급
+    public String login(MemberLoginRequest request) {
+        String email = request.getEmail().trim();
+
+        MemberLoginDto member = memberMapper.findByEmail(email);
+
+        if (member == null
+                || member.getPasswordHash() == null
+                || request.getPassword()
+                .getBytes(StandardCharsets.UTF_8).length > 72
+                || !passwordEncoder.matches(
+                request.getPassword(),
+                member.getPasswordHash()
+        )) {
+            throw new ApiException(
+                    HttpStatus.UNAUTHORIZED,
+                    "LOGIN_FAILED",
+                    "이메일 또는 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "로그인할 수 없는 계정 상태입니다."
+            );
+        }
+
+        return jwtTokenProvider.createToken(
+                member.getMemberId(),
+                member.getSystemRole()
+        );
     }
 }

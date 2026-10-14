@@ -4,20 +4,23 @@ import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
 import com.nightstudy.moa.member.service.MemberService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.nightstudy.moa.member.dto.EmailCheckRequest;
 import com.nightstudy.moa.member.dto.NicknameCheckRequest;
+import com.nightstudy.moa.member.dto.MemberLoginRequest;
 
 
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/auth")
 public class MemberController {
 
     private final MemberService memberService;
+
+    public  MemberController(MemberService memberService) {
+        this.memberService = memberService;
+    }
 
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<Long>> signup(
@@ -48,5 +51,14 @@ public class MemberController {
                 memberService.isNicknameAvailable(request.getNickname());
 
         return ResponseEntity.ok(ApiResponse.ok(available));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<String>> login(
+            @Valid @RequestBody MemberLoginRequest request
+    ) {
+        String token = memberService.login(request);
+
+        return ResponseEntity.ok(ApiResponse.ok(token));
     }
 }

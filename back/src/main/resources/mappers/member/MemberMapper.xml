@@ -124,5 +124,17 @@
         WHERE term_id = #{termId}
     </select>
 
+    <select id="findByEmail"
+            resultType="com.nightstudy.moa.member.dto.MemberLoginDto">
+        SELECT
+            member_id,
+            password_hash,
+            account_status,
+            system_role
+        FROM members
+        WHERE email = #{email}
+            AND deleted_at IS NULL
+    </select>
+
 
 </mapper>
