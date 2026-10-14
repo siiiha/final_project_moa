@@ -62,22 +62,6 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail("INTERNAL_ERROR", "서버 오류가 발생했습니다."));
     }
 
-    // 회원가입 입력값 검증 실패 시 첫 번째 오류 메시지를 400 응답 반환
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidation(
-            MethodArgumentNotValidException e
-    ) {
-        String message = e.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .findFirst()
-                .map(error -> error.getDefaultMessage())
-                .orElse("입력값을 확인해주세요.");
-
-        return ResponseEntity.badRequest()
-                .body(ApiResponse.fail("INVALID_INPUT", message));
-    }
-
     // JSON 문법이나 날짜 숫자 형식이 잘못된 요청을 400 응답으로 반환
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnreadableRequest(
