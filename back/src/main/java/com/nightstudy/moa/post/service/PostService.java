@@ -8,7 +8,6 @@ import com.nightstudy.moa.post.dto.PostSearchCondition;
 
 public interface PostService {
     Long writePost(PostDto postDto);
-
     PostListResult getPostList(PostSearchCondition condition);
 
     PostDto getPostDetail(Long postId);
@@ -16,4 +15,5 @@ public interface PostService {
     Long editPost(Long postId, PostEditRequest request);
 
 
+    PostDto getPostDetail(Long postId, Long loginMemberId);
 }

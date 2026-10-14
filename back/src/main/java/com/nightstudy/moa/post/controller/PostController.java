@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.nightstudy.moa.post.service.PostService;
+import jakarta.validation.Valid;
+
 
 
 @RestController
@@ -50,7 +53,8 @@ public class PostController {
     public ApiResponse<PostDto> detail(
             @PathVariable Long postId
     ) {
-        PostDto post = postService.getPostDetail(postId);
+        // TODO: 토큰 인증 구현 후 로그인 회원 ID를 전달하도록 변경
+        PostDto post = postService.getPostDetail(postId, null);
         return ApiResponse.ok(post);
     }
 
@@ -61,5 +65,10 @@ public class PostController {
         Long editPostId = postService.editPost(postId, request);
 
         return ApiResponse.ok(editPostId);
+    public ApiResponse<Long> write(
+            @Valid @ModelAttribute PostDto postDto
+    ) {
+        Long postId = postService.writePost(postDto);
+        return ApiResponse.ok(postId);
     }
 }

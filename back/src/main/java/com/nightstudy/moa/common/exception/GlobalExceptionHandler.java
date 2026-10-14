@@ -36,6 +36,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ApiResponse.fail("BAD_REQUEST", e.getName() + " 값이 올바르지 않습니다."));
     }
 
+    // @Valid 입력값 검증 실패
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(
             MethodArgumentNotValidException e

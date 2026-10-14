@@ -30,8 +30,8 @@ dependencies {
     testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
+    // 검증 기능 의존성
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-
 }
 
 tasks.named('test') {

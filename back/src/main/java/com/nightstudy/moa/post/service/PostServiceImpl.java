@@ -42,7 +42,14 @@ public class PostServiceImpl implements PostService {
 
     @Override
 //    게시글 번호를 받아서 → 조회수를 증가시키고 → 게시글 정보를 조회하고 → 이미지까지 추가한 다음 → 완성된 게시글 정보를 반환하는 코드
-    public PostDto getPostDetail(Long postId) {
+    public PostDto getPostDetail(
+            Long postId,
+            Long loginMemberId
+    ) {
+        // 조회수 증가를 시도하고 변경된 행 개수를 받음
+        int updatedRows = postMapper.increaseViewCount(postId, loginMemberId);
+
+        // 증가된 조회수가 포함된 게시글 조회
         PostDto post = postMapper.selectPostDetail(postId);
 
         if (post == null) {
@@ -52,7 +59,35 @@ public class PostServiceImpl implements PostService {
                     "게시글을 찾을 수 없습니다."
             );
         }
+
+        if (updatedRows == 1) {
+            System.out.println("조회수 증가 성공");
+        } else {
+            System.out.println("작성자 본인이므로 조회수 증가 안 함");
+        }
+
         return post;
+        int categoryCount =
+                postMapper.countCategoryById(postDto.getCategoryId());
+
+        if (categoryCount != 1) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CATEGORY",
+                    "존재하지 않는 카테고리입니다."
+            );
+        }
+
+        int insertedRows = postMapper.insertPost(postDto);
+        if (insertedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "POST_WRITE_FAILED",
+                    "게시글 등록에 실패했습니다."
+            );
+        }
+        
+        return postDto.getPostId();
     }
 
 

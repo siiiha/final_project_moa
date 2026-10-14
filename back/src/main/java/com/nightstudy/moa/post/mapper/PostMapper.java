@@ -25,6 +25,9 @@ public interface PostMapper {
     int countCategoryById(
             @Param("categoryId") Long categoryId
     );
-
+    int increaseViewCount(
+            @Param("postId") Long postId,
+            @Param("loginMemberId") Long loginMemberId
+    );
 }
 
