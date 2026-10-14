@@ -16,7 +16,7 @@ import lombok.ToString;
 public class PostDto {
     private Long postId;
     private Long writerId; //작성자
-    private int categoryId;
+    private Long categoryId;
     @NotBlank(message = "제목은 필수입니다.")
     private String title;
     @NotBlank(message = "내용은 필수입니다.")
