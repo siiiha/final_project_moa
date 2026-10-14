@@ -1,6 +1,7 @@
 package com.nightstudy.moa.common.exception;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -40,11 +41,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleValidation(
             MethodArgumentNotValidException e
     ) {
+        String message = e.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> error.getDefaultMessage())
+                .distinct()
+                .collect(Collectors.joining(" "));
+
         return ResponseEntity.badRequest()
-                .body(ApiResponse.fail(
-                        "BAD_REQUEST",
-                        "제목과 내용을 입력해주세요."
-                ));
+                .body(ApiResponse.fail("BAD_REQUEST", message));
     }
 
     // 그 밖의 모든 예외 → 500. 원인은 서버 로그에만 남기고 응답에는 노출하지 않는다.

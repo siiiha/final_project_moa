@@ -99,5 +99,14 @@
         WHERE category_id = #{categoryId}
     </select>
 
+    <update id="editPost">
+        UPDATE post
+        SET category_id = #{request.categoryId},
+        title = #{request.title},
+        content = #{request.content},
+        updated_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+        AND deleted_at IS NULL
+    </update>
 
 </mapper>
