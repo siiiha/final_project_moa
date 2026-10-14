@@ -20,6 +20,8 @@ public interface PostMapper {
             @Param("postId") Long postId,
             @Param("loginMemberId") Long loginMemberId
     );
+    //카테고리 개수를 조회
+    int countCategoryById(int categoryId);
 
 }
 

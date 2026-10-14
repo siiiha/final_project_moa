@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.nightstudy.moa.post.service.PostService;
+import jakarta.validation.Valid;
+
 
 
 @RestController
@@ -52,4 +55,10 @@ public class PostController {
         return ApiResponse.ok(post);
     }
 
+    public ApiResponse<Long> write(
+            @Valid @ModelAttribute PostDto postDto
+    ) {
+        Long postId = postService.writePost(postDto);
+        return ApiResponse.ok(postId);
+    }
 }

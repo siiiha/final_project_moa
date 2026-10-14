@@ -93,5 +93,11 @@
 
     </update>
 
+    <select id="countCategoryById" resultType="int">
+        SELECT COUNT(*)
+        FROM post_category
+        WHERE category_id = #{categoryId}
+    </select>
+
 
 </mapper>
