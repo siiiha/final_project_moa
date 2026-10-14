@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 /**
  * 모든 Controller 에서 던져진 예외를 한곳에서 받아 실패 봉투로 응답한다. 덕분에 Controller 마다 try-catch 를 쓰지 않아도 된다.
@@ -40,5 +42,33 @@ public class GlobalExceptionHandler {
         log.error("처리되지 않은 예외", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.fail("INTERNAL_ERROR", "서버 오류가 발생했습니다."));
+    }
+
+    // 회원가입 입력값 검증 실패 시 첫 번째 오류 메시지를 400 응답 반환
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(
+            MethodArgumentNotValidException e
+    ) {
+        String message = e.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .findFirst()
+                .map(error -> error.getDefaultMessage())
+                .orElse("입력값을 확인해주세요.");
+
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.fail("INVALID_INPUT", message));
+    }
+
+    // JSON 문법이나 날짜 숫자 형식이 잘못된 요청을 400 응답으로 반환
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableRequest(
+            HttpMessageNotReadableException e
+    ) {
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.fail(
+                        "INVALID_REQUEST",
+                        "요청 형식과 생년월일 형식(YYYY-MM-DD)을 확인해주세요."
+                ));
     }
 }
