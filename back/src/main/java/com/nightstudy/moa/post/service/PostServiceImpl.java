@@ -16,16 +16,12 @@ import org.springframework.stereotype.Service;
 public class PostServiceImpl implements PostService {
     private final PostMapper postMapper;
 
+
     @Autowired
     public PostServiceImpl(PostMapper postMapper) {
         this.postMapper = postMapper;
     }
 
-    public Long writePost(PostDto postDto) {
-        postMapper.insertPost(postDto);
-
-        return postDto.getPostId();
-    }
 
     @Override
     public PostListResult getPostList(PostSearchCondition condition) {
@@ -46,10 +42,9 @@ public class PostServiceImpl implements PostService {
             Long postId,
             Long loginMemberId
     ) {
-        // 조회수 증가를 시도하고 변경된 행 개수를 받음
-        int updatedRows = postMapper.increaseViewCount(postId, loginMemberId);
+        int updatedRows =
+                postMapper.increaseViewCount(postId, loginMemberId);
 
-        // 증가된 조회수가 포함된 게시글 조회
         PostDto post = postMapper.selectPostDetail(postId);
 
         if (post == null) {
@@ -63,10 +58,14 @@ public class PostServiceImpl implements PostService {
         if (updatedRows == 1) {
             System.out.println("조회수 증가 성공");
         } else {
-            System.out.println("작성자 본인이므로 조회수 증가 안 함");
+            System.out.println("작성자 본인이거나 존재하지 않는 게시글입니다.");
         }
 
         return post;
+    }
+
+    @Override
+    public Long writePost(PostDto postDto) {
         int categoryCount =
                 postMapper.countCategoryById(postDto.getCategoryId());
 
@@ -79,6 +78,7 @@ public class PostServiceImpl implements PostService {
         }
 
         int insertedRows = postMapper.insertPost(postDto);
+
         if (insertedRows != 1) {
             throw new ApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
@@ -86,7 +86,7 @@ public class PostServiceImpl implements PostService {
                     "게시글 등록에 실패했습니다."
             );
         }
-        
+
         return postDto.getPostId();
     }
 

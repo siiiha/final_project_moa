@@ -10,8 +10,6 @@ public interface PostService {
     Long writePost(PostDto postDto);
     PostListResult getPostList(PostSearchCondition condition);
 
-    PostDto getPostDetail(Long postId);
-
     Long editPost(Long postId, PostEditRequest request);
 
 
