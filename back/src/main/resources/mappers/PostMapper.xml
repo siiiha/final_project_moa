@@ -113,7 +113,7 @@
         UPDATE post
         SET deleted_at = CURRENT_TIMESTAMP
         WHERE post_id = #{postId}
-        AND writer_id = #{writerId}
+        AND writer_id = #{loginMemberId}
         AND deleted_at IS NULL
     </update>
 

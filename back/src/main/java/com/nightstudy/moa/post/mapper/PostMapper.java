@@ -32,7 +32,7 @@ public interface PostMapper {
 
     int deletePost(
             @Param("postId") Long postId,
-            @Param("writerId") Long writerId
+            @Param("loginMemberId") Long loginMemberId
     );
 }
 
