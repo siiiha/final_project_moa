@@ -9,6 +9,7 @@ import com.nightstudy.moa.post.service.PostService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,4 +70,13 @@ public class PostController {
         return ApiResponse.ok(editPostId);
     }
 
+    @DeleteMapping("/{postId}")
+    public ApiResponse<Void> deletePost(
+            @PathVariable Long postId) {
+        Long LoginMemberId = 44L;
+
+        postService.deletePost(postId, LoginMemberId);
+
+        return ApiResponse.ok(null);
+    }
 }
