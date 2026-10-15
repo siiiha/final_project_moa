@@ -13,6 +13,6 @@ public class EmailCheckRequest {
 
     @NotBlank(message = "이메일을 입력해주세요.")
     @Email(message = "올바른 이메일 형식으로 입력해주세요.")
-    @Size(max = 100, message = "이메일은 100자 이내로 입력해주세요.")
+    @Size(max = 40, message = "이메일은 40자 이내로 입력해주세요.")
     private String email;
 }
