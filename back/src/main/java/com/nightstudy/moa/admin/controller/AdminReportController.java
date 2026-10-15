@@ -36,8 +36,9 @@ public class AdminReportController {
 
     @GetMapping
     public ApiResponse<List<AdminReportSubmissionItem>> getReportSubmission(
-            @M
+            @Mo
     )
+        return ApiResponse.ok()
 
 
 }

@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 
+
 @Service
 public class AdminReportServiceImpl implements AdminReportService {
     private final AdminReportMapper adminReportMapper;
@@ -53,7 +54,9 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        List<AdminReportSubmissionItem> submissions
-        return reportCase;
+        List<AdminReportSubmissionItem> submissions =
+                adminReportMapper.selectReportSubmissions(caseId);
+
+        return new AdminReportDetailResult(reportCase, submissions);
     }
 }
