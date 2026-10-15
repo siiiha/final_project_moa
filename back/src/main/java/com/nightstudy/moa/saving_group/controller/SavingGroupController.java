@@ -25,5 +25,14 @@ public class SavingGroupController {
         return null;
     }
 
+    @PatchMapping("/{id}/approve")
+    public ApiResponse<String> approveForCreationSavingGroup (
+            @PathVariable Long savingGroupId
+    ) {
+        savingGroupService.approveForCreationSavingGroup(savingGroupId);
+
+        // TODO: ApiResponse로 응답 구현
+        return null;
+    }
 
 }

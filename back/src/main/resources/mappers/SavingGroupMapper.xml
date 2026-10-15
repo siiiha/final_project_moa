@@ -12,6 +12,12 @@
             VALUES (#{regionId}, #{memberId}, #{groupId}, #{groupType}, #{groupName}, #{description}, #{maxMembers}, #{duesAmount}, #{duesDay})
     </insert>
 
+    <update id="approveForCreationSavingGroup" parameterType="Long">
+        UPDATE saving_group
+        SET status = <!-- 승인 상태코드 -->,
+            created_at = NOW()
+        WHERE saving_group_id = #{savingGroupId}
+    </update>
 
 
 </mapper>
