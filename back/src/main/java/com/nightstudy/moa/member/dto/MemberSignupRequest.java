@@ -41,7 +41,8 @@ public class MemberSignupRequest {
     @Size(max = 20, message = "전화번호는 20자 이내로 입력해주세요.")
     private String phone;
 
-    @NotNull(message = "생년월일을 입력해주세요.") //문자열이 아니라 날짜를 담는 필드라서 @NotBlank 사용 x
+    //문자열이 아니라 날짜를 담는 필드라서 @NotBlank 사용 x
+    @NotNull(message = "생년월일을 입력해주세요.")
     @Past(message = "생년월일은 오늘보다 이전 날짜여야 합니다.")
     private LocalDate birthDate;
 
