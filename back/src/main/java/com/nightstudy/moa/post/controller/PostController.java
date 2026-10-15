@@ -71,12 +71,12 @@ public class PostController {
     }
 
     @DeleteMapping("/{postId}")
-    public ApiResponse<Long> deletePost(
+    public ApiResponse<Void> deletePost(
             @PathVariable Long postId) {
         Long LoginMemberId = 44L;
 
-        Long deletedPostId = postService.deletePost(postId, LoginMemberId);
+        postService.deletePost(postId, LoginMemberId);
 
-        return ApiResponse.ok(deletedPostId);
+        return ApiResponse.ok(null);
     }
 }

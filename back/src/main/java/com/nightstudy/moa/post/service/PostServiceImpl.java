@@ -117,7 +117,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Long deletePost(Long postId, Long loginMemberId) {
+    public void deletePost(Long postId, Long loginMemberId) {
         PostDto post = postMapper.selectPostDetail(postId);
 
         if (post == null) {
@@ -145,6 +145,5 @@ public class PostServiceImpl implements PostService {
                     "게시글 삭제에 실패했습니다."
             );
         }
-        return postId;
     }
 }
