@@ -30,3 +30,4 @@ public class AdminReportSearchCondition {
     // 페이지당 조회 개수
     private int size = 10;
 }
+

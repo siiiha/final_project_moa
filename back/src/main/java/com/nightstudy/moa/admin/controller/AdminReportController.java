@@ -2,6 +2,7 @@ package com.nightstudy.moa.admin.controller;
 
 import com.nightstudy.moa.admin.dto.AdminReportListItem;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminReportSubmissionItem;
 import com.nightstudy.moa.admin.service.AdminReportService;
 import com.nightstudy.moa.admin.dto.AdminReportListResult;
 import com.nightstudy.moa.common.dto.ApiResponse;
@@ -32,4 +33,11 @@ public class AdminReportController {
                 result.getPageMeta()
         );
     }
+
+    @GetMapping
+    public ApiResponse<List<AdminReportSubmissionItem>> getReportSubmission(
+            @M
+    )
+
+
 }
