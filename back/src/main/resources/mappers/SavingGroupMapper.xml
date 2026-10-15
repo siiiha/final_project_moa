@@ -25,6 +25,13 @@
             VALUES (#{regionId}, #{memberId}, #{groupId}, #{groupType}, #{groupName}, #{description}, #{maxMembers}, #{duesAmount}, #{duesDay})
     </insert>
 
+    <update id="approveForCreationSavingGroup" parameterType="Long">
+        UPDATE saving_group
+        SET status = <!-- 승인 상태코드 -->,
+            created_at = NOW()
+        WHERE saving_group_id = #{savingGroupId}
+    </update>
+
     <!-- AI작성: 공통 PageMeta의 전체 개수 타입인 int에 맞춘다. -->
     <select id="selectSavingGroupCount" resultType="int">
         SELECT COUNT(*)

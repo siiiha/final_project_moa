@@ -6,4 +6,5 @@ public interface SavingGroupService {
 
     void applyForCreationSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
 
+    void approveForCreationSavingGroup(Long savingGroupId);
 }
