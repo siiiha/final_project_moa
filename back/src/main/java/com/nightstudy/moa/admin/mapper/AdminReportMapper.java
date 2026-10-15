@@ -23,12 +23,12 @@ public interface AdminReportMapper {
     );
 
     // 신고 사건 한 건의 기본 정보 조회
-    AdminReportSubmissionItem selectReportDetail(
+    AdminReportListItem selectReportDetail(
             @Param("caseId") Long caseId
     );
 
     // 해당 사건에 접수된 신고자별 신고 내용 조회
     List<AdminReportSubmissionItem> selectReportSubmissions(
-          @Param("caseId") Long caseId
+            @Param("caseId") Long caseId
     );
 }

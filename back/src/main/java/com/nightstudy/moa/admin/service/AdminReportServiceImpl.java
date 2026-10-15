@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 
 
+
 @Service
 public class AdminReportServiceImpl implements AdminReportService {
     private final AdminReportMapper adminReportMapper;
@@ -44,19 +45,21 @@ public class AdminReportServiceImpl implements AdminReportService {
 
     @Override
     public AdminReportDetailResult getReportDetail(Long caseId) {
-        AdminReportListItem reportCase = adminReportMapper.selectReportDetail(caseId);
+        AdminReportListItem reportCase =
+                adminReportMapper.selectReportDetail(caseId);
 
         if (reportCase == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "REPORT_NOT_FOUND",
-                    "신고글을 찾을 수 없습니다."
+                    "신고 사건을 찾을 수 없습니다."
             );
         }
 
         List<AdminReportSubmissionItem> submissions =
                 adminReportMapper.selectReportSubmissions(caseId);
 
-        return new AdminReportDetailResult(reportCase, submissions);
+        AdminReportDetailResult result = new AdminReportDetailResult(reportCase, submissions);
+        return result;
     }
 }
