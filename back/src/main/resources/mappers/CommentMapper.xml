@@ -23,5 +23,31 @@
         WHERE comment_id = #{commentId}
     </select>
 
+    <select id="selectCommentCountByPostId"
+            parameterType="long"
+            resultType="int">
+        SELECT COUNT(*)
+        FROM comment
+        WHERE post_id = #{postId}
+    </select>
+
+    <select id="selectCommentListByPostId"
+            parameterType="com.nightstudy.moa.comment.dto.CommentSearchCondition"
+            resultType="com.nightstudy.moa.comment.dto.CommentResponse">
+        SELECT
+            c.comment_id AS commentId,
+            c.post_id AS postId,
+            c.writer_id AS memberId,
+            m.nickname AS writerNickname,
+            c.content AS content,
+            c.created_at AS createdAt
+        FROM comment c
+        JOIN members m
+        ON m.member_id = c.writer_id
+        WHERE c.post_id = #{postId}
+        ORDER BY c.created_at ASC, c.comment_id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
 
 </mapper>
