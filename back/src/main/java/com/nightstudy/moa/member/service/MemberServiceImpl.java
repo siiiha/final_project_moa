@@ -2,6 +2,8 @@ package com.nightstudy.moa.member.service;
 
 import java.util.HashSet;
 import java.util.ArrayList;
+
+import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.MemberInsertDto;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
@@ -11,21 +13,26 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.nightstudy.moa.member.dto.MemberLoginDto;
+import com.nightstudy.moa.member.dto.MemberLoginRequest;
 
 import java.nio.charset.StandardCharsets;
 
 @Service
-public class MemberServiceImpl implements MemberService {
+public class MemberServiceImpl implements MemberService  {
 
     private final MemberMapper memberMapper;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
     public MemberServiceImpl(
             MemberMapper memberMapper,
-            PasswordEncoder passwordEncoder
-    ){
+            PasswordEncoder passwordEncoder,
+            JwtTokenProvider jwtTokenProvider
+    ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     @Override
@@ -50,13 +57,14 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        if (memberMapper.countRegionById(request.getRegionId()) == 0) {
+        if (memberMapper.countRegionById(request.getRegionId()) != 1) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_REGION",
                     "존재하지 않는 지역입니다."
             );
         }
+
 
         // Bcrypt가 처리할 수 있는 비밀번호 길이 확인
         if (request.getPassword()
@@ -71,7 +79,7 @@ public class MemberServiceImpl implements MemberService {
                 (request.getInterestIds());
 
         for (Long interestId : interestIds) {
-            if (memberMapper.countInterestById(interestId) == 0) {
+            if (memberMapper.countInterestById(interestId) != 1) {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
                         "INVALID_INTEREST",
@@ -83,7 +91,7 @@ public class MemberServiceImpl implements MemberService {
                 new ArrayList<>(new HashSet<>(request.getAgreedTermIds()));
 
         for  (Long termId : termIds) {
-            if (memberMapper.countTermById(termId) == 0) {
+            if (memberMapper.countTermById(termId) != 1) {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
                         "INVALID_TERM",
@@ -193,5 +201,41 @@ public class MemberServiceImpl implements MemberService {
         }
 
         return memberMapper.countByNickname(nickname.trim()) == 0;
+    }
+
+    // 이메일과 비밀번호 확인 후 로그인 토큰 발급
+    @Override
+    public String login(MemberLoginRequest request) {
+        String email = request.getEmail().trim();
+
+        MemberLoginDto member = memberMapper.findByEmail(email);
+
+        if (member == null
+                || member.getPasswordHash() == null
+                || request.getPassword()
+                .getBytes(StandardCharsets.UTF_8).length > 72
+                || !passwordEncoder.matches(
+                request.getPassword(),
+                member.getPasswordHash()
+        )) {
+            throw new ApiException(
+                    HttpStatus.UNAUTHORIZED,
+                    "LOGIN_FAILED",
+                    "이메일 또는 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "로그인할 수 없는 계정 상태입니다."
+            );
+        }
+
+        return jwtTokenProvider.createToken(
+                member.getMemberId(),
+                member.getSystemRole()
+        );
     }
 }

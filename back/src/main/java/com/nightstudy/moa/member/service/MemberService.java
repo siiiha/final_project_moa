@@ -1,5 +1,6 @@
 package com.nightstudy.moa.member.service;
 
+import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
 
 public interface MemberService {
@@ -9,4 +10,6 @@ public interface MemberService {
     boolean isEmailAvailable(String email);
 
     boolean isNicknameAvailable(String nickname);
+
+    String login(MemberLoginRequest request);
 }

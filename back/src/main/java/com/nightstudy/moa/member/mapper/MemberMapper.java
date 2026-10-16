@@ -3,6 +3,7 @@ package com.nightstudy.moa.member.mapper;
 import com.nightstudy.moa.member.dto.MemberInsertDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import com.nightstudy.moa.member.dto.MemberLoginDto;
 
 @Mapper
 public interface MemberMapper {
@@ -36,4 +37,6 @@ public interface MemberMapper {
     );
 
     int countTermById(@Param("termId") Long termId);
+
+    MemberLoginDto findByEmail(@Param("email") String email);
 }

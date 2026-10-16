@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.nightstudy.moa.member.dto.EmailCheckRequest;
 import com.nightstudy.moa.member.dto.NicknameCheckRequest;
+import com.nightstudy.moa.member.dto.MemberLoginRequest;
 
 
 @RestController
@@ -50,5 +51,14 @@ public class MemberController {
                 memberService.isNicknameAvailable(request.getNickname());
 
         return ResponseEntity.ok(ApiResponse.ok(available));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<String>> login(
+            @Valid @RequestBody MemberLoginRequest request
+    ) {
+        String token = memberService.login(request);
+
+        return ResponseEntity.ok(ApiResponse.ok(token));
     }
 }
