@@ -99,6 +99,15 @@
         WHERE category_id = #{categoryId}
     </select>
 
+    <!--댓글 등록 전 게시글 존재 여부만 확인-->
+    <select id="countPostById"
+            parameterType="long"
+            resultType="int">
+        SELECT COUNT(*)
+        FROM post
+        WHERE post_id = #{postId}
+    </select>
+
     <update id="editPost">
         UPDATE post
         SET category_id = #{request.categoryId},
