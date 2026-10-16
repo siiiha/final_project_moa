@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    namespace : 해당 XML파일을 어떤 Mapper 인터페이스와 연결할지를 정해주는 속성.
+-->
+<mapper namespace="com.nightstudy.moa.comment.mapper.CommentMapper">
+
+    <insert id="insertComment" parameterType="com.nightstudy.moa.comment.dto.CommentDto" useGeneratedKeys="true"
+            keyProperty="commentId">
+        INSERT INTO comment (post_id, member_id, content)
+        VALUES (#{postId}, #{memberId}, #{content})
+    </insert>
+
+
+</mapper>
