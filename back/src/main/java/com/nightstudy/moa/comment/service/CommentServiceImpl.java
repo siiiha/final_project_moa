@@ -68,7 +68,7 @@ public class CommentServiceImpl implements CommentService {
     public CommentListResult getCommentList(Long postId,
                                             CommentSearchCondition condition){
 
-        if (postMapper.selectPostDetail(postId) == null){
+        if (postMapper.countPostById(postId) == 0){
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "POST_NOT_FOUND",
