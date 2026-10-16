@@ -1,10 +1,10 @@
 package com.nightstudy.moa.admin.service;
 
-import com.nightstudy.moa.admin.dto.AdminReportDetailResult;
-import com.nightstudy.moa.admin.dto.AdminReportListItem;
+import com.nightstudy.moa.admin.dto.AdminReportDetailResponse;
+import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportListResult;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
-import com.nightstudy.moa.admin.dto.AdminReportSubmissionItem;
+import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -34,18 +34,25 @@ public class AdminReportServiceImpl implements AdminReportService {
                 total
         );
 
-        List<AdminReportListItem> reports =
-                adminReportMapper.selectReportList(
-                        condition,
-                        pageMeta.getOffset(),
-                        pageMeta.getSize()
-                );
+        if(total == 0) {
+            return new AdminReportListResult(
+                    List.of(),
+                    pageMeta
+            );
+        }
+
+        //계산된 페이징 값을 검색 조건 객체에 저장
+        condition.setOffset(pageMeta.getOffset());
+        condition.setLimit(pageMeta.getSize());
+
+        List<AdminReportListItemResponse> reports =
+                adminReportMapper.selectReportList(condition);
         return new AdminReportListResult(reports, pageMeta);
     }
 
     @Override
-    public AdminReportDetailResult getReportDetail(Long caseId) {
-        AdminReportListItem reportCase =
+    public AdminReportDetailResponse getReportDetail(Long caseId) {
+        AdminReportListItemResponse reportCase =
                 adminReportMapper.selectReportDetail(caseId);
 
         if (reportCase == null) {
@@ -56,10 +63,10 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        List<AdminReportSubmissionItem> submissions =
+        List<AdminReportSubmissionResponse> submissions =
                 adminReportMapper.selectReportSubmissions(caseId);
 
-        AdminReportDetailResult result = new AdminReportDetailResult(reportCase, submissions);
+        AdminReportDetailResponse result = new AdminReportDetailResponse(reportCase, submissions);
         return result;
     }
 }

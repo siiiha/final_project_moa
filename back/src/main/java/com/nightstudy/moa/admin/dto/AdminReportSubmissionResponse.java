@@ -1,9 +1,16 @@
 package com.nightstudy.moa.admin.dto;
 
 import java.time.LocalDateTime;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+
+@NoArgsConstructor
+@Getter
+@Setter
 //report_case 한 건에 연결된 여러 member_report
-public class AdminReportSubmissionItem {
+public class AdminReportSubmissionResponse {
 
     private Long reportId;
     private Long reporterId;

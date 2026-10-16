@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 //신고 목록 중에서 신고 한 건을 표시하는 DTO
-public class AdminReportListItem {
+public class AdminReportListItemResponse {
 
     // 신고 사건 고유 번호
     private Long caseId;

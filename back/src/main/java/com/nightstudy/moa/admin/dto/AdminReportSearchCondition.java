@@ -1,8 +1,10 @@
 package com.nightstudy.moa.admin.dto;
 
+import lombok.NoArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+@NoArgsConstructor
 @Getter
 @Setter
 //신고 목록의 필터와 페이지 정보를 받는 DTO
@@ -29,5 +31,11 @@ public class AdminReportSearchCondition {
 
     // 페이지당 조회 개수
     private int size = 10;
+
+    //Service에서 page와 size를 이용해 계산해서 넣는 값
+    private int offset;
+    private int limit;
+
+
 }
 
