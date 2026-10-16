@@ -23,7 +23,7 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public CommentDto insertComment(Long postId, Long memberId, String content) {
-        if(postMapper.selectPostDetail(postId) == null){
+        if(postMapper.countPostById(postId) == 0){
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "POST_NOT_FOUND",

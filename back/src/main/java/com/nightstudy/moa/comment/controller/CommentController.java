@@ -26,12 +26,13 @@ public class CommentController {
     public ResponseEntity<ApiResponse<CommentDto>> insertComment(
             @PathVariable Long postId,
             @Valid @RequestBody CommentDto commentDto) {
-        CommentDto insertComment = commentService.insertComment(postId,
+        // TODO AI작성: Spring Security 적용 후 수정 - 요청의 memberId 대신 로그인 회원 ID를 사용해야 함
+        CommentDto insertedComment = commentService.insertComment(postId,
                 commentDto.getMemberId(),
                 commentDto.getContent());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(insertComment));
+                .body(ApiResponse.ok(insertedComment));
     }
 }
