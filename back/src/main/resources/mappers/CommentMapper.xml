@@ -7,11 +7,21 @@
 -->
 <mapper namespace="com.nightstudy.moa.comment.mapper.CommentMapper">
 
-    <insert id="insertComment" parameterType="com.nightstudy.moa.comment.dto.CommentDto" useGeneratedKeys="true"
+    <insert id="insertComment"
+            parameterType="com.nightstudy.moa.comment.dto.CommentDto"
+            useGeneratedKeys="true"
             keyProperty="commentId">
-        INSERT INTO comment (post_id, member_id, content)
-        VALUES (#{postId}, #{memberId}, #{content})
+        INSERT INTO comment (post_id, writer_id, content)
+        VALUES ( #{postId}, #{memberId}, #{content})
     </insert>
+
+    <select id="selectCommentById"
+            parameterType="long"
+            resultType="com.nightstudy.moa.comment.dto.CommentDto">
+        SELECT comment_id, post_id, writer_id AS member_id, content, created_at
+        FROM comment
+        WHERE comment_id = #{commentId}
+    </select>
 
 
 </mapper>

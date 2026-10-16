@@ -26,7 +26,8 @@ public class CommentController {
     public ResponseEntity<ApiResponse<CommentDto>> insertComment(
             @PathVariable Long postId,
             @Valid @RequestBody CommentDto commentDto) {
-        CommentDto insertComment = commentService.insertComment(postId, commentDto.getCommentId(),
+        CommentDto insertComment = commentService.insertComment(postId,
+                commentDto.getMemberId(),
                 commentDto.getContent());
 
         return ResponseEntity
