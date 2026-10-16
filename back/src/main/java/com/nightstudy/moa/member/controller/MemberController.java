@@ -61,4 +61,11 @@ public class MemberController {
 
         return ResponseEntity.ok(ApiResponse.ok(token));
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<Long>> me(
+            @RequestAttribute("memberId") Long memberId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(memberId));
+    }
 }
