@@ -26,6 +26,13 @@ public class MemberSignupRequest {
     )
     private String email;
 
+    @NotBlank(message = "이메일 인증을 완료해주세요.")
+    @Pattern(
+            regexp = "^[A-Za-z0-9_-]{43}$",
+            message = "이메일 인증 정보가 올바르지 않습니다."
+    )
+    private String emailVerificationToken;
+
     @NotBlank(message = "비밀번호를 입력해주세요.")
     private String password;
 
