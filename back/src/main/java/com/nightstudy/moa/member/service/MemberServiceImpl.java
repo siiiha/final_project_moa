@@ -24,15 +24,18 @@ public class MemberServiceImpl implements MemberService  {
     private final MemberMapper memberMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final EmailVerificationService emailVerificationService;
 
     public MemberServiceImpl(
             MemberMapper memberMapper,
             PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider
+            JwtTokenProvider jwtTokenProvider,
+            EmailVerificationService emailVerificationService
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Override
@@ -111,6 +114,11 @@ public class MemberServiceImpl implements MemberService  {
                     "필수 약관에 모두 동의해주세요."
             );
         }
+
+        emailVerificationService.consumeVerificationToken(
+                email,
+                request.getEmailVerificationToken()
+        );
 
         MemberInsertDto member = new MemberInsertDto();
         member.setRegionId(request.getRegionId());
