@@ -1,6 +1,7 @@
 package com.nightstudy.moa.common.auth;
 
 import io.jsonwebtoken.Claims;
+import java.util.UUID;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -30,6 +31,7 @@ public class JwtTokenProvider {
         Date expiresAt = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .issuer("moa")
                 .subject(memberId.toString())
                 .claim("role", systemRole)

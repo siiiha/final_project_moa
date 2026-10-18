@@ -1,4 +1,6 @@
 package com.nightstudy.moa.member.service;
 
-public class LogoutService {
+public interface LogoutService {
+
+    void logout(String tokenId, Long expiresAtMs);
 }
