@@ -31,18 +31,17 @@ public class SavingGroupController {
             @ModelAttribute SavingGroupCreationRequest savingGroupCreationRequest
     ) {
         boolean result = savingGroupService.applyForCreationSavingGroup(savingGroupCreationRequest);
-        
+
         return ApiResponse.ok();
     }
 
     @PatchMapping("/{id}/approve")
     public ApiResponse<String> approveForCreationSavingGroup(
-            @PathVariable Long savingGroupId
+            @PathVariable("id") Long savingGroupId
     ) {
-        savingGroupService.approveForCreationSavingGroup(savingGroupId);
+        boolean result = savingGroupService.approveForCreationSavingGroup(savingGroupId);
 
-        // TODO: ApiResponse로 응답 구현
-        return null;
+        return ApiResponse.ok();
     }
 
 }
