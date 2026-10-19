@@ -29,6 +29,7 @@
         SELECT COUNT(*)
         FROM comment
         WHERE post_id = #{postId}
+        AND deleted_at IS NULL
     </select>
 
     <select id="selectCommentListByPostId"

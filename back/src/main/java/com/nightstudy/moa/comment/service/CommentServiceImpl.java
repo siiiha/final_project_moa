@@ -117,7 +117,7 @@ public class CommentServiceImpl implements CommentService {
 
         CommentDto comment = commentMapper.selectCommentById(commentId);
 
-        if (comment == null) {
+        if (comment == null || !comment.getPostId().equals(postId)) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "COMMENT_NOT_FOUND",

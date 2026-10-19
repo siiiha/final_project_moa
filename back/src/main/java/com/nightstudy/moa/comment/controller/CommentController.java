@@ -30,7 +30,7 @@ public class CommentController {
     public CommentController(CommentService commentService) { this.commentService = commentService;
     }
 
-    @PostMapping("/post/{postId}/comment")
+    @PostMapping("/post/{postId}/comments")
     public ResponseEntity<ApiResponse<CommentDto>> insertComment(
             @PathVariable Long postId,
             @Valid @RequestBody CommentDto commentDto) {
