@@ -61,7 +61,7 @@ public class EmailVerificationServiceImpl
         EmailVerificationDto latest =
                 verificationMapper.findLatestByEmail(normalizedEmail);
 
-        // AI작성: 같은 이메일에는 1분 간격으로 재발송 허용
+        // 같은 이메일에는 1분 간격으로 재발송 허용
         if (latest != null
                 && latest.getCreatedAt().plusMinutes(1).isAfter(now)) {
             throw new ApiException(
