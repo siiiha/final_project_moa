@@ -12,6 +12,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,4 +67,17 @@ public class CommentController {
 
         return  ApiResponse.ok(updateComment);
         }
+
+        @DeleteMapping("/post/{postId}/comments/{commentId}")
+        public ApiResponse<Void> deleteComment(
+            @PathVariable Long postId,
+            @PathVariable Long commentId) {
+
+         // 인증 구현 전에는 임시 회원 ID를 사용하지 않고 댓글 번호로만 삭제
+        commentService.deleteComment(postId, commentId);
+
+        return ApiResponse.ok(null);
+        }
+
+
 }

@@ -27,4 +27,8 @@ public interface CommentMapper {
             @Param("request") CommentEditRequest request
     );
 
+    int deleteComment(
+            @Param("postId") Long postId,
+            @Param("commentId") Long commentId
+    );
 }
