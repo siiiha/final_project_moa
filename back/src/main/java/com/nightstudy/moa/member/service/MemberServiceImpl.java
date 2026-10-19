@@ -8,7 +8,6 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.MemberInsertDto;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
 import com.nightstudy.moa.member.mapper.MemberMapper;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.member.dto.MemberLoginDto;
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 
 import java.nio.charset.StandardCharsets;
 
@@ -270,4 +270,125 @@ public class MemberServiceImpl implements MemberService {
 
         return profile;
     }
+
+    // 비밀번호와 입력값 검증 후 회원정보 수정
+    @Override
+    @Transactional
+    public MemberProfileResponse updateMyProfile(
+            Long memberId,
+            MemberProfileUpdateRequest request
+    ) {
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "회원정보를 수정할 수 없는 계정 상태입니다."
+            );
+        }
+
+        String currentPassword = request.getCurrentPassword();
+
+        if (currentPassword == null
+                || currentPassword.isBlank()
+                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || member.getPasswordHash() == null
+                || !passwordEncoder.matches(
+                currentPassword,
+                member.getPasswordHash()
+        )) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CURRENT_PASSWORD",
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        String nickname = request.getNickname();
+
+        if (nickname != null) {
+            nickname = nickname.trim();
+
+            if (nickname.length() < 2 || nickname.length() > 12) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "INVALID_NICKNAME",
+                        "닉네임은 2~12자로 입력해주세요."
+                );
+            }
+
+            if (memberMapper.countByNicknameExcludingMember(
+                    nickname, memberId
+            ) > 0) {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "NICKNAME_ALREADY_EXISTS",
+                        "이미 사용 중인 닉네임입니다."
+                );
+            }
+        }
+
+        // null은 기존 관심사 유지, 빈 목록은 전체 해제
+        HashSet<Long> interestIds = null;
+
+        if (request.getInterestIds() != null) {
+            interestIds = new HashSet<>(request.getInterestIds());
+
+            for (Long interestId : interestIds) {
+                if (interestId == null
+                        || interestId <= 0
+                        || memberMapper.countInterestById(interestId) != 1) {
+                    throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "INVALID_INTEREST",
+                            "존재하지 않는 관심사입니다."
+                    );
+                }
+            }
+        }
+
+        if (nickname != null) {
+            try {
+                memberMapper.updateNickname(memberId, nickname);
+            } catch (DuplicateKeyException e) {
+                // 동시 요청으로 발생한 닉네임 중복도 처리
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "NICKNAME_ALREADY_EXISTS",
+                        "이미 사용 중인 닉네임입니다."
+                );
+            }
+        }
+
+        if (interestIds != null) {
+            memberMapper.deleteMemberInterests(memberId);
+
+            for (Long interestId : interestIds) {
+                int savedRows = memberMapper.insertMemberInterest(
+                        memberId, interestId
+                );
+
+                if (savedRows != 1) {
+                    throw new ApiException(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "PROFILE_UPDATE_FAILED",
+                            "회원정보 수정에 실패했습니다."
+                    );
+                }
+            }
+        }
+
+        return getMyProfile(memberId);
+    }
+
 }
