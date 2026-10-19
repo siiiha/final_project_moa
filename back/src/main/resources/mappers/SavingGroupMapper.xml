@@ -20,7 +20,10 @@
         </if>
     </sql>
 
-    <insert id="insertGroups" parameterType="SavingGroupCreationRequest" useGeneratedKeys="true" keyProperty="group_id">
+    <insert id="insertGroups"
+            parameterType="SavingGroupCreationRequest"
+            useGeneratedKeys="true"
+            keyProperty="group_id">
         INSERT INTO groups (
         region_id,
         member_id,
@@ -64,8 +67,7 @@
 
     <update id="approveForCreationSavingGroup" parameterType="Long">
         UPDATE saving_group
-        SET status = <!-- 승인 상태코드 -->,
-        created_at = NOW()
+        SET status = 'approved'
         WHERE saving_group_id = #{savingGroupId}
     </update>
 
