@@ -36,7 +36,7 @@ public class EmailVerificationController {
     }
 
     // 인증번호 검증
-    // AI작성: 인증 성공 시 회원가입에 사용할 토큰을 응답으로 전달
+    // 인증 성공 시 회원가입에 사용할 토큰을 응답으로 전달
     @PostMapping("/verify")
     public ResponseEntity<ApiResponse<String>> verifyCode(
             @Valid @RequestBody EmailVerificationRequest request
