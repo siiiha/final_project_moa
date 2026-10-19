@@ -21,6 +21,7 @@
         SELECT comment_id, post_id, writer_id AS member_id, content, created_at
         FROM comment
         WHERE comment_id = #{commentId}
+        AND deleted_at IS NULL
     </select>
 
     <select id="selectCommentCountByPostId"
