@@ -18,9 +18,10 @@
     <select id="selectCommentById"
             parameterType="long"
             resultType="com.nightstudy.moa.comment.dto.CommentDto">
-        SELECT comment_id, post_id, writer_id AS member_id, content, created_at
+        SELECT comment_id, post_id, writer_id AS member_id, content, created_at, updated_at AS updatedAt
         FROM comment
         WHERE comment_id = #{commentId}
+        AND deleted_at IS NULL
     </select>
 
     <select id="selectCommentCountByPostId"
@@ -29,6 +30,7 @@
         SELECT COUNT(*)
         FROM comment
         WHERE post_id = #{postId}
+        AND deleted_at IS NULL
     </select>
 
     <select id="selectCommentListByPostId"
@@ -40,7 +42,8 @@
             c.writer_id AS memberId,
             m.nickname AS writerNickname,
             c.content AS content,
-            c.created_at AS createdAt
+            c.created_at AS createdAt,
+            c.updated_at AS updatedAt
         FROM comment c
         JOIN members m
         ON m.member_id = c.writer_id
@@ -48,6 +51,15 @@
         ORDER BY c.created_at ASC, c.comment_id ASC
         LIMIT #{offset}, #{limit}
     </select>
+
+    <update id="updateComment">
+        UPDATE comment
+        SET content = #{request.content},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE comment_id = #{commentId}
+        AND post_id = #{postId}
+        AND deleted_at IS NULL
+    </update>
 
 
 </mapper>

@@ -1,6 +1,7 @@
 package com.nightstudy.moa.comment.service;
 
 import com.nightstudy.moa.comment.dto.CommentDto;
+import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
 import com.nightstudy.moa.comment.dto.CommentResponse;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
@@ -12,6 +13,8 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 
 
 @Service
@@ -98,6 +101,44 @@ public class CommentServiceImpl implements CommentService {
                 comments,
                 pageMeta
         );
+    }
+
+    @Override
+    @Transactional
+    public CommentDto updateComment(Long postId, Long commentId, CommentEditRequest request) {
+        // AI작성: Validation을 거치지 않은 직접 호출도 방어하기 위해 내용을 확인합니다.
+        if (request == null || request.getContent() == null || request.getContent().isBlank()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "COMMENT_CONTENT_REQUIRED",
+                    "댓글에 내용을 입력해주세요."
+            );
+        }
+
+        CommentDto comment = commentMapper.selectCommentById(commentId);
+
+        if (comment == null || !comment.getPostId().equals(postId)) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "COMMENT_NOT_FOUND",
+                    "댓글을 찾을 수 없습니다."
+            );
+        }
+
+        if (comment.getContent().equals(request.getContent())) {
+            return comment;
+        }
+
+        int updatedRow = commentMapper.updateComment(postId, commentId, request);
+
+        if (updatedRow != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "COMMENT_UPDATE_FAILED",
+                    "댓글 수정에 실패했습니다."
+            );
+        }
+        return commentMapper.selectCommentById(commentId);
     }
 }
 

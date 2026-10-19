@@ -1,6 +1,7 @@
 package com.nightstudy.moa.comment.controller;
 
 import com.nightstudy.moa.comment.dto.CommentDto;
+import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
 import com.nightstudy.moa.comment.dto.CommentResponse;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,7 +30,7 @@ public class CommentController {
     public CommentController(CommentService commentService) { this.commentService = commentService;
     }
 
-    @PostMapping("/post/{postId}/comment")
+    @PostMapping("/post/{postId}/comments")
     public ResponseEntity<ApiResponse<CommentDto>> insertComment(
             @PathVariable Long postId,
             @Valid @RequestBody CommentDto commentDto) {
@@ -51,8 +53,17 @@ public class CommentController {
         CommentListResult result = commentService.getCommentList(postId, condition);
 
         return ApiResponse.ok(result.getComments(), result.getPageMeta());
-
-
-
     }
+
+    @PutMapping("/post/{postId}/comments/{commentId}")
+    public ApiResponse<CommentDto> updateComment(
+            @PathVariable Long postId,
+            @PathVariable Long commentId,
+            @Valid @RequestBody CommentEditRequest request) {
+        // 인증 구현 후 로그인 회원이 댓글 작성자인지 확인 필요
+        CommentDto updateComment = commentService.updateComment(postId,
+                commentId, request);
+
+        return  ApiResponse.ok(updateComment);
+        }
 }
