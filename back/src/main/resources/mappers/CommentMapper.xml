@@ -49,5 +49,13 @@
         LIMIT #{offset}, #{limit}
     </select>
 
+    <update id="updateComment">
+        UPDATE comment
+        SET content = #{request.content}
+        WHERE comment_id = #{commentId}
+        AND post_id = #{postId}
+        AND deleted_at IS NULL
+    </update>
+
 
 </mapper>
