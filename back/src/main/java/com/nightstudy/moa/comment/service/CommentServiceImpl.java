@@ -140,5 +140,18 @@ public class CommentServiceImpl implements CommentService {
         }
         return commentMapper.selectCommentById(commentId);
     }
+
+    @Override
+    public void deleteComment (Long postId, Long commentId) {
+        int deleteRows = commentMapper.deleteComment(postId, commentId);
+
+        if (deleteRows != 1) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "COMMENT_DELETE_FOUND",
+                    "댓글을 찾을 수 없습니다."
+            );
+        }
+    }
 }
 
