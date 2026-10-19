@@ -1,8 +1,10 @@
 package com.nightstudy.moa.saving_group.service;
 
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.common.service.FileStorageService;
 import com.nightstudy.moa.saving_group.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.saving_group.mapper.SavingGroupMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,7 +22,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
 
     @Override
     @Transactional
-    public void applyForCreationSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest) {
+    public boolean applyForCreationSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest) {
 
         String imagePath = null;
 
@@ -31,13 +33,22 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             savingGroupCreationRequest.setGroupImagePath(imagePath);
         }
 
+        // groups 테이블 저장
         int groupsResult = savingGroupMapper.insertGroups(savingGroupCreationRequest);
+
+        // saving-group 테이블 저장
         int savingGroupResult = savingGroupMapper.insertSavingGroup(savingGroupCreationRequest);
 
         if (groupsResult != 1 || savingGroupResult != 1) {
             // TODO: 실제 DB에 심사중인 상태에 계모임으로 저장되었는지 구분 (안되어있을 경우 예외 발생)
-            throw new IllegalStateException("계모임 개설 신청에 실패했습니다.");
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "SAVING_GROUP_CREATION_FAILED",
+                    "계모임 개설 신청에 실패했습니다."
+            );
         }
+
+        return true;
 
     }
 

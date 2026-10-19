@@ -4,7 +4,7 @@ import com.nightstudy.moa.saving_group.dto.SavingGroupCreationRequest;
 
 public interface SavingGroupService {
 
-    void applyForCreationSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
+    boolean applyForCreationSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
 
     void approveForCreationSavingGroup(Long savingGroupId);
 }

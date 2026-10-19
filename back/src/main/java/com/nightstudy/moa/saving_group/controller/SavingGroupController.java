@@ -30,10 +30,9 @@ public class SavingGroupController {
     public ApiResponse<String> applyForCreationSavingGroup(
             @ModelAttribute SavingGroupCreationRequest savingGroupCreationRequest
     ) {
-        savingGroupService.applyForCreationSavingGroup(savingGroupCreationRequest);
-
-        // TODO: ApiResponse로 응답 구현
-        return null;
+        boolean result = savingGroupService.applyForCreationSavingGroup(savingGroupCreationRequest);
+        
+        return ApiResponse.ok();
     }
 
     @PatchMapping("/{id}/approve")
