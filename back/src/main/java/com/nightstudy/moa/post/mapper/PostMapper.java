@@ -34,5 +34,9 @@ public interface PostMapper {
             @Param("postId") Long postId,
             @Param("loginMemberId") Long loginMemberId
     );
+
+    //게시글 번호에 해당하는 게시글의 존재 여부를 확인
+    int countPostById(Long postId);
+
 }
 
