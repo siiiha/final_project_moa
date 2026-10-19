@@ -2,15 +2,11 @@ package com.nightstudy.moa.comment.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.ToString;
 import jakarta.validation.constraints.NotNull;
 
-@ToString
-@AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter

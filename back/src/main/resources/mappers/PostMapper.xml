@@ -126,13 +126,4 @@
         AND deleted_at IS NULL
     </update>
 
-    <update id="deleteComment">
-        UPDATE comment
-        SET deleted_at = CURRENT_TIMESTAMP
-        WHERE comment_id = #{commentId}
-        AND post_id = #{postId}
-        AND deleted_at IS NULL
-    </update>
-
-
 </mapper>

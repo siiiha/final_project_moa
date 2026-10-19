@@ -10,6 +10,7 @@ import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -37,14 +38,6 @@ public class CommentServiceImpl implements CommentService {
                     HttpStatus.NOT_FOUND,
                     "POST_NOT_FOUND",
                     "게시글을 찾을 수 없습니다."
-            );
-        }
-
-        if (content == null || content.isBlank()) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "COMMENT_CONTENT_REQUIRED",
-                    "댓글 내용을 입력해주세요."
             );
         }
 
@@ -117,7 +110,9 @@ public class CommentServiceImpl implements CommentService {
 
         CommentDto comment = commentMapper.selectCommentById(commentId);
 
-        if (comment == null || !comment.getPostId().equals(postId)) {
+        //댓글 존재 여부와 요청한 게시글에 속한 댓글인지 함께 확인
+        //Objects.equals(a, b)는 두 값이 같은지 null까지 안전하게 비교하는 Java 메서드
+        if (comment == null || !Objects.equals(comment.getPostId(), postId)) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "COMMENT_NOT_FOUND",
@@ -148,7 +143,7 @@ public class CommentServiceImpl implements CommentService {
         if (deleteRows != 1) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
-                    "COMMENT_DELETE_FOUND",
+                    "COMMENT_NOT_FOUND",
                     "댓글을 찾을 수 없습니다."
             );
         }
