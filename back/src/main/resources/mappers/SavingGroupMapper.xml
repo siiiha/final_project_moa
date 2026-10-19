@@ -7,15 +7,52 @@
 -->
 <mapper namespace="com.nightstudy.moa.post.mapper.SavingGroupMapper">
 
-    <insert id="applyForCreationSavingGroup" parameterType="SavingGroupCreationRequest">
-        INSERT INTO saving_group (region_id, member_id, group_type, group_name, description, max_members, dues_amount, dues_day)
-            VALUES (#{regionId}, #{memberId}, #{groupId}, #{groupType}, #{groupName}, #{description}, #{maxMembers}, #{duesAmount}, #{duesDay})
+    <insert id="insertGroups" parameterType="SavingGroupCreationRequest" useGeneratedKeys="true" keyProperty="group_id">
+        INSERT INTO groups (
+        region_id,
+        member_id,
+        group_name,
+        description,
+        max_members,
+        created_at
+        )
+        VALUES (
+        #{regionId},
+        #{memberId},
+        #{groupName},
+        #{description},
+        #{maxMembers},
+        CURRENT_TIMESTAMP()
+        )
+    </insert>
+
+    <insert id="insertSavingGroup">
+        INSERT INTO saving_group (
+        group_id,
+        saving_group_type,
+        dues_amount,
+        dues_day,
+        start_date,
+        end_date,
+        status,
+        group_image
+        )
+        VALUES (
+        #{groupId},
+        #{savingGroupType},
+        #{duesAmount},
+        #{duesDay},
+        #{startDate},
+        #{endDate},
+        'pending',
+        #{groupImagePath}
+        )
     </insert>
 
     <update id="approveForCreationSavingGroup" parameterType="Long">
         UPDATE saving_group
         SET status = <!-- 승인 상태코드 -->,
-            created_at = NOW()
+        created_at = NOW()
         WHERE saving_group_id = #{savingGroupId}
     </update>
 
