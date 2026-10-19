@@ -8,6 +8,7 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.MemberInsertDto;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
 import com.nightstudy.moa.member.mapper.MemberMapper;
+import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,11 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.member.dto.MemberLoginDto;
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
+import com.nightstudy.moa.member.dto.MemberProfileResponse;
 
 import java.nio.charset.StandardCharsets;
 
 @Service
-public class MemberServiceImpl implements MemberService  {
+public class MemberServiceImpl implements MemberService {
 
     private final MemberMapper memberMapper;
     private final PasswordEncoder passwordEncoder;
@@ -93,7 +95,7 @@ public class MemberServiceImpl implements MemberService  {
         ArrayList<Long> termIds =
                 new ArrayList<>(new HashSet<>(request.getAgreedTermIds()));
 
-        for  (Long termId : termIds) {
+        for (Long termId : termIds) {
             if (memberMapper.countTermById(termId) != 1) {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
@@ -245,5 +247,27 @@ public class MemberServiceImpl implements MemberService  {
                 member.getMemberId(),
                 member.getSystemRole()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true) // 데이터를 조회하는 트랜잭션임을 표시
+    public MemberProfileResponse getMyProfile(Long memberId) {
+
+        MemberProfileResponse profile =
+                memberMapper.findProfileByMemberId(memberId);
+
+        if (profile == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        profile.setInterests(
+                memberMapper.findInterestsByMemberId(memberId)
+        );
+
+        return profile;
     }
 }
