@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { getPostDetail } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
-import { postComments, postItems } from '../mocks/posts';
+import { postComments } from '../mocks/posts';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -46,12 +47,57 @@ const EmptyCard = styled.section`
 
 function PostDetailPage() {
   const navigate = useNavigate();
-  const { state } = useLocation();
   const { id } = useParams();
   const [commentText, setCommentText] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const post = state?.post || postItems.find((item) => item.id === Number(id));
-  const comments = state?.comments || postComments;
+  const [post, setPost] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const comments = postComments;
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadPostDetail() {
+      setIsLoading(true);
+      setErrorMessage('');
+
+      try {
+        // AI작성: 상세 API 응답을 기존 PostDetail 컴포넌트의 표시 형식으로 변환합니다.
+        const response = await getPostDetail(id);
+        if (!response.success) {
+          throw new Error(response.error?.message || '게시글을 불러오지 못했습니다.');
+        }
+
+        if (!isActive) return;
+
+        const detail = response.data;
+        setPost({
+          id: detail.postId,
+          category: detail.categoryName || '기타',
+          title: detail.title,
+          content: detail.content,
+          author: detail.writerNickname || '알 수 없음',
+          date: detail.createdAtStr || '',
+          views: detail.viewCount,
+        });
+      } catch (error) {
+        if (!isActive) return;
+        setPost(null);
+        setErrorMessage(
+          error.response?.data?.error?.message || error.message || '게시글을 불러오지 못했습니다.'
+        );
+      } finally {
+        if (isActive) setIsLoading(false);
+      }
+    }
+
+    loadPostDetail();
+
+    return () => {
+      isActive = false;
+    };
+  }, [id]);
 
   const handleEdit = () => {
     navigate(`/post/${id}/edit`);
@@ -71,14 +117,16 @@ function PostDetailPage() {
     // TODO: Spring Boot 댓글 등록 API 요청 후 댓글 목록을 갱신합니다.
   };
 
-  if (!post) {
+  if (isLoading || !post) {
     return (
       <Page>
         <EmptyCard>
-          <p>존재하지 않거나 삭제된 게시글입니다.</p>
-          <Button type="button" $variant="secondary" onClick={() => navigate('/post/list')}>
-            목록으로
-          </Button>
+          <p>{isLoading ? '게시글을 불러오는 중입니다.' : errorMessage || '존재하지 않거나 삭제된 게시글입니다.'}</p>
+          {!isLoading && (
+            <Button type="button" $variant="secondary" onClick={() => navigate('/post/list')}>
+              목록으로
+            </Button>
+          )}
         </EmptyCard>
       </Page>
     );
