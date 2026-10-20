@@ -48,7 +48,8 @@ public interface AdminReportMapper {
     int updateReportProcess(
             @Param("reportId") Long reportId,
             @Param("status") String status,
-            @Param("processReason") String processReason
+            @Param("processReason") String processReason,
+            @Param("restrictedUntil") LocalDateTime restrictedUntil
     );
 
     // AI작성: 계산된 종료 시각과 SUSPENDED 상태를 회원 정보에 함께 반영한다.

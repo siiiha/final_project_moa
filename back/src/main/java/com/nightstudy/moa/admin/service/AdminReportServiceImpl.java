@@ -101,14 +101,16 @@ public class AdminReportServiceImpl implements AdminReportService {
         validateProcessRequest(request);
 
         // AI작성: 반려는 신고 상태와 사유만 변경하고, 정상 처리일 때만 회원을 이용 제한한다.
-        if ("PROCESSED".equals(request.getStatus())) {
-            applyMemberRestriction(reportId, request.getRestrictionType());
+        LocalDateTime restrictedUntil = null;
+        if ("CONFIRMED".equals(request.getStatus())) {
+            restrictedUntil = applyMemberRestriction(reportId, request.getRestrictionType());
         }
 
         int updatedCount = adminReportMapper.updateReportProcess(
                 reportId,
                 request.getStatus(),
-                request.getProcessReason()
+                request.getProcessReason(),
+                restrictedUntil
         );
 
         if (updatedCount != 1) {
@@ -130,11 +132,11 @@ public class AdminReportServiceImpl implements AdminReportService {
 
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
     private void validateProcessRequest(AdminReportProcessRequest request) {
-        boolean processed = "PROCESSED".equals(request.getStatus());
+        boolean confirmed = "CONFIRMED".equals(request.getStatus());
         boolean hasRestriction = request.getRestrictionType() != null
                 && !request.getRestrictionType().isBlank();
 
-        if (processed && !hasRestriction) {
+        if (confirmed && !hasRestriction) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_REQUIRED",
@@ -142,7 +144,7 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        if (!processed && hasRestriction) {
+        if (!confirmed && hasRestriction) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_NOT_ALLOWED",
@@ -151,8 +153,8 @@ public class AdminReportServiceImpl implements AdminReportService {
         }
     }
 
-    // AI작성: USER는 해당 회원, BOARD와 COMMENT는 작성자를 찾아 최종 제재 대상으로 사용한다.
-    private void applyMemberRestriction(Long reportId, String restrictionType) {
+    // AI작성: 신고 사건에 기록된 제재 대상 회원에게 이용 제한을 적용한다.
+    private LocalDateTime applyMemberRestriction(Long reportId, String restrictionType) {
         Long memberId = adminReportMapper.selectReportedMemberId(reportId);
         if (memberId == null) {
             throw new ApiException(
@@ -193,6 +195,7 @@ public class AdminReportServiceImpl implements AdminReportService {
                     "회원 이용 제한을 적용하지 못했습니다."
             );
         }
+        return suspendedUntil;
     }
 
     // AI작성: 기존 제재보다 짧아지지 않도록 새 종료 시각과 기존 종료 시각을 비교한다.
