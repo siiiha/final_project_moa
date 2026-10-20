@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
 import { socialLoginProviders } from '../../mocks/auth';
+import { loginMember } from '../../api/member';
+import useAuthStore from '../../store/authStore';
 
 const Card = styled.section`
   width: min(100%, 512px);
@@ -121,15 +123,46 @@ function ProviderIcon({ provider }) {
 }
 
 function LoginForm() {
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const navigate = useNavigate();
+  const setToken = useAuthStore((state) => state.setToken);
 
-  const handleSubmit = (event) => {
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // 로그인 성공 시 JWT를 저장하고 마이페이지로 이동
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // TODO: Spring Boot 로그인 API 연동 후 인증 결과에 따라 화면을 이동합니다.
+
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      const token = await loginMember(email.trim(), password);
+
+      if (typeof token !== 'string' || !token.trim()) {
+        throw new Error('로그인 응답을 확인할 수 없습니다.');
+      }
+
+      setToken(token);
+      setPassword('');
+      navigate('/member/mypage', { replace: true });
+    } catch (error) {
+      setErrorMessage(
+        error.response?.data?.error?.message ??
+          '로그인에 실패했습니다. 입력값과 서버 연결을 확인해주세요.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSocialLogin = () => {
-    // TODO: Spring Boot OAuth 연동 후 선택한 소셜 로그인 제공자 인증을 시작합니다.
+    // 소셜 로그인 연동 후 구현
   };
 
   return (
@@ -138,6 +171,7 @@ function LoginForm() {
         <Title id="login-title">로그인</Title>
         <Subtitle>이웃과 함께하는 일상, 모아에서 시작하세요.</Subtitle>
       </Heading>
+
       <Form onSubmit={handleSubmit}>
         <TextInput
           id="email"
@@ -146,22 +180,36 @@ function LoginForm() {
           placeholder="이메일을 입력해주세요"
           autoComplete="email"
           required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          disabled={isSubmitting}
         />
+
         <PasswordInput
           id="password"
           label="비밀번호"
           placeholder="비밀번호를 입력해주세요"
           autoComplete="current-password"
           required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          disabled={isSubmitting}
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
         />
-        <LoginButton type="submit">로그인</LoginButton>
+
+        {errorMessage && <p role="alert">{errorMessage}</p>}
+
+        <LoginButton type="submit" disabled={isSubmitting}>
+          {isSubmitting ? '로그인 중…' : '로그인'}
+        </LoginButton>
       </Form>
+
       <SignupPrompt>아직 회원이 아니신가요?</SignupPrompt>
       <SignupButton as={Link} to="/member/join" $variant="secondary">
         회원가입
       </SignupButton>
+
       <Divider>간편 로그인</Divider>
       <SocialActions>
         {socialLoginProviders.map((provider) => (

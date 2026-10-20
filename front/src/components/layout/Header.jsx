@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { FiBell } from 'react-icons/fi';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
+import { logoutMember } from '../../api/member';
+import useAuthStore from '../../store/authStore';
 
 const Shell = styled.header`
   height: 56px;
@@ -143,8 +146,47 @@ const LogoutButton = styled.button`
   border: 0;
 `;
 
-function Header({ isLoggedIn = false }) {
+function Header() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  const token = useAuthStore((state) => state.token);
+  const clearToken = useAuthStore((state) => state.clearToken);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const isLoggedIn = Boolean(token);
+
+  // 서버 로그아웃 성공 후 브라우저의 JWT를 제거
+  const handleLogout = async () => {
+    if (!token || isLoggingOut) return;
+
+    setIsLoggingOut(true);
+
+    try {
+      const result = await logoutMember(token);
+
+      if (!result.success) {
+        throw new Error('로그아웃에 실패했습니다.');
+      }
+
+      clearToken();
+      navigate('/member/login', { replace: true });
+    } catch (error) {
+      // 만료되거나 이미 무효인 JWT도 브라우저에서 제거
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      window.alert(
+        error.response?.data?.error?.message ??
+          '로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.',
+      );
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <Shell>
@@ -153,29 +195,48 @@ function Header({ isLoggedIn = false }) {
           <Mark aria-hidden="true" />
           모아
         </Brand>
+
         <Navigation aria-label="주요 메뉴">
-          <NavigationLink to="/saving-groups" $active={pathname.startsWith('/saving-groups')}>
+          <NavigationLink
+            to="/saving-groups"
+            $active={pathname.startsWith('/saving-groups')}
+          >
             계모임
           </NavigationLink>
-          <NavigationLink to="/small-groups" $active={pathname.startsWith('/small-groups')}>
+          <NavigationLink
+            to="/small-groups"
+            $active={pathname.startsWith('/small-groups')}
+          >
             소모임
           </NavigationLink>
           <NavigationLink to="/post/list" $active={pathname.startsWith('/post')}>
             게시판
           </NavigationLink>
         </Navigation>
+
         {isLoggedIn ? (
           <LoggedInActions>
-            <NotificationLink to="/member/mypage" aria-label="알림 3개">
-              <FiBell size={15} aria-hidden="true" /> 알림 <NotificationCount>3</NotificationCount>
+            <NotificationLink to="/member/notification" aria-label="알림">
+              <FiBell size={15} aria-hidden="true" /> 알림
             </NotificationLink>
             <Link to="/member/mypage">마이페이지</Link>
-            <LogoutButton type="button">로그아웃</LogoutButton>
+            <LogoutButton
+              type="button"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? '로그아웃 중…' : '로그아웃'}
+            </LogoutButton>
           </LoggedInActions>
         ) : (
           <Actions>
             <Link to="/member/login">로그인</Link>
-            <SignupButton as={Link} to="/member/join" $variant="secondary" $size="small">
+            <SignupButton
+              as={Link}
+              to="/member/join"
+              $variant="secondary"
+              $size="small"
+            >
               회원가입
             </SignupButton>
           </Actions>
