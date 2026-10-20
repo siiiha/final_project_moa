@@ -41,3 +41,9 @@ export async function createComment(postId, commentData) {
   const response = await client.post(`/post/${postId}/comments`, commentData);
   return response.data;
 }
+
+// AI작성: 게시글·댓글 ID와 수정 내용을 Spring Boot API에 전달합니다.
+export async function updateComment(postId, commentId, commentData) {
+  const response = await client.put(`/post/${postId}/comments/${commentId}`, commentData);
+  return response.data;
+}

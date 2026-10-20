@@ -158,6 +158,21 @@ const CommentInput = styled.input`
   }
 `;
 
+const CommentEditForm = styled.form`
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr 1fr;
+
+    ${CommentInput} {
+      grid-column: 1 / -1;
+    }
+  }
+`;
+
 function PostDetail({
   post,
   comments,
@@ -165,9 +180,16 @@ function PostDetail({
   hasMoreComments,
   isLoadingMoreComments,
   isSubmittingComment,
+  editingCommentId,
+  editingCommentText,
+  isUpdatingComment,
   commentText,
   onCommentChange,
   onCommentSubmit,
+  onCommentEditStart,
+  onCommentEditChange,
+  onCommentEditSubmit,
+  onCommentEditCancel,
   onLoadMoreComments,
   onEdit,
   onDelete,
@@ -204,9 +226,37 @@ function PostDetail({
             <Comment key={comment.id}>
               <CommentHeader>
                 <Author>{comment.author}</Author>
-                <TextAction type="button">답글</TextAction>
+                <ReplyActions>
+                  <TextAction type="button">답글</TextAction>
+                  <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
+                    수정
+                  </TextAction>
+                </ReplyActions>
               </CommentHeader>
-              <CommentText>{comment.content}</CommentText>
+              {editingCommentId === comment.id ? (
+                <CommentEditForm onSubmit={onCommentEditSubmit}>
+                  {/* AI작성: 기존 내용을 보며 바로 수정할 수 있도록 댓글 아래에 입력창을 표시합니다. */}
+                  <CommentInput
+                    value={editingCommentText}
+                    onChange={(event) => onCommentEditChange(event.target.value)}
+                    required
+                  />
+                  <Button type="submit" $size="small" disabled={isUpdatingComment}>
+                    {isUpdatingComment ? '저장 중...' : '저장'}
+                  </Button>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="small"
+                    disabled={isUpdatingComment}
+                    onClick={onCommentEditCancel}
+                  >
+                    취소
+                  </Button>
+                </CommentEditForm>
+              ) : (
+                <CommentText>{comment.content}</CommentText>
+              )}
               {comment.replies.map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>

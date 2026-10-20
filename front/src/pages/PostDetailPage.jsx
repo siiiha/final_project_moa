@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { createComment, deletePost, getComments, getPostDetail } from '../api/postApi';
+import { createComment, deletePost, getComments, getPostDetail, updateComment } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -77,6 +77,9 @@ function PostDetailPage() {
   const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [isLoadingMoreComments, setIsLoadingMoreComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
+  const [isUpdatingComment, setIsUpdatingComment] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
@@ -270,6 +273,49 @@ function PostDetailPage() {
     }
   };
 
+  const handleCommentEditStart = (comment) => {
+    setCommentErrorMessage('');
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.content);
+  };
+
+  const handleCommentEditCancel = () => {
+    if (isUpdatingComment) return;
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  };
+
+  const handleCommentEditSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedComment = editingCommentText.trim();
+    if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
+
+    setIsUpdatingComment(true);
+    setCommentErrorMessage('');
+
+    try {
+      // TODO AI작성: 로그인 연동 후 백엔드에서 로그인 회원과 댓글 작성자의 수정 권한을 검증해야 합니다.
+      const response = await updateComment(id, editingCommentId, { content: trimmedComment });
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || '댓글 수정에 실패했습니다.');
+      }
+
+      setComments((currentComments) =>
+        currentComments.map((comment) =>
+          comment.id === editingCommentId ? { ...comment, content: response.data.content } : comment
+        )
+      );
+      setEditingCommentId(null);
+      setEditingCommentText('');
+    } catch (error) {
+      setCommentErrorMessage(
+        error.response?.data?.error?.message || error.message || '댓글 수정에 실패했습니다.'
+      );
+    } finally {
+      setIsUpdatingComment(false);
+    }
+  };
+
   if (isLoading || !post) {
     return (
       <Page>
@@ -299,9 +345,16 @@ function PostDetailPage() {
           hasMoreComments={commentPage < commentTotalPages}
           isLoadingMoreComments={isLoadingMoreComments}
           isSubmittingComment={isSubmittingComment}
+          editingCommentId={editingCommentId}
+          editingCommentText={editingCommentText}
+          isUpdatingComment={isUpdatingComment}
           commentText={commentText}
           onCommentChange={setCommentText}
           onCommentSubmit={handleCommentSubmit}
+          onCommentEditStart={handleCommentEditStart}
+          onCommentEditChange={setEditingCommentText}
+          onCommentEditSubmit={handleCommentEditSubmit}
+          onCommentEditCancel={handleCommentEditCancel}
           onLoadMoreComments={handleLoadMoreComments}
           onEdit={handleEdit}
           onDelete={handleDelete}
