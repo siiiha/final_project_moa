@@ -51,11 +51,22 @@
         SELECT p.post_id, p.writer_id, p.category_id, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,
         DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
-        m.nickname AS writer_nickname
+        m.nickname AS writer_nickname,
+        pc.category_name AS category_name
         FROM post p
         LEFT JOIN members m ON p.writer_id = m.member_id
+        <!-- AI작성: 화면 표시용 카테고리 이름을 별도 카테고리 테이블에서 조회한다. -->
+        JOIN post_category pc ON p.category_id = pc.category_id
         <include refid="searchWhere"/>
-        ORDER BY p.post_id DESC
+        <!-- AI작성: 요청값을 직접 SQL에 삽입하지 않고 허용된 과거순만 분기한다. -->
+        <choose>
+            <when test="order == 'asc'">
+                ORDER BY p.post_id ASC
+            </when>
+            <otherwise>
+                ORDER BY p.post_id DESC
+            </otherwise>
+        </choose>
         LIMIT #{offset}, #{limit}
     </select>
 
@@ -63,10 +74,13 @@
         SELECT p.post_id, p.category_id, p.writer_id, m.nickname AS writer_nickname, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,
         DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
-        DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str
+        DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str,
+        pc.category_name AS category_name
         FROM post p
         JOIN members m
         ON p.writer_id = m.member_id
+        <!-- AI작성: 상세 화면에서도 카테고리 이름을 함께 반환한다. -->
+        JOIN post_category pc ON p.category_id = pc.category_id
         WHERE p.post_id = #{postId}
         AND p.deleted_at IS NULL
     </select>

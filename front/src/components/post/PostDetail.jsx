@@ -71,6 +71,12 @@ const CommentList = styled.div`
   margin-top: 10px;
 `;
 
+const LoadMoreActions = styled.div`
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+`;
+
 const Comment = styled.article`
   padding: 12px 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
@@ -152,7 +158,44 @@ const CommentInput = styled.input`
   }
 `;
 
-function PostDetail({ post, comments, commentText, onCommentChange, onCommentSubmit, onEdit, onDelete, onBack }) {
+const CommentEditForm = styled.form`
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr 1fr;
+
+    ${CommentInput} {
+      grid-column: 1 / -1;
+    }
+  }
+`;
+
+function PostDetail({
+  post,
+  comments,
+  commentTotal,
+  hasMoreComments,
+  isLoadingMoreComments,
+  isSubmittingComment,
+  editingCommentId,
+  editingCommentText,
+  isUpdatingComment,
+  commentText,
+  onCommentChange,
+  onCommentSubmit,
+  onCommentEditStart,
+  onCommentEditChange,
+  onCommentEditSubmit,
+  onCommentEditCancel,
+  onCommentDelete,
+  onLoadMoreComments,
+  onEdit,
+  onDelete,
+  onBack,
+}) {
   return (
     <>
       <ArticleCard>
@@ -177,21 +220,54 @@ function PostDetail({ post, comments, commentText, onCommentChange, onCommentSub
       </ListActions>
       <Comments>
         <CommentsTitle>
-          댓글 {comments.length + comments.reduce((count, comment) => count + comment.replies.length, 0)}개
+          댓글 {commentTotal}개
         </CommentsTitle>
         <CommentList>
           {comments.map((comment) => (
             <Comment key={comment.id}>
               <CommentHeader>
                 <Author>{comment.author}</Author>
-                <TextAction type="button">답글</TextAction>
+                <ReplyActions>
+                  {/* TODO AI작성: comment에 부모 댓글 구조와 답글 API가 추가되면 답글 작성 기능을 연결해야 합니다. */}
+                  <TextAction type="button">답글</TextAction>
+                  <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
+                    수정
+                  </TextAction>
+                  <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>
+                    삭제
+                  </TextAction>
+                </ReplyActions>
               </CommentHeader>
-              <CommentText>{comment.content}</CommentText>
+              {editingCommentId === comment.id ? (
+                <CommentEditForm onSubmit={onCommentEditSubmit}>
+                  {/* AI작성: 기존 내용을 보며 바로 수정할 수 있도록 댓글 아래에 입력창을 표시합니다. */}
+                  <CommentInput
+                    value={editingCommentText}
+                    onChange={(event) => onCommentEditChange(event.target.value)}
+                    required
+                  />
+                  <Button type="submit" $size="small" disabled={isUpdatingComment}>
+                    {isUpdatingComment ? '저장 중...' : '저장'}
+                  </Button>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="small"
+                    disabled={isUpdatingComment}
+                    onClick={onCommentEditCancel}
+                  >
+                    취소
+                  </Button>
+                </CommentEditForm>
+              ) : (
+                <CommentText>{comment.content}</CommentText>
+              )}
               {comment.replies.map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>
                     <Author>↳ {reply.author}</Author>
                     <ReplyActions>
+                      {/* TODO AI작성: 답글 API 구조가 확정되면 답글의 작성·수정·삭제 권한을 연결해야 합니다. */}
                       <TextAction type="button">답글</TextAction>
                       <TextAction type="button">수정</TextAction>
                       <TextAction type="button" $danger>
@@ -205,14 +281,28 @@ function PostDetail({ post, comments, commentText, onCommentChange, onCommentSub
             </Comment>
           ))}
         </CommentList>
+        {hasMoreComments && (
+          <LoadMoreActions>
+            {/* AI작성: 숫자 페이징보다 읽던 흐름을 유지하고 모바일에서 누르기 쉬운 더보기 방식을 사용합니다. */}
+            <Button
+              type="button"
+              $variant="secondary"
+              $size="small"
+              disabled={isLoadingMoreComments}
+              onClick={onLoadMoreComments}
+            >
+              {isLoadingMoreComments ? '댓글 불러오는 중...' : '댓글 더보기'}
+            </Button>
+          </LoadMoreActions>
+        )}
         <CommentForm onSubmit={onCommentSubmit}>
           <CommentInput
             value={commentText}
             onChange={(event) => onCommentChange(event.target.value)}
             placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
           />
-          <Button type="submit" $size="small">
-            등록
+          <Button type="submit" $size="small" disabled={isSubmittingComment}>
+            {isSubmittingComment ? '등록 중...' : '등록'}
           </Button>
         </CommentForm>
       </Comments>
