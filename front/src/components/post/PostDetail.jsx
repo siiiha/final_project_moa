@@ -228,6 +228,7 @@ function PostDetail({
               <CommentHeader>
                 <Author>{comment.author}</Author>
                 <ReplyActions>
+                  {/* TODO AI작성: comment에 부모 댓글 구조와 답글 API가 추가되면 답글 작성 기능을 연결해야 합니다. */}
                   <TextAction type="button">답글</TextAction>
                   <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
                     수정
@@ -266,6 +267,7 @@ function PostDetail({
                   <CommentHeader>
                     <Author>↳ {reply.author}</Author>
                     <ReplyActions>
+                      {/* TODO AI작성: 답글 API 구조가 확정되면 답글의 작성·수정·삭제 권한을 연결해야 합니다. */}
                       <TextAction type="button">답글</TextAction>
                       <TextAction type="button">수정</TextAction>
                       <TextAction type="button" $danger>
