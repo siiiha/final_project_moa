@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS `members` (
 	`identity_verified_at`	DATETIME	NULL,
 	`region_verified_at`	DATETIME	NULL,
 	`account_status`	ENUM('ACTIVE', 'SUSPENDED',  'INACTIVE')	NOT NULL	DEFAULT 'ACTIVE',
+    `suspended_until` DATETIME NULL DEFAULT NULL,
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
 	`deleted_at`	DATETIME	NULL,
 	PRIMARY KEY (`member_id`)
@@ -191,6 +192,7 @@ CREATE TABLE IF NOT EXISTS `member_report` (
 	`target_type`	ENUM('USER', 'BOARD','COMMENT')	NOT NULL,
 	`target_id`	BIGINT	NOT NULL,
 	`reason`	VARCHAR(255)	NOT NULL,
+    `process_reason` VARCHAR(500) NULL DEFAULT NULL,
 	`status`	ENUM('PENDING','PROCESSED','REJECTED')	NOT NULL	DEFAULT 'PENDING',
 	PRIMARY KEY (`report_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
