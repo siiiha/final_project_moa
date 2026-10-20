@@ -1,8 +1,18 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { createPost } from '../api/postApi';
 import PostCreateForm from '../components/post/PostCreateForm';
 import { postCategories, postItems } from '../mocks/posts';
+
+const CATEGORY_ID_BY_NAME = {
+  '행사·축제': 1,
+  '일자리': 2,
+  '거래·나눔': 3,
+};
+
+// AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
+const TEMP_WRITER_ID = 44;
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -36,6 +46,12 @@ const Content = styled.main`
   margin-top: 14px;
 `;
 
+const ErrorMessage = styled.p`
+  margin-bottom: 12px;
+  color: ${({ theme }) => theme.colors.danger || '#c62828'};
+  font-size: 13px;
+`;
+
 function PostCreatePage() {
   const navigate = useNavigate();
   const { id: postId } = useParams();
@@ -45,34 +61,53 @@ function PostCreatePage() {
   const [title, setTitle] = useState(editingPost?.title || '');
   const [content, setContent] = useState(editingPost?.content || '');
   const [imageName, setImageName] = useState(editingPost?.imageName || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleImageChange = (event) => {
     // TODO: Spring Boot 이미지 업로드 API와 연결해 업로드한 이미지 URL을 게시글 등록 요청에 포함합니다.
     setImageName(event.target.files?.[0]?.name || '');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // TODO: Spring Boot 게시글 등록·수정 API 요청 후 게시글 상세 페이지로 이동합니다.
-    const today = new Date();
-    const createdDate = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
-    const targetPostId = isEditMode ? postId : 'new';
+    if (isSubmitting) return;
 
-    navigate(`/post/${targetPostId}`, {
-      state: {
-        post: {
-          id: targetPostId,
-          category,
-          title,
-          content,
-          author: editingPost?.author || '모아이웃',
-          date: editingPost?.date || createdDate,
-          views: editingPost?.views || 0,
-          imageName,
-        },
-        comments: [],
-      },
-    });
+    if (isEditMode) {
+      setErrorMessage('게시글 수정 API는 다음 단계에서 연결합니다.');
+      return;
+    }
+
+    const categoryId = CATEGORY_ID_BY_NAME[category];
+    if (!categoryId) {
+      setErrorMessage('올바른 카테고리를 선택해주세요.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      // AI작성: 인증 연동 후 TEMP_WRITER_ID를 로그인 회원 ID로 교체해야 합니다.
+      const response = await createPost({
+        writerId: TEMP_WRITER_ID,
+        categoryId,
+        title: title.trim(),
+        content: content.trim(),
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || '게시글 등록에 실패했습니다.');
+      }
+
+      navigate(`/post/${response.data}`);
+    } catch (error) {
+      setErrorMessage(
+        error.response?.data?.error?.message || error.message || '게시글 등록에 실패했습니다.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -91,6 +126,7 @@ function PostCreatePage() {
         </p>
       </Heading>
       <Content>
+        {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
         <PostCreateForm
           categories={postCategories.filter((item) => item !== '전체')}
           category={category}
@@ -103,7 +139,7 @@ function PostCreatePage() {
           onImageChange={handleImageChange}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
-          submitLabel={isEditMode ? '수정' : '게시글 등록'}
+          submitLabel={isSubmitting ? '등록 중...' : isEditMode ? '수정' : '게시글 등록'}
         />
       </Content>
     </Page>

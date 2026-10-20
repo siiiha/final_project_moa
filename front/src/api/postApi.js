@@ -11,3 +11,9 @@ export async function getPostDetail(postId) {
   const response = await client.get(`/community/detail/${postId}`);
   return response.data;
 }
+
+// AI작성: 게시글 작성 데이터를 Spring Boot API에 전달합니다.
+export async function createPost(postData) {
+  const response = await client.post('/community/write', postData);
+  return response.data;
+}
