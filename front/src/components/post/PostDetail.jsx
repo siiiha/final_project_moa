@@ -71,6 +71,12 @@ const CommentList = styled.div`
   margin-top: 10px;
 `;
 
+const LoadMoreActions = styled.div`
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+`;
+
 const Comment = styled.article`
   padding: 12px 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
@@ -152,7 +158,20 @@ const CommentInput = styled.input`
   }
 `;
 
-function PostDetail({ post, comments, commentText, onCommentChange, onCommentSubmit, onEdit, onDelete, onBack }) {
+function PostDetail({
+  post,
+  comments,
+  commentTotal,
+  hasMoreComments,
+  isLoadingMoreComments,
+  commentText,
+  onCommentChange,
+  onCommentSubmit,
+  onLoadMoreComments,
+  onEdit,
+  onDelete,
+  onBack,
+}) {
   return (
     <>
       <ArticleCard>
@@ -177,7 +196,7 @@ function PostDetail({ post, comments, commentText, onCommentChange, onCommentSub
       </ListActions>
       <Comments>
         <CommentsTitle>
-          댓글 {comments.length + comments.reduce((count, comment) => count + comment.replies.length, 0)}개
+          댓글 {commentTotal}개
         </CommentsTitle>
         <CommentList>
           {comments.map((comment) => (
@@ -205,6 +224,20 @@ function PostDetail({ post, comments, commentText, onCommentChange, onCommentSub
             </Comment>
           ))}
         </CommentList>
+        {hasMoreComments && (
+          <LoadMoreActions>
+            {/* AI작성: 숫자 페이징보다 읽던 흐름을 유지하고 모바일에서 누르기 쉬운 더보기 방식을 사용합니다. */}
+            <Button
+              type="button"
+              $variant="secondary"
+              $size="small"
+              disabled={isLoadingMoreComments}
+              onClick={onLoadMoreComments}
+            >
+              {isLoadingMoreComments ? '댓글 불러오는 중...' : '댓글 더보기'}
+            </Button>
+          </LoadMoreActions>
+        )}
         <CommentForm onSubmit={onCommentSubmit}>
           <CommentInput
             value={commentText}

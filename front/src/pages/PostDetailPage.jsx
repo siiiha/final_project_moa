@@ -6,6 +6,16 @@ import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 
+const COMMENTS_PER_PAGE = 20;
+
+// AI작성: 백엔드 댓글 응답을 화면 컴포넌트의 표시 형식으로 변환합니다.
+const mapComment = (comment) => ({
+  id: comment.commentId,
+  author: comment.writerNickname || '알 수 없음',
+  content: comment.content,
+  replies: [],
+});
+
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
   margin: 0 auto;
@@ -57,8 +67,12 @@ function PostDetailPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
+  const [commentPage, setCommentPage] = useState(1);
+  const [commentTotal, setCommentTotal] = useState(0);
+  const [commentTotalPages, setCommentTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
+  const [isLoadingMoreComments, setIsLoadingMoreComments] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
@@ -116,22 +130,17 @@ function PostDetailPage() {
       setCommentErrorMessage('');
 
       try {
-        // AI작성: 백엔드 댓글 응답을 기존 PostDetail 컴포넌트의 표시 형식으로 변환합니다.
-        const response = await getComments(id, { page: 1, size: 20 });
+        const response = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
         if (!response.success) {
           throw new Error(response.error?.message || '댓글을 불러오지 못했습니다.');
         }
 
         if (!isActive) return;
 
-        setComments(
-          (response.data || []).map((comment) => ({
-            id: comment.commentId,
-            author: comment.writerNickname || '알 수 없음',
-            content: comment.content,
-            replies: [],
-          }))
-        );
+        setComments((response.data || []).map(mapComment));
+        setCommentPage(response.meta?.page || 1);
+        setCommentTotal(response.meta?.total || 0);
+        setCommentTotalPages(response.meta?.totalPages || 0);
       } catch (error) {
         if (!isActive) return;
         setComments([]);
@@ -149,6 +158,36 @@ function PostDetailPage() {
       isActive = false;
     };
   }, [id]);
+
+  const handleLoadMoreComments = async () => {
+    if (isLoadingMoreComments || commentPage >= commentTotalPages) return;
+
+    setIsLoadingMoreComments(true);
+    setCommentErrorMessage('');
+
+    try {
+      const nextPage = commentPage + 1;
+      const response = await getComments(id, { page: nextPage, size: COMMENTS_PER_PAGE });
+      if (!response.success) {
+        throw new Error(response.error?.message || '댓글을 더 불러오지 못했습니다.');
+      }
+
+      // AI작성: 댓글 더보기는 읽던 흐름을 유지하고 모바일에서도 쉽게 사용하도록 기존 목록 뒤에 추가합니다.
+      setComments((currentComments) => [
+        ...currentComments,
+        ...(response.data || []).map(mapComment),
+      ]);
+      setCommentPage(response.meta?.page || nextPage);
+      setCommentTotal(response.meta?.total || commentTotal);
+      setCommentTotalPages(response.meta?.totalPages || commentTotalPages);
+    } catch (error) {
+      setCommentErrorMessage(
+        error.response?.data?.error?.message || error.message || '댓글을 더 불러오지 못했습니다.'
+      );
+    } finally {
+      setIsLoadingMoreComments(false);
+    }
+  };
 
   const handleEdit = () => {
     navigate(`/post/${id}/edit`);
@@ -213,9 +252,13 @@ function PostDetailPage() {
         <PostDetail
           post={post}
           comments={isLoadingComments ? [] : comments}
+          commentTotal={commentTotal}
+          hasMoreComments={commentPage < commentTotalPages}
+          isLoadingMoreComments={isLoadingMoreComments}
           commentText={commentText}
           onCommentChange={setCommentText}
           onCommentSubmit={handleCommentSubmit}
+          onLoadMoreComments={handleLoadMoreComments}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onBack={() => navigate('/post/list')}
