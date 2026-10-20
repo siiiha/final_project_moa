@@ -36,6 +36,11 @@ const GlobalStyle = createGlobalStyle`
     cursor: pointer;    /* 버튼에 마우스를 올렸을 때 클릭 가능한 손가락 모양 커서로 변경 */
   }
 
+  button:focus-visible, a:focus-visible {
+    outline: 3px solid rgba(23, 107, 91, 0.38);
+    outline-offset: 3px;
+  }
+
   /* 5. 목록(ul, ol) 태그 스타일 초기화 */
   ul, ol {
     list-style: none;   /* 리스트 왼쪽에 자동으로 붙는 점(•)이나 숫자 기호 제거 */
