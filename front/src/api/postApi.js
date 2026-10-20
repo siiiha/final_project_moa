@@ -29,3 +29,9 @@ export async function deletePost(postId) {
   const response = await client.delete(`/community/${postId}`);
   return response.data;
 }
+
+// AI작성: 게시글 ID와 페이징 조건으로 댓글 목록을 조회합니다.
+export async function getComments(postId, params) {
+  const response = await client.get(`/post/${postId}/comments`, { params });
+  return response.data;
+}

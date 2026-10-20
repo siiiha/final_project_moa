@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { deletePost, getPostDetail } from '../api/postApi';
+import { deletePost, getComments, getPostDetail } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
-import { postComments } from '../mocks/posts';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -57,11 +56,13 @@ function PostDetailPage() {
   const [commentText, setCommentText] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [post, setPost] = useState(null);
+  const [comments, setComments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [commentErrorMessage, setCommentErrorMessage] = useState('');
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
-  const comments = postComments;
 
   useEffect(() => {
     let isActive = true;
@@ -101,6 +102,48 @@ function PostDetailPage() {
     }
 
     loadPostDetail();
+
+    return () => {
+      isActive = false;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadComments() {
+      setIsLoadingComments(true);
+      setCommentErrorMessage('');
+
+      try {
+        // AI작성: 백엔드 댓글 응답을 기존 PostDetail 컴포넌트의 표시 형식으로 변환합니다.
+        const response = await getComments(id, { page: 1, size: 20 });
+        if (!response.success) {
+          throw new Error(response.error?.message || '댓글을 불러오지 못했습니다.');
+        }
+
+        if (!isActive) return;
+
+        setComments(
+          (response.data || []).map((comment) => ({
+            id: comment.commentId,
+            author: comment.writerNickname || '알 수 없음',
+            content: comment.content,
+            replies: [],
+          }))
+        );
+      } catch (error) {
+        if (!isActive) return;
+        setComments([]);
+        setCommentErrorMessage(
+          error.response?.data?.error?.message || error.message || '댓글을 불러오지 못했습니다.'
+        );
+      } finally {
+        if (isActive) setIsLoadingComments(false);
+      }
+    }
+
+    loadComments();
 
     return () => {
       isActive = false;
@@ -166,9 +209,10 @@ function PostDetailPage() {
       <Title>{post.title}</Title>
       <Content>
         {deleteErrorMessage && <ActionError role="alert">{deleteErrorMessage}</ActionError>}
+        {commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}
         <PostDetail
           post={post}
-          comments={comments}
+          comments={isLoadingComments ? [] : comments}
           commentText={commentText}
           onCommentChange={setCommentText}
           onCommentSubmit={handleCommentSubmit}
