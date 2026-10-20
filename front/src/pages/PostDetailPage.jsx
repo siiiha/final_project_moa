@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { getPostDetail } from '../api/postApi';
+import { deletePost, getPostDetail } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -31,6 +31,12 @@ const Content = styled.main`
   margin-top: 14px;
 `;
 
+const ActionError = styled.p`
+  margin: 0 0 12px;
+  color: ${({ theme }) => theme.colors.danger || '#c62828'};
+  font-size: 13px;
+`;
+
 const EmptyCard = styled.section`
   padding: 42px 20px;
   text-align: center;
@@ -52,7 +58,9 @@ function PostDetailPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [post, setPost] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
   const comments = postComments;
 
   useEffect(() => {
@@ -104,12 +112,32 @@ function PostDetailPage() {
   };
 
   const handleDelete = () => {
+    setDeleteErrorMessage('');
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteConfirm = () => {
-    // TODO: Spring Boot 게시글 삭제 API 요청이 성공하면 게시글 목록 화면으로 이동합니다.
-    navigate('/post/list');
+  const handleDeleteConfirm = async () => {
+    if (isDeleting) return;
+
+    setIsDeleting(true);
+    setDeleteErrorMessage('');
+
+    try {
+      // TODO AI작성: 로그인 연동 후 백엔드의 임시 회원 ID(44L)를 인증된 회원 ID로 교체해야 합니다.
+      const response = await deletePost(id);
+      if (!response.success) {
+        throw new Error(response.error?.message || '게시글 삭제에 실패했습니다.');
+      }
+
+      navigate('/post/list');
+    } catch (error) {
+      setIsDeleteModalOpen(false);
+      setDeleteErrorMessage(
+        error.response?.data?.error?.message || error.message || '게시글 삭제에 실패했습니다.'
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleCommentSubmit = (event) => {
@@ -137,6 +165,7 @@ function PostDetailPage() {
       <Breadcrumb>게시판 &gt; 게시글 상세</Breadcrumb>
       <Title>{post.title}</Title>
       <Content>
+        {deleteErrorMessage && <ActionError role="alert">{deleteErrorMessage}</ActionError>}
         <PostDetail
           post={post}
           comments={comments}
@@ -152,12 +181,14 @@ function PostDetailPage() {
         <ConfirmModal
           title="게시글 삭제"
           description="게시글을 삭제하시겠습니까? 삭제 후에는 목록에서 확인할 수 없습니다."
-          confirmLabel="게시글 삭제"
+          confirmLabel={isDeleting ? '삭제 중...' : '게시글 삭제'}
           confirmVariant="danger"
           size="wide"
           cancelFirst
           onConfirm={handleDeleteConfirm}
-          onCancel={() => setIsDeleteModalOpen(false)}
+          onCancel={() => {
+            if (!isDeleting) setIsDeleteModalOpen(false);
+          }}
         />
       )}
     </Page>

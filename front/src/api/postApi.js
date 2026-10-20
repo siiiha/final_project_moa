@@ -23,3 +23,9 @@ export async function updatePost(postId, postData) {
   const response = await client.put(`/community/edit/${postId}`, postData);
   return response.data;
 }
+
+// AI작성: 게시글 ID를 Spring Boot 삭제 API에 전달합니다.
+export async function deletePost(postId) {
+  const response = await client.delete(`/community/${postId}`);
+  return response.data;
+}
