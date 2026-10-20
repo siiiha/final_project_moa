@@ -120,6 +120,14 @@ public class AdminReportServiceImpl implements AdminReportService {
         }
     }
 
+    @Override
+    @Transactional
+    // AI작성: 스케줄러가 호출하면 만료된 기간제 제한을 일괄 해제하고 처리 건수를 반환한다.
+    // 서비스 단위의 DB변경이라 @Transactional을 붙였는데 UPDATE는 한 번만 일어나서... 삭제해도 무방합니다.
+    public int releaseExpiredMemberRestrictions() {
+        return adminReportMapper.releaseExpiredMemberRestrictions();
+    }
+
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
     private void validateProcessRequest(AdminReportProcessRequest request) {
         boolean processed = "PROCESSED".equals(request.getStatus());

@@ -224,4 +224,14 @@
           AND account_status != 'INACTIVE'
     </update>
 
+    <!-- AI작성: 종료 시각이 있는 기간제 제한만 해제하며, NULL인 영구 제한은 유지한다. -->
+    <update id="releaseExpiredMemberRestrictions">
+        UPDATE members
+        SET account_status = 'ACTIVE',
+            suspended_until = NULL
+        WHERE account_status = 'SUSPENDED'
+          AND suspended_until IS NOT NULL
+          AND suspended_until &lt;= CURRENT_TIMESTAMP
+    </update>
+
 </mapper>

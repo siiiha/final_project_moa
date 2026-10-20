@@ -56,4 +56,7 @@ public interface AdminReportMapper {
             @Param("memberId") Long memberId,
             @Param("suspendedUntil") LocalDateTime suspendedUntil
     );
+
+    // AI작성: 종료 시각이 지난 기간제 제한 회원을 ACTIVE 상태로 일괄 변경한다.
+    int releaseExpiredMemberRestrictions();
 }

@@ -19,4 +19,7 @@ public interface AdminReportService {
 
     // AI작성: 신고를 처리하고 필요한 경우 신고 대상 회원에게 이용 제한을 적용한다.
     void processReport(Long reportId, AdminReportProcessRequest request);
+
+    // AI작성: 제한 종료 시각이 지난 회원을 찾아 정상 상태로 자동 복귀시킨다.
+    int releaseExpiredMemberRestrictions();
 }
