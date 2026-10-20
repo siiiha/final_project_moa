@@ -164,6 +164,7 @@ function PostDetail({
   commentTotal,
   hasMoreComments,
   isLoadingMoreComments,
+  isSubmittingComment,
   commentText,
   onCommentChange,
   onCommentSubmit,
@@ -244,8 +245,8 @@ function PostDetail({
             onChange={(event) => onCommentChange(event.target.value)}
             placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
           />
-          <Button type="submit" $size="small">
-            등록
+          <Button type="submit" $size="small" disabled={isSubmittingComment}>
+            {isSubmittingComment ? '등록 중...' : '등록'}
           </Button>
         </CommentForm>
       </Comments>

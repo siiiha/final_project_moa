@@ -35,3 +35,9 @@ export async function getComments(postId, params) {
   const response = await client.get(`/post/${postId}/comments`, { params });
   return response.data;
 }
+
+// AI작성: 게시글 ID와 댓글 데이터를 Spring Boot API에 전달합니다.
+export async function createComment(postId, commentData) {
+  const response = await client.post(`/post/${postId}/comments`, commentData);
+  return response.data;
+}

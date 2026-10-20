@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { deletePost, getComments, getPostDetail } from '../api/postApi';
+import { createComment, deletePost, getComments, getPostDetail } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 
 const COMMENTS_PER_PAGE = 20;
+
+// AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
+const TEMP_MEMBER_ID = 44;
 
 // AI작성: 백엔드 댓글 응답을 화면 컴포넌트의 표시 형식으로 변환합니다.
 const mapComment = (comment) => ({
@@ -73,6 +76,7 @@ function PostDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [isLoadingMoreComments, setIsLoadingMoreComments] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
@@ -173,10 +177,14 @@ function PostDetailPage() {
       }
 
       // AI작성: 댓글 더보기는 읽던 흐름을 유지하고 모바일에서도 쉽게 사용하도록 기존 목록 뒤에 추가합니다.
-      setComments((currentComments) => [
-        ...currentComments,
-        ...(response.data || []).map(mapComment),
-      ]);
+      setComments((currentComments) => {
+        const currentCommentIds = new Set(currentComments.map((comment) => comment.id));
+        const newComments = (response.data || [])
+          .map(mapComment)
+          .filter((comment) => !currentCommentIds.has(comment.id));
+
+        return [...currentComments, ...newComments];
+      });
       setCommentPage(response.meta?.page || nextPage);
       setCommentTotal(response.meta?.total || commentTotal);
       setCommentTotalPages(response.meta?.totalPages || commentTotalPages);
@@ -222,9 +230,44 @@ function PostDetailPage() {
     }
   };
 
-  const handleCommentSubmit = (event) => {
+  const handleCommentSubmit = async (event) => {
     event.preventDefault();
-    // TODO: Spring Boot 댓글 등록 API 요청 후 댓글 목록을 갱신합니다.
+    const trimmedComment = commentText.trim();
+    if (!trimmedComment || isSubmittingComment) return;
+
+    setIsSubmittingComment(true);
+    setCommentErrorMessage('');
+
+    try {
+      // TODO AI작성: 로그인 연동 후 TEMP_MEMBER_ID를 인증된 회원 ID로 교체해야 합니다.
+      const response = await createComment(id, {
+        memberId: TEMP_MEMBER_ID,
+        content: trimmedComment,
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || '댓글 등록에 실패했습니다.');
+      }
+
+      setComments((currentComments) => [
+        ...currentComments,
+        {
+          id: response.data.commentId,
+          author: '나',
+          content: response.data.content,
+          replies: [],
+        },
+      ]);
+      setCommentText('');
+      setCommentTotal((currentTotal) => currentTotal + 1);
+      setCommentTotalPages(Math.ceil((commentTotal + 1) / COMMENTS_PER_PAGE));
+    } catch (error) {
+      setCommentErrorMessage(
+        error.response?.data?.error?.message || error.message || '댓글 등록에 실패했습니다.'
+      );
+    } finally {
+      setIsSubmittingComment(false);
+    }
   };
 
   if (isLoading || !post) {
@@ -255,6 +298,7 @@ function PostDetailPage() {
           commentTotal={commentTotal}
           hasMoreComments={commentPage < commentTotalPages}
           isLoadingMoreComments={isLoadingMoreComments}
+          isSubmittingComment={isSubmittingComment}
           commentText={commentText}
           onCommentChange={setCommentText}
           onCommentSubmit={handleCommentSubmit}
