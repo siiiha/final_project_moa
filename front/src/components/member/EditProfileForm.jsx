@@ -1,11 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FiCamera, FiUser } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
-import { interestOptions } from '../../mocks/join';
+import {
+  getMyProfile,
+  updateMyProfile,
+  memberInterestOptions,
+} from '../../api/member';
+import useAuthStore from '../../store/authStore';
 
 const Card = styled.section`
   padding: 22px;
@@ -139,29 +144,137 @@ const ActionButton = styled(Button)`
 
 function EditProfileForm() {
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
+  const clearToken = useAuthStore((state) => state.clearToken);
+
+  const [profile, setProfile] = useState(null);
+  const [nickname, setNickname] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [selectedInterests, setSelectedInterests] = useState([]);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
-  const [selectedInterests, setSelectedInterests] = useState(['산책', '독서']);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const toggleInterest = (interest) => {
-    setSelectedInterests((current) => {
-      if (current.includes(interest)) return current.filter((item) => item !== interest);
-      if (current.length === 2) return current;
-      return [...current, interest];
-    });
+  // 수정 화면에 현재 회원정보를 채움.
+  useEffect(() => {
+    if (!token) {
+      navigate('/member/login', { replace: true });
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadProfile() {
+      setIsLoading(true);
+      setErrorMessage('');
+      setProfile(null);
+
+      try {
+        const data = await getMyProfile(token);
+
+        if (!data) {
+          throw new Error('회원정보가 없습니다.');
+        }
+
+        if (!cancelled) {
+          setProfile(data);
+          setNickname(data.nickname ?? '');
+          setSelectedInterests(
+            (data.interests ?? []).map((interest) => interest.interestId),
+          );
+          setCurrentPassword('');
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        if (error.response?.status === 401) {
+          clearToken();
+          navigate('/member/login', { replace: true });
+          return;
+        }
+
+        setErrorMessage(
+          error.response?.data?.error?.message ??
+            '회원정보를 불러오지 못했습니다.',
+        );
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, clearToken, navigate]);
+
+  const toggleInterest = (interestId) => {
+    setSelectedInterests((current) =>
+      current.includes(interestId)
+        ? current.filter((id) => id !== interestId)
+        : [...current, interestId],
+    );
   };
 
-  const handlePendingAction = () => {
-    // TODO: Spring Boot 프로필 이미지·닉네임 중복 확인 API를 연결합니다.
+  // 비밀번호는 저장소에 보관하지 않고 수정 요청에만 사용
+  const handleUpdateRequest = async (event) => {
+    event.preventDefault();
+
+    if (isSaving || !profile) return;
+
+    const trimmedNickname = nickname.trim();
+
+    if (trimmedNickname.length < 2 || trimmedNickname.length > 12) {
+      setErrorMessage('닉네임은 2~12자로 입력해주세요.');
+      return;
+    }
+
+    if (!currentPassword.trim()) {
+      setErrorMessage('현재 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage('');
+
+    try {
+      const updatedProfile = await updateMyProfile(token, {
+        currentPassword,
+        nickname: trimmedNickname,
+        interestIds: selectedInterests,
+      });
+
+      if (!updatedProfile) {
+        throw new Error('수정 결과를 확인할 수 없습니다.');
+      }
+
+      setCurrentPassword('');
+      navigate('/member/mypage');
+    } catch (error) {
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      setErrorMessage(
+        error.response?.data?.error?.message ??
+          '회원정보를 수정하지 못했습니다.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleUpdateRequest = () => {
-    // TODO: 수정 버튼 클릭 시 form submit이 아닌 Spring Boot 회원 정보 수정 API 요청을 보냅니다.
-  };
+  if (isLoading) {
+    return <p role="status">회원정보를 불러오는 중입니다.</p>;
+  }
 
-  const handleCancel = () => {
-    navigate('/member/mypage');
-  };
+  if (!profile) {
+    return <p role="alert">{errorMessage || '회원정보가 없습니다.'}</p>;
+  }
 
   return (
     <Card>
@@ -171,74 +284,109 @@ function EditProfileForm() {
         </Avatar>
         <AvatarLabel>프로필 사진</AvatarLabel>
         <AvatarActions>
-          <AvatarButton type="button" onClick={handlePendingAction}>
+          <AvatarButton type="button" disabled>
             <FiCamera size={12} aria-hidden="true" /> 사진 변경
           </AvatarButton>
-          <AvatarButton type="button" $danger onClick={handlePendingAction}>
+          <AvatarButton type="button" $danger disabled>
             삭제
           </AvatarButton>
         </AvatarActions>
+        <p>사진 기능은 준비 중입니다.</p>
       </AvatarPanel>
-      <FormArea>
-        <TextInput id="edit-name" label="이름" defaultValue="김모아" inline compact />
+
+      <FormArea as="form" onSubmit={handleUpdateRequest}>
+        <TextInput
+          id="edit-name"
+          label="이름"
+          value={profile.name ?? ''}
+          readOnly
+          inline
+          compact
+        />
+
         <TextInput
           id="edit-nickname"
           label="닉네임"
-          defaultValue="모아이웃"
+          value={nickname}
+          onChange={(event) => setNickname(event.target.value)}
+          minLength={2}
+          maxLength={12}
+          required
+          disabled={isSaving}
+          helpText="2~12자 · 중복 여부는 저장 시 확인합니다."
           inline
           compact
-          action={
-            <VerifyButton type="button" $variant="secondary" onClick={handlePendingAction}>
-              중복 확인
-            </VerifyButton>
-          }
         />
-        <TextInput id="edit-phone" label="전화번호" defaultValue="010-1234-5678" type="tel" inline compact />
-        <TextInput id="edit-email" label="이메일" defaultValue="moa@example.com" type="email" disabled inline compact />
+
+        <TextInput
+          id="edit-phone"
+          label="전화번호"
+          type="tel"
+          value={profile.phone ?? ''}
+          readOnly
+          inline
+          compact
+        />
+
+        <TextInput
+          id="edit-email"
+          label="이메일"
+          type="email"
+          value={profile.email ?? ''}
+          readOnly
+          inline
+          compact
+        />
+
         <Divider />
+
         <PasswordInput
-          id="edit-password"
-          label="비밀번호 변경"
-          placeholder="변경할 경우 8자 이상 입력"
-          autoComplete="new-password"
+          id="edit-current-password"
+          label="현재 비밀번호"
+          placeholder="본인 확인을 위해 입력해주세요"
+          autoComplete="current-password"
+          value={currentPassword}
+          onChange={(event) => setCurrentPassword(event.target.value)}
+          required
+          disabled={isSaving}
           inline
           compact
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
         />
-        <PasswordInput
-          id="edit-password-confirm"
-          label="비밀번호 변경 확인"
-          placeholder="새 비밀번호를 다시 입력"
-          autoComplete="new-password"
-          inline
-          compact
-          isVisible={isConfirmPasswordVisible}
-          onToggleVisibility={() => setIsConfirmPasswordVisible((value) => !value)}
-        />
+
         <InterestField>
           <Label>관심사</Label>
           <ChipList aria-label="관심사 선택">
-            {interestOptions.map((interest) => (
+            {memberInterestOptions.map((interest) => (
               <Chip
-                key={interest}
+                key={interest.interestId}
                 type="button"
-                $selected={selectedInterests.includes(interest)}
-                onClick={() => toggleInterest(interest)}
-                aria-pressed={selectedInterests.includes(interest)}
+                disabled={isSaving}
+                $selected={selectedInterests.includes(interest.interestId)}
+                aria-pressed={selectedInterests.includes(interest.interestId)}
+                onClick={() => toggleInterest(interest.interestId)}
               >
-                {selectedInterests.includes(interest) ? '✓ ' : ''}
-                {interest}
+                {selectedInterests.includes(interest.interestId) ? '✓ ' : ''}
+                {interest.interestName}
               </Chip>
             ))}
           </ChipList>
-          <Hint>관심사는 최대 2개까지 선택할 수 있습니다.</Hint>
+          <Hint>모두 해제하면 관심사를 선택하지 않은 상태로 저장됩니다.</Hint>
         </InterestField>
+
+        {errorMessage && <p role="alert">{errorMessage}</p>}
+
         <FormActions>
-          <ActionButton type="button" onClick={handleUpdateRequest}>
-            수정
+          <ActionButton type="submit" disabled={isSaving}>
+            {isSaving ? '저장 중…' : '수정'}
           </ActionButton>
-          <ActionButton type="button" $variant="secondary" onClick={handleCancel}>
+          <ActionButton
+            type="button"
+            $variant="secondary"
+            disabled={isSaving}
+            onClick={() => navigate('/member/mypage')}
+          >
             취소
           </ActionButton>
         </FormActions>
