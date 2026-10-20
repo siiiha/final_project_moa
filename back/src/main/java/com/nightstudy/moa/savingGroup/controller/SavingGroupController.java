@@ -2,6 +2,8 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
+import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
@@ -21,10 +23,11 @@ public class SavingGroupController {
         this.savingGroupService = savingGroupService;
     }
 
-    // AI작성: 인증 정보 없이 공개 목록을 조회하고 기존 성공 응답으로 감싼다.
+    // AI작성: 게시글과 동일하게 data에 목록, meta에 공통 페이징 정보를 반환한다.
     @GetMapping
-    public ApiResponse<SavingGroupListResponse> list(
+    public ApiResponse<List<SavingGroupSummaryResponse>> list(
             @Valid @ModelAttribute SavingGroupSearchCondition condition) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupList(condition));
+        SavingGroupListResponse result = savingGroupService.getSavingGroupList(condition);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
 }

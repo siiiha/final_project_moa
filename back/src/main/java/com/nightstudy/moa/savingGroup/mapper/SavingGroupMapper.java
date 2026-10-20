@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
-    long selectSavingGroupCount(SavingGroupListCondition condition);
+    int selectSavingGroupCount(SavingGroupListCondition condition);
     List<SavingGroupRow> selectSavingGroupList(SavingGroupListCondition condition);
     List<SavingGroupMemberCount> selectApprovedMemberCounts(@Param("groupIds") List<Long> groupIds);
 }

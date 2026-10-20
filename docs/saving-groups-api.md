@@ -23,40 +23,38 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 
 ## 응답
 
-기존 `ApiResponse.ok(data)`를 사용한다. 고정 크기 목록 전용 DTO 안에 페이징을 담으므로
-공통 `meta`는 null이다. 기존 PageMeta와 다른 긴 정수 개수·offset을 지원하면서 공통 인터페이스는 바꾸지 않았다.
+기존 게시글과 동일하게 `ApiResponse.ok(items, pageMeta)`를 사용한다.
+`data`는 카드 배열, `meta`는 기존 `PageMeta`이다. 공통 클래스는 변경하지 않았다.
+페이지·크기·전체 개수·전체 페이지·offset은 모두 int로 계산한다.
 
 ```json
 {
   "success": true,
-  "data": {
-    "items": [{
-      "savingGroupId": 101,
-      "groupName": "산책 모임",
-      "description": "이웃과 함께하는 모임",
-      "regionName": "서울",
-      "maxMembers": 8,
-      "memberCount": 5,
-      "duesAmount": 50000.00,
-      "duesDay": 25,
-      "status": "01"
-    }],
-    "totalElements": 1,
-    "totalPages": 1,
-    "currentPage": 1,
-    "pageSize": 6
-  },
-  "meta": null,
+  "data": [{
+    "savingGroupId": 101,
+    "groupName": "산책 모임",
+    "description": "이웃과 함께하는 모임",
+    "regionName": "서울",
+    "maxMembers": 8,
+    "memberCount": 5,
+    "duesAmount": 50000.00,
+    "duesDay": 25,
+    "status": "01"
+  }],
+  "meta": { "page": 1, "size": 6, "total": 1, "totalPages": 1, "offset": 0 },
   "error": null
 }
 ```
 
+- PageMeta의 기존 getOffset()도 JSON의 offset 필드로 직렬화된다.
 - 카드 필드는 위 예시와 같다. description/maxMembers/duesAmount/duesDay는 null 가능하다.
-- 결과 0건: items=[], totalElements=0, totalPages=0, currentPage=요청 페이지, pageSize=6.
-- 전체 7건에 page=3: items=[], totalElements=7, totalPages=2, currentPage=3, pageSize=6.
+- 결과 0건: data=[], meta={page:1,size:6,total:0,totalPages:0,offset:0}.
+- 전체 7건에 page=3: data=[], meta={page:3,size:6,total:7,totalPages:2,offset:12}.
 - 범위 초과·빈 결과는 HTTP 200이며 요청 페이지를 강제로 보정하지 않는다.
-- 잘못된 요청: HTTP 400, success=false, data/meta=null, error.code=`BAD_REQUEST`.
-- DB 등 예기치 않은 실패: 기존 HTTP 500, error.code=`INTERNAL_ERROR`, 공통 메시지 사용.
+- 잘못된 요청: HTTP 400, success=false, data/meta=null, error.code=BAD_REQUEST.
+- DB 등 예기치 않은 실패: 기존 HTTP 500, error.code=INTERNAL_ERROR, 공통 메시지 사용.
+- 프론트 API 모듈은 data 배열과 meta를 기존 화면의 items/totalElements/totalPages/
+  currentPage/pageSize 상태로 변환한다. 화면의 검색·지역·페이지 표시 규칙은 유지한다.
 - 빈 결과에 ApiException을 만들거나 Service에서 DTO 입력 검증을 반복하지 않는다.
 
 ## 조회 규칙
@@ -67,10 +65,10 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 - LIKE ESCAPE '!'를 사용하며 !, %, _를 순서대로 이스케이프하고 바인딩한다.
 - 스키마의 utf8mb4_unicode_ci 비교를 활용한다. 실제 DB에도 동일한 collation이 필요하다.
 - groups.created_at DESC, saving_group.saving_group_id DESC 정렬.
-- 페이지 크기 6, offset=(page-1L)*6. 목록·개수 조건은 XML 조각을 재사용한다.
+- 페이지 크기 6, PageMeta.of(page, 6, total) 및 getOffset() 재사용. 목록·개수 조건은 XML 조각을 재사용한다.
 - 개수 → 페이지 목록 → 해당 group_id들의 APPROVED 회원 COUNT(DISTINCT member_id), 최대 3 SELECT.
 - 승인 모임장도 회원 행에 있으므로 +1 없음. 집계 없는 모임은 0명으로 유지한다.
-- 결과 없음·범위 초과는 1 SELECT, 페이지 행이 없으면 집계를 생략한다.
+- 결과 없음·범위 초과는 1 SELECT, 페이지 행이 없으면 집계를 생략한다. 범위 초과는 SQL offset 계산 전에 반환한다.
 - ServiceImpl의 readOnly 트랜잭션 사용. 동일 스냅샷은 실제 InnoDB 격리 수준 확인이 필요하다.
 - 데이터·인덱스·CHECK·공통 예외·공통 응답·프로젝트 의존성은 변경하지 않았다.
 
@@ -100,11 +98,11 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 | savingGroup/service/SavingGroupServiceImpl.java | 추가 | 읽기 전용 조회·패턴 가공·계원 조합·페이징 |
 | savingGroup/mapper/SavingGroupMapper.java | 추가 | 최대 세 번의 조회 계약 |
 | savingGroup/dto/SavingGroupSearchCondition.java | 추가 | 정규화 및 요청 Validation |
-| savingGroup/dto/SavingGroupListCondition.java | 추가 | 서버 가공 조건과 long offset 전달 |
+| savingGroup/dto/SavingGroupListCondition.java | 추가 | 서버 가공 조건과 int offset 전달 |
 | savingGroup/dto/SavingGroupRow.java | 추가 | 내부 groupId를 포함한 MyBatis 결과 |
 | savingGroup/dto/SavingGroupMemberCount.java | 추가 | 일괄 집계 결과 매핑 |
 | savingGroup/dto/SavingGroupSummaryResponse.java | 추가 | 내부 groupId 없는 공개 카드 응답 |
-| savingGroup/dto/SavingGroupListResponse.java | 추가 | 목록·전체 개수·페이지 정보 |
+| savingGroup/dto/SavingGroupListResponse.java | 추가 | Controller 전달용 목록·공통 PageMeta |
 | back/src/main/resources/mappers/SavingGroupMapper.xml | 추가 | 실제 스키마 기반 SELECT와 공통 조건 |
 | front/src/api/savingGroups.js | 추가 | 지역 코드·실제 API·카드 변환·번호 묶음 |
 | front/src/pages/SavingGroupsPage.jsx | 수정 | 서버 조회와 로딩·오류·재시도·조건 상태 |
