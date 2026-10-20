@@ -98,4 +98,38 @@
         </foreach>
         GROUP BY group_id
     </select>
+    <!-- AI작성: URL ID는 saving_group_id가 아닌 groups.group_id다. -->
+    <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
+        SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,
+        r.region_name, g.max_members, sg.dues_amount, sg.dues_day, sg.status
+        <include refid="listFrom"/>
+        WHERE g.group_id = #{groupId}
+        AND g.deleted_at IS NULL AND sg.status IN ('01', '02')
+    </select>
+
+    <!-- AI작성: 계주도 APPROVED 행에 포함되며 가입 이력의 나머지 상태는 제외한다. -->
+    <select id="selectDetailMemberCount" resultType="long">
+        SELECT COUNT(DISTINCT member_id) FROM group_member
+        WHERE group_id = #{groupId} AND membership_status = 'APPROVED'
+    </select>
+
+    <resultMap id="noticeSummary" type="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeSummaryResponse">
+        <constructor>
+            <idArg column="notice_id" javaType="java.lang.Long"/>
+            <arg column="title" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <!-- AI작성: 같은 작성 시각에는 ID를 보조 정렬하며 본문은 조회하지 않는다. -->
+    <select id="selectRecentNotices" resultMap="noticeSummary">
+        SELECT notice_id, title FROM group_notice
+        WHERE group_id = #{groupId}
+        ORDER BY created_at DESC, notice_id DESC LIMIT 4
+    </select>
+
+    <select id="selectApprovedMemberRoles" resultType="string">
+        SELECT DISTINCT member_role FROM group_member
+        WHERE group_id = #{groupId} AND member_id = #{memberId}
+        AND membership_status = 'APPROVED'
+    </select>
 </mapper>

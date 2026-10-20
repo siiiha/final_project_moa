@@ -1,5 +1,131 @@
 <!-- AI작성: 2026-10-20 확정 설계에 따른 구현·검증 명세. -->
 # 계모임 목록 조회 API
+# 계모임 조회 API
+
+## 2026-10-20 상세 조회 확장 — 최신 계약
+
+<!-- AI작성: 구현 중 사용자 정정 사항을 반영한다. 아래 기존 목록 구현 기록보다 이 절을 우선한다. -->
+
+### 사용자 확정·정정
+
+- 가입 신청·거절·탈퇴 이력은 별도 테이블이 아닌 group_member.membership_status에서 관리한다.
+- 기존 DB 코드 OWNER(계주), MANAGER(회계), MEMBER(계원)와 APPROVED(승인)를 유지한다.
+  PENDING·REJECTED·LEFT는 인원수와 역할 조회에서 제외한다. schema.sql은 변경하지 않는다.
+- 이번 작업은 공개 조회까지 구현하며 JWT 연결은 후속 작업으로 남긴다.
+
+### 상세 요청과 응답
+
+`GET /saving-groups/{id}` / 프록시 별칭 `GET /api/saving-groups/{id}`
+
+- id는 groups.group_id이며 Controller에서 Long + @Positive로 검증한다.
+- 타입 오류·Long 범위 초과·0·음수는 400 BAD_REQUEST다.
+- groups.deleted_at IS NULL, saving_group.status IN ('01','02')만 허용한다.
+- 없는 모임·삭제·그 외 상태는 모두 404 NOT_FOUND, 메시지는 '조회할 수 있는 계모임이 없습니다.'다.
+- 성공은 ApiResponse.ok(data), meta/error는 null이다. 예기치 않은 실패는 기존 500 INTERNAL_ERROR다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "groupId": 42,
+    "groupName": "테스트 모임",
+    "description": null,
+    "regionName": "서울",
+    "maxMembers": 8,
+    "memberCount": 1,
+    "duesAmount": 100000.00,
+    "duesDay": 10,
+    "status": "01",
+    "notices": [{"noticeId": 7, "title": "모임 안내"}],
+    "myRole": null
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+groupId·noticeId는 Java Long/기존 숫자 직렬화를 사용한다. URL 문자열은 프론트에서
+Number로 변환하지 않는다. 응답 BIGINT가 JavaScript 안전 정수 범위를 넘는 경우를 위한
+문자열 직렬화 계약은 후속 확인이 필요하다. 회비는 BigDecimal이며 nullable 값을 유지한다.
+
+### 조회와 권한
+
+- 기본 정보 → 승인 인원수 → 최근 공지의 3 SELECT를 읽기 전용 트랜잭션으로 수행한다.
+- 계원 수는 APPROVED 회원의 COUNT(DISTINCT member_id). 계주 +1 없음, 공지와 집계 조인 없음.
+- 공지는 created_at DESC, notice_id DESC LIMIT 4. ID·제목만 조회하며 0건은 []다.
+- group_notice에는 삭제 컬럼이 없으므로 임의의 소프트 삭제 조건은 추가하지 않는다.
+- Controller는 memberId나 myRole 입력을 받지 않으며 항상 검증된 사용자 없음(null)으로 호출한다.
+  JWT 검증이 없어 현재 모든 HTTP 응답의 myRole은 null이다. Authorization 값도 역할 판정에 사용하지 않는다.
+- Service의 역할 조회와 프론트 탭 매핑은 후속 인증 연결을 위해 준비했다. 서버에서 검증된
+  memberId를 연결하기 전에는 HTTP로 회원 전용 역할을 얻을 수 없다.
+- 추후 승인 역할 OWNER는 9개, MANAGER/MEMBER는 공통 6개, 그 외는 공지 1개다.
+  충돌하는 승인 역할·정의되지 않은 역할은 임의 선택하지 않고 서버 오류로 처리한다.
+- 실제 업무 탭 API의 권한 검증은 별도다. 탭 숨김으로 서버 권한 검증을 대신하지 않는다.
+- 실제 InnoDB 격리 수준에 따른 조회 일관성은 운영 환경 확인이 필요하다.
+
+### 프론트 연결
+
+- SavingGroupDetailPage는 URL ID로 조회하므로 직접 접근과 새로고침을 지원한다.
+- 목록 응답에 groupId를 추가하고 기존 savingGroupId는 유지한다. 카드 URL은 groupId를 사용한다.
+- 로딩·400·401·403·404·서버/네트워크 오류, 재시도, 빈 공지를 구분한다.
+- 요청 취소와 응답 ID·재시도 회차 비교로 이전 응답이 새 화면을 덮어쓰지 않게 한다.
+- 소개·공지·회비·납부일·정원·인원수·상태는 실제 상세 응답만 사용한다.
+  Mock 모임장·다음 모임·최근 활동 등 응답에 없는 정보는 표시하지 않는다.
+- 회비는 프론트에서 천 단위 구분과 원 단위를 붙인다. 소수 두 자리까지 유지하며 null은 회비 미정이다.
+- 납부일 29~31은 '납부일 확인 필요'로 표시하고 DB 값을 수정하지 않는다.
+- 가입 신청 버튼은 역할과 무관하게 유지한다. 클릭 시 준비 중 안내만 하며 완료를 가장하지 않는다.
+- 이번 범위 밖의 업무 탭은 준비 중 안내이며 기존 Mock 업무 패널을 실제 상세와 섞지 않는다.
+
+### 상세 확장 변경 파일과 이유
+
+Java 운영 코드 루트: `back/src/main/java/com/nightstudy/moa/`.
+테스트 루트: `back/src/test/java/com/nightstudy/moa/savingGroup/`.
+
+| 파일 | 구분 | 변경과 이유 |
+|---|---|---|
+| savingGroup/controller/SavingGroupController.java | 수정 | 공개 상세 경로, Long 양수 검증, 인증 입력 불허 |
+| savingGroup/service/SavingGroupService.java | 수정 | 상세 조회 계약 추가 |
+| savingGroup/service/SavingGroupServiceImpl.java | 수정 | 404, 읽기 전용 조회 조합, 승인 역할 확인, 목록 groupId 전달 |
+| savingGroup/mapper/SavingGroupMapper.java | 수정 | 상세·인원수·공지·승인 역할 조회 계약 |
+| savingGroup/dto/SavingGroupDetailResponse.java | 추가 | 필요한 공개 필드와 역할만 반환 |
+| savingGroup/dto/SavingGroupNoticeSummaryResponse.java | 추가 | 본문 없이 공지 ID·제목 반환 |
+| savingGroup/dto/SavingGroupSummaryResponse.java | 수정 | 목록에서 상세로 이동할 groupId 추가, 기존 ID 유지 |
+| common/exception/GlobalExceptionHandler.java | 수정 | 경로 범위 검증 실패를 400 공통 응답으로 처리 |
+| back/src/main/resources/mappers/SavingGroupMapper.xml | 수정 | 분리 SELECT, 상태·삭제 조건, 집계·정렬, 공지 생성자 매핑 |
+| front/src/api/savingGroups.js | 수정 | 상세 통신·취소 신호, groupId 카드 URL, 금액 포맷·탭 매핑 |
+| front/src/pages/SavingGroupDetailPage.jsx | 수정 | Mock 대신 URL 기반 조회와 상태 처리 |
+| front/src/components/savingGroup/SavingGroupDetail.jsx | 수정 | 실제 공개 필드·공지 제목, 미정 처리, Mock 업무 데이터 분리 |
+| front/src/components/savingGroup/SavingGroupMenuTabs.jsx | 수정 | 역할별 탭 표시 |
+| SavingGroupControllerTest.java | 수정 | 공개 상세·위조 입력 무시·400·404·500 |
+| SavingGroupServiceTest.java | 수정 | ID 구분·계주 포함 집계·역할·빈 공지·404·충돌 역할 |
+| SavingGroupMapperTest.java | 수정 | 실제 XML 파싱과 상세 SQL 필터·바인딩·정렬 |
+| SavingGroupMySqlTest.java | 수정 | 별도 테스트 DB의 임시 테이블에서 상태·공지·이력·역할 검증 |
+| front/src/api/savingGroups.test.js | 수정 | 카드 URL·역할·금액·상세 성공과 실패 |
+| front/src/api/savingGroupDetailView.test.js | 추가 | 실제 JSX 렌더링으로 탭·공지 본문 미노출·가입 버튼 검증 |
+| docs/saving-groups-api.md | 수정 | 상세 API와 변경 파일별 이유·검증 방법 |
+| docs/ai-usage-log.md | 수정 | 사용자 결정·수행 내용·검증 결과 |
+
+기존 Mapper XML의 사용자 공백·들여쓰기 변경은 보존했다. 새 의존성·스키마·인덱스·실제 DB 변경 없음.
+
+### 검증과 직접 확인
+
+- 백엔드: 기존 안내의 JDK 17 옵션과 `gradlew.bat test --tests "*SavingGroup*" --offline`.
+  Controller 23, Service 10, Mapper 4: 합계 37개 통과. MySQL 5개 항목은 환경변수 부재로 건너뜀.
+- 프론트: `node --test src/api/savingGroups.test.js src/api/savingGroupDetailView.test.js` → 8개 통과.
+- `npm run lint`, `npm run build` 통과. 기존 대형 번들 경고는 남음.
+- MySQL 테스트는 MOA_TEST_MYSQL_URL/USER/PASSWORD가 설정된 별도 테스트 DB에서만 실행한다.
+  임시 테이블만 사용하며 실제 데이터는 수정하지 않는다.
+- 브라우저/Postman 실서버 통합은 미실행이다. `/api/saving-groups/{실제 group_id}`를 토큰 없이 조회하고,
+  삭제·상태 00/03/04의 404, `/0`·`/abc`의 400, 공지 0/1/4/5개 이상을 확인해야 한다.
+- 브라우저에서 `/saving-groups/{실제 group_id}` 직접 접근·새로고침·목록 이동·재시도·모바일 레이아웃을 확인한다.
+- JWT 연동·로그인 변경 시 재조회·토큰 오류 정책·업무 API 권한 검증은 후속 작업이다.
+- 실제 DB의 계주 APPROVED 등록, 두 ID가 다른 데이터, 중복 가입·saving_group의 1:1 관계,
+  인덱스·실행 계획·격리 수준, 기존 29~31 납부일·소수 회비를 확인한다.
+- 기존 로컬 YAML 중복 spring 블록 문제는 본 작업에서 읽거나 수정하지 않았다.
+
+---
+
+## 기존 목록 조회 구현 기록
 
 ## 요청
 
@@ -30,18 +156,24 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 ```json
 {
   "success": true,
-  "data": [{
-    "savingGroupId": 101,
-    "groupName": "산책 모임",
-    "description": "이웃과 함께하는 모임",
-    "regionName": "서울",
-    "maxMembers": 8,
-    "memberCount": 5,
-    "duesAmount": 50000.00,
-    "duesDay": 25,
-    "status": "01"
-  }],
-  "meta": { "page": 1, "size": 6, "total": 1, "totalPages": 1, "offset": 0 },
+  "data": {
+    "items": [{
+      "savingGroupId": 101,
+      "groupName": "산책 모임",
+      "description": "이웃과 함께하는 모임",
+      "regionName": "서울",
+      "maxMembers": 8,
+      "memberCount": 5,
+      "duesAmount": 50000.00,
+      "duesDay": 25,
+      "status": "01"
+    }],
+    "totalElements": 1,
+    "totalPages": 1,
+    "currentPage": 1,
+    "pageSize": 6
+  },
+  "meta": null,
   "error": null
 }
 ```

@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { getSavingGroupMenus } from '../../api/savingGroups.js';
 
 const Menu = styled.nav`
   margin-top: 18px;
@@ -60,10 +61,11 @@ const menuItems = [
   { id: 'joinRequests', label: '신청 목록' },
 ];
 
-function SavingGroupMenuTabs({ activeMenu, onMenuChange }) {
+// AI작성: 역할에 맞는 탭만 렌더링한다. 실제 업무 API의 권한 검증은 서버에서 별도로 수행한다.
+function SavingGroupMenuTabs({ activeMenu, onMenuChange, myRole = null }) {
   return (
     <Menu aria-label="계모임 메뉴">
-      {menuItems.map((item) => (
+      {menuItems.filter((item) => getSavingGroupMenus(myRole).includes(item.id)).map((item) => (
         <MenuButton
           key={item.id}
           type="button"

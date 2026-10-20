@@ -7,6 +7,9 @@ import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.web.bind.annotation.PathVariable;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +26,14 @@ public class SavingGroupController {
         this.savingGroupService = savingGroupService;
     }
 
+    // AI작성: JWT 연결 전에는 공개 조회만 제공하며 클라이언트의 사용자 ID·역할은 받지 않는다.
+    @GetMapping("/{id}")
+    public ApiResponse<SavingGroupDetailResponse> detail(
+            @PathVariable("id") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long id) {
+        return ApiResponse.ok(savingGroupService.getSavingGroupDetail(id, null));
+    }
+
+    // AI작성: 인증 정보 없이 공개 목록을 조회하고 기존 성공 응답으로 감싼다.
     // AI작성: 게시글과 동일하게 data에 목록, meta에 공통 페이징 정보를 반환한다.
     @GetMapping
     public ApiResponse<List<SavingGroupSummaryResponse>> list(

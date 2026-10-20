@@ -16,7 +16,7 @@ export function toSavingGroupCard(item) {
     : !Number.isSafeInteger(amount) ? '회비 확인 필요'
       : `월 ${amount.toLocaleString('ko-KR')}원`;
   return {
-    id: item.savingGroupId,
+    id: item.groupId,
     name: item.groupName,
     description: item.description?.trim() || '소개글이 없습니다.',
     region: item.regionName,
@@ -27,6 +27,30 @@ export function toSavingGroupCard(item) {
     monthlyDues: dues,
     nextDate: item.duesDay == null ? '미정' : `매월 ${item.duesDay}일`,
   };
+}
+
+// AI작성: 회원 역할은 서버 응답만 사용하며 승인되지 않은 사용자는 공지만 표시한다.
+export function getSavingGroupMenus(role) {
+  const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
+  if (role === 'OWNER') return [...common, 'members', 'settings', 'joinRequests'];
+  return ['MANAGER', 'MEMBER'].includes(role) ? common : ['notice'];
+}
+
+// AI작성: null을 0원으로 바꾸거나 소수 금액을 반올림하지 않고 표시 직전에 포맷한다.
+export function formatSavingGroupAmount(value) {
+  if (value == null) return '회비 미정';
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) return '회비 확인 필요';
+  return `${amount.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`;
+}
+
+// AI작성: URL ID를 숫자로 변환하지 않으며 기존 API 클라이언트와 취소 신호를 재사용한다.
+export async function getSavingGroupDetail(id, { signal } = {}) {
+  const response = await client.get(`/saving-groups/${encodeURIComponent(id)}`, { signal });
+  if (!response.data.success) {
+    throw new Error(response.data.error?.message || '계모임 정보를 불러오지 못했습니다.');
+  }
+  return response.data.data;
 }
 
 // AI작성: 최대 다섯 개의 번호만 생성하고 빈 결과·범위 초과는 번호를 만들지 않는다.
@@ -53,4 +77,6 @@ export async function getSavingGroups({ keyword, regionCode, page, signal }) {
     currentPage: meta.page,
     pageSize: meta.size,
   };
+  const data = response.data.data;
+  return { ...data, items: data.items.map(toSavingGroupCard) };
 }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -19,6 +20,12 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // AI작성: 경로 변수의 양수 검증 실패도 기존 BAD_REQUEST 응답으로 통일한다.
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodValidation(HandlerMethodValidationException e) {
+        return ResponseEntity.badRequest().body(ApiResponse.fail("BAD_REQUEST", "요청 값이 올바르지 않습니다."));
+    }
 
     // Service 에서 직접 던진 예외 (예: 없는 종목코드 → 404)
     @ExceptionHandler(ApiException.class)
