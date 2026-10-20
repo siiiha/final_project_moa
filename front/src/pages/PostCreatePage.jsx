@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { createPost } from '../api/postApi';
+import { createPost, getPostDetail, updatePost } from '../api/postApi';
 import PostCreateForm from '../components/post/PostCreateForm';
-import { postCategories, postItems } from '../mocks/posts';
+import { postCategories } from '../mocks/posts';
 
 const CATEGORY_ID_BY_NAME = {
   '행사·축제': 1,
@@ -52,17 +52,61 @@ const ErrorMessage = styled.p`
   font-size: 13px;
 `;
 
+const StatusMessage = styled.p`
+  padding: 32px 16px;
+  color: ${({ theme }) => theme.colors.muted};
+  text-align: center;
+`;
+
 function PostCreatePage() {
   const navigate = useNavigate();
   const { id: postId } = useParams();
   const isEditMode = Boolean(postId);
-  const editingPost = postItems.find((item) => item.id === Number(postId));
-  const [category, setCategory] = useState(editingPost?.category || '행사·축제');
-  const [title, setTitle] = useState(editingPost?.title || '');
-  const [content, setContent] = useState(editingPost?.content || '');
-  const [imageName, setImageName] = useState(editingPost?.imageName || '');
+  const [category, setCategory] = useState('행사·축제');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [imageName, setImageName] = useState('');
+  const [isLoadingPost, setIsLoadingPost] = useState(isEditMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (!isEditMode) return undefined;
+
+    let isActive = true;
+
+    async function loadPost() {
+      setIsLoadingPost(true);
+      setErrorMessage('');
+
+      try {
+        // AI작성: 수정 화면에 기존 게시글의 카테고리·제목·내용을 표시합니다.
+        const response = await getPostDetail(postId);
+        if (!response.success || !response.data) {
+          throw new Error(response.error?.message || '게시글을 불러오지 못했습니다.');
+        }
+
+        if (!isActive) return;
+
+        setCategory(response.data.categoryName || '행사·축제');
+        setTitle(response.data.title || '');
+        setContent(response.data.content || '');
+      } catch (error) {
+        if (!isActive) return;
+        setErrorMessage(
+          error.response?.data?.error?.message || error.message || '게시글을 불러오지 못했습니다.'
+        );
+      } finally {
+        if (isActive) setIsLoadingPost(false);
+      }
+    }
+
+    loadPost();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isEditMode, postId]);
 
   const handleImageChange = (event) => {
     // TODO: Spring Boot 이미지 업로드 API와 연결해 업로드한 이미지 URL을 게시글 등록 요청에 포함합니다.
@@ -71,12 +115,7 @@ function PostCreatePage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (isSubmitting) return;
-
-    if (isEditMode) {
-      setErrorMessage('게시글 수정 API는 다음 단계에서 연결합니다.');
-      return;
-    }
+    if (isSubmitting || isLoadingPost) return;
 
     const categoryId = CATEGORY_ID_BY_NAME[category];
     if (!categoryId) {
@@ -88,22 +127,35 @@ function PostCreatePage() {
     setErrorMessage('');
 
     try {
-      // AI작성: 인증 연동 후 TEMP_WRITER_ID를 로그인 회원 ID로 교체해야 합니다.
-      const response = await createPost({
-        writerId: TEMP_WRITER_ID,
-        categoryId,
-        title: title.trim(),
-        content: content.trim(),
-      });
+      let response;
 
-      if (!response.success || !response.data) {
-        throw new Error(response.error?.message || '게시글 등록에 실패했습니다.');
+      if (isEditMode) {
+        // TODO AI작성: 로그인 연동 후 백엔드에서 로그인 회원과 게시글 작성자의 수정 권한을 검증해야 합니다.
+        response = await updatePost(postId, {
+          categoryId,
+          title: title.trim(),
+          content: content.trim(),
+        });
+      } else {
+        // AI작성: 인증 연동 후 TEMP_WRITER_ID를 로그인 회원 ID로 교체해야 합니다.
+        response = await createPost({
+          writerId: TEMP_WRITER_ID,
+          categoryId,
+          title: title.trim(),
+          content: content.trim(),
+        });
       }
 
-      navigate(`/post/${response.data}`);
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || `게시글 ${isEditMode ? '수정' : '등록'}에 실패했습니다.`);
+      }
+
+      navigate(`/post/${isEditMode ? postId : response.data}`);
     } catch (error) {
       setErrorMessage(
-        error.response?.data?.error?.message || error.message || '게시글 등록에 실패했습니다.'
+        error.response?.data?.error?.message ||
+          error.message ||
+          `게시글 ${isEditMode ? '수정' : '등록'}에 실패했습니다.`
       );
     } finally {
       setIsSubmitting(false);
@@ -127,20 +179,24 @@ function PostCreatePage() {
       </Heading>
       <Content>
         {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
-        <PostCreateForm
-          categories={postCategories.filter((item) => item !== '전체')}
-          category={category}
-          title={title}
-          content={content}
-          imageName={imageName}
-          onCategoryChange={setCategory}
-          onTitleChange={setTitle}
-          onContentChange={setContent}
-          onImageChange={handleImageChange}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-          submitLabel={isSubmitting ? '등록 중...' : isEditMode ? '수정' : '게시글 등록'}
-        />
+        {isLoadingPost ? (
+          <StatusMessage>게시글을 불러오는 중입니다.</StatusMessage>
+        ) : (
+          <PostCreateForm
+            categories={postCategories.filter((item) => item !== '전체')}
+            category={category}
+            title={title}
+            content={content}
+            imageName={imageName}
+            onCategoryChange={setCategory}
+            onTitleChange={setTitle}
+            onContentChange={setContent}
+            onImageChange={handleImageChange}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            submitLabel={isSubmitting ? (isEditMode ? '수정 중...' : '등록 중...') : isEditMode ? '수정' : '게시글 등록'}
+          />
+        )}
       </Content>
     </Page>
   );

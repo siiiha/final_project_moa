@@ -17,3 +17,9 @@ export async function createPost(postData) {
   const response = await client.post('/community/write', postData);
   return response.data;
 }
+
+// AI작성: 게시글 ID와 수정 데이터를 Spring Boot API에 전달합니다.
+export async function updatePost(postId, postData) {
+  const response = await client.put(`/community/edit/${postId}`, postData);
+  return response.data;
+}
