@@ -164,4 +164,64 @@
         ORDER BY mr.reported_at ASC, mr.report_id ASC
     </select>
 
+    <!-- AI작성: 동시에 같은 신고를 처리하지 못하도록 대상 행을 잠근다. -->
+    <select id="selectReportStatusForUpdate" resultType="string">
+        SELECT status
+        FROM member_report
+        WHERE report_id = #{reportId}
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 신고 유형별 원본 테이블에서 최종 제재 대상 회원을 조회한다. -->
+    <select id="selectReportedMemberId" resultType="long">
+        SELECT CASE mr.target_type
+                   WHEN 'USER' THEN target_member.member_id
+                   WHEN 'BOARD' THEN p.writer_id
+                   WHEN 'COMMENT' THEN c.writer_id
+               END
+        FROM member_report mr
+        LEFT JOIN members target_member
+               ON mr.target_type = 'USER'
+              AND target_member.member_id = mr.target_id
+        LEFT JOIN post p
+               ON mr.target_type = 'BOARD'
+              AND p.post_id = mr.target_id
+        LEFT JOIN comment c
+               ON mr.target_type = 'COMMENT'
+              AND c.comment_id = mr.target_id
+        WHERE mr.report_id = #{reportId}
+    </select>
+
+    <!-- AI작성: INACTIVE 회원은 제재하지 않고, 기존 SUSPENDED 여부는 기간 계산에 사용한다. -->
+    <select id="selectMemberAccountStatus" resultType="string">
+        SELECT account_status
+        FROM members
+        WHERE member_id = #{memberId}
+    </select>
+
+    <!-- AI작성: suspended_until 컬럼이 추가된 스키마를 전제로 기존 제한 종료일을 조회한다. -->
+    <select id="selectMemberSuspendedUntil" resultType="java.time.LocalDateTime">
+        SELECT suspended_until
+        FROM members
+        WHERE member_id = #{memberId}
+    </select>
+
+    <!-- AI작성: 잠금 조회 후에도 PENDING 조건을 적용해 중복 처리를 방어한다. -->
+    <update id="updateReportProcess">
+        UPDATE member_report
+        SET status = #{status},
+            process_reason = #{processReason}
+        WHERE report_id = #{reportId}
+          AND status = 'PENDING'
+    </update>
+
+    <!-- AI작성: 기간 제한과 영구 제한(NULL)을 동일한 상태 컬럼과 함께 저장한다. -->
+    <update id="updateMemberRestriction">
+        UPDATE members
+        SET account_status = 'SUSPENDED',
+            suspended_until = #{suspendedUntil, jdbcType=TIMESTAMP}
+        WHERE member_id = #{memberId}
+          AND account_status != 'INACTIVE'
+    </update>
+
 </mapper>
