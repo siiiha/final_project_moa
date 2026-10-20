@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+//TODO: 요청 DTO와 응답 DTO 분리할지 고민
+
 @ToString
 @AllArgsConstructor
 @NoArgsConstructor
