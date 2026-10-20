@@ -47,3 +47,9 @@ export async function updateComment(postId, commentId, commentData) {
   const response = await client.put(`/post/${postId}/comments/${commentId}`, commentData);
   return response.data;
 }
+
+// AI작성: 게시글·댓글 ID를 Spring Boot 삭제 API에 전달합니다.
+export async function deleteComment(postId, commentId) {
+  const response = await client.delete(`/post/${postId}/comments/${commentId}`);
+  return response.data;
+}

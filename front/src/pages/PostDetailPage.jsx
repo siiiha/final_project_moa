@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { createComment, deletePost, getComments, getPostDetail, updateComment } from '../api/postApi';
+import { createComment, deleteComment, deletePost, getComments, getPostDetail, updateComment } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -68,6 +68,7 @@ function PostDetailPage() {
   const { id } = useParams();
   const [commentText, setCommentText] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [commentPage, setCommentPage] = useState(1);
@@ -81,6 +82,7 @@ function PostDetailPage() {
   const [editingCommentText, setEditingCommentText] = useState('');
   const [isUpdatingComment, setIsUpdatingComment] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
@@ -316,6 +318,43 @@ function PostDetailPage() {
     }
   };
 
+  const handleCommentDelete = (commentId) => {
+    setCommentErrorMessage('');
+    setDeletingCommentId(commentId);
+  };
+
+  const handleCommentDeleteConfirm = async () => {
+    if (!deletingCommentId || isDeletingComment) return;
+
+    setIsDeletingComment(true);
+    setCommentErrorMessage('');
+
+    try {
+      // TODO AI작성: 로그인 연동 후 백엔드에서 로그인 회원과 댓글 작성자의 삭제 권한을 검증해야 합니다.
+      const response = await deleteComment(id, deletingCommentId);
+      if (!response.success) {
+        throw new Error(response.error?.message || '댓글 삭제에 실패했습니다.');
+      }
+
+      setComments((currentComments) =>
+        currentComments.filter((comment) => comment.id !== deletingCommentId)
+      );
+      setCommentTotal((currentTotal) => {
+        const nextTotal = Math.max(currentTotal - 1, 0);
+        setCommentTotalPages(Math.ceil(nextTotal / COMMENTS_PER_PAGE));
+        return nextTotal;
+      });
+      setDeletingCommentId(null);
+    } catch (error) {
+      setDeletingCommentId(null);
+      setCommentErrorMessage(
+        error.response?.data?.error?.message || error.message || '댓글 삭제에 실패했습니다.'
+      );
+    } finally {
+      setIsDeletingComment(false);
+    }
+  };
+
   if (isLoading || !post) {
     return (
       <Page>
@@ -355,6 +394,7 @@ function PostDetailPage() {
           onCommentEditChange={setEditingCommentText}
           onCommentEditSubmit={handleCommentEditSubmit}
           onCommentEditCancel={handleCommentEditCancel}
+          onCommentDelete={handleCommentDelete}
           onLoadMoreComments={handleLoadMoreComments}
           onEdit={handleEdit}
           onDelete={handleDelete}
@@ -372,6 +412,20 @@ function PostDetailPage() {
           onConfirm={handleDeleteConfirm}
           onCancel={() => {
             if (!isDeleting) setIsDeleteModalOpen(false);
+          }}
+        />
+      )}
+      {deletingCommentId && (
+        <ConfirmModal
+          title="댓글 삭제"
+          description="댓글을 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다."
+          confirmLabel={isDeletingComment ? '삭제 중...' : '댓글 삭제'}
+          confirmVariant="danger"
+          size="wide"
+          cancelFirst
+          onConfirm={handleCommentDeleteConfirm}
+          onCancel={() => {
+            if (!isDeletingComment) setDeletingCommentId(null);
           }}
         />
       )}

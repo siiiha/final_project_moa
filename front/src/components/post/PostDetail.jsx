@@ -190,6 +190,7 @@ function PostDetail({
   onCommentEditChange,
   onCommentEditSubmit,
   onCommentEditCancel,
+  onCommentDelete,
   onLoadMoreComments,
   onEdit,
   onDelete,
@@ -230,6 +231,9 @@ function PostDetail({
                   <TextAction type="button">답글</TextAction>
                   <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
                     수정
+                  </TextAction>
+                  <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>
+                    삭제
                   </TextAction>
                 </ReplyActions>
               </CommentHeader>
