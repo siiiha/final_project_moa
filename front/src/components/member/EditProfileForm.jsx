@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { FiCamera, FiUser } from 'react-icons/fi';
+import { useEffect, useRef, useState } from 'react';
+import { FiCamera } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -9,8 +9,11 @@ import {
   getMyProfile,
   updateMyProfile,
   memberInterestOptions,
+  uploadMyProfileImage,
+    deleteMyProfileImage,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
+import ProfileImage from './ProfileImage';
 
 const Card = styled.section`
   padding: 22px;
@@ -37,15 +40,28 @@ const AvatarPanel = styled.section`
   border-radius: ${({ theme }) => theme.radius.md};
 `;
 
+// AI작성: 사진을 고정된 원형 영역 안에 표시합니다.
 const Avatar = styled.div`
   width: 92px;
   height: 92px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
   display: grid;
   place-items: center;
   color: ${({ theme }) => theme.colors.primary};
   background: ${({ theme }) => theme.colors.primarySoft};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: 50%;
+
+  > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
 `;
 
 const AvatarLabel = styled.strong`
@@ -146,7 +162,7 @@ function EditProfileForm() {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const clearToken = useAuthStore((state) => state.clearToken);
-
+  const photoInputRef = useRef(null);
   const [profile, setProfile] = useState(null);
   const [nickname, setNickname] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -268,6 +284,82 @@ function EditProfileForm() {
     }
   };
 
+  // AI작성: 선택한 사진을 저장하고 현재 화면에 반영합니다.
+  const handlePhotoChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file || isSaving) return;
+
+    setErrorMessage('');
+
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setErrorMessage('JPG 또는 PNG 사진만 선택해주세요.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage('사진은 5MB 이하로 선택해주세요.');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const result = await uploadMyProfileImage(token, file);
+
+      setProfile((current) =>
+        current
+          ? { ...current, profileImageUrl: result.profileImageUrl }
+          : current,
+      );
+    } catch (error) {
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      setErrorMessage(
+        error.response?.data?.error?.message ??
+          '사진을 저장하지 못했습니다.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // AI작성: 사진 삭제 성공 후 기본 프로필로 표시합니다.
+  const handlePhotoDelete = async () => {
+    if (isSaving || !profile?.profileImageUrl) return;
+
+    setErrorMessage('');
+    setIsSaving(true);
+
+    try {
+      await deleteMyProfileImage(token);
+
+      setProfile((current) =>
+        current
+          ? { ...current, profileImageUrl: null }
+          : current,
+      );
+    } catch (error) {
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      setErrorMessage(
+        error.response?.data?.error?.message ??
+          '사진을 삭제하지 못했습니다.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (isLoading) {
     return <p role="status">회원정보를 불러오는 중입니다.</p>;
   }
@@ -279,19 +371,35 @@ function EditProfileForm() {
   return (
     <Card>
       <AvatarPanel>
-        <Avatar role="img" aria-label="회원 프로필 이미지 영역">
-          <FiUser size={38} aria-hidden="true" />
+        <Avatar>
+          <ProfileImage imageUrl={profile.profileImageUrl} />
         </Avatar>
         <AvatarLabel>프로필 사진</AvatarLabel>
+                <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/png"
+          hidden
+          onChange={handlePhotoChange}
+        />
         <AvatarActions>
-          <AvatarButton type="button" disabled>
+          <AvatarButton
+            type="button"
+            disabled={isSaving}
+            onClick={() => photoInputRef.current?.click()}
+          >
             <FiCamera size={12} aria-hidden="true" /> 사진 변경
           </AvatarButton>
-          <AvatarButton type="button" $danger disabled>
+                    <AvatarButton
+            type="button"
+            $danger
+            disabled={isSaving || !profile.profileImageUrl}
+            onClick={handlePhotoDelete}
+          >
             삭제
           </AvatarButton>
         </AvatarActions>
-        <p>사진 기능은 준비 중입니다.</p>
+        <p>사진은 선택하면 바로 저장됩니다.</p>
       </AvatarPanel>
 
       <FormArea as="form" onSubmit={handleUpdateRequest}>
