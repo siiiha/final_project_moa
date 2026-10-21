@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import SavingGroupMenuTabs from './SavingGroupMenuTabs';
-import SavingGroupSettingsForm from './SavingGroupSettingsForm';
 import SavingGroupJoinRequestsPanel from './SavingGroupJoinRequestsPanel';
 import SavingGroupMembersPanel from './SavingGroupMembersPanel';
 import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
@@ -92,10 +91,6 @@ const Layout = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     grid-template-columns: 1fr;
   }
-`;
-
-const SettingsContent = styled.div`
-  margin-top: 16px;
 `;
 
 const JoinRequestsContent = styled.div`
@@ -235,11 +230,10 @@ function SavingGroupDetail({
   onMenuChange,
   onJoinRequest,
   onBack,
-  onSettingsSubmit,
-  onSettingsCancel,
-  onDeleteRequest,
+  canAccessSettings = false,
 }) {
   const isOngoing = group.status === '진행중';
+  const showSettingsMenu = canAccessSettings || group.canAccessSettings === true;
 
   return (
     <>
@@ -265,7 +259,12 @@ function SavingGroupDetail({
             <FiUser size={13} aria-hidden="true" /> 모임장 {detail.leader}
           </Meta>
         </MetaList>
-        <SavingGroupMenuTabs activeMenu={activeMenu} onMenuChange={onMenuChange} />
+        <SavingGroupMenuTabs
+          activeMenu={activeMenu}
+          onMenuChange={onMenuChange}
+          canAccessSettings={showSettingsMenu}
+          settingsPath={`/saving-groups/${group.id}/settings`}
+        />
       </HeaderCard>
 
       {activeMenu === 'members' ? (
@@ -284,15 +283,6 @@ function SavingGroupDetail({
         <JoinRequestsContent>
           <SavingGroupJoinRequestsPanel />
         </JoinRequestsContent>
-      ) : activeMenu === 'settings' ? (
-        <SettingsContent>
-          <SavingGroupSettingsForm
-            group={group}
-            onSubmit={onSettingsSubmit}
-            onCancel={onSettingsCancel}
-            onDeleteRequest={onDeleteRequest}
-          />
-        </SettingsContent>
       ) : (
         <Layout>
           <MainColumn>
