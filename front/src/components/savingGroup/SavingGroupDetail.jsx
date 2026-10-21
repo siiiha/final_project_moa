@@ -4,6 +4,12 @@ import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import SavingGroupMenuTabs from './SavingGroupMenuTabs';
+import SavingGroupJoinRequestsPanel from './SavingGroupJoinRequestsPanel';
+import SavingGroupMembersPanel from './SavingGroupMembersPanel';
+import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
+import SavingGroupPaymentStatusPanel from './SavingGroupPaymentStatusPanel';
+import SavingGroupTransactionHistoryPanel from './SavingGroupTransactionHistoryPanel';
+import SavingGroupDashboardPanel from './SavingGroupDashboardPanel';
 
 const HeaderCard = styled.section`
   padding: 22px;
@@ -88,8 +94,17 @@ const Layout = styled.div`
   }
 `;
 
+const SettingsContent = styled.div`
+  margin-top: 16px;
+`;
 
+const JoinRequestsContent = styled.div`
+  margin-top: 16px;
+`;
 
+const MembersContent = styled.div`
+  margin-top: 22px;
+`;
 
 const MainColumn = styled.div`
   display: grid;
@@ -120,6 +135,17 @@ const CardTitle = styled.h2`
   letter-spacing: -0.7px;
 `;
 
+const ImagePlaceholder = styled.div`
+  height: 168px;
+  margin-top: 14px;
+  background: ${({ theme }) => theme.colors.primarySoft};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    height: 132px;
+  }
+`;
 
 const Content = styled.p`
   margin-top: 14px;
@@ -147,6 +173,26 @@ const Notice = styled.div`
   }
 `;
 
+const Schedule = styled.div`
+  margin-top: 14px;
+  padding: 14px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  background: ${({ theme }) => theme.colors.background};
+  border-radius: ${({ theme }) => theme.radius.sm};
+
+  strong {
+    display: block;
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 13px;
+  }
+
+  span {
+    margin-top: 4px;
+    display: block;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+`;
 
 const Dues = styled.strong`
   margin-top: 14px;
@@ -182,13 +228,17 @@ const ActionButton = styled(Button)`
   font-size: 12px;
 `;
 
-// AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
-function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, onBack }) {
-  const allowedMenus = getSavingGroupMenus(group.myRole);
-  const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
-  const paymentDay = group.duesDay == null ? '납부일 미정'
-    : group.duesDay < 1 || group.duesDay > 28 ? '납부일 확인 필요' : '매월 ' + group.duesDay + '일';
-  const statusLabel = { '01': '개설', '02': '진행중' }[group.status] || '상태 확인 필요';
+function SavingGroupDetail({
+  group,
+  detail,
+  activeMenu,
+  onMenuChange,
+  onJoinRequest,
+  onBack,
+  canAccessSettings = false,
+}) {
+  const isOngoing = group.status === '진행중';
+  const showSettingsMenu = canAccessSettings || group.canAccessSettings === true;
 
   return (
     <>
@@ -205,10 +255,30 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, onB
           <Meta><FiMapPin size={16} aria-hidden="true" /> {group.regionName}</Meta>
           <Meta><FiUsers size={16} aria-hidden="true" /> {group.memberCount}명 / {group.maxMembers == null ? '정원 미정' : '정원 ' + group.maxMembers + '명'}</Meta>
         </MetaList>
-        <SavingGroupMenuTabs activeMenu={currentMenu} onMenuChange={onMenuChange} myRole={group.myRole} />
+        <SavingGroupMenuTabs
+          activeMenu={activeMenu}
+          onMenuChange={onMenuChange}
+          canAccessSettings={showSettingsMenu}
+          settingsPath={`/saving-groups/${group.id}/settings`}
+        />
       </HeaderCard>
-      {currentMenu !== 'notice' ? (
-        <Card><CardTitle>준비 중인 기능입니다.</CardTitle><Content>해당 탭의 업무 기능은 추후 제공됩니다.</Content></Card>
+
+      {activeMenu === 'members' ? (
+        <MembersContent>
+          <SavingGroupMembersPanel />
+        </MembersContent>
+      ) : activeMenu === 'payment' ? (
+        <SavingGroupPaymentStatusPanel />
+      ) : activeMenu === 'dues' ? (
+        <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
+      ) : activeMenu === 'transactionHistory' ? (
+        <SavingGroupTransactionHistoryPanel />
+      ) : activeMenu === 'payoutRequest' ? (
+        <SavingGroupPayoutRequestPanel groupType={group.groupType} />
+      ) : activeMenu === 'joinRequests' ? (
+        <JoinRequestsContent>
+          <SavingGroupJoinRequestsPanel />
+        </JoinRequestsContent>
       ) : (
         <Layout>
           <MainColumn>
@@ -224,6 +294,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, onB
                 ))}
             </Card>
           </MainColumn>
+
           <SideColumn>
             <Card>
               <CardTitle><FiTrendingUp size={18} aria-hidden="true" /> 월 회비</CardTitle>
