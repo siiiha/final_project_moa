@@ -71,4 +71,10 @@ public interface MemberMapper {
     int deleteMemberInterests(
             @Param("memberId") Long memberId
     );
+
+    // 회원의 프로필 사진 경로를 변경 or 초기화
+    int updateProfileImageUrl(
+            @Param("memberId") Long memberId,
+            @Param("profileImageUrl")  String profileImageUrl
+    );
 }
