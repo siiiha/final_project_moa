@@ -7,32 +7,32 @@ import lombok.Setter;
 @NoArgsConstructor
 @Getter
 @Setter
-//신고 목록의 필터와 페이지 정보를 받는 DTO
+// AI작성: 관리자 신고 목록의 검색·필터·페이징 조건을 받는 DTO이다.
 public class AdminReportSearchCondition {
 
-    // 신고 처리 상태
+    // AI작성: 신고 처리 상태 필터이다.
     // PENDING, CONFIRMED, REJECTED
     private String status;
 
-    // 신고 유형
+    // AI작성: 신고 유형 필터이다.
     // BOARD_POST, BOARD_COMMENT, BOARD_MEMBER,
     // MEETING, MEETING_MEMBER
     private String reportType;
 
-    // 검색 대상
+    // AI작성: 검색어를 적용할 대상 필드이다.
     // reportedMember, reporter, processReason
     private String searchType;
 
-    // 검색어
+    // AI작성: 회원 또는 처리 사유를 찾을 검색어이다.
     private String keyword;
 
-    // 요청 페이지 번호
+    // AI작성: 사용자가 요청한 페이지 번호이며 기본값은 1이다.
     private int page = 1;
 
-    // 페이지당 조회 개수
+    // AI작성: 한 페이지에 표시할 개수이며 기본값은 10이다.
     private int size = 10;
 
-    //Service에서 page와 size를 이용해 계산해서 넣는 값
+    // AI작성: Service가 page와 size로 계산해 Mapper의 LIMIT 절에 전달하는 값이다.
     private int offset;
     private int limit;
 
