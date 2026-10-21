@@ -117,9 +117,11 @@
     <select id="countPostById"
             parameterType="long"
             resultType="int">
+        <!-- AI작성: 삭제된 게시글에는 댓글 조회·등록이 불가능하도록 활성 게시글만 계산합니다. -->
         SELECT COUNT(*)
         FROM post
         WHERE post_id = #{postId}
+        AND deleted_at IS NULL
     </select>
 
     <update id="editPost">

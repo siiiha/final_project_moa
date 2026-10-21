@@ -10,7 +10,9 @@ import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -59,6 +61,52 @@ public class CommentServiceImpl implements CommentService {
         return commentMapper.selectCommentById(comment.getCommentId());
     }
 
+    @Override
+    @Transactional
+    public CommentDto insertReply(Long postId, Long parentCommentId, Long memberId, String content) {
+        if (postMapper.countPostById(postId) == 0) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
+
+        CommentDto parentComment = commentMapper.selectCommentById(parentCommentId);
+
+        // AI작성: 다른 게시글의 댓글, 삭제된 댓글, 대댓글에는 답글을 등록할 수 없습니다.
+        if (parentComment == null || !Objects.equals(parentComment.getPostId(), postId)) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "PARENT_COMMENT_NOT_FOUND",
+                    "답글을 작성할 댓글을 찾을 수 없습니다."
+            );
+        }
+        if (parentComment.getParentId() != null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "COMMENT_DEPTH_EXCEEDED",
+                    "대댓글에는 답글을 작성할 수 없습니다."
+            );
+        }
+
+        CommentDto reply = new CommentDto();
+        reply.setPostId(postId);
+        reply.setParentId(parentCommentId);
+        reply.setMemberId(memberId);
+        reply.setContent(content);
+
+        if (commentMapper.insertComment(reply) != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "COMMENT_CREATE_FAILED",
+                    "대댓글 등록에 실패했습니다."
+            );
+        }
+
+        return commentMapper.selectCommentById(reply.getCommentId());
+    }
+
 
     @Override
     public CommentListResult getCommentList(Long postId,
@@ -90,6 +138,25 @@ public class CommentServiceImpl implements CommentService {
 
         List<CommentResponse> comments = commentMapper.selectCommentListByPostId(condition);
 
+        // AI작성: 전체 댓글은 있지만 요청 페이지가 범위를 벗어난 경우 빈 IN 절 실행을 막습니다.
+        if (comments.isEmpty()) {
+            return new CommentListResult(
+                    List.of(),
+                    pageMeta
+            );
+        }
+
+        // AI작성: 현재 페이지의 원댓글에 속한 대댓글을 한 번에 조회해 원댓글별로 묶습니다.
+        List<Long> parentIds = comments.stream()
+                .map(CommentResponse::getCommentId)
+                .toList();
+        List<CommentResponse> replies = commentMapper.selectRepliesByParentIds(postId, parentIds);
+        Map<Long, List<CommentResponse>> repliesByParentId = replies.stream()
+                .collect(Collectors.groupingBy(CommentResponse::getParentId));
+        comments.forEach(comment -> comment.setReplies(
+                repliesByParentId.getOrDefault(comment.getCommentId(), List.of())
+        ));
+
         return new CommentListResult(
                 comments,
                 pageMeta
@@ -99,14 +166,6 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto updateComment(Long postId, Long commentId, CommentEditRequest request) {
-        // AI작성: Validation을 거치지 않은 직접 호출도 방어하기 위해 내용을 확인합니다.
-        if (request == null || request.getContent() == null || request.getContent().isBlank()) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "COMMENT_CONTENT_REQUIRED",
-                    "댓글에 내용을 입력해주세요."
-            );
-        }
 
         CommentDto comment = commentMapper.selectCommentById(commentId);
 

@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { createComment, deleteComment, deletePost, getComments, getPostDetail, updateComment } from '../api/postApi';
+import {
+  createComment,
+  createReply,
+  deleteComment,
+  deletePost,
+  getComments,
+  getPostDetail,
+  updateComment,
+} from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -16,7 +24,14 @@ const mapComment = (comment) => ({
   id: comment.commentId,
   author: comment.writerNickname || '알 수 없음',
   content: comment.content,
-  replies: [],
+  deleted: Boolean(comment.deleted),
+  // AI작성: 백엔드가 반환한 한 단계 대댓글을 화면 표시 형식으로 변환합니다.
+  replies: (comment.replies || []).map((reply) => ({
+    id: reply.commentId,
+    author: reply.writerNickname || '알 수 없음',
+    content: reply.content,
+    deleted: Boolean(reply.deleted),
+  })),
 });
 
 const Page = styled.div`
@@ -78,6 +93,9 @@ function PostDetailPage() {
   const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [isLoadingMoreComments, setIsLoadingMoreComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [replyingCommentId, setReplyingCommentId] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [isUpdatingComment, setIsUpdatingComment] = useState(false);
@@ -281,6 +299,66 @@ function PostDetailPage() {
     setEditingCommentText(comment.content);
   };
 
+  const handleReplyStart = (commentId) => {
+    setCommentErrorMessage('');
+    setReplyingCommentId(commentId);
+    setReplyText('');
+  };
+
+  const handleReplyCancel = () => {
+    if (isSubmittingReply) return;
+    setReplyingCommentId(null);
+    setReplyText('');
+  };
+
+  const handleReplySubmit = async (event) => {
+    event.preventDefault();
+    const trimmedReply = replyText.trim();
+    if (!replyingCommentId || !trimmedReply || isSubmittingReply) return;
+
+    setIsSubmittingReply(true);
+    setCommentErrorMessage('');
+
+    try {
+      // TODO AI작성: 로그인 연동 후 TEMP_MEMBER_ID를 인증된 회원 ID로 교체해야 합니다.
+      const response = await createReply(id, replyingCommentId, {
+        memberId: TEMP_MEMBER_ID,
+        content: trimmedReply,
+      });
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || '답글 등록에 실패했습니다.');
+      }
+
+      // AI작성: 등록된 대댓글을 해당 원댓글의 replies 배열 끝에 추가합니다.
+      setComments((currentComments) =>
+        currentComments.map((comment) =>
+          comment.id === replyingCommentId
+            ? {
+                ...comment,
+                replies: [
+                  ...comment.replies,
+                  {
+                    id: response.data.commentId,
+                    author: '나',
+                    content: response.data.content,
+                    deleted: false,
+                  },
+                ],
+              }
+            : comment
+        )
+      );
+      setReplyingCommentId(null);
+      setReplyText('');
+    } catch (error) {
+      setCommentErrorMessage(
+        error.response?.data?.error?.message || error.message || '답글 등록에 실패했습니다.'
+      );
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
   const handleCommentEditCancel = () => {
     if (isUpdatingComment) return;
     setEditingCommentId(null);
@@ -303,9 +381,19 @@ function PostDetailPage() {
       }
 
       setComments((currentComments) =>
-        currentComments.map((comment) =>
-          comment.id === editingCommentId ? { ...comment, content: response.data.content } : comment
-        )
+        currentComments.map((comment) => {
+          if (comment.id === editingCommentId) {
+            return { ...comment, content: response.data.content };
+          }
+
+          // AI작성: 수정 대상이 대댓글이면 해당 원댓글의 replies 배열에서 내용을 갱신합니다.
+          return {
+            ...comment,
+            replies: comment.replies.map((reply) =>
+              reply.id === editingCommentId ? { ...reply, content: response.data.content } : reply
+            ),
+          };
+        })
       );
       setEditingCommentId(null);
       setEditingCommentText('');
@@ -336,14 +424,23 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '댓글 삭제에 실패했습니다.');
       }
 
+      // AI작성: 백엔드 소프트 삭제 정책에 맞춰 위치를 유지하고 안내 문구로 바꿉니다.
       setComments((currentComments) =>
-        currentComments.filter((comment) => comment.id !== deletingCommentId)
+        currentComments.map((comment) => {
+          if (comment.id === deletingCommentId) {
+            return { ...comment, content: '삭제된 댓글입니다.', deleted: true };
+          }
+
+          return {
+            ...comment,
+            replies: comment.replies.map((reply) =>
+              reply.id === deletingCommentId
+                ? { ...reply, content: '삭제된 댓글입니다.', deleted: true }
+                : reply
+            ),
+          };
+        })
       );
-      setCommentTotal((currentTotal) => {
-        const nextTotal = Math.max(currentTotal - 1, 0);
-        setCommentTotalPages(Math.ceil(nextTotal / COMMENTS_PER_PAGE));
-        return nextTotal;
-      });
       setDeletingCommentId(null);
     } catch (error) {
       setDeletingCommentId(null);
@@ -384,12 +481,19 @@ function PostDetailPage() {
           hasMoreComments={commentPage < commentTotalPages}
           isLoadingMoreComments={isLoadingMoreComments}
           isSubmittingComment={isSubmittingComment}
+          replyingCommentId={replyingCommentId}
+          replyText={replyText}
+          isSubmittingReply={isSubmittingReply}
           editingCommentId={editingCommentId}
           editingCommentText={editingCommentText}
           isUpdatingComment={isUpdatingComment}
           commentText={commentText}
           onCommentChange={setCommentText}
           onCommentSubmit={handleCommentSubmit}
+          onReplyStart={handleReplyStart}
+          onReplyChange={setReplyText}
+          onReplySubmit={handleReplySubmit}
+          onReplyCancel={handleReplyCancel}
           onCommentEditStart={handleCommentEditStart}
           onCommentEditChange={setEditingCommentText}
           onCommentEditSubmit={handleCommentEditSubmit}

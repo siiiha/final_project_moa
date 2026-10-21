@@ -45,6 +45,24 @@ public class CommentController {
                 .body(ApiResponse.ok(insertedComment));
     }
 
+    // AI작성: 원댓글 번호를 경로로 받아 한 단계 대댓글을 등록합니다.
+    @PostMapping("/post/{postId}/comments/{parentCommentId}/replies")
+    public ResponseEntity<ApiResponse<CommentDto>> insertReply(
+            @PathVariable Long postId,
+            @PathVariable Long parentCommentId,
+            @Valid @RequestBody CommentDto commentDto) {
+        // TODO AI작성: Spring Security 적용 후 요청의 memberId 대신 로그인 회원 ID를 사용해야 합니다.
+        CommentDto insertedReply = commentService.insertReply(
+                postId,
+                parentCommentId,
+                commentDto.getMemberId(),
+                commentDto.getContent());
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(insertedReply));
+    }
+
     @GetMapping("/post/{postId}/comments")
     public ApiResponse<List<CommentResponse>> getCommentList(
             @PathVariable Long postId,
