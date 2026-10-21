@@ -60,6 +60,22 @@ const CurrentValue = styled.p`
   font-weight: 500;
 `;
 
+const PendingValue = styled(CurrentValue)`
+  color: ${({ theme }) => theme.colors.primary};
+  font-weight: 700;
+`;
+
+const DuesScheduleNotice = styled.p`
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  background: ${({ theme }) => theme.colors.background};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12px;
+  line-height: 1.5;
+`;
+
 const FieldError = styled.p`
   color: ${({ theme }) => theme.colors.danger};
   font-size: 11px;
@@ -211,6 +227,7 @@ function SavingGroupSettingsForm({
   current, pending, canEditSettings, status, isSaving, submitErrorMessage, onSubmit, onCancel, onDeleteRequest,
 }) {
   const isReadOnly = status === '03' || !canEditSettings;
+  const isDuesScheduledForNextMonth = status === '02';
   const initialValues = {
     groupName: toInputValue(current.groupName),
     description: toInputValue(current.description),
@@ -338,6 +355,9 @@ function SavingGroupSettingsForm({
               }}
             />
             <CurrentValue>현재 적용: {formatDuesAmount(current.duesAmount)}</CurrentValue>
+            {pending?.duesAmount != null && (
+              <PendingValue>다음 회차 적용 예정: {formatDuesAmount(pending.duesAmount)}</PendingValue>
+            )}
           </Field>
           <Field>
             납부일
@@ -357,16 +377,20 @@ function SavingGroupSettingsForm({
               ))}
             </Select>
             <CurrentValue>현재 적용: {formatDuesDay(current.duesDay)}</CurrentValue>
+            {pending?.duesDay != null && (
+              <PendingValue>다음 회차 적용 예정: {formatDuesDay(pending.duesDay)}</PendingValue>
+            )}
           </Field>
+          {isDuesScheduledForNextMonth && (
+            <DuesScheduleNotice role="status">
+              진행 중인 계모임의 회비와 납부일 변경은 다음 달 1일부터 적용됩니다.
+            </DuesScheduleNotice>
+          )}
         </FieldGrid>
 
         {pending && (
           <PendingNotice>
             <PendingTitle>다음 회차 적용 예정</PendingTitle>
-            <PendingText>
-              회비: {pending.duesAmount == null ? '현재 회비 유지' : formatDuesAmount(pending.duesAmount)} · 납부일:{' '}
-              {pending.duesDay == null ? '현재 납부일 유지' : formatDuesDay(pending.duesDay)}
-            </PendingText>
             <PendingText>{formatEffectiveAt(pending.effectiveAt)}</PendingText>
           </PendingNotice>
         )}
