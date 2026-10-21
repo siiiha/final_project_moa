@@ -36,4 +36,51 @@ export const memberInterestOptions = [
     { interestId: 2, interestName: '독서' },
 ];
 
+// AI작성: 프로필 사진을 등록하거나 변경합니다.
+export async function uploadMyProfileImage(token, file) {
+    const form = new FormData();
+    form.append('file', file);
+
+    const response = await client.put(
+        '/members/me/profile-image',
+        form,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
+
+    return response.data.data;
+}
+
+// AI작성: 로그인 인증을 포함하여 사진 파일을 가져옵니다.
+export async function getMyProfileImage(token, imageUrl) {
+    const response = await client.get(
+        imageUrl.replace(/^\/api\//, '/'),
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+            responseType: 'blob',
+        },
+    );
+
+    return response.data;
+}
+
+// AI작성: 프로필 사진을 삭제합니다.
+export async function deleteMyProfileImage(token) {
+    const response = await client.delete(
+        '/members/me/profile-image',
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
+
+    return response.data;
+}
+
 
