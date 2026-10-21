@@ -171,6 +171,145 @@
         AND deleted_at IS NULL
     </update>
 
+    <update id="updateSavingGroupCurrentDues">
+        UPDATE saving_group
+        <set>
+            <if test="update.duesAmount != null">
+                dues_amount = #{update.duesAmount},
+            </if>
+            <if test="update.duesDay != null">
+                dues_day = #{update.duesDay},
+            </if>
+        </set>
+        WHERE saving_group_id = #{update.savingGroupId}
+    </update>
+
+    <insert id="upsertSavingGroupSettingChange">
+        INSERT INTO saving_group_setting_change (
+            group_id,
+            dues_amount,
+            dues_day,
+            effective_at,
+            status
+        ) VALUES (
+            #{change.groupId},
+            #{change.duesAmount},
+            #{change.duesDay},
+            #{change.effectiveAt},
+            'PENDING'
+        )
+        ON DUPLICATE KEY UPDATE
+        <if test="change.duesAmount != null">
+            dues_amount = #{change.duesAmount},
+        </if>
+        <if test="change.duesDay != null">
+            dues_day = #{change.duesDay},
+        </if>
+        status = 'PENDING',
+        applied_at = NULL,
+        canceled_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+    <select id="selectDueSettingChanges" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingChangeRow">
+        SELECT setting_change_id,
+        group_id,
+        dues_amount,
+        dues_day,
+        effective_at,
+        status,
+        applied_at,
+        canceled_at
+        FROM saving_group_setting_change
+        WHERE status = 'PENDING'
+        AND effective_at &lt;= #{appliedAt}
+        ORDER BY effective_at ASC, setting_change_id ASC
+    </select>
+
+    <select id="selectSavingGroupStatusForUpdate" resultType="string">
+        SELECT sg.status
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <select id="selectSavingGroupSettingChangeForApply" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingChangeRow">
+        SELECT setting_change_id,
+        group_id,
+        dues_amount,
+        dues_day,
+        effective_at,
+        status,
+        applied_at,
+        canceled_at
+        FROM saving_group_setting_change
+        WHERE setting_change_id = #{settingChangeId}
+        AND status = 'PENDING'
+        AND effective_at &lt;= #{appliedAt}
+        FOR UPDATE
+    </select>
+
+    <update id="applySavingGroupSettingChange">
+        UPDATE saving_group
+        <set>
+            <if test="change.duesAmount != null">
+                dues_amount = #{change.duesAmount},
+            </if>
+            <if test="change.duesDay != null">
+                dues_day = #{change.duesDay},
+            </if>
+        </set>
+        WHERE group_id = #{change.groupId}
+    </update>
+
+    <update id="markSavingGroupSettingChangeApplied">
+        UPDATE saving_group_setting_change
+        SET status = 'APPLIED',
+        applied_at = #{appliedAt},
+        updated_at = CURRENT_TIMESTAMP
+        WHERE setting_change_id = #{settingChangeId}
+        AND status = 'PENDING'
+    </update>
+
+    <update id="updateSavingGroupStatus">
+        UPDATE saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        SET sg.status = #{status}
+        WHERE sg.group_id = #{groupId}
+        AND g.deleted_at IS NULL
+    </update>
+
+    <update id="holdPendingSavingGroupSettingChanges">
+        UPDATE saving_group_setting_change
+        SET status = 'HELD',
+        updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND status = 'PENDING'
+    </update>
+
+    <update id="cancelUnappliedSavingGroupSettingChanges">
+        UPDATE saving_group_setting_change
+        SET status = 'CANCELED',
+        canceled_at = #{canceledAt},
+        updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND status IN ('PENDING', 'HELD')
+    </update>
+
+    <update id="resumeHeldSavingGroupSettingChanges">
+        UPDATE saving_group_setting_change
+        SET status = 'PENDING',
+        effective_at = CASE
+            WHEN effective_at &lt; #{resumedAt} THEN #{nextEffectiveAt}
+            ELSE effective_at
+        END,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND status = 'HELD'
+    </update>
+
 
     <!-- AI작성: 승인된 모임장도 계원 행에 있으므로 +1 없이 회원 ID를 중복 제거한다. -->
     <select id="selectApprovedMemberCounts" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount">

@@ -13,4 +13,6 @@ public interface SavingGroupService {
     SavingGroupListResponse getSavingGroupList(SavingGroupSearchCondition condition);
     SavingGroupSettingsResponse getSavingGroupSettings(Long savingGroupId, Long loginMemberId);
     void updateSavingGroupSettings(Long savingGroupId, Long loginMemberId, SavingGroupSettingsPatchRequest request);
+    void applyDueSettingChanges();
+    void changeSavingGroupStatus(Long groupId, String nextStatus);
 }

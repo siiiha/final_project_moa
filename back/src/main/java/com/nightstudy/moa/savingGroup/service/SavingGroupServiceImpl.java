@@ -5,6 +5,7 @@ import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentSettingsResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentDuesUpdate;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount;
@@ -14,8 +15,13 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsBasicUpdate;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingChangeRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
     private static final int PAGE_SIZE = 6;
+    private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
@@ -167,18 +174,88 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         validateEditableFields(authority.getStatus(), request);
         normalizeBasicSettings(request);
 
-        SavingGroupSettingsBasicUpdate update = createBasicSettingsUpdate(authority.getGroupId(), request);
+        if (hasBasicSettingsUpdate(request)) {
+            SavingGroupSettingsBasicUpdate basicUpdate =
+                    createBasicSettingsUpdate(authority.getGroupId(), request);
 
-        if (update.getMaxMembers() != null) {
-            long approvedMemberCount =
-                    savingGroupMapper.selectApprovedMemberCountForUpdate(authority.getGroupId());
-            if (update.getMaxMembers() < approvedMemberCount) {
-                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_BELOW_MEMBERS",
-                        "승인된 계원 수보다 작게 설정할 수 없습니다.");
+            if (basicUpdate.getMaxMembers() != null) {
+                long approvedMemberCount =
+                        savingGroupMapper.selectApprovedMemberCountForUpdate(authority.getGroupId());
+                if (basicUpdate.getMaxMembers() < approvedMemberCount) {
+                    throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_BELOW_MEMBERS",
+                            "승인된 계원 수보다 작게 설정할 수 없습니다.");
+                }
             }
+
+            savingGroupMapper.updateSavingGroupBasicSettings(basicUpdate);
         }
 
-        savingGroupMapper.updateSavingGroupBasicSettings(update);
+        updateDuesSettings(authority, request);
+    }
+
+    @Override
+    @Transactional
+    public void applyDueSettingChanges() {
+        LocalDateTime appliedAt = LocalDateTime.now(KOREA_ZONE_ID);
+        List<SavingGroupSettingChangeRow> candidates =
+                savingGroupMapper.selectDueSettingChanges(appliedAt);
+
+        for (SavingGroupSettingChangeRow candidate : candidates) {
+            String savingGroupStatus =
+                    savingGroupMapper.selectSavingGroupStatusForUpdate(candidate.getGroupId());
+            if (!"02".equals(savingGroupStatus)) {
+                continue;
+            }
+
+            SavingGroupSettingChangeRow change = savingGroupMapper.selectSavingGroupSettingChangeForApply(
+                    candidate.getSettingChangeId(), appliedAt);
+            if (change == null) {
+                continue;
+            }
+
+            savingGroupMapper.applySavingGroupSettingChange(change);
+            savingGroupMapper.markSavingGroupSettingChangeApplied(
+                    change.getSettingChangeId(), appliedAt);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void changeSavingGroupStatus(Long groupId, String nextStatus) {
+        if (nextStatus == null || !List.of("00", "01", "02", "03", "04").contains(nextStatus)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_STATUS_INVALID",
+                    "계모임 상태를 확인해주세요.");
+        }
+
+        String currentStatus = savingGroupMapper.selectSavingGroupStatusForUpdate(groupId);
+        if (currentStatus == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        if (Objects.equals(currentStatus, nextStatus)) {
+            return;
+        }
+
+        int updatedCount = savingGroupMapper.updateSavingGroupStatus(groupId, nextStatus);
+        if (updatedCount != 1) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        LocalDateTime changedAt = LocalDateTime.now(KOREA_ZONE_ID);
+        if ("02".equals(currentStatus) && "03".equals(nextStatus)) {
+            savingGroupMapper.holdPendingSavingGroupSettingChanges(groupId);
+            return;
+        }
+
+        if ("04".equals(nextStatus)) {
+            savingGroupMapper.cancelUnappliedSavingGroupSettingChanges(groupId, changedAt);
+            return;
+        }
+
+        if ("03".equals(currentStatus) && "02".equals(nextStatus)) {
+            savingGroupMapper.resumeHeldSavingGroupSettingChanges(
+                    groupId, changedAt, getNextMonthEffectiveAt(changedAt));
+        }
     }
 
     private void validateEditableFields(String status, SavingGroupSettingsPatchRequest request) {
@@ -197,10 +274,6 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                     "진행 중인 계모임에서는 정원을 수정할 수 없습니다.");
         }
 
-        if (request.isDuesAmountProvided() || request.isDuesDayProvided()) {
-            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_FIELD_NOT_EDITABLE",
-                    "회비와 납부일 수정은 다음 달 적용 기능에서 처리됩니다.");
-        }
     }
 
     private void normalizeBasicSettings(SavingGroupSettingsPatchRequest request) {
@@ -220,6 +293,44 @@ public class SavingGroupServiceImpl implements SavingGroupService {
 
         return new SavingGroupSettingsBasicUpdate(
                 groupId, groupName, description, maxMembers);
+    }
+
+    private boolean hasBasicSettingsUpdate(SavingGroupSettingsPatchRequest request) {
+        return request.isGroupNameProvided()
+                || request.isDescriptionProvided()
+                || request.isMaxMembersProvided();
+    }
+
+    private void updateDuesSettings(
+            SavingGroupSettingsAuthorityRow authority, SavingGroupSettingsPatchRequest request) {
+        if (!request.isDuesAmountProvided() && !request.isDuesDayProvided()) {
+            return;
+        }
+
+        BigDecimal duesAmount = request.isDuesAmountProvided()
+                ? BigDecimal.valueOf(request.getDuesAmount()) : null;
+        Integer duesDay = request.isDuesDayProvided() ? request.getDuesDay() : null;
+
+        if ("02".equals(authority.getStatus())) {
+            SavingGroupSettingChangeRow change = new SavingGroupSettingChangeRow();
+            change.setGroupId(authority.getGroupId());
+            change.setDuesAmount(duesAmount);
+            change.setDuesDay(duesDay);
+            change.setEffectiveAt(getNextMonthEffectiveAt());
+            savingGroupMapper.upsertSavingGroupSettingChange(change);
+            return;
+        }
+
+        savingGroupMapper.updateSavingGroupCurrentDues(
+                new SavingGroupCurrentDuesUpdate(authority.getSavingGroupId(), duesAmount, duesDay));
+    }
+
+    private LocalDateTime getNextMonthEffectiveAt() {
+        return getNextMonthEffectiveAt(LocalDateTime.now(KOREA_ZONE_ID));
+    }
+
+    private LocalDateTime getNextMonthEffectiveAt(LocalDateTime referenceAt) {
+        return YearMonth.from(referenceAt).plusMonths(1).atDay(1).atStartOfDay();
     }
 
     private List<String> getEditableFields(String status) {

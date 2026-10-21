@@ -251,19 +251,19 @@ WHERE group_id = :groupId
 
 ### 4.4 권장 신규 테이블
 
-테이블명은 예시이며 기존 명명 규칙 확인 후 확정한다.
+`saving_group_setting_change` 테이블로 확정한다.
 
-```text
-saving_group_setting_change
-- setting_change_id
-- group_id
-- dues_amount nullable
-- dues_day nullable
-- effective_at
-- status: PENDING / HELD / CANCELED / APPLIED
-- applied_at nullable
-- canceled_at nullable
-```
+| 컬럼 | 타입·규칙 | 용도 |
+|---|---|---|
+| `setting_change_id` | BIGINT, PK, AUTO_INCREMENT | 예정 변경 식별자 |
+| `group_id` | BIGINT, FK | 계모임 기본 모임 식별자 |
+| `dues_amount` | DECIMAL(12,2), nullable | 다음 적용 회비 |
+| `dues_day` | TINYINT, nullable, 1~28 | 다음 적용 납부일 |
+| `effective_at` | DATETIME, NOT NULL | 적용 예정 시각 |
+| `status` | VARCHAR(20), `PENDING`/`HELD`/`CANCELED`/`APPLIED` | 예정 변경 상태 |
+| `applied_at` | DATETIME, nullable | 실제 적용 시각 |
+| `canceled_at` | DATETIME, nullable | 취소 시각 |
+| `created_at`, `updated_at` | DATETIME | 생성·최종 수정 시각 |
 
 - 한 모임·한 적용일에 하나의 예정 레코드만 두도록 `(group_id, effective_at)` 고유 제약을 권장한다.
 - 같은 적용일에 다시 저장하면 전달된 예정 필드만 덮어쓰고, 미전달 예정 필드는 유지한다.
