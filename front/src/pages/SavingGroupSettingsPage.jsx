@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import SavingGroupSettingsForm from '../components/savingGroup/SavingGroupSettingsForm';
-import { getSavingGroupSettings } from '../api/savingGroups';
+import { getSavingGroupSettings, updateSavingGroupSettings } from '../api/savingGroups';
 
 const Page = styled.div`
   width: 100%;
@@ -76,6 +76,8 @@ function SavingGroupSettingsPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveErrorMessage, setSaveErrorMessage] = useState('');
   const [retry, setRetry] = useState(0);
   const requestKey = `${id}:${retry}`;
   const [result, setResult] = useState({ requestKey: null, settings: null, errorMessage: '' });
@@ -102,9 +104,19 @@ function SavingGroupSettingsPage() {
     };
   }, [id, requestKey]);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    // TODO: Spring Boot 서버에 계모임 설정 수정 API 요청을 연결합니다.
+  const handleSubmit = async (changedFields) => {
+    if (isSaving) return;
+
+    setIsSaving(true);
+    setSaveErrorMessage('');
+    try {
+      await updateSavingGroupSettings(id, changedFields);
+      // TODO: 저장 성공 후 계모임 상세 메인 페이지로 이동합니다.
+    } catch (error) {
+      setSaveErrorMessage(error.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteConfirm = () => {
@@ -165,6 +177,8 @@ function SavingGroupSettingsPage() {
           pending={settings.pending}
           canEditSettings={settings.canEditSettings}
           status={settings.status}
+          isSaving={isSaving}
+          submitErrorMessage={saveErrorMessage}
           onSubmit={handleSubmit}
           onCancel={() => navigate(`/saving-groups/${settings.id}`)}
           onDeleteRequest={() => setIsDeleteModalOpen(true)}
