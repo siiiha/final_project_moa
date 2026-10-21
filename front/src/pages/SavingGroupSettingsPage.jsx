@@ -111,7 +111,7 @@ function SavingGroupSettingsPage() {
     setSaveErrorMessage('');
     try {
       await updateSavingGroupSettings(id, changedFields);
-      // TODO: 저장 성공 후 계모임 상세 메인 페이지로 이동합니다.
+      navigate(`/saving-groups/${id}`);
     } catch (error) {
       setSaveErrorMessage(error.message);
     } finally {
