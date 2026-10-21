@@ -37,6 +37,15 @@
         AND parent_id IS NULL
     </select>
 
+    <select id="selectTotalCommentCountByPostId"
+            parameterType="long"
+            resultType="int">
+        <!-- AI작성: 삭제 흔적을 포함한 원댓글과 대댓글 전체 개수를 화면에 제공합니다. -->
+        SELECT COUNT(*)
+        FROM comment
+        WHERE post_id = #{postId}
+    </select>
+
     <select id="selectCommentListByPostId"
             parameterType="com.nightstudy.moa.comment.dto.CommentSearchCondition"
             resultType="com.nightstudy.moa.comment.dto.CommentResponse">

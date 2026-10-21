@@ -3,12 +3,10 @@ package com.nightstudy.moa.comment.controller;
 import com.nightstudy.moa.comment.dto.CommentDto;
 import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
-import com.nightstudy.moa.comment.dto.CommentResponse;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
 import com.nightstudy.moa.comment.service.CommentService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import jakarta.validation.Valid;
-import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -64,14 +62,15 @@ public class CommentController {
     }
 
     @GetMapping("/post/{postId}/comments")
-    public ApiResponse<List<CommentResponse>> getCommentList(
+    public ApiResponse<CommentListResult> getCommentList(
             @PathVariable Long postId,
             @ModelAttribute CommentSearchCondition condition
             ) {
         // AI작성: 게시글 번호와 페이지 조건으로 댓글 목록을 조회합니다.
         CommentListResult result = commentService.getCommentList(postId, condition);
 
-        return ApiResponse.ok(result.getComments(), result.getPageMeta());
+        // AI작성: 원댓글 페이징 정보와 대댓글을 포함한 전체 댓글 개수를 함께 반환합니다.
+        return ApiResponse.ok(result, result.getPageMeta());
     }
 
     @PutMapping("/post/{postId}/comments/{commentId}")

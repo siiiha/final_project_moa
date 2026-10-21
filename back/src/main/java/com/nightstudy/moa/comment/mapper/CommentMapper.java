@@ -16,6 +16,9 @@ public interface CommentMapper {
 
     int selectCommentCountByPostId(Long postId);
 
+    // AI작성: 화면 표시용으로 원댓글과 대댓글을 모두 포함한 개수를 조회합니다.
+    int selectTotalCommentCountByPostId(Long postId);
+
     List<CommentResponse> selectCommentListByPostId(
             CommentSearchCondition condition
     );

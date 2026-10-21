@@ -19,17 +19,32 @@ const COMMENTS_PER_PAGE = 20;
 // AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
 const TEMP_MEMBER_ID = 44;
 
+// AI작성: 더보기로 가져온 과거 댓글과 방금 작성한 댓글이 시간 순서대로 표시되도록 정렬합니다.
+const sortCommentsByCreatedAt = (comments) =>
+  [...comments].sort((first, second) => {
+    const firstTime = Date.parse(first.createdAt || '');
+    const secondTime = Date.parse(second.createdAt || '');
+
+    if (Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime !== secondTime) {
+      return firstTime - secondTime;
+    }
+
+    return Number(first.id) - Number(second.id);
+  });
+
 // AI작성: 백엔드 댓글 응답을 화면 컴포넌트의 표시 형식으로 변환합니다.
 const mapComment = (comment) => ({
   id: comment.commentId,
   author: comment.writerNickname || '알 수 없음',
   content: comment.content,
+  createdAt: comment.createdAt,
   deleted: Boolean(comment.deleted),
   // AI작성: 백엔드가 반환한 한 단계 대댓글을 화면 표시 형식으로 변환합니다.
   replies: (comment.replies || []).map((reply) => ({
     id: reply.commentId,
     author: reply.writerNickname || '알 수 없음',
     content: reply.content,
+    createdAt: reply.createdAt,
     deleted: Boolean(reply.deleted),
   })),
 });
@@ -164,13 +179,18 @@ function PostDetailPage() {
 
         if (!isActive) return;
 
-        setComments((response.data || []).map(mapComment));
+        setComments((response.data?.comments || []).map(mapComment));
         setCommentPage(response.meta?.page || 1);
-        setCommentTotal(response.meta?.total || 0);
+        // AI작성: 댓글 개수에는 원댓글과 대댓글을 모두 포함합니다.
+        setCommentTotal(response.data?.totalCommentCount || 0);
         setCommentTotalPages(response.meta?.totalPages || 0);
       } catch (error) {
         if (!isActive) return;
+        // AI작성: 댓글 조회 실패 시 이전 게시글의 목록과 페이징 정보가 남지 않도록 초기화합니다.
         setComments([]);
+        setCommentPage(1);
+        setCommentTotal(0);
+        setCommentTotalPages(0);
         setCommentErrorMessage(
           error.response?.data?.error?.message || error.message || '댓글을 불러오지 못했습니다.'
         );
@@ -202,14 +222,15 @@ function PostDetailPage() {
       // AI작성: 댓글 더보기는 읽던 흐름을 유지하고 모바일에서도 쉽게 사용하도록 기존 목록 뒤에 추가합니다.
       setComments((currentComments) => {
         const currentCommentIds = new Set(currentComments.map((comment) => comment.id));
-        const newComments = (response.data || [])
+        const newComments = (response.data?.comments || [])
           .map(mapComment)
           .filter((comment) => !currentCommentIds.has(comment.id));
 
-        return [...currentComments, ...newComments];
+        // AI작성: 새 댓글을 먼저 화면에 추가한 상태에서도 다음 페이지와 합친 뒤 작성 시간순을 유지합니다.
+        return sortCommentsByCreatedAt([...currentComments, ...newComments]);
       });
       setCommentPage(response.meta?.page || nextPage);
-      setCommentTotal(response.meta?.total || commentTotal);
+      setCommentTotal(response.data?.totalCommentCount ?? commentTotal);
       setCommentTotalPages(response.meta?.totalPages || commentTotalPages);
     } catch (error) {
       setCommentErrorMessage(
@@ -278,12 +299,12 @@ function PostDetailPage() {
           id: response.data.commentId,
           author: '나',
           content: response.data.content,
+          createdAt: response.data.createdAt,
           replies: [],
         },
       ]);
       setCommentText('');
       setCommentTotal((currentTotal) => currentTotal + 1);
-      setCommentTotalPages(Math.ceil((commentTotal + 1) / COMMENTS_PER_PAGE));
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '댓글 등록에 실패했습니다.'
@@ -341,6 +362,7 @@ function PostDetailPage() {
                     id: response.data.commentId,
                     author: '나',
                     content: response.data.content,
+                    createdAt: response.data.createdAt,
                     deleted: false,
                   },
                 ],
@@ -350,6 +372,7 @@ function PostDetailPage() {
       );
       setReplyingCommentId(null);
       setReplyText('');
+      setCommentTotal((currentTotal) => currentTotal + 1);
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '답글 등록에 실패했습니다.'
@@ -441,6 +464,15 @@ function PostDetailPage() {
           };
         })
       );
+      // AI작성: 입력 또는 수정 중인 댓글이 삭제되면 남아 있는 입력 상태를 함께 정리합니다.
+      if (replyingCommentId === deletingCommentId) {
+        setReplyingCommentId(null);
+        setReplyText('');
+      }
+      if (editingCommentId === deletingCommentId) {
+        setEditingCommentId(null);
+        setEditingCommentText('');
+      }
       setDeletingCommentId(null);
     } catch (error) {
       setDeletingCommentId(null);
@@ -522,7 +554,7 @@ function PostDetailPage() {
       {deletingCommentId && (
         <ConfirmModal
           title="댓글 삭제"
-          description="댓글을 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다."
+          description="댓글을 삭제하시겠습니까? 삭제된 댓글은 내용만 숨겨집니다."
           confirmLabel={isDeletingComment ? '삭제 중...' : '댓글 삭제'}
           confirmVariant="danger"
           size="wide"

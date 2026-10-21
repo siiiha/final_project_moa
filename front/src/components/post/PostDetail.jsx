@@ -137,15 +137,18 @@ const CommentForm = styled.form`
   }
 `;
 
-const CommentInput = styled.input`
+// AI작성: 최대 500자의 댓글을 여러 줄로 편하게 작성할 수 있도록 textarea를 사용합니다.
+const CommentInput = styled.textarea`
   width: 100%;
-  height: 38px;
-  padding: 0 11px;
+  min-height: 76px;
+  padding: 10px 11px;
   color: ${({ theme }) => theme.colors.text};
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.muted};

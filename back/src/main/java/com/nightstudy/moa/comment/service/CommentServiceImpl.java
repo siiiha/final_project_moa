@@ -34,14 +34,10 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
+    // AI작성: 댓글 저장과 등록 결과 조회를 하나의 작업으로 묶어 중간 실패 시 저장을 롤백합니다.
+    @Transactional
     public CommentDto insertComment(Long postId, Long memberId, String content) {
-        if (postMapper.countPostById(postId) == 0) {
-            throw new ApiException(
-                    HttpStatus.NOT_FOUND,
-                    "POST_NOT_FOUND",
-                    "게시글을 찾을 수 없습니다."
-            );
-        }
+        validatePostExists(postId);
 
         CommentDto comment = new CommentDto();
         comment.setPostId(postId);
@@ -64,13 +60,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto insertReply(Long postId, Long parentCommentId, Long memberId, String content) {
-        if (postMapper.countPostById(postId) == 0) {
-            throw new ApiException(
-                    HttpStatus.NOT_FOUND,
-                    "POST_NOT_FOUND",
-                    "게시글을 찾을 수 없습니다."
-            );
-        }
+        validatePostExists(postId);
 
         CommentDto parentComment = commentMapper.selectCommentById(parentCommentId);
 
@@ -111,24 +101,19 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public CommentListResult getCommentList(Long postId,
                                             CommentSearchCondition condition){
-
-        if (postMapper.countPostById(postId) == 0){
-            throw new ApiException(
-                    HttpStatus.NOT_FOUND,
-                    "POST_NOT_FOUND",
-                    "게시글을 찾을 수 없습니다."
-            );
-        }
+        validatePostExists(postId);
         // AI작성: URL로 전달된 게시글 번호를 댓글 조회 조건에 저장합니다.
         condition.setPostId(postId);
         int total = commentMapper.selectCommentCountByPostId(postId);
+        int totalCommentCount = commentMapper.selectTotalCommentCountByPostId(postId);
         PageMeta pageMeta = PageMeta.of(condition.getPage(), condition.getSize(), total);
 
         // AI작성: 댓글이 없으면 목록 SQL을 추가로 실행하지 않고 빈 목록을 반환합니다.
         if (total == 0){
             return new CommentListResult(
                     List.of(),
-                    pageMeta
+                    pageMeta,
+                    totalCommentCount
             );
         }
 
@@ -142,7 +127,8 @@ public class CommentServiceImpl implements CommentService {
         if (comments.isEmpty()) {
             return new CommentListResult(
                     List.of(),
-                    pageMeta
+                    pageMeta,
+                    totalCommentCount
             );
         }
 
@@ -159,13 +145,16 @@ public class CommentServiceImpl implements CommentService {
 
         return new CommentListResult(
                 comments,
-                pageMeta
+                pageMeta,
+                totalCommentCount
         );
     }
 
     @Override
     @Transactional
     public CommentDto updateComment(Long postId, Long commentId, CommentEditRequest request) {
+        // AI작성: 삭제된 게시글의 댓글은 수정할 수 없도록 활성 게시글을 확인합니다.
+        validatePostExists(postId);
 
         CommentDto comment = commentMapper.selectCommentById(commentId);
 
@@ -197,6 +186,9 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public void deleteComment (Long postId, Long commentId) {
+        // AI작성: 삭제된 게시글의 댓글은 삭제 요청을 처리하지 않도록 활성 게시글을 확인합니다.
+        validatePostExists(postId);
+
         int deleteRows = commentMapper.deleteComment(postId, commentId);
 
         if (deleteRows != 1) {
@@ -204,6 +196,17 @@ public class CommentServiceImpl implements CommentService {
                     HttpStatus.NOT_FOUND,
                     "COMMENT_NOT_FOUND",
                     "댓글을 찾을 수 없습니다."
+            );
+        }
+    }
+
+    // AI작성: 댓글 기능에서 반복되는 활성 게시글 존재 검증을 한 곳에서 처리합니다.
+    private void validatePostExists(Long postId) {
+        if (postMapper.countPostById(postId) == 0) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
             );
         }
     }
