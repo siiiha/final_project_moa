@@ -9,6 +9,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class SavingGroupSettingsAuthorityRow {
     private Long savingGroupId;
+    private Long groupId;
     private Long groupLeaderMemberId;
     private Long ownerMemberId;
     private String status;

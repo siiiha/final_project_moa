@@ -29,4 +29,17 @@ public interface SavingGroupMapper {
     // 계모임 설정 화면에 표시할 현재 적용 중인 정보를 조회한다.
     SavingGroupCurrentSettingsResponse selectSavingGroupCurrentSettings(
             @Param("savingGroupId") Long savingGroupId);
+
+    // 수정 대상 계모임 행을 잠근 뒤 존재 여부, 계주 권한, 상태를 조회한다.
+    SavingGroupSettingsAuthorityRow selectSavingGroupSettingsAuthorityForUpdate(
+            @Param("savingGroupId") Long savingGroupId);
+
+    // 승인된 OWNER 계원 행을 잠근 뒤 계주 회원 ID를 조회한다.
+    Long selectSavingGroupOwnerMemberIdForUpdate(@Param("groupId") Long groupId);
+
+    // 승인 계원 행을 잠근 뒤 정원 검증에 사용할 계원 수를 집계한다.
+    long selectApprovedMemberCountForUpdate(@Param("groupId") Long groupId);
+
+    // 요청으로 전달된 이름, 소개글, 정원 필드만 기본 모임 정보에 수정한다.
+    int updateSavingGroupBasicSettings(@Param("update") SavingGroupSettingsBasicUpdate update);
 }

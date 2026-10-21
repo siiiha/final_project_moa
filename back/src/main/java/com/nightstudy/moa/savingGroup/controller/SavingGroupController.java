@@ -2,18 +2,23 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
 import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
+import java.util.List;
 import jakarta.validation.constraints.Positive;
 import org.springframework.web.bind.annotation.PathVariable;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -49,7 +54,17 @@ public class SavingGroupController {
     public ApiResponse<SavingGroupSettingsResponse> getSettings(
             @PathVariable Long savingGroupId) {
         // TODO: JWT 인증 완료 후 SecurityContext에서 로그인 회원 ID를 추출한다.
-        Long loginMemberId = null;
+        Long loginMemberId = 67L;
         return ApiResponse.ok(savingGroupService.getSavingGroupSettings(savingGroupId, loginMemberId));
+    }
+
+    @PatchMapping("/{savingGroupId}")
+    public ApiResponse<Void> updateSettings(
+            @PathVariable Long savingGroupId,
+            @Valid @RequestBody SavingGroupSettingsPatchRequest request) {
+        // TODO: JWT 인증 완료 후 SecurityContext에서 로그인 회원 ID를 추출한다.
+        Long loginMemberId = 67L;
+        savingGroupService.updateSavingGroupSettings(savingGroupId, loginMemberId, request);
+        return ApiResponse.ok(null);
     }
 }
