@@ -1,0 +1,10 @@
+# 프로필 사진 업로드 크기와 로컬 저장 위치입니다.
+spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+moa:
+  upload:
+    profile-dir: ./uploads/profiles

@@ -12,6 +12,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * 모든 Controller 에서 던져진 예외를 한곳에서 받아 실패 봉투로 응답한다. 덕분에 Controller 마다 try-catch 를 쓰지 않아도 된다.
@@ -71,6 +72,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail(
                         "INVALID_REQUEST",
                         "요청 형식과 생년월일 형식(YYYY-MM-DD)을 확인해주세요."
+                ));
+    }
+
+    // 업로드 용량 초과시 공통 오류 응답으로 반환
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadSizeExceeded(
+            MaxUploadSizeExceededException e
+    ) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiResponse.fail(
+                        "PROFILE_IMAGE_TOO_LARGE",
+                        "사진이 허용된 최대 크기를 초과했습니다."
                 ));
     }
 }
