@@ -2,12 +2,23 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
-import com.nightstudy.moa.common.exception.ApiException;
-import org.springframework.http.HttpStatus;
 import com.nightstudy.moa.common.dto.PageMeta;
+import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupListCondition;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentSettingsResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupRow;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
+import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,15 +79,74 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         List<SavingGroupRow> rows = savingGroupMapper.selectSavingGroupList(condition);
         Map<Long, Long> counts = rows.isEmpty() ? Map.of()
                 : savingGroupMapper.selectApprovedMemberCounts(
-                        rows.stream().map(SavingGroupRow::getGroupId).distinct().toList())
-                .stream().collect(Collectors.toMap(
-                        SavingGroupMemberCount::getGroupId, SavingGroupMemberCount::getMemberCount));
+                                rows.stream().map(SavingGroupRow::getGroupId).distinct().toList())
+                        .stream().collect(Collectors.toMap(
+                                SavingGroupMemberCount::getGroupId, SavingGroupMemberCount::getMemberCount));
         List<SavingGroupSummaryResponse> items = rows.stream().map(row ->
                 new SavingGroupSummaryResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(),
                         row.getDescription(), row.getRegionName(), row.getMaxMembers(),
                         counts.getOrDefault(row.getGroupId(), 0L), row.getDuesAmount(),
                         row.getDuesDay(), row.getStatus())).toList();
         return new SavingGroupListResponse(items, pageMeta);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupSettingsResponse getSavingGroupSettings(Long savingGroupId, Long loginMemberId) {
+        if (loginMemberId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupSettingsAuthorityRow authority =
+                savingGroupMapper.selectSavingGroupSettingsAuthority(savingGroupId);
+        if (authority == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        boolean isOwner = Objects.equals(authority.getGroupLeaderMemberId(), loginMemberId)
+                && Objects.equals(authority.getOwnerMemberId(), loginMemberId);
+        if (!isOwner) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_SETTINGS_FORBIDDEN",
+                    "계주만 설정을 조회할 수 있습니다.");
+        }
+
+        if ("04".equals(authority.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "종료된 계모임의 설정은 조회할 수 없습니다.");
+        }
+
+        List<String> editableFields = getEditableFields(authority.getStatus());
+        if (editableFields == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "현재 상태에서는 계모임 설정을 조회할 수 없습니다.");
+        }
+
+        SavingGroupCurrentSettingsResponse current =
+                savingGroupMapper.selectSavingGroupCurrentSettings(savingGroupId);
+        if (current == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        // TODO: 예정 설정 테이블 추가 후 적용 예정 설정을 별도 Mapper 함수로 조회한다.
+
+        return new SavingGroupSettingsResponse(
+                authority.getSavingGroupId(),
+                authority.getStatus(),
+                true,
+                !editableFields.isEmpty(),
+                current,
+                null,
+                editableFields
+        );
+    }
+
+    private List<String> getEditableFields(String status) {
+        return switch (status) {
+            case "00", "01" -> List.of("groupName", "description", "maxMembers", "duesAmount", "duesDay");
+            case "02" -> List.of("groupName", "description", "duesAmount", "duesDay");
+            case "03" -> List.of();
+            default -> null;
+        };
     }
 
     // AI작성: 바인딩과 별개로 LIKE 특수문자를 일반 문자로 검색하도록 처리한다.
