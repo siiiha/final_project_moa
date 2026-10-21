@@ -1,6 +1,6 @@
 -- Moa schema submission draft, 2026-10-08.
 -- Select an empty MySQL database before executing this file.
--- 26 tables, 37 foreign keys, 3 UNIQUE constraints, 1 CHECK constraint.
+-- 27 tables, 38 foreign keys, 4 UNIQUE constraints, 3 CHECK constraints.
 -- Single-column numeric primary keys use AUTO_INCREMENT.
 -- ERDCloud export supplemented in SQL; not applied to ERDCloud.
 -- Structural validation only; execution in MySQL is still pending.
@@ -166,6 +166,25 @@ CREATE TABLE IF NOT EXISTS `saving_group` (
 		CHECK(`dues_day` BETWEEN 1 AND 31)
     ) ENGINE=InnoDB DEFAULT CHARSET=UTF8MB4
     COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `saving_group_setting_change` (
+    `setting_change_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `group_id` BIGINT NOT NULL,
+    `dues_amount` DECIMAL(12,2) NULL,
+    `dues_day` TINYINT NULL,
+    `effective_at` DATETIME NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    `applied_at` DATETIME NULL,
+    `canceled_at` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`setting_change_id`),
+    UNIQUE KEY `uq_saving_group_setting_change_group_effective_at` (`group_id`, `effective_at`),
+    CONSTRAINT `chk_saving_group_setting_change_dues_day`
+        CHECK (`dues_day` IS NULL OR `dues_day` BETWEEN 1 AND 28),
+    CONSTRAINT `chk_saving_group_setting_change_status`
+        CHECK (`status` IN ('PENDING', 'HELD', 'CANCELED', 'APPLIED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `small_group` (
 	`small_group_id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -464,6 +483,11 @@ REFERENCES `members` (`member_id`);
 
 ALTER TABLE `saving_group`
 ADD CONSTRAINT `FK_groups_TO_saving_group_1`
+FOREIGN KEY (`group_id`)
+REFERENCES `groups` (`group_id`);
+
+ALTER TABLE `saving_group_setting_change`
+ADD CONSTRAINT `FK_groups_TO_saving_group_setting_change_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);
 
