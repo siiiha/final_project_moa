@@ -101,7 +101,7 @@
 - `SavingGroupSettingsPatchRequest`: `@Getter`, `@NoArgsConstructor`, 필드 전달 여부 플래그와 `@JsonSetter`를 사용한다.
 - `SavingGroupSettingsResponse`, `PendingSettingChangeResponse`, `SavingGroupSettingsUpdateResponse`: `@Getter`, `@AllArgsConstructor`, Validation 없음.
 - 일반 nullable 필드만으로는 JSON의 **미전달**과 **명시적 null**을 구분할 수 없으므로, setter가 호출됐는지 저장하는 boolean 플래그가 필요하다.
-- 형식 검증은 DTO의 Bean Validation에서 처리하고, DB 상태·계주 권한·승인 인원·기존값 비교는 ServiceImpl의 업무 검증으로 분리한다.
+- 형식 검증은 DTO의 Bean Validation에서 처리하고, DB 상태·계주 권한·승인 인원은 ServiceImpl의 업무 검증으로 분리한다.
 
 ---
 
@@ -201,18 +201,6 @@
 }
 ```
 
-```json
-{
-  "success": false,
-  "data": null,
-  "meta": null,
-  "error": {
-    "code": "SAVING_GROUP_NO_CHANGES",
-    "message": "실제 변경된 정보가 없습니다."
-  }
-}
-```
-
 데이터가 전혀 필요 없는 엔드포인트라면 기존 규칙대로 `ApiResponse.ok(null)`을 사용한다.
 
 ---
@@ -283,11 +271,11 @@ saving_group_setting_change
 
 ### 4.5 부분 UPDATE와 동시성
 
-- MyBatis `<set>`과 바인딩 파라미터를 사용해 허용·변경된 필드만 UPDATE한다.
+- MyBatis `<set>`과 바인딩 파라미터를 사용해 요청으로 전달된 허용 필드만 UPDATE한다.
 - 조회와 저장 사이 상태가 바뀌지 않도록 대상 모임을 `SELECT ... FOR UPDATE`로 잠근다.
 - 잠금 순서는 **모임 → 계원 관계/인원 → 예정 변경**으로 고정한다.
 - 정원 변경과 가입 승인은 같은 모임 행 또는 동일한 잠금 순서를 공유해야 정합성을 보장할 수 있다.
-- 영향 행 수는 MyBatis/MySQL의 기존 설정을 확인한 뒤 기대값과 비교한다. 변경사항 없음 판단은 UPDATE 결과가 아니라 저장 전 기존값 비교로 처리한다.
+- 기존값과 같은 요청도 정상 처리한다. 기존값 비교나 UPDATE 영향 행 수로 변경 여부를 판단하지 않는다.
 
 ### 4.6 기존 납부 정보 연계
 
@@ -310,9 +298,6 @@ saving_group_setting_change
 | 상태별 수정 불가 필드 | 409 | `SAVING_GROUP_FIELD_NOT_EDITABLE` | 현재 상태에서는 해당 항목을 수정할 수 없습니다. |
 | 정원 < 승인 인원 | 409 | `SAVING_GROUP_CAPACITY_BELOW_MEMBERS` | 승인된 계원 수보다 작게 설정할 수 없습니다. |
 | 빈 PATCH/null/형식 오류 | 400 | `BAD_REQUEST` | 입력 항목을 확인해주세요. |
-| 동일값만 전달 | 409 | `SAVING_GROUP_NO_CHANGES` | 실제 변경된 정보가 없습니다. |
-| 동시 수정·상태 충돌 | 409 | `SAVING_GROUP_UPDATE_CONFLICT` | 정보가 변경되었습니다. 다시 확인 후 저장해주세요. |
-| UPDATE 행 수 불일치 | 409 또는 500 | `SAVING_GROUP_UPDATE_CONFLICT` | 저장 중 상태가 변경되었습니다. |
 | 예상 밖 저장 실패 | 500 | `INTERNAL_ERROR` | 서버 오류가 발생했습니다. |
 
 `ApiException`으로 업무 예외를 던지고 `GlobalExceptionHandler`가 `ApiResponse.fail(code, message)`로 감싼다. JWT 401/403은 실제 Security 필터의 응답 방식과 통일해야 한다.
@@ -384,7 +369,7 @@ saving_group_setting_change
 | 2-BE-1 | 부분 수정 요청 DTO를 추가한다. 미전달·null·빈 문자열을 구분하고 형식 Validation을 적용한다. | 빈 PATCH와 잘못된 값이 `400`으로 처리된다. | `feat(saving-group): 부분 수정 요청 DTO 추가` |
 | 2-BE-2 | 모임 잠금 조회, 계주 확인, 승인 계원 수 집계 Mapper를 추가한다. | 정원과 가입 승인 경쟁 시 일관된 검증 기반을 갖춘다. | `feat(saving-group): 설정 수정 검증 Mapper 추가` |
 | 2-BE-3 | 이름·소개글·정원의 상태별 업무 검증과 동적 UPDATE를 ServiceImpl에 구현한다. | `00`, `01`의 허용 필드와 `02`의 이름·소개글만 수정된다. `03`, `04`는 전체 차단된다. | `feat(saving-group): 즉시 설정 수정 API 추가` |
-| 2-BE-4 | 저장 전 정규화·기존값 비교와 영향 행 수 검증을 추가한다. | 동일값만 전달하면 `409`, 실제 변경이 하나라도 있으면 해당 필드만 저장된다. | `feat(saving-group): 설정 변경 검증 추가` |
+| 2-BE-4 | 저장 전 정규화와 승인 계원 수 검증을 추가한다. | 전달된 수정 가능 필드는 기존값과 같아도 정상 저장되며, 정원은 승인 계원 수 이상일 때만 저장된다. | `feat(saving-group): 설정 변경 검증 추가` |
 
 #### Frontend 작업: 변경 필드 PATCH
 
@@ -448,7 +433,7 @@ saving_group_setting_change
 - [ ] 승인 인원과 같은 정원 허용 및 그보다 작은 정원 차단
 - [ ] 모임장 포함, 대기·탈퇴 제외 인원 집계
 - [ ] 미전달 필드 보존, null·빈 문자열 구분
-- [ ] 빈 요청·동일값 요청 오류와 저장 버튼 비활성화
+- [ ] 빈 요청 오류와 저장 버튼 비활성화, 동일값 요청 정상 처리
 - [ ] 이름·소개글 즉시 반영
 - [ ] 회비·납부일 다음 달 1일 KST 반영과 현재 회차 내역 유지
 - [ ] 예정값 재수정 및 미전달 예정 필드 유지

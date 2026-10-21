@@ -2,13 +2,15 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentSettingsResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount;
-import com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentSettingsResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsBasicUpdate;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
@@ -111,6 +113,86 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 null,
                 editableFields
         );
+    }
+
+    @Override
+    @Transactional
+    public void updateSavingGroupSettings(
+            Long savingGroupId, Long loginMemberId, SavingGroupSettingsPatchRequest request) {
+        if (loginMemberId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupSettingsAuthorityRow authority =
+                savingGroupMapper.selectSavingGroupSettingsAuthorityForUpdate(savingGroupId);
+        if (authority == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        Long ownerMemberId = savingGroupMapper.selectSavingGroupOwnerMemberIdForUpdate(authority.getGroupId());
+        boolean isOwner = Objects.equals(authority.getGroupLeaderMemberId(), loginMemberId)
+                && Objects.equals(ownerMemberId, loginMemberId);
+        if (!isOwner) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_SETTINGS_FORBIDDEN",
+                    "계주만 설정을 변경할 수 있습니다.");
+        }
+
+        validateEditableFields(authority.getStatus(), request);
+        normalizeBasicSettings(request);
+
+        SavingGroupSettingsBasicUpdate update = createBasicSettingsUpdate(authority.getGroupId(), request);
+
+        if (update.getMaxMembers() != null) {
+            long approvedMemberCount =
+                    savingGroupMapper.selectApprovedMemberCountForUpdate(authority.getGroupId());
+            if (update.getMaxMembers() < approvedMemberCount) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_BELOW_MEMBERS",
+                        "승인된 계원 수보다 작게 설정할 수 없습니다.");
+            }
+        }
+
+        savingGroupMapper.updateSavingGroupBasicSettings(update);
+    }
+
+    private void validateEditableFields(String status, SavingGroupSettingsPatchRequest request) {
+        if ("03".equals(status) || "04".equals(status)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "현재 상태에서는 계모임 정보를 수정할 수 없습니다.");
+        }
+
+        if (!"00".equals(status) && !"01".equals(status) && !"02".equals(status)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "현재 상태에서는 계모임 정보를 수정할 수 없습니다.");
+        }
+
+        if ("02".equals(status) && request.isMaxMembersProvided()) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_FIELD_NOT_EDITABLE",
+                    "진행 중인 계모임에서는 정원을 수정할 수 없습니다.");
+        }
+
+        if (request.isDuesAmountProvided() || request.isDuesDayProvided()) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_FIELD_NOT_EDITABLE",
+                    "회비와 납부일 수정은 다음 달 적용 기능에서 처리됩니다.");
+        }
+    }
+
+    private void normalizeBasicSettings(SavingGroupSettingsPatchRequest request) {
+        if (request.isGroupNameProvided()) {
+            request.setGroupName(request.getGroupName().strip());
+        }
+        if (request.isDescriptionProvided()) {
+            request.setDescription(request.getDescription().strip());
+        }
+    }
+
+    private SavingGroupSettingsBasicUpdate createBasicSettingsUpdate(
+            Long groupId, SavingGroupSettingsPatchRequest request) {
+        String groupName = request.isGroupNameProvided() ? request.getGroupName() : null;
+        String description = request.isDescriptionProvided() ? request.getDescription() : null;
+        Integer maxMembers = request.isMaxMembersProvided() ? request.getMaxMembers() : null;
+
+        return new SavingGroupSettingsBasicUpdate(
+                groupId, groupName, description, maxMembers);
     }
 
     private List<String> getEditableFields(String status) {
