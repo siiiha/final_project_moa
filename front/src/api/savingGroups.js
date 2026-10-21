@@ -118,3 +118,24 @@ export async function getSavingGroupSettings(savingGroupId, { signal } = {}) {
     );
   }
 }
+
+export async function updateSavingGroupSettings(savingGroupId, changedFields) {
+  try {
+    const response = await client.patch(`/saving-groups/${savingGroupId}`, changedFields);
+    if (!response.data.success) {
+      throw toSavingGroupSettingsError(
+        response.data.error,
+        '계모임 설정을 저장하지 못했습니다.',
+        response.status
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error.name === 'SavingGroupSettingsError') throw error;
+    throw toSavingGroupSettingsError(
+      error.response?.data?.error,
+      '계모임 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      error.response?.status
+    );
+  }
+}
