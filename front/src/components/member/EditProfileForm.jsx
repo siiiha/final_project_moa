@@ -88,6 +88,22 @@ const AvatarButton = styled.button`
   font-weight: 700;
 `;
 
+// AI작성: 사진 저장 안내와 파일 제한을 간결하게 표시합니다.
+const PhotoHint = styled.p`
+  margin-top: 10px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: center;
+  word-break: keep-all;
+
+  span {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+  }
+`;
+
 const FormArea = styled.div`
   display: grid;
   align-content: start;
@@ -399,7 +415,10 @@ function EditProfileForm() {
             삭제
           </AvatarButton>
         </AvatarActions>
-        <p>사진은 선택하면 바로 저장됩니다.</p>
+        <PhotoHint>
+          선택한 사진은 자동으로 저장돼요.
+          <span>JPG·PNG · 최대 5MB</span>
+        </PhotoHint>
       </AvatarPanel>
 
       <FormArea as="form" onSubmit={handleUpdateRequest}>
