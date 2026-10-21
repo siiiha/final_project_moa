@@ -35,7 +35,44 @@
         ORDER BY g.created_at DESC, sg.saving_group_id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
-    
+
+    <select id="selectSavingGroupSettingsAuthority" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow">
+        SELECT sg.saving_group_id,
+        g.member_id AS group_leader_member_id,
+        owner.owner_member_id,
+        sg.status
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        LEFT JOIN (
+        SELECT group_id, MAX(member_id) AS owner_member_id
+        FROM group_member
+        WHERE member_role = 'OWNER'
+        AND membership_status = 'APPROVED'
+        GROUP BY group_id
+        ) owner ON owner.group_id = g.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+    </select>
+
+    <select id="selectSavingGroupCurrentSettings" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentSettingsResponse">
+        SELECT g.group_name,
+        g.description,
+        g.max_members,
+        COALESCE(approved.approved_member_count, 0) AS approved_member_count,
+        sg.dues_amount,
+        sg.dues_day
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        LEFT JOIN (
+        SELECT group_id, COUNT(DISTINCT member_id) AS approved_member_count
+        FROM group_member
+        WHERE membership_status = 'APPROVED'
+        GROUP BY group_id
+        ) approved ON approved.group_id = g.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+    </select>
+
     <!-- AI작성: 승인된 모임장도 계원 행에 있으므로 +1 없이 회원 ID를 중복 제거한다. -->
     <select id="selectApprovedMemberCounts" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount">
         SELECT group_id, COUNT(DISTINCT member_id) AS member_count

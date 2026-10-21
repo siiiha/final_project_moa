@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
 import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
@@ -9,6 +10,7 @@ import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,5 +31,13 @@ public class SavingGroupController {
             @Valid @ModelAttribute SavingGroupSearchCondition condition) {
         SavingGroupListResponse result = savingGroupService.getSavingGroupList(condition);
         return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+
+    @GetMapping("/{savingGroupId}/settings")
+    public ApiResponse<SavingGroupSettingsResponse> getSettings(
+            @PathVariable Long savingGroupId) {
+        // TODO: JWT 인증 완료 후 SecurityContext에서 로그인 회원 ID를 추출한다.
+        Long loginMemberId = null;
+        return ApiResponse.ok(savingGroupService.getSavingGroupSettings(savingGroupId, loginMemberId));
     }
 }
