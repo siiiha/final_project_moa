@@ -1,6 +1,7 @@
 package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
@@ -10,15 +11,12 @@ import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
-import java.util.List;
-import jakarta.validation.constraints.Positive;
-import org.springframework.web.bind.annotation.PathVariable;
-import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,6 +29,21 @@ public class SavingGroupController {
     // AI작성: 목록 조회 서비스만 주입한다.
     public SavingGroupController(SavingGroupService savingGroupService) {
         this.savingGroupService = savingGroupService;
+    }
+
+    // AI작성: 승인자는 서버 인증 정보로만 받아 기존 트랜잭션 Service에 전달한다. 요청 본문은 사용하지 않는다.
+    @PatchMapping("/{savingGroupId}/join-requests/{crewMemberId}/approve")
+    public ApiResponse<Void> approveJoinRequest(
+            @PathVariable("savingGroupId") Long savingGroupId,
+            @PathVariable("crewMemberId") Long crewMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        // AI작성: TODO: JWT 브랜치 병합 후 LoginInterceptor가 두 승인 경로를 검증하고 memberId를 설정하도록 WebConfig에 등록한다.
+        // AI작성: 인증 연결 전에는 401로 차단한다. 헤더·쿼리·본문의 회원 ID나 임시 고정 ID를 인증 정보로 사용하지 않는다.
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        savingGroupService.approveSavingGroupJoin(savingGroupId, crewMemberId, memberId);
+        return ApiResponse.ok();
     }
 
     // AI작성: JWT 연결 전에는 공개 조회만 제공하며 클라이언트의 사용자 ID·역할은 받지 않는다.

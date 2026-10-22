@@ -1,6 +1,20 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-22 — 가입 승인 3단계: Controller 연결 (JWT 연동 TODO)
+
+- 목적: 기존 승인 Service를 PATCH API에 연결하고 공통 응답·예외 처리 계약을 검증한다.
+- 사용자 지시·승인: 다른 브랜치의 JWT 로그인은 병합하지 않고 TODO 주석으로 남겨 제외한 상태로 구현. 안내한 Controller·신규 테스트·API 명세·본 기록 4개 파일 범위에서 작업했다.
+- AI 작성: 두 Controller 기본 경로 아래 /{savingGroupId}/join-requests/{crewMemberId}/approve 추가, 서버 request attribute memberId를 계주 ID로 사용, 인증 속성 누락·0 이하 차단, 기존 승인 Service와 ApiResponse.ok 연결, 테스트·명세 작성.
+- 인증 확인: 다른 브랜치 LoginInterceptor가 JWT 검증 후 memberId(Long) 요청 속성을 설정한다. 현재 브랜치에는 인증 구현이 없으며 이를 임의로 새로 만들거나 Principal 형식을 가정하지 않았다.
+- TODO: JWT 브랜치 병합 후 두 승인 경로에 LoginInterceptor를 등록하고 공개 GET은 유지한다. 실제 JWT·만료·변조·비로그인·경로별 보호를 통합 검증하고 인증 브랜치 오류 코드도 명세에 반영한다.
+- 현재 동작 제한: JWT 미연결 상태에서는 실제 HTTP 요청에 인증 속성이 없어 401을 반환한다. 정상 승인 응답 테스트는 테스트 전용 requestAttr 주입으로 인증 완료 상황을 모사한다. 클라이언트 입력으로 인증을 우회하거나 임시 회원 ID를 사용하지 않는다.
+- 검증: Java 17 컴파일·테스트 컴파일 통과. Controller 테스트 24개와 기존 Service 단위 테스트 12개, 총 36개 통과. git diff --check 통과.
+- 테스트 내용: 두 경로 본문 없는 승인 성공·공통 응답, 인증 정보 없음·잘못된 값의 차단, 클라이언트 ID 무시, 문자열·Long 범위 초과·0·음수 경로, 권한·대상 없음·승인 불가 상태 등의 오류 응답.
+- 미검증: 실제 MySQL 테스트 7개는 별도 테스트 서버 환경설정이 없어 건너뛰었다. JWT 검증, 실제 앱 기동·Postman 성공 승인, 실제 DB 저장·롤백·동시성은 미검증이다.
+- 변경하지 않은 범위: 인증 구현·WebConfig·Service·Mapper·DB 스키마·공용 DB·공통 응답/예외·의존성·설정. 실제 git commit은 수행하지 않았다. 개발자 최종 검토 대기.
+- 공식 근거: https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-methods/requestattrib.html (서버가 미리 설정한 요청 속성 사용).
+
 ## 2026-10-22 — 가입 승인 2단계: 기존 신청 행 상태 변경
 
 - 목적: 1단계 조회·검증과 조건부 승인 UPDATE를 하나의 Service 트랜잭션에서 실행한다.
