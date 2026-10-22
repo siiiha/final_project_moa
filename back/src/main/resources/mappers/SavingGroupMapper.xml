@@ -55,7 +55,7 @@
     <insert id="insertGroups"
             parameterType="SavingGroupCreationRequest"
             useGeneratedKeys="true"
-            keyProperty="group_id">
+            keyProperty="groupId">
         INSERT INTO groups (
         region_id,
         member_id,

@@ -130,7 +130,7 @@ class SavingGroupJoinRequestServiceTest {
     void 실제매퍼의마스킹필터정렬및바인딩() throws Exception {
         var config = new org.apache.ibatis.session.Configuration();
         config.getTypeAliasRegistry().registerAlias("SavingGroupCreationRequest",
-                com.nightstudy.moa.saving_group.dto.SavingGroupCreationRequest.class);
+                com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest.class);
         try (var input = getClass().getClassLoader().getResourceAsStream("mappers/SavingGroupMapper.xml")) {
             new org.apache.ibatis.builder.xml.XMLMapperBuilder(input, config, "mappers/SavingGroupMapper.xml", config.getSqlFragments()).parse();
         }

@@ -9,6 +9,11 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
+    int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
+    int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
+    int approveForCreationSavingGroup(@Param("savingGroupId") Long savingGroupId);
+
     // 목록 검색 조건에 맞는 공개 계모임의 총 개수를 조회한다.
     // AI작성: 일대다 데이터를 분리 조회하여 공지 수가 계원 집계에 영향을 주지 않게 한다.
     SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);

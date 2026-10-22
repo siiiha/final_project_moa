@@ -73,7 +73,7 @@ class SavingGroupJoinApprovalMySqlTest {
         var configuration = new org.apache.ibatis.session.Configuration();
         configuration.setMapUnderscoreToCamelCase(true);
         configuration.getTypeAliasRegistry().registerAlias("SavingGroupCreationRequest",
-                com.nightstudy.moa.saving_group.dto.SavingGroupCreationRequest.class);
+                com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest.class);
         var factory = new SqlSessionFactoryBean();
         factory.setDataSource(source);
         factory.setConfiguration(configuration);
