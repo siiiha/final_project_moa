@@ -70,15 +70,4 @@ public class AdminPostServiceImpl implements AdminPostService {
         }
     }
 
-    @Override
-    public void deleteComment(Long postId, Long commentId) {
-        // AI작성: 이미 삭제되었거나 해당 게시글에 속하지 않은 댓글은 동일하게 찾을 수 없음으로 처리한다.
-        if (adminPostMapper.deleteComment(postId, commentId) != 1) {
-            throw new ApiException(
-                    HttpStatus.NOT_FOUND,
-                    "COMMENT_NOT_FOUND",
-                    "댓글을 찾을 수 없습니다."
-            );
-        }
-    }
 }
