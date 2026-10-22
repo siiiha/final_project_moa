@@ -1,6 +1,6 @@
 -- Moa schema submission draft, 2026-10-08.
 -- Select an empty MySQL database before executing this file.
--- 26 tables, 37 foreign keys, 3 UNIQUE constraints, 1 CHECK constraint.
+-- 28 tables, 40 foreign keys, 6 UNIQUE constraints, 3 CHECK constraint.
 -- Single-column numeric primary keys use AUTO_INCREMENT.
 -- ERDCloud export supplemented in SQL; not applied to ERDCloud.
 -- Structural validation only; execution in MySQL is still pending.
@@ -168,9 +168,32 @@ CREATE TABLE IF NOT EXISTS `saving_group` (
     `group_image` VARCHAR(255) NULL,
     PRIMARY KEY (`saving_group_id`),
     CONSTRAINT `chk_saving_group_dues_day`
-		CHECK(`dues_day` BETWEEN 1 AND 31)
+		CHECK(`dues_day` BETWEEN 1 AND 28)
     ) ENGINE=InnoDB DEFAULT CHARSET=UTF8MB4
     COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `saving_group_setting_change` (
+    `setting_change_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `group_id` BIGINT NOT NULL,
+    `dues_amount` DECIMAL(12,2) NULL,
+    `dues_day` TINYINT NULL,
+    `effective_at` DATETIME NOT NULL,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    `applied_at` DATETIME NULL,
+    `canceled_at` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`setting_change_id`),
+    UNIQUE KEY `uq_saving_group_setting_change_group_effective_at`
+(`group_id`, `effective_at`),
+    CONSTRAINT `chk_saving_group_setting_change_dues_day`
+    CHECK (`dues_day` IS NULL OR `dues_day` BETWEEN 1 AND 28),
+    CONSTRAINT `chk_saving_group_setting_change_status`
+    CHECK (`status` IN ('PENDING', 'HELD', 'CANCELED', 'APPLIED')),
+    CONSTRAINT `fk_saving_group_setting_change_group`
+    FOREIGN KEY (`group_id`) REFERENCES `groups` (`group_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `small_group` (
 	`small_group_id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -299,14 +322,44 @@ CREATE TABLE IF NOT EXISTS `interest` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `group_transaction` (
-	`transaction_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`account_id`	BIGINT	NOT NULL,
-	`transaction_type`	ENUM('DEPOSIT', 'WITHDRAWAL')	NOT NULL,
-	`amount`	DECIMAL(15,2)	NOT NULL,
-	`transacted_at`	DATETIME	NOT NULL,
-	`description`	VARCHAR(255)	NULL,
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`transaction_id`)
+    `transaction_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `account_id` BIGINT NOT NULL,
+    `transaction_type` ENUM('DEPOSIT', 'WITHDRAWAL') NOT NULL,
+    `amount` DECIMAL(15,2) NOT NULL,
+    `balance_after` DECIMAL(15,2) NULL,
+    `source_provider` VARCHAR(50) NULL,
+    `source_transaction_id` VARCHAR(128) NULL,
+    `transacted_at` DATETIME NOT NULL,
+    `description` VARCHAR(255) NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`transaction_id`),
+    UNIQUE KEY `uq_group_transaction_source`
+(`account_id`, `source_provider`, `source_transaction_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `transaction_anomaly_analysis` (
+    `transaction_id` BIGINT NOT NULL,
+    `revision_no` INT NOT NULL,
+    `input_fingerprint` CHAR(64) NOT NULL,
+    `status` ENUM('PENDING', 'COMPLETED', 'FAILED')
+    NOT NULL DEFAULT 'PENDING',
+    `anomaly_score` DOUBLE NULL,
+    `threshold` DOUBLE NULL,
+    `is_anomaly` BOOLEAN NULL,
+    `cold_start` BOOLEAN NULL,
+    `quality_flags` JSON NOT NULL,
+    `model_version` VARCHAR(128) NULL,
+    `feature_schema_version` VARCHAR(64) NULL,
+    `analyzed_at` DATETIME(6) NULL,
+    `error_code` VARCHAR(64) NULL,
+    `created_at` DATETIME(6) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`transaction_id`, `revision_no`),
+    KEY `ix_transaction_anomaly_analysis_status_created`
+(`status`, `created_at`),
+    CONSTRAINT `fk_transaction_anomaly_analysis_transaction`
+    FOREIGN KEY (`transaction_id`)
+    REFERENCES `group_transaction` (`transaction_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `post` (
