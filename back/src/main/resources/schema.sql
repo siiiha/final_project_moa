@@ -314,7 +314,6 @@ CREATE TABLE IF NOT EXISTS `post` (
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
 	`deleted_at`	DATETIME	NULL,
     `updated_at` DATETIME NULL,
-    `hidden_at` DATETIME NULL,
 	PRIMARY KEY (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
