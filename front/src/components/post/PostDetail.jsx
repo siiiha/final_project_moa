@@ -137,15 +137,18 @@ const CommentForm = styled.form`
   }
 `;
 
-const CommentInput = styled.input`
+// AI작성: 최대 500자의 댓글을 여러 줄로 편하게 작성할 수 있도록 textarea를 사용합니다.
+const CommentInput = styled.textarea`
   width: 100%;
-  height: 38px;
-  padding: 0 11px;
+  min-height: 76px;
+  padding: 10px 11px;
   color: ${({ theme }) => theme.colors.text};
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.muted};
@@ -173,6 +176,12 @@ const CommentEditForm = styled.form`
   }
 `;
 
+const ReplyForm = styled(CommentEditForm)`
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 2px solid ${({ theme }) => theme.colors.primarySoft};
+`;
+
 function PostDetail({
   post,
   comments,
@@ -180,12 +189,19 @@ function PostDetail({
   hasMoreComments,
   isLoadingMoreComments,
   isSubmittingComment,
+  replyingCommentId,
+  replyText,
+  isSubmittingReply,
   editingCommentId,
   editingCommentText,
   isUpdatingComment,
   commentText,
   onCommentChange,
   onCommentSubmit,
+  onReplyStart,
+  onReplyChange,
+  onReplySubmit,
+  onReplyCancel,
   onCommentEditStart,
   onCommentEditChange,
   onCommentEditSubmit,
@@ -227,16 +243,20 @@ function PostDetail({
             <Comment key={comment.id}>
               <CommentHeader>
                 <Author>{comment.author}</Author>
-                <ReplyActions>
-                  {/* TODO AI작성: comment에 부모 댓글 구조와 답글 API가 추가되면 답글 작성 기능을 연결해야 합니다. */}
-                  <TextAction type="button">답글</TextAction>
-                  <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
-                    수정
-                  </TextAction>
-                  <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>
-                    삭제
-                  </TextAction>
-                </ReplyActions>
+                {!comment.deleted && (
+                  <ReplyActions>
+                    {/* AI작성: 원댓글에만 한 단계 답글 작성 버튼을 제공합니다. */}
+                    <TextAction type="button" onClick={() => onReplyStart(comment.id)}>
+                      답글
+                    </TextAction>
+                    <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
+                      수정
+                    </TextAction>
+                    <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>
+                      삭제
+                    </TextAction>
+                  </ReplyActions>
+                )}
               </CommentHeader>
               {editingCommentId === comment.id ? (
                 <CommentEditForm onSubmit={onCommentEditSubmit}>
@@ -244,6 +264,7 @@ function PostDetail({
                   <CommentInput
                     value={editingCommentText}
                     onChange={(event) => onCommentEditChange(event.target.value)}
+                    maxLength={500}
                     required
                   />
                   <Button type="submit" $size="small" disabled={isUpdatingComment}>
@@ -262,20 +283,71 @@ function PostDetail({
               ) : (
                 <CommentText>{comment.content}</CommentText>
               )}
+              {replyingCommentId === comment.id && (
+                <ReplyForm onSubmit={onReplySubmit}>
+                  {/* AI작성: 답글 버튼을 누른 원댓글 바로 아래에 대댓글 입력창을 표시합니다. */}
+                  <CommentInput
+                    value={replyText}
+                    onChange={(event) => onReplyChange(event.target.value)}
+                    maxLength={500}
+                    placeholder="답글을 입력해주세요."
+                    autoFocus
+                    required
+                  />
+                  <Button type="submit" $size="small" disabled={isSubmittingReply}>
+                    {isSubmittingReply ? '등록 중...' : '등록'}
+                  </Button>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    $size="small"
+                    disabled={isSubmittingReply}
+                    onClick={onReplyCancel}
+                  >
+                    취소
+                  </Button>
+                </ReplyForm>
+              )}
               {comment.replies.map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>
                     <Author>↳ {reply.author}</Author>
-                    <ReplyActions>
-                      {/* TODO AI작성: 답글 API 구조가 확정되면 답글의 작성·수정·삭제 권한을 연결해야 합니다. */}
-                      <TextAction type="button">답글</TextAction>
-                      <TextAction type="button">수정</TextAction>
-                      <TextAction type="button" $danger>
-                        삭제
-                      </TextAction>
-                    </ReplyActions>
+                    {!reply.deleted && (
+                      <ReplyActions>
+                        {/* AI작성: 대댓글은 한 단계만 허용하므로 수정과 삭제 기능만 제공합니다. */}
+                        <TextAction type="button" onClick={() => onCommentEditStart(reply)}>
+                          수정
+                        </TextAction>
+                        <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>
+                          삭제
+                        </TextAction>
+                      </ReplyActions>
+                    )}
                   </CommentHeader>
-                  <CommentText>{reply.content}</CommentText>
+                  {editingCommentId === reply.id ? (
+                    <CommentEditForm onSubmit={onCommentEditSubmit}>
+                      <CommentInput
+                        value={editingCommentText}
+                        onChange={(event) => onCommentEditChange(event.target.value)}
+                        maxLength={500}
+                        required
+                      />
+                      <Button type="submit" $size="small" disabled={isUpdatingComment}>
+                        {isUpdatingComment ? '저장 중...' : '저장'}
+                      </Button>
+                      <Button
+                        type="button"
+                        $variant="secondary"
+                        $size="small"
+                        disabled={isUpdatingComment}
+                        onClick={onCommentEditCancel}
+                      >
+                        취소
+                      </Button>
+                    </CommentEditForm>
+                  ) : (
+                    <CommentText>{reply.content}</CommentText>
+                  )}
                 </Reply>
               ))}
             </Comment>
@@ -299,6 +371,7 @@ function PostDetail({
           <CommentInput
             value={commentText}
             onChange={(event) => onCommentChange(event.target.value)}
+            maxLength={500}
             placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
           />
           <Button type="submit" $size="small" disabled={isSubmittingComment}>
