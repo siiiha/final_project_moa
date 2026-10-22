@@ -128,6 +128,7 @@
         sg.group_id,
         g.member_id AS group_leader_member_id,
         sg.status
+
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.saving_group_id = #{savingGroupId}
@@ -141,6 +142,44 @@
         WHERE group_id = #{groupId}
         AND member_role = 'OWNER'
         AND membership_status = 'APPROVED'
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 인증 회원의 계정 상태와 본인 인증 완료 시각을 잠가 가입 신청 중 상태 변경과 경합하지 않게 한다. -->
+    <select id="selectSavingGroupJoinMemberForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinMemberRow">
+        SELECT member_id,
+        account_status,
+        identity_verified_at
+        FROM members
+        WHERE member_id = #{memberId}
+        AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: saving_group ID로 가입 관계 저장에 필요한 group ID와 신청 가능 상태·정원을 함께 잠가 조회한다. -->
+    <select id="selectSavingGroupJoinTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow">
+        SELECT sg.saving_group_id,
+        sg.group_id,
+        sg.status,
+        g.max_members
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 동일 회원의 기존 관계를 잠가 중복 신청과 LEFT 상태 재신청 분기를 안전하게 판단한다. -->
+    <select id="selectSavingGroupMembershipForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow">
+        SELECT crew_member_id,
+        member_role,
+        membership_status
+        FROM group_member
+        WHERE group_id = #{groupId}
+        AND member_id = #{memberId}
         FOR UPDATE
     </select>
 
@@ -308,6 +347,49 @@
         AND status = 'HELD'
     </update>
 
+
+    <!-- AI작성: 심사중·개설·진행중·정지 모임의 승인 관계만 최대 다섯 개 제한에 포함한다. -->
+    <select id="selectApprovedSavingGroupCount" resultType="long">
+        SELECT COUNT(DISTINCT gm.group_id)
+        FROM group_member gm
+        JOIN `groups` g ON g.group_id = gm.group_id
+        JOIN saving_group sg ON sg.group_id = gm.group_id
+        WHERE gm.member_id = #{memberId}
+        AND gm.membership_status = 'APPROVED'
+        AND g.deleted_at IS NULL
+        AND sg.status IN ('00', '01', '02', '03')
+    </select>
+
+    <!-- AI작성: 신청 메시지 없이 인증 회원의 신청을 PENDING 상태로 한 건 저장한다. -->
+    <insert id="insertSavingGroupJoinRequest">
+        INSERT INTO group_member (
+            member_id,
+            group_id,
+            member_role,
+            membership_status,
+            requested_at
+        ) VALUES (
+            #{memberId},
+            #{groupId},
+            'MEMBER',
+            'PENDING',
+            CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <!-- AI작성: 재신청은 LEFT 상태일 때만 허용해 거절·추방 이력을 신청 상태로 바꾸지 않는다. -->
+    <update id="reactivateLeftSavingGroupMembership">
+        UPDATE group_member
+        SET member_role = 'MEMBER',
+        membership_status = 'PENDING',
+        joined_at = NULL,
+        left_at = NULL,
+        application_message = NULL,
+        requested_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND member_id = #{memberId}
+        AND membership_status = 'LEFT'
+    </update>
 
     <!-- AI작성: 승인된 모임장도 계원 행에 있으므로 +1 없이 회원 ID를 중복 제거한다. -->
     <select id="selectApprovedMemberCounts" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount">

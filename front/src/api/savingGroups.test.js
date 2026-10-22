@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import test from 'node:test';
 import client from './client.js';
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
-  getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount } from './savingGroups.js';
+  getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin } from './savingGroups.js';
 
 // AI작성: 추가 테스트 패키지 없이 카드 표시와 페이징·API 실패 계약을 검증한다.
 test('지역 코드는 01~10 순서이며 카드는 기존 필드와 표시 형식을 유지한다', () => {
@@ -100,4 +100,51 @@ test('검색·지역·페이지를 전달하고 API 실패를 정상 데이터�
     client.get = async () => { throw new Error('network failure'); };
     await assert.rejects(() => getSavingGroups({ page: 1 }), /network failure/);
   } finally { client.get = original; }
+});
+
+test('가입 신청 성공 응답을 그대로 반환한다', async () => {
+  const originalAdapter = client.defaults.adapter;
+  client.defaults.adapter = async (config) => ({
+    data: { success: true, data: null, meta: null, error: null },
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config,
+  });
+
+  try {
+    const result = await requestSavingGroupJoin(12);
+
+    assert.equal(result.success, true);
+  } finally {
+    client.defaults.adapter = originalAdapter;
+  }
+});
+
+test('본인 인증 미완료 응답의 코드와 메시지를 보존한다', async () => {
+  const originalAdapter = client.defaults.adapter;
+  client.defaults.adapter = async () => {
+    const error = new Error('Forbidden');
+    error.response = {
+      data: {
+        success: false,
+        error: {
+          code: 'IDENTITY_VERIFICATION_REQUIRED',
+          message: '본인 인증 완료 후 가입 신청할 수 있습니다.',
+        },
+      },
+      status: 403,
+    };
+    throw error;
+  };
+
+  try {
+    await assert.rejects(
+      requestSavingGroupJoin(12),
+      (error) => error.code === 'IDENTITY_VERIFICATION_REQUIRED'
+        && error.message === '본인 인증 완료 후 가입 신청할 수 있습니다.',
+    );
+  } finally {
+    client.defaults.adapter = originalAdapter;
+  }
 });

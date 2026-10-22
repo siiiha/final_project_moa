@@ -1,9 +1,8 @@
 package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
-import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
-import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
@@ -11,13 +10,12 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
-import org.springframework.web.bind.annotation.PathVariable;
-import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -64,5 +62,15 @@ public class SavingGroupController {
         Long loginMemberId = 67L;
         savingGroupService.updateSavingGroupSettings(savingGroupId, loginMemberId, request);
         return ApiResponse.ok(null);
+    }
+
+    // AI작성: 인증 연동 전 기존 설정 API와 동일한 임시 로그인 회원으로 가입 신청 서비스만 호출한다.
+    @PostMapping("/{savingGroupId}/join-requests")
+    public ApiResponse<Void> requestJoin(
+            @PathVariable @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId) {
+        // TODO: JWT 인증 완료 후 SecurityContext에서 로그인 회원 ID를 추출한다.
+        Long loginMemberId = 67L;
+        savingGroupService.requestSavingGroupJoin(savingGroupId, loginMemberId);
+        return ApiResponse.ok();
     }
 }

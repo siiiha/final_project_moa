@@ -225,7 +225,7 @@ const ActionButton = styled(Button)`
 `;
 
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
-function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, onBack }) {
+function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack }) {
   const allowedMenus = getSavingGroupMenus(group.myRole);
   const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
   const paymentDay = group.duesDay == null ? '납부일 미정'
@@ -240,7 +240,9 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, onB
             <Title>{group.groupName}</Title>
             <StatusBadge $ongoing={group.status === '02'}>{statusLabel}</StatusBadge>
           </TitleLine>
-          <JoinButton type="button" onClick={onJoinRequest}>가입 신청하기</JoinButton>
+          <JoinButton type="button" onClick={onJoinRequest} disabled={isJoinSubmitting} aria-busy={isJoinSubmitting}>
+            {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
+          </JoinButton>
         </HeaderTop>
         <Description>{group.description?.trim() || '소개글이 없습니다.'}</Description>
         <MetaList>
@@ -250,8 +252,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, onB
         <SavingGroupMenuTabs
           activeMenu={activeMenu}
           onMenuChange={onMenuChange}
-          canAccessSettings={showSettingsMenu}
-          settingsPath={`/saving-groups/${group.id}/settings`}
+          canAccessSettings={allowedMenus.includes('settings')}
+          settingsPath={`/saving-groups/${group.groupId}/settings`}
         />
       </HeaderCard>
 

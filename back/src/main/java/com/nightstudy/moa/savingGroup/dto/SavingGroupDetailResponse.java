@@ -9,6 +9,8 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class SavingGroupDetailResponse {
+    // AI작성: 상세 URL은 groupId를 사용하지만 가입 신청은 savingGroupId가 필요해 함께 반환한다.
+    private final Long savingGroupId;
     private final Long groupId;
     private final String groupName;
     private final String description;
