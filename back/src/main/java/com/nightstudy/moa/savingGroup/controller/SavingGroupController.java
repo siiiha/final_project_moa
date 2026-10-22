@@ -1,14 +1,19 @@
 package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
 import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,9 +23,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class SavingGroupController {
     private final SavingGroupService savingGroupService;
 
-    // AI작성: 목록 조회 서비스만 주입한다.
+    // AI작성: 목록 조회와 가입 신청 승인에 기존 Service를 사용한다.
     public SavingGroupController(SavingGroupService savingGroupService) {
         this.savingGroupService = savingGroupService;
+    }
+
+    // AI작성: 승인자는 서버 인증 정보로만 받아 기존 트랜잭션 Service에 전달한다. 요청 본문은 사용하지 않는다.
+    @PatchMapping("/{savingGroupId}/join-requests/{crewMemberId}/approve")
+    public ApiResponse<Void> approveJoinRequest(
+            @PathVariable("savingGroupId") Long savingGroupId,
+            @PathVariable("crewMemberId") Long crewMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        // AI작성: TODO: JWT 브랜치 병합 후 LoginInterceptor가 두 승인 경로를 검증하고 memberId를 설정하도록 WebConfig에 등록한다.
+        // AI작성: 인증 연결 전에는 401로 차단한다. 헤더·쿼리·본문의 회원 ID나 임시 고정 ID를 인증 정보로 사용하지 않는다.
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        savingGroupService.approveSavingGroupJoin(savingGroupId, crewMemberId, memberId);
+        return ApiResponse.ok();
     }
 
     // AI작성: 게시글과 동일하게 data에 목록, meta에 공통 페이징 정보를 반환한다.

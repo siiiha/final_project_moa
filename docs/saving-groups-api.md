@@ -1,5 +1,5 @@
 <!-- AI작성: 2026-10-20 확정 설계에 따른 구현·검증 명세. -->
-# 계모임 목록 조회 API
+# 계모임 API — 목록 조회 및 가입 신청 승인
 
 ## 요청
 
@@ -153,3 +153,88 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 - https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide
 - https://dev.mysql.com/doc/refman/8.4/en/string-comparison-functions.html
 - https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html
+
+<!-- AI작성: 가입 신청 승인 Controller 계약과 사용자 요청으로 제외한 JWT 연결 TODO를 기록한다. -->
+## 가입 신청 승인 API (3단계)
+
+### 경로와 요청
+
+```http
+PATCH /api/saving-groups/{savingGroupId}/join-requests/{crewMemberId}/approve
+```
+
+기존 Controller의 별칭도 유지한다.
+
+```http
+PATCH /saving-groups/{savingGroupId}/join-requests/{crewMemberId}/approve
+```
+
+- savingGroupId: 양수 Long, saving_group.saving_group_id.
+- crewMemberId: 양수 Long, group_member.crew_member_id.
+- 요청 본문 없음. memberId·approvedBy·역할·승인 상태를 클라이언트 입력으로 받지 않는다.
+- 승인자는 서버 인증 처리에서 설정한 request attribute `memberId`(Long)만 사용한다. 해당 모임의 계주 ID와 OWNER + APPROVED 관계를 Service에서 확인한다.
+- 문자열·Long 범위 초과 경로 변수는 기존 공통 타입 변환 예외 처리로 400을 반환한다. 0·음수는 기존 Service 입력 검증으로 400을 반환한다.
+
+### JWT 연결 TODO와 현재 제한
+
+사용자 요청에 따라 JWT 구현 병합과 인증 설정 수정은 이번 작업에서 제외했다.
+다른 인증 브랜치의 LoginInterceptor는 JWT 검증 후 request.setAttribute("memberId", memberId)를 사용한다. 현재 Controller는 이 전달 계약을 사용하며 Principal의 이름을 회원 ID로 추정하지 않는다.
+
+- TODO: JWT 브랜치 병합 후 LoginInterceptor가 위 두 승인 경로를 모두 보호하도록 WebConfig에 등록한다. 공개 목록 GET 접근은 유지한다.
+- TODO: 실제 JWT 발급·검증, 만료·변조 토큰 차단, 두 경로 인증 적용을 통합 검증한다. 인증 브랜치의 LOGIN_REQUIRED·INVALID_TOKEN 오류 코드와 최종 API 명세도 맞춘다.
+- 현재 서버 인증 속성이 없거나 양수가 아니면 HTTP 401 / UNAUTHORIZED를 반환하고 Service를 호출하지 않는다.
+- JWT 연결 전에는 정상 Bearer 헤더가 있어도 서버 속성이 설정되지 않으므로 실제 HTTP 승인 성공 흐름을 사용할 수 없다. 토큰을 검증하지 않고 승인하거나 임시 회원 ID를 넣는 우회는 없다.
+- 테스트의 requestAttr 주입은 인증 완료 상황을 모사하는 용도다. 클라이언트의 헤더·쿼리·JSON 본문은 request attribute를 대신하지 않는다.
+
+### 성공 응답
+
+HTTP 200, 기존 `ApiResponse.ok()`를 사용하며 새 응답 DTO는 추가하지 않는다.
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+Controller는 기존 `approveSavingGroupJoin(savingGroupId, crewMemberId, memberId)`만 호출한다.
+조회·잠금·권한 검증·기존 행 조건부 UPDATE·영향 행 수 확인은 기존 Service 트랜잭션에서 수행한다.
+
+### 오류 응답
+
+기존 GlobalExceptionHandler와 ApiResponse.fail을 재사용한다. 오류 시 success=false, data/meta=null, error에 code와 message가 들어간다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | BAD_REQUEST | 경로 변수 타입·범위 오류 |
+| 401 | UNAUTHORIZED | 서버의 인증 회원 ID 없음 또는 잘못된 값 (현재 Controller 기준) |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 해당 모임의 승인된 계주가 아님 |
+| 404 | SAVING_GROUP_NOT_FOUND | 계모임 없음 또는 삭제됨 |
+| 404 | JOIN_REQUEST_NOT_FOUND | 신청 없음 또는 다른 계모임의 신청 |
+| 404 | JOIN_REQUEST_MEMBER_NOT_FOUND | 신청 회원 없음 또는 삭제됨 |
+| 409 | JOIN_REQUEST_NOT_PENDING | 이미 승인됐거나 대기가 아닌 신청 |
+| 409 | SAVING_GROUP_JOIN_UNAVAILABLE | 모집중(01)이 아닌 계모임 |
+| 409 | SAVING_GROUP_CAPACITY_NOT_CONFIGURED | 정원이 NULL 또는 0 이하 |
+| 409 | SAVING_GROUP_CAPACITY_FULL | 계주 포함 승인 인원이 정원에 도달 |
+| 409 | SAVING_GROUP_JOIN_LIMIT_EXCEEDED | 신청 회원의 유효한 승인 계모임 수가 5개 이상 |
+| 409 | JOIN_REQUEST_CHANGED | 잠금 후 신청 회원 식별 정보가 변경됨 |
+| 409 | JOIN_REQUEST_APPROVAL_FAILED | 조건부 UPDATE 영향 행 수가 1이 아님 |
+| 500 | INTERNAL_ERROR | 예상하지 못한 DB·서버 오류, 기존 공통 메시지 사용 |
+
+### 테스트 및 직접 검증
+
+back 폴더에서 실행한다.
+
+```powershell
+.\gradlew.bat '-Dorg.gradle.java.installations.paths=C:\dev\jdk-17.0.12_windows-x64_bin\jdk-17.0.12' test --tests '*SavingGroupJoinApproval*'
+```
+
+- Controller 테스트 24개: 두 경로 정상·인증 누락, 잘못된 인증 ID, 클라이언트 회원 ID 무시, 경로 변수 오류, 권한·대상·상태 등 기존 Service 오류의 공통 응답.
+- Service 단위 테스트 12개: 기존 승인 로직의 회귀 검증.
+- 실제 MySQL 테스트 7개: 별도 테스트 서버 설정이 없으면 건너뛴다. 실행 조건은 saving-group-join-request-design.md의 6.5절을 참고한다.
+- Postman: 요청 본문 없이 PATCH하면 현재 JWT 미연결 상태에서는 401 / UNAUTHORIZED가 예상 결과다. 성공·권한 실패·만료 토큰 등의 실제 JWT 통합 확인은 병합과 경로 등록 후 수행한다. 인증 우회용 헤더나 임시 회원 ID는 추가하지 않는다.
+- 실제 앱 기동·JWT·공용 DB 통합은 아직 검증하지 않았다.
+
+공식 근거: https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-methods/requestattrib.html
