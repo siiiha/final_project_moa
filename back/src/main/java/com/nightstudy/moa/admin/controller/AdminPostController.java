@@ -50,16 +50,6 @@ public class AdminPostController {
         return ApiResponse.ok(null);
     }
 
-    // AI작성: 게시글과 댓글 번호를 함께 확인하여 관리 대상 댓글을 소프트 삭제한다.
-    @DeleteMapping("/{postId}/comments/{commentId}")
-    public ApiResponse<Void> deleteComment(
-            @PathVariable Long postId,
-            @PathVariable Long commentId
-    ) {
-        adminPostService.deleteComment(postId, commentId);
-        return ApiResponse.ok(null);
-    }
-
     // AI작성: 빈 검색 문자열을 null로 변환하여 Mapper 검색 조건을 단순화한다.
     @InitBinder
     public void initBinder(WebDataBinder binder) {

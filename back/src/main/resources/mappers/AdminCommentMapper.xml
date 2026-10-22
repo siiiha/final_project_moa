@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.admin.mapper.AdminCommentMapper">
+
+    <!-- AI작성: 게시글 번호까지 일치하는 관리 대상 댓글을 소프트 삭제한다. -->
+    <update id="deleteComment">
+        UPDATE comment
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+          AND comment_id = #{commentId}
+          AND deleted_at IS NULL
+    </update>
+
+</mapper>
