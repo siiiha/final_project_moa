@@ -184,11 +184,27 @@
         )
     </insert>
 
+    <!-- AI작성: 같은 UPDATE의 CURRENT_TIMESTAMP를 사용해 가입 시각과 승인 시각을 동일하게 기록한다. -->
+    <update id="approveSavingGroupJoinRequest">
+        UPDATE group_member
+        SET membership_status = 'APPROVED',
+            member_role = 'MEMBER',
+            joined_at = CURRENT_TIMESTAMP,
+            approved_at = CURRENT_TIMESTAMP,
+            approved_by = #{approvedBy}
+        WHERE crew_member_id = #{crewMemberId}
+          AND group_id = #{groupId}
+          AND membership_status = 'PENDING'
+    </update>
+
     <!-- AI작성: 재신청은 LEFT 상태일 때만 허용해 거절·추방 이력을 신청 상태로 바꾸지 않는다. -->
     <update id="reactivateLeftSavingGroupMembership">
         UPDATE group_member
         SET member_role = 'MEMBER',
         membership_status = 'PENDING',
+        <!-- AI작성: 이전 승인 정보가 재신청이나 다음 승인으로 이어지지 않도록 초기화한다. -->
+        approved_by = NULL,
+        approved_at = NULL,
         joined_at = NULL,
         left_at = NULL,
         application_message = NULL,
