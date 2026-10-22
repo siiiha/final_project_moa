@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
-import { getMockSavingGroupAnomalies } from '../../api/savingGroupAnomalies';
+import { getMockSavingGroupAnomalies, getLocalSavingGroupAnomalies } from '../../api/savingGroupAnomalies';
 // AI작성: 계좌·기간 표시는 저장 결과 스냅샷 메타데이터와 같은 값을 사용한다.
 import { savingGroupReplayInfo } from '../../mocks/savingGroupAnomalies';
 
@@ -373,6 +373,8 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
   const [isDownloadPreparing, setIsDownloadPreparing] = useState(false);
   const [analysisFilter, setAnalysisFilter] = useState('전체');
   const [scenario, setScenario] = useState('ready');
+  // AI작성: 사용자가 명시적으로 선택한 경우만 로컬 서버를 조회한다. 운영 모드는 아니다.
+  const [dataSource, setDataSource] = useState('snapshot');
   const [requestVersion, setRequestVersion] = useState(0);
   const [query, setQuery] = useState({ status: 'loading', items: [], error: '' });
   const [selected, setSelected] = useState(null);
@@ -385,19 +387,26 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
     setQuery({ status: 'loading', items: [], error: '' });
     setSelected(null);
     setCurrentPage(1);
-    getMockSavingGroupAnomalies({ groupId, signal: controller.signal, scenario })
-      .then(({ items }) => {
-        if (!controller.signal.aborted) setQuery({ status: 'ready', items, error: '' });
+    // AI작성: 로컬 모드 실패를 저장 Mock 성공으로 위장하지 않고 조회 오류로 표시한다.
+    const load = dataSource === 'local' ? getLocalSavingGroupAnomalies : getMockSavingGroupAnomalies;
+    load({ groupId, signal: controller.signal, scenario })
+      .then(({ items, meta }) => {
+        if (!controller.signal.aborted) setQuery({ status: 'ready', items, error: '', meta });
       })
       .catch((error) => {
         if (!controller.signal.aborted) setQuery({ status: error.status === 403 ? 'forbidden' : 'error', items: [], error: error.message });
       });
     return () => controller.abort();
-  }, [groupId, scenario, requestVersion]);
+  }, [groupId, scenario, requestVersion, dataSource]);
 
   // AI작성: native dialog의 포커스 잠금·Escape 닫기를 활용한다.
+  // 모바일에서 맨 아래 닫기 버튼으로 자동 스크롤되지 않도록 제목을 먼저 읽게 한다.
   useEffect(() => {
-    if (selected && !detailRef.current?.open) detailRef.current?.showModal();
+    if (selected && !detailRef.current?.open) {
+      detailRef.current?.showModal();
+      detailRef.current?.querySelector('h3')?.focus({ preventScroll: true });
+      if (detailRef.current) detailRef.current.scrollTop = 0;
+    }
   }, [selected]);
 
   const filteredTransactions = useMemo(() => query.items.filter((transaction) => {
@@ -444,7 +453,12 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
           <Title>공용 통장 거래내역</Title>
           <Description>모임 자금의 입출금 내역입니다. 잔액과 변동 내역을 확인할 수 있습니다.</Description>
           {/* AI작성: 실제 추론 결과와 실시간 API 연결을 혼동하지 않도록 출처·임시 매핑을 표시한다. */}
-          <AccessibleNotice>합성 계좌 {savingGroupReplayInfo.sourceAccountId}의 {savingGroupReplayInfo.periodStart} ~ {savingGroupReplayInfo.periodEnd} 저장된 모델 결과를 재생합니다. 현재 모임은 시연 위치이며 실제 계좌 연결이 아닙니다. 실시간 분석·은행·권한 서버는 미연결입니다.</AccessibleNotice>
+          <AccessibleNotice>
+            {dataSource === 'local' ? '로컬 서버에서 stage8 HTTP 분석 결과가 저장된 합성 DB를 조회합니다.' : '합성 계좌의 저장된 모델 결과 파일을 재생합니다.'}
+            {' '}합성 계좌 {savingGroupReplayInfo.sourceAccountId} · {savingGroupReplayInfo.periodStart} ~ {savingGroupReplayInfo.periodEnd}.
+            {' '}현재 모임은 시연 위치입니다. 조회할 때 새 분석을 실행하지 않으며 은행·운영 인증과 연결되지 않습니다.
+            {query.meta?.runId && <span> 조회 실행본: {query.meta.runId}</span>}
+          </AccessibleNotice>
         </div>
         <DownloadButton type="button" $variant="secondary" onClick={handleDownload}>내역 다운로드 안내</DownloadButton>
       </Header>
@@ -452,7 +466,7 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
       <Summary>
         <SummaryCard>
           <SummaryLabel>재생 계좌의 마지막 거래 후 잔액</SummaryLabel>
-          <SummaryValue>{query.status !== 'ready' || !latestTransaction ? '—' : `${latestTransaction.balance.toLocaleString('ko-KR')}원`}</SummaryValue>
+          <SummaryValue>{query.status !== 'ready' || !latestTransaction || latestTransaction.balance == null ? '—' : `${latestTransaction.balance.toLocaleString('ko-KR')}원`}</SummaryValue>
         </SummaryCard>
         <SummaryCard>
           <SummaryLabel>조회 입금</SummaryLabel>
@@ -493,18 +507,29 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
       </FilterForm>
       {filterError && <AccessibleNotice role="alert">{filterError}</AccessibleNotice>}
       <AnalysisTools>
+        <Field>데이터 연결 방식
+          <Select value={dataSource} onChange={(event) => {
+            // AI작성: 연결 전환 중 이전 결과/실행본이 새 조회 결과처럼 보이지 않도록 즉시 비운다.
+            setQuery({ status: 'loading', items: [], error: '' });
+            setCurrentPage(1);
+            setDataSource(event.target.value);
+          }}>
+            <option value="snapshot">저장 결과 파일</option>
+            {import.meta.env.DEV && <option value="local">로컬 합성 서버 조회</option>}
+          </Select>
+        </Field>
         <Field>분석 상태
           <Select value={analysisFilter} onChange={(event) => { setAnalysisFilter(event.target.value); setCurrentPage(1); }}>
             {/* AI작성: 저장된 완료 결과만 재생하므로 임의 대기·실패 행을 만들지 않는다. */}
             {['전체', '모델 경고', '모델 경고 없음', '이력·품질 확인'].map((value) => <option key={value}>{value}</option>)}
           </Select>
         </Field>
-        <Field>조회 상태 시연 (실제 장애 아님)
+        {dataSource === 'snapshot' && <Field>조회 상태 시연 (실제 장애 아님)
           <Select value={scenario} onChange={(event) => setScenario(event.target.value)}>
             <option value="ready">저장 모델 결과</option><option value="empty">빈 목록</option>
             <option value="error">조회 오류</option><option value="forbidden">권한 없음</option>
           </Select>
-        </Field>
+        </Field>}
         <Button type="button" $variant="secondary" onClick={() => setRequestVersion((value) => value + 1)}>다시 조회</Button>
       </AnalysisTools>
       <AccessibleNotice>모델 경고는 평소와 다른 패턴을 뜻하며 사고 판정이 아닙니다. 이력·품질 확인은 모델 경고와 별개입니다.</AccessibleNotice>
@@ -538,7 +563,7 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
                       <td>{transaction.description}</td>
                       <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
-                      <td>{`${transaction.balance.toLocaleString()}원`}</td>
+                      <td>{transaction.balance == null ? '잔액 미제공' : `${transaction.balance.toLocaleString()}원`}</td>
                       <td>
                         <AnalysisBadge $warning={getAnalysisLabel(transaction.analysis) === '모델 경고'}>{getAnalysisLabel(transaction.analysis)}</AnalysisBadge>
                         {transaction.analysis?.requiresReview && <p>이력·품질 확인</p>}
@@ -562,7 +587,7 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
                     <dt>일시</dt>
                     <dd>{`${transaction.date} ${transaction.time}`}</dd>
                     <dt>잔액</dt>
-                    <dd>{`${transaction.balance.toLocaleString()}원`}</dd>
+                    <dd>{transaction.balance == null ? '잔액 미제공' : `${transaction.balance.toLocaleString()}원`}</dd>
                   </MobileInfo>
                   <AnalysisBadge $warning={getAnalysisLabel(transaction.analysis) === '모델 경고'}>{getAnalysisLabel(transaction.analysis)}</AnalysisBadge>
                   {transaction.analysis?.requiresReview && <p>이력·품질 확인</p>}
@@ -601,7 +626,7 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
       </ListCard>
       <AnalysisDialog ref={detailRef} aria-labelledby="transaction-analysis-title" onClose={() => setSelected(null)}>
         {selected && <>
-          <h3 id="transaction-analysis-title">거래 분석 상세</h3>
+          <h3 id="transaction-analysis-title" tabIndex={-1}>거래 분석 상세</h3>
           <AnalysisBadge $warning={getAnalysisLabel(selected.analysis) === '모델 경고'}>{getAnalysisLabel(selected.analysis)}</AnalysisBadge>
           <dl>
             <dt>거래일시</dt><dd>{selected.date} {selected.time}</dd>
