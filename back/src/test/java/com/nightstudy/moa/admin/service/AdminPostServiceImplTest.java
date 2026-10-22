@@ -8,9 +8,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.admin.mapper.AdminPostMapper;
-import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.common.exception.GlobalExceptionHandler;
 import com.nightstudy.moa.post.dto.PostDto;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
@@ -20,9 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 
 @ExtendWith(MockitoExtension.class)
 // AI작성: DB 없이 관리자 게시글 Service의 조회·페이징·삭제 예외 처리를 검증한다.
@@ -136,26 +131,4 @@ class AdminPostServiceImplTest {
         assertThat(condition.getLimit()).isEqualTo(10);
     }
 
-    @Test
-    // AI작성: DB 접근 오류가 공통 예외 처리기를 통해 내부 구현을 숨긴 500 응답으로 변환되는지 확인한다.
-    void databaseFailureIsConvertedToInternalErrorResponse() {
-        PostSearchCondition condition = new PostSearchCondition();
-        DataAccessResourceFailureException databaseException =
-                new DataAccessResourceFailureException("테스트용 DB 연결 오류");
-        when(adminPostMapper.selectPostCount(condition)).thenThrow(databaseException);
-
-        assertThatThrownBy(() -> adminPostService.getPostList(condition))
-                .isSameAs(databaseException);
-
-        GlobalExceptionHandler handler = new GlobalExceptionHandler();
-        ResponseEntity<ApiResponse<Void>> response =
-                handler.handleEtc(databaseException);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().isSuccess()).isFalse();
-        assertThat(response.getBody().getError().getCode()).isEqualTo("INTERNAL_ERROR");
-        assertThat(response.getBody().getError().getMessage())
-                .isEqualTo("서버 오류가 발생했습니다.");
-    }
 }

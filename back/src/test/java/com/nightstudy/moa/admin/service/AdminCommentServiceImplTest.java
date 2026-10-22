@@ -14,6 +14,8 @@ import com.nightstudy.moa.common.exception.ApiException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -59,15 +61,21 @@ class AdminCommentServiceImplTest {
         verify(adminCommentMapper).deleteComment(1L, 10L);
     }
 
-    @Test
-    // AI작성: 댓글이 없거나 이미 삭제됐거나 게시글이 다르면 COMMENT_NOT_FOUND로 처리하는지 확인한다.
-    void deleteCommentThrowsWhenCommentDoesNotExist() {
-        when(adminCommentMapper.deleteComment(1L, 999L)).thenReturn(0);
+    @ParameterizedTest
+    @CsvSource({
+            "1, 999",
+            "2, 10"
+    })
+    // AI작성: 없거나 이미 삭제됐거나 다른 게시글에 속한 댓글은 모두 COMMENT_NOT_FOUND로 처리한다.
+    void deleteCommentReturnsNotFound(Long postId, Long commentId) {
+        when(adminCommentMapper.deleteComment(postId, commentId)).thenReturn(0);
 
-        assertThatThrownBy(() -> adminCommentService.deleteComment(1L, 999L))
-                .isInstanceOfSatisfying(ApiException.class, exception -> {
-                    assertThat(exception.getCode()).isEqualTo("COMMENT_NOT_FOUND");
-                    assertThat(exception.getStatus().value()).isEqualTo(404);
-                });
+        assertThatThrownBy(() ->
+                adminCommentService.deleteComment(postId, commentId)
+        ).isInstanceOfSatisfying(ApiException.class, exception -> {
+            assertThat(exception.getCode()).isEqualTo("COMMENT_NOT_FOUND");
+            assertThat(exception.getStatus().value()).isEqualTo(404);
+        });
+        verify(adminCommentMapper).deleteComment(postId, commentId);
     }
 }
