@@ -16,6 +16,8 @@ public class MemberProfileUpdateRequest {
 
     @NotBlank(message = "현재 비밀번호를 입력해주세요.")
     private String currentPassword;
+    private String newPassword;
+    private String confirmNewPassword;
 
     @Size(min = 2, max = 12, message = "닉네임은 2~12자로 입력해주세요.")
     private String nickname;

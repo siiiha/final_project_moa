@@ -17,6 +17,7 @@ import com.nightstudy.moa.member.dto.MemberLoginDto;
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.member.dto.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
+import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
 
 import java.nio.charset.StandardCharsets;
 
@@ -388,7 +389,118 @@ public class MemberServiceImpl implements MemberService {
             }
         }
 
+        // 두 칸 모두 비어 있으면 기존 비밀번호를 유지
+        String newPassword = request.getNewPassword();
+        String confirmNewPassword = request.getConfirmNewPassword();
+
+        boolean passwordChangeRequested =
+                (newPassword != null && !newPassword.isEmpty())
+                        || (confirmNewPassword != null
+                        && !confirmNewPassword.isEmpty());
+
+        if (passwordChangeRequested) {
+            MemberPasswordUpdateRequest passwordRequest =
+                    new MemberPasswordUpdateRequest();
+
+            passwordRequest.setCurrentPassword(request.getCurrentPassword());
+            passwordRequest.setNewPassword(newPassword);
+            passwordRequest.setConfirmNewPassword(confirmNewPassword);
+
+            updatePassword(memberId, passwordRequest);
+        }
+
         return getMyProfile(memberId);
     }
 
+    // 현재 비밀번호를 확인 후 새 비밀번호를 암호화해 저장
+    @Override
+    @Transactional
+    public void updatePassword(
+            Long memberId,
+            MemberPasswordUpdateRequest request
+    ) {
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "비밀번호를 수정할 수 없는 계정 상태입니다."
+            );
+        }
+
+        String currentPassword = request.getCurrentPassword();
+
+        if (currentPassword == null
+                || currentPassword.isBlank()
+                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || member.getPasswordHash() == null
+                || !passwordEncoder.matches(
+                currentPassword,
+                member.getPasswordHash()
+        )) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CURRENT_PASSWORD",
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        String newPassword = request.getNewPassword();
+
+        if (newPassword == null
+                || newPassword.isBlank()
+                || newPassword.length() < 8) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_NEW_PASSWORD",
+                    "새 비밀번호는 8자 이상 입력해주세요."
+            );
+        }
+
+        if (newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_TOO_LONG",
+                    "비밀번호가 너무 깁니다. 더 짧게 입력해주세요."
+            );
+        }
+
+        if (!newPassword.equals(request.getConfirmNewPassword())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_CONFIRM_MISMATCH",
+                    "새 비밀번호와 확인 입력값이 일치하지 않습니다."
+            );
+        }
+        if (passwordEncoder.matches(newPassword, member.getPasswordHash())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "NEW_PASSWORD_SAME_AS_CURRENT",
+                    "새 비밀번호는 현재 비밀번호와 다르게 입력해주세요."
+            );
+        }
+
+        String passwordHash = passwordEncoder.encode(newPassword);
+
+        int updatedRows =
+                memberMapper.updatePassword(memberId, passwordHash);
+
+        if (updatedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "PASSWORD_UPDATE_FAILED",
+                    "비밀번호 수정에 실패했습니다."
+            );
+        }
+    }
 }

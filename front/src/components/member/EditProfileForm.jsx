@@ -13,10 +13,10 @@ import {
 import useAuthStore from '../../store/authStore';
 
 const Card = styled.section`
-  padding: 22px;
+  padding: 28px 34px 16px;
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 42px;
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -28,7 +28,8 @@ const Card = styled.section`
 `;
 
 const AvatarPanel = styled.section`
-  padding: 20px 14px 13px;
+  padding: 26px 18px;
+  align-self: start; 
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -38,8 +39,8 @@ const AvatarPanel = styled.section`
 `;
 
 const Avatar = styled.div`
-  width: 92px;
-  height: 92px;
+  width: 158px;
+  height: 158px;
   display: grid;
   place-items: center;
   color: ${({ theme }) => theme.colors.primary};
@@ -76,6 +77,9 @@ const FormArea = styled.div`
   display: grid;
   align-content: start;
   gap: 12px;
+  label {
+    word-break: keep-all;
+  }
 `;
 
 const VerifyButton = styled(Button)`
@@ -142,6 +146,28 @@ const ActionButton = styled(Button)`
   font-size: 12px;
 `;
 
+// AI작성: Figma의 비밀번호 변경 안내 스타일을 적용합니다.
+const PasswordHint = styled.p`
+  margin-left: 100px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 12px;
+  line-height: 1.6;
+`;
+// AI작성: 저장 오류를 눈에 띄는 안내 상자로 보여줍니다.
+
+const ErrorNotice = styled.p`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border: 1px solid ${({ theme }) => theme.colors.danger};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 13px;
+  line-height: 1.5;
+`;
+
 function EditProfileForm() {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
@@ -155,6 +181,11 @@ function EditProfileForm() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
+    useState(false);
 
   // 수정 화면에 현재 회원정보를 채움.
   useEffect(() => {
@@ -236,6 +267,27 @@ function EditProfileForm() {
       return;
     }
 
+        // AI작성: 비밀번호 변경을 입력한 경우 길이와 확인값을 검사합니다.
+    const passwordChangeRequested =
+      newPassword !== '' || confirmNewPassword !== '';
+
+    if (passwordChangeRequested) {
+      if (!newPassword.trim() || newPassword.length < 8) {
+        setErrorMessage('새 비밀번호는 8자 이상 입력해주세요.');
+        return;
+      }
+
+      if (new TextEncoder().encode(newPassword).length > 72) {
+        setErrorMessage('비밀번호가 너무 깁니다. 더 짧게 입력해주세요.');
+        return;
+      }
+
+      if (newPassword !== confirmNewPassword) {
+        setErrorMessage('새 비밀번호와 확인 입력값이 일치하지 않습니다.');
+        return;
+      }
+    }
+
     setIsSaving(true);
     setErrorMessage('');
 
@@ -244,6 +296,8 @@ function EditProfileForm() {
         currentPassword,
         nickname: trimmedNickname,
         interestIds: selectedInterests,
+        newPassword,
+        confirmNewPassword,
       });
 
       if (!updatedProfile) {
@@ -251,6 +305,8 @@ function EditProfileForm() {
       }
 
       setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
       navigate('/member/mypage');
     } catch (error) {
       if (error.response?.status === 401) {
@@ -259,10 +315,14 @@ function EditProfileForm() {
         return;
       }
 
-      setErrorMessage(
-        error.response?.data?.error?.message ??
-          '회원정보를 수정하지 못했습니다.',
+            setErrorMessage(
+        error.response?.data?.error?.code ===
+          'NEW_PASSWORD_SAME_AS_CURRENT'
+          ? '지금 사용 중인 비밀번호예요. 다른 새 비밀번호를 입력해주세요.'
+          : error.response?.data?.error?.message ??
+              '회원정보를 수정하지 못했습니다.',
       );
+
     } finally {
       setIsSaving(false);
     }
@@ -355,6 +415,48 @@ function EditProfileForm() {
           onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
         />
 
+                {/* AI작성: 새 비밀번호를 입력한 경우에만 변경합니다. */}
+        <PasswordInput
+          id="edit-new-password"
+          label="비밀번호 변경"
+          placeholder="변경할 경우 8자 이상 입력"
+          autoComplete="new-password"
+          value={newPassword}
+          onChange={(event) => setNewPassword(event.target.value)}
+          minLength={8}
+          disabled={isSaving}
+          inline
+          compact
+          isVisible={isNewPasswordVisible}
+          onToggleVisibility={() =>
+            setIsNewPasswordVisible((value) => !value)
+          }
+        />
+
+        <PasswordInput
+          id="edit-new-password-confirm"
+          label="비밀번호 변경 확인"
+          placeholder="새 비밀번호를 다시 입력"
+          autoComplete="new-password"
+          value={confirmNewPassword}
+          onChange={(event) =>
+            setConfirmNewPassword(event.target.value)
+          }
+          disabled={isSaving}
+          inline
+          compact
+          isVisible={isConfirmPasswordVisible}
+          onToggleVisibility={() =>
+            setIsConfirmPasswordVisible((value) => !value)
+          }
+        />
+
+        <PasswordHint>
+          비밀번호를 변경하지 않으려면 두 칸 모두 비워두세요.
+        </PasswordHint>
+
+        <Divider />
+
         <InterestField>
           <Label>관심사</Label>
           <ChipList aria-label="관심사 선택">
@@ -375,7 +477,9 @@ function EditProfileForm() {
           <Hint>모두 해제하면 관심사를 선택하지 않은 상태로 저장됩니다.</Hint>
         </InterestField>
 
-        {errorMessage && <p role="alert">{errorMessage}</p>}
+        {errorMessage && (
+          <ErrorNotice role="alert">{errorMessage}</ErrorNotice>
+        )}
 
         <FormActions>
           <ActionButton type="submit" disabled={isSaving}>

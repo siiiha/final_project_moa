@@ -71,4 +71,10 @@ public interface MemberMapper {
     int deleteMemberInterests(
             @Param("memberId") Long memberId
     );
+
+    // 암호화된 새 비밀번호 저장
+    int updatePassword(
+            @Param("memberId") Long memberId,
+            @Param("passwordHash") String passwordHash
+    );
 }

@@ -1,9 +1,7 @@
 package com.nightstudy.moa.member.service;
 
-import com.nightstudy.moa.member.dto.MemberLoginRequest;
-import com.nightstudy.moa.member.dto.MemberSignupRequest;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
-import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
+import com.nightstudy.moa.member.dto.*;
+import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
 
 public interface MemberService {
 
@@ -20,5 +18,10 @@ public interface MemberService {
     MemberProfileResponse updateMyProfile(
             Long memberId,
             MemberProfileUpdateRequest request
+    );
+
+    void updatePassword(
+            Long memberId,
+            MemberPasswordUpdateRequest request
     );
 }

@@ -12,6 +12,7 @@ import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
 
 @RestController
 @RequestMapping("/api/members")
@@ -45,5 +46,15 @@ public class MemberProfileController {
                 memberService.updateMyProfile(memberId, request);
 
         return ResponseEntity.ok(ApiResponse.ok(profile));
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<ApiResponse<Void>> updatePassword(
+            @RequestAttribute("memberId") Long memberId,
+            @Valid @RequestBody MemberPasswordUpdateRequest request
+    ) {
+        memberService.updatePassword(memberId, request);
+
+        return ResponseEntity.ok(ApiResponse.<Void>ok(null));
     }
 }

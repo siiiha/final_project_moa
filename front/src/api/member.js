@@ -36,4 +36,17 @@ export const memberInterestOptions = [
     { interestId: 2, interestName: '독서' },
 ];
 
-
+// 현재 비밀번호 확인하고 새 비밀번호로 수정
+export async function updateMyPassword(token, request) {
+    const response = await client.put(
+        '/members/me/password',
+        request,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        }
+    );
+ 
+    return response.data.data;
+}
