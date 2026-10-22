@@ -1,6 +1,38 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-22 — 계모임 목록 공통 응답 형식 정정
+
+- 목적: 목록 조회 실패를 해결하기 위해 `GET /api/saving-groups` 응답을 공통 목록 형식으로 통일한다.
+- 사용자 선택: `data`에는 카드 배열, `meta`에는 `PageMeta`를 반환하는 방식을 선택했다.
+- AI 제안·작성: Controller가 Service 결과의 `items`와 `pageMeta`를 `ApiResponse.ok(items, pageMeta)`로 반환하도록 정정하고, 프론트 API 테스트와 API 명세를 같은 구조로 맞췄다.
+- 개발자 검토·수정: 최종 검토 대기.
+- 데이터·외부 서비스·의존성·설정 변경: 없음.
+- 검증 결과: `node --test src/api/savingGroups.test.js` 7개 통과. JDK 17을 지정한 `gradlew.bat test --offline`도 통과.
+
+## 2026-10-20 — 계모임 공개 상세 조회 구현
+
+<!-- AI작성: 구현 중 사용자 정정·승인과 실제 검증 결과를 기록한다. -->
+
+- 목적: GET /saving-groups/{group_id}와 SavingGroupDetailPage를 실제 공개 API로 연결한다.
+- 사용자 최종 확정: 가입 이력은 group_member.membership_status에서 관리한다.
+  기존 OWNER/MANAGER/MEMBER·APPROVED 코드를 유지하고 JWT 연결은 후속으로 남긴다.
+- AI 제안·작성: Controller/Service/Mapper 상세 확장, DTO 2개, Long 양수 검증·404,
+  승인 인원 중복 제거·공지 최신 네 제목·역할 조회 준비, 목록 groupId 추가,
+  공개 상세 UI·로딩/오류/취소/재시도·금액 포맷·역할별 탭, 정상·실패 테스트와 API 문서.
+- 개인정보·범위: 공개 응답만 제공하며 모든 HTTP 요청의 myRole은 null.
+  검증되지 않은 사용자 ID·역할 입력은 사용하지 않는다. Mock 업무 패널은 준비 중 안내로 대체한다.
+- 개발자 검토·수정: 사용자 설계 정정은 반영. 구현 코드의 개발자 직접 검토 여부는 아직 확인되지 않음.
+- 데이터·외부 서비스: 실제 DB 조회·변경, 금융 API, JWT 구현, 의존성 추가·설정 변경 없음.
+  기존 Mapper XML의 사용자 수정도 보존함.
+- 검증 결과: JDK 17 Gradle 대상 테스트 37개 통과, 별도 MySQL 환경 미설정으로 5개 항목 건너뜀.
+  Node 테스트 8개 통과(실제 상세 JSX 렌더 포함), lint·프로덕션 빌드 통과.
+- 테스트 보완 과정: Controller 실패 테스트의 Mockito 재설정을 doThrow로 수정하고,
+  Node SSR의 styled-components 기본 내보내기 차이는 테스트 전용 변환으로 해결함.
+- 남은 직접 확인: 실제 MySQL SQL 실행, 브라우저/Postman 통합·모바일, JWT 후속 연결,
+  실제 스키마·인덱스·격리 수준·계주 승인 등록·중복 가입·BIGINT 응답 정밀도.
+- 파일별 변경 이유·재현 방법: [계모임 API 명세](saving-groups-api.md)의 상세 확장 절.
+
 ## 2026-10-20 — 계모임 목록 조회 구현
 
 - 목적: 확정 설계에 따라 공개 목록 API와 기존 React 화면을 연결한다.
