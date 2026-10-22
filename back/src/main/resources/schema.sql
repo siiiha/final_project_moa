@@ -131,12 +131,17 @@ CREATE TABLE IF NOT EXISTS `group_member` (
 	`group_id`	BIGINT	NOT NULL,
 	`member_role`	ENUM('OWNER', 'MANAGER', 'MEMBER')	NOT NULL	DEFAULT 'MEMBER',
 	`sequence_number`	INT	NULL,
-	`membership_status`	ENUM('PENDING', 'APPROVED', 'REJECTED', 'LEFT')	NOT NULL	DEFAULT 'PENDING',
-	`joined_at`	DATETIME	NULL,
+	`membership_status`	ENUM('PENDING', 'APPROVED', 'REJECTED', 'LEFT', 'EXPELLED')	NOT NULL	DEFAULT 'PENDING',
+	`approved_by` BIGINT NULL,
+    `approved_at` DATETIME NULL,
+    `joined_at`	DATETIME	NULL,
 	`left_at`	DATETIME	NULL,
 	`application_message`	VARCHAR(500)	NULL,
 	`requested_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`crew_member_id`)
+	PRIMARY KEY (`crew_member_id`),
+    UNIQUE KEY `uq_group_member_member_group` (`member_id`, `group_id`),
+    KEY `fk_group_member_approved_by` (`approved_by`),
+    KEY `ix_group_member_group_status` (`group_id`, `membership_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `groups` (
@@ -452,6 +457,11 @@ ALTER TABLE `group_member` ADD CONSTRAINT `FK_members_TO_group_member_1` FOREIGN
 REFERENCES `members` (
 	`member_id`
 );
+
+ALTER TABLE `group_member`
+ADD CONSTRAINT `fk_group_member_approved_by`
+FOREIGN KEY (`approved_by`)
+REFERENCES `members` (`member_id`);
 
 ALTER TABLE `groups`
 ADD CONSTRAINT `FK_region_TO_groups_1`
