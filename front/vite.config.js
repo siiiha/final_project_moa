@@ -10,6 +10,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // AI작성: 합성 결과만 제공하는 loopback 테스트 서버. Spring /api 경로와 분리한다.
+      '/__moa_test__': {
+        target: 'http://127.0.0.1:8767',
+        changeOrigin: true,
+      },
       '/api': {
         target: API_TARGET,
         changeOrigin: true,
