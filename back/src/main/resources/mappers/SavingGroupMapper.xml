@@ -105,7 +105,8 @@
         SELECT sg.saving_group_id,
         sg.group_id,
         sg.status,
-        g.max_members
+        g.max_members,
+        g.member_id AS owner_member_id
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.saving_group_id = #{savingGroupId}
@@ -144,6 +145,26 @@
         AND gm.membership_status = 'APPROVED'
         AND g.deleted_at IS NULL
         AND sg.status IN ('00', '01', '02', '03')
+        <!-- AI작성: 승인 대상 식별 조회가 만든 과거 스냅샷 대신 잠금 획득 후 최신 가입 수를 확인한다. -->
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 식별 조회와 잠금 재조회에서 같은 신청 필드를 사용한다. -->
+    <sql id="joinApprovalTargetSelect">
+        SELECT crew_member_id, member_id, group_id, membership_status
+        FROM group_member
+        WHERE crew_member_id = #{crewMemberId}
+    </sql>
+
+    <select id="selectSavingGroupJoinApprovalTarget"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow">
+        <include refid="joinApprovalTargetSelect"/>
+    </select>
+
+    <select id="selectSavingGroupJoinApprovalTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow">
+        <include refid="joinApprovalTargetSelect"/>
+        FOR UPDATE
     </select>
 
     <!-- AI작성: 신청 메시지 없이 인증 회원의 신청을 PENDING 상태로 한 건 저장한다. -->

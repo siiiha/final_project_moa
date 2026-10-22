@@ -1,6 +1,24 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-22 — 가입 승인 1단계: 대상 조회 및 검증
+
+- 목적: 가입 신청 승인 대상의 존재·소속·권한·상태·정원·가입 수를 저장 없이 검증한다.
+- 사용자 승인: 앞서 공유한 10개 파일 범위로 1단계 진행 요청. 계주는 groups.member_id 일치 및 OWNER + APPROVED 관계를 모두 확인한다.
+- AI 작성: 신청 조회 DTO와 식별·잠금 재조회, 기존 계모임 조회의 ownerMemberId 추가, Service 검증 계약·구현, 승인 검증 테스트와 실제 MyBatis 파싱·바인딩 테스트, 기존 테스트의 Mapper 계약 대응.
+- 트랜잭션: 검증 메서드는 Propagation.MANDATORY로 호출자의 트랜잭션에 참여한다. 단독 프록시 호출은 실패한다. 초기 신청 조회는 회원 ID 식별용이며 신청 회원 → 계모임 잠금 후 신청 행을 다시 읽는다. 반환값을 별도 트랜잭션 승인에 사용하지 않는다.
+- 기존 조회 재사용: 회원·계모임·계주 관계 잠금, 정원 및 최대 5개 집계를 재사용했다. selectApprovedSavingGroupCount는 초기 비잠금 조회의 스냅샷 영향을 피하도록 FOR UPDATE를 추가했으며 기존 신청 기능도 최신 잠금 집계를 사용한다.
+- 조건: 신청 PENDING, 모임 01, 계주 포함 APPROVED 인원 < 양수 정원, 신청 회원의 삭제되지 않은 00~03 APPROVED 계모임 수 < 5. 신청 회원 계정 ACTIVE·본인 인증의 승인 시 재검증은 별도 정책이 확정되지 않아 추가하지 않았다.
+- 범위 준수: 승인 UPDATE·Controller API·외부 호출·새 의존성·schema.sql·공용 DB 변경 없음. 승인 처리자·시각 컬럼은 아직 참조하지 않는다.
+- 검증: Java 17 경로 지정 compileJava 통과. back에서 아래 명령 실행, 관련 테스트 43개 통과(승인 검증 35, Mapper 5, 기존 신청 3). git diff --check 통과.
+  `gradlew.bat -Dorg.gradle.java.installations.paths=C:\dev\jdk-17.0.12_windows-x64_bin\jdk-17.0.12 test --tests "*SavingGroup*"`
+- 테스트 범위: 정상·누락·다른 모임·계주 조건·대기 이외 상태·모집중 이외 상태·정원·최대 5개·잘못된 ID·무인증·신청 변경·잠금 순서·무저장·트랜잭션 없는 호출 차단, XML 조건·전체 매퍼 파싱·바인딩. Mockito 기반 단위 테스트는 DB 연결 없이 실행한다.
+- 미검증: 실제 MySQL SQL 실행·인덱스·격리 수준·잠금 경합·교착 및 동시 승인. 전체 앱 기동·Postman·브라우저 통합은 실행하지 않았다. 1단계는 외부 API가 없어 Postman으로 호출할 수 없다.
+- 후속 TODO: 2단계에서 승인 전체 트랜잭션·조건부 UPDATE·영향 행 수·롤백·동시성 검증. Spring 프록시를 우회하는 내부 호출에서는 MANDATORY 자체가 적용되지 않으므로 호출부의 트랜잭션을 반드시 보장한다. 공용 DB의 UNIQUE·EXPELLED·승인 정보 구조 확인 및 재신청 승인 정보 초기화도 필요하다.
+- 연계 확인: 병합된 insertSavingGroup/approveForCreationSavingGroup SQL은 pending/approved 상태 문자열을 사용한다. 확정 상태 코드 00~04와 불일치하므로 별도 담당 확인이 필요하며 이 작업에서 수정하지 않았다.
+- 공식 근거: https://dev.mysql.com/doc/refman/8.4/en/innodb-locking-reads.html (잠금 조회와 최신 값 조회).
+- 개발자 코드 검토·수정: 검토 대기. git commit과 다음 단계 구현은 수행하지 않았다.
+
 ## 2026-10-22 — 계모임 가입 승인 DB 선행 변경안 정리
 
 - 목적: DB 관리자가 검토·반영할 가입 승인 DB 변경 요청과 컬럼 명세를 저장소에 남긴다.

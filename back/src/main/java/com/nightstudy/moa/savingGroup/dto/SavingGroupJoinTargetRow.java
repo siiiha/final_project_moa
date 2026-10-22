@@ -13,4 +13,6 @@ public class SavingGroupJoinTargetRow {
     private Long groupId;
     private String status;
     private Integer maxMembers;
+    // AI작성: 모임 생성 회원과 승인된 OWNER 관계를 함께 확인할 때 사용한다.
+    private Long ownerMemberId;
 }

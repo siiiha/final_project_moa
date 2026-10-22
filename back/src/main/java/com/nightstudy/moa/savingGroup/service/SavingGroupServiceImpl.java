@@ -30,6 +30,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import java.util.Objects;
 
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
@@ -41,6 +43,66 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
+
+    // AI작성: 후속 승인 처리의 트랜잭션에 반드시 참여하며 이 단계에서는 저장하지 않는다.
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public SavingGroupJoinApprovalTargetRow validateSavingGroupJoinApproval(
+            Long savingGroupId, Long crewMemberId, Long memberId) {
+        if (savingGroupId == null || savingGroupId <= 0 || crewMemberId == null || crewMemberId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 또는 가입 신청 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupJoinApprovalTargetRow identified = savingGroupMapper.selectSavingGroupJoinApprovalTarget(crewMemberId);
+        if (identified == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "가입 신청을 찾을 수 없습니다.");
+        }
+        // AI작성: 초기 조회는 식별용이다. 신청 회원 → 계모임 순서로 잠근 뒤 신청 행을 재검증한다.
+        SavingGroupJoinMemberRow applicant = savingGroupMapper.selectSavingGroupJoinMemberForUpdate(identified.getMemberId());
+        if (applicant == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_MEMBER_NOT_FOUND", "신청 회원을 찾을 수 없습니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        SavingGroupJoinApprovalTargetRow request = savingGroupMapper.selectSavingGroupJoinApprovalTargetForUpdate(crewMemberId);
+        if (request == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "가입 신청을 찾을 수 없습니다.");
+        }
+        if (!Objects.equals(request.getMemberId(), identified.getMemberId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_CHANGED", "가입 신청이 변경되었습니다. 다시 확인해주세요.");
+        }
+        if (!Objects.equals(request.getGroupId(), target.getGroupId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "해당 계모임의 가입 신청을 찾을 수 없습니다.");
+        }
+        if (!Objects.equals(memberId, target.getOwnerMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "계주만 가입 신청을 승인할 수 있습니다.");
+        }
+        SavingGroupMembershipRelationRow owner = savingGroupMapper.selectSavingGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (owner == null || !"OWNER".equals(owner.getMemberRole()) || !"APPROVED".equals(owner.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "승인된 계주만 가입 신청을 승인할 수 있습니다.");
+        }
+        if (!"PENDING".equals(request.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_NOT_PENDING", "대기 중인 가입 신청만 승인할 수 있습니다.");
+        }
+        if (!"01".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_JOIN_UNAVAILABLE", "현재 가입 승인할 수 없는 계모임입니다.");
+        }
+        if (target.getMaxMembers() == null || target.getMaxMembers() <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_NOT_CONFIGURED", "계모임 정원이 설정되지 않았습니다.");
+        }
+        if (savingGroupMapper.selectApprovedMemberCountForUpdate(target.getGroupId()) >= target.getMaxMembers()) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_FULL", "계모임 정원이 모두 찼습니다.");
+        }
+        if (savingGroupMapper.selectApprovedSavingGroupCount(request.getMemberId()) >= MAX_JOINED_SAVING_GROUPS) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_JOIN_LIMIT_EXCEEDED", "가입 가능한 계모임 수는 최대 5개입니다.");
+        }
+        return request;
+    }
 
     // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
     public SavingGroupServiceImpl(SavingGroupMapper savingGroupMapper) {
