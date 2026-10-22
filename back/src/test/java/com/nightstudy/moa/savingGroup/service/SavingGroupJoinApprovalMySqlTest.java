@@ -57,7 +57,10 @@ class SavingGroupJoinApprovalMySqlTest {
         var source = new DriverManagerDataSource(url, user, password);
         jdbc = new JdbcTemplate(source);
         // AI작성: 조회에 필요한 합성 데이터용 최소 테이블이며 실제 개인·금융 정보는 사용하지 않는다.
-        jdbc.execute("CREATE TABLE members (member_id BIGINT PRIMARY KEY, account_status VARCHAR(20) DEFAULT 'ACTIVE', identity_verified_at DATETIME DEFAULT CURRENT_TIMESTAMP, deleted_at DATETIME NULL) ENGINE=InnoDB");
+        // AI작성: 실제 목록 SQL의 지역·마스킹·인증 필드도 같은 격리된 테스트 스키마에서 확인한다.
+        jdbc.execute("CREATE TABLE region (region_id BIGINT PRIMARY KEY, region_name VARCHAR(50)) ENGINE=InnoDB");
+        jdbc.update("INSERT INTO region VALUES (1,'서울')");
+        jdbc.execute("CREATE TABLE members (member_id BIGINT PRIMARY KEY, region_id BIGINT DEFAULT 1, name VARCHAR(50) DEFAULT '가상회원', account_status VARCHAR(20) DEFAULT 'ACTIVE', identity_verified_at DATETIME DEFAULT CURRENT_TIMESTAMP, region_verified_at DATETIME NULL, deleted_at DATETIME NULL) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE `groups` (group_id BIGINT PRIMARY KEY, member_id BIGINT NOT NULL, max_members INT NULL, deleted_at DATETIME NULL) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE saving_group (saving_group_id BIGINT PRIMARY KEY, group_id BIGINT NOT NULL, status VARCHAR(20) NOT NULL, KEY(group_id)) ENGINE=InnoDB");
         try (var stream = new ClassPathResource("schema.sql").getInputStream()) {
@@ -125,6 +128,40 @@ class SavingGroupJoinApprovalMySqlTest {
         assertEquals(before, count("SELECT COUNT(*) FROM group_member"));
         assertEquals("JOIN_REQUEST_NOT_PENDING", assertThrows(ApiException.class,
                 () -> service.approveSavingGroupJoin(10L, 50L, 40L)).getCode());
+    }
+
+    @Test
+    void 실제신청목록은마스킹하고계주관계와탈퇴추방을제외한다() {
+        relation(51, 21, 30, "MEMBER", "LEFT");
+        var result = service.getSavingGroupJoinRequests(10L, 40L, null, 1);
+        assertEquals(1, result.getPageMeta().getTotal());
+        var item = result.getItems().get(0);
+        assertEquals("50", item.getCrewMemberId());
+        assertEquals("가***", item.getApplicant());
+        assertEquals("서울", item.getRegionName());
+        assertTrue(item.isIdentityVerified());
+        assertFalse(item.isRegionVerified());
+        assertThrows(ApiException.class, () -> service.getSavingGroupJoinRequests(10L, 20L, null, 1));
+        service.approveSavingGroupJoin(10L, 50L, 40L);
+        assertEquals(0, service.getSavingGroupJoinRequests(10L, 40L, "PENDING", 1).getPageMeta().getTotal());
+        assertEquals(1, service.getSavingGroupJoinRequests(10L, 40L, "APPROVED", 1).getItems().size());
+    }
+
+    @Test
+    void 목록페이지정렬및큰ID문자열을보존한다() {
+        jdbc.update("UPDATE group_member SET crew_member_id=9007199254740993 WHERE crew_member_id=50");
+        jdbc.update("INSERT INTO members(member_id) VALUES (22)");
+        for (int index = 0; index < 11; index++) {
+            jdbc.update("INSERT INTO members(member_id) VALUES (?)", 1000 + index);
+            relation(100 + index, 1000 + index, 30, "MEMBER", "PENDING");
+        }
+        jdbc.update("UPDATE group_member SET requested_at='2026-01-01 00:00:00'");
+        var first = service.getSavingGroupJoinRequests(10L, 40L, "PENDING", 1);
+        assertEquals(12, first.getPageMeta().getTotal());
+        assertEquals(10, first.getItems().size());
+        assertEquals("9007199254740993", first.getItems().get(0).getCrewMemberId());
+        assertEquals(2, service.getSavingGroupJoinRequests(10L, 40L, "PENDING", 2).getItems().size());
+        assertTrue(service.getSavingGroupJoinRequests(10L, 40L, "PENDING", 3).getItems().isEmpty());
     }
 
     @Test

@@ -4,6 +4,8 @@ import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinRequestRow;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinRequestListResponse;
 import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 // AI작성: /api 경로는 기존 프론트 클라이언트와 개발 프록시를 위한 동일 API 별칭이다.
@@ -26,6 +29,20 @@ public class SavingGroupController {
     // AI작성: 목록 조회와 가입 신청 승인에 기존 Service를 사용한다.
     public SavingGroupController(SavingGroupService savingGroupService) {
         this.savingGroupService = savingGroupService;
+    }
+
+    // AI작성: TODO: JWT 병합 후 두 목록 경로에도 인증 인터셉터를 적용한다. 인증 속성이 없으면 조회하지 않는다.
+    @GetMapping("/{savingGroupId}/join-requests")
+    public ApiResponse<List<SavingGroupJoinRequestRow>> joinRequests(
+            @PathVariable("savingGroupId") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", defaultValue = "1") int page) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        SavingGroupJoinRequestListResponse result = savingGroupService.getSavingGroupJoinRequests(savingGroupId, memberId, status, page);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
 
     // AI작성: 승인자는 서버 인증 정보로만 받아 기존 트랜잭션 Service에 전달한다. 요청 본문은 사용하지 않는다.

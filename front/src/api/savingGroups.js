@@ -1,5 +1,61 @@
 import client from './client.js';
 
+// AI작성: DB의 양수 BIGINT 범위만 허용하고 큰 문자열 ID를 Number로 바꾸지 않는다.
+function savingGroupPathId(value) {
+  if ((typeof value === 'number' && !Number.isSafeInteger(value))
+    || !/^[1-9]\d*$/.test(String(value)) || BigInt(value) > 9223372036854775807n) {
+    throw new SavingGroupJoinRequestError('BAD_REQUEST', '모임 또는 신청 번호가 올바르지 않습니다.');
+  }
+  return String(value);
+}
+
+// AI작성: 목록과 승인 모두 서버의 오류 코드를 보존하며 요청 취소는 화면 오류로 바꾸지 않는다.
+async function savingGroupJoinResponse(request, fallback) {
+  try {
+    const response = await request();
+    if (!response.data?.success) {
+      throw new SavingGroupJoinRequestError(response.data?.error?.code || 'JOIN_REQUEST_FAILED', response.data?.error?.message || fallback);
+    }
+    return response.data;
+  } catch (error) {
+    if (error instanceof SavingGroupJoinRequestError || error.code === 'ERR_CANCELED') throw error;
+    throw new SavingGroupJoinRequestError(error.response?.data?.error?.code || 'JOIN_REQUEST_FAILED',
+      error.response?.data?.error?.message || fallback);
+  }
+}
+
+// AI작성: 실제 신청 목록만 조회한다. 토큰 제공은 기존 JWT 연결 작업으로 남기며 Mock으로 대체하지 않는다.
+export async function getSavingGroupJoinRequests(savingGroupId, { status, page = 1, signal } = {}) {
+  const groupId = savingGroupPathId(savingGroupId);
+  const result = await savingGroupJoinResponse(() => client.get(`/saving-groups/${groupId}/join-requests`, {
+    params: { status: status || undefined, page }, signal,
+  }), '가입 신청 목록을 불러오지 못했습니다.');
+  // AI작성: 잘못된 성공 응답을 빈 목록으로 위장하거나 기술 오류 문구로 노출하지 않는다.
+  if (!Array.isArray(result.data) || !result.meta || !Number.isInteger(result.meta.totalPages)) {
+    throw new SavingGroupJoinRequestError('INVALID_RESPONSE', '가입 신청 목록 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+  }
+  return {
+    items: result.data.map((item) => ({
+      id: savingGroupPathId(item.crewMemberId),
+      applicant: item.applicant || '이름 미등록',
+      verification: item.identityVerified && item.regionVerified ? '본인·지역 인증 완료'
+        : item.identityVerified ? '본인 인증 완료' : item.regionVerified ? '지역 인증 완료' : '인증 미완료',
+      regionInterest: item.regionName || '지역 미등록',
+      message: item.applicationMessage || '신청 메시지가 없습니다.',
+      status: { PENDING: '대기', APPROVED: '승인', REJECTED: '거절' }[item.membershipStatus] || '상태 확인 필요',
+    })),
+    meta: result.meta,
+  };
+}
+
+// AI작성: 승인자·역할·본문을 보내지 않고 서버가 반환한 실제 신청 ID만 사용한다.
+export async function approveSavingGroupJoin(savingGroupId, crewMemberId) {
+  const groupId = savingGroupPathId(savingGroupId);
+  const requestId = savingGroupPathId(crewMemberId);
+  return savingGroupJoinResponse(() => client.patch(`/saving-groups/${groupId}/join-requests/${requestId}/approve`),
+    '가입 신청 승인에 실패했습니다.');
+}
+
 class SavingGroupJoinRequestError extends Error {
   constructor(code, message) {
     super(message);
