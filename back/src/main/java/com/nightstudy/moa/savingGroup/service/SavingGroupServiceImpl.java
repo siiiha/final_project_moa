@@ -44,6 +44,42 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
 
+    // AI작성: 기존 계모임·계주 관계 잠금을 재사용해 권한 확인과 조회 사이의 소유자 변경을 막는다.
+    @Override
+    @Transactional
+    public SavingGroupJoinRequestListResponse getSavingGroupJoinRequests(
+            Long savingGroupId, Long memberId, String status, int page) {
+        if (savingGroupId == null || savingGroupId <= 0 || page < 1
+                || (status != null && !List.of("PENDING", "APPROVED", "REJECTED").contains(status))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호, 신청 상태 또는 페이지가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        validateSavingGroupOwner(target, memberId);
+        int total = savingGroupMapper.selectSavingGroupJoinRequestCount(target.getGroupId(), status);
+        PageMeta meta = PageMeta.of(page, 10, total);
+        // AI작성: 빈 결과·범위 초과는 offset 곱셈 전에 반환하며 요청 페이지를 강제로 바꾸지 않는다.
+        List<SavingGroupJoinRequestRow> items = page > meta.getTotalPages() ? List.of()
+                : savingGroupMapper.selectSavingGroupJoinRequests(target.getGroupId(), status, meta.getOffset(), 10);
+        return new SavingGroupJoinRequestListResponse(items, meta);
+    }
+
+    // AI작성: 목록 조회와 승인에서 동일한 계주 판별 기준을 재사용한다.
+    private void validateSavingGroupOwner(SavingGroupJoinTargetRow target, Long memberId) {
+        if (!Objects.equals(memberId, target.getOwnerMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "계주만 가입 신청을 관리할 수 있습니다.");
+        }
+        SavingGroupMembershipRelationRow owner = savingGroupMapper.selectSavingGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (owner == null || !"OWNER".equals(owner.getMemberRole()) || !"APPROVED".equals(owner.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "승인된 계주만 가입 신청을 관리할 수 있습니다.");
+        }
+    }
+
     // AI작성: 내부 검증 호출의 MANDATORY는 프록시를 거치지 않으므로 이 진입점에서 트랜잭션을 보장한다.
     @Override
     @Transactional
@@ -93,13 +129,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (!Objects.equals(request.getGroupId(), target.getGroupId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "해당 계모임의 가입 신청을 찾을 수 없습니다.");
         }
-        if (!Objects.equals(memberId, target.getOwnerMemberId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "계주만 가입 신청을 승인할 수 있습니다.");
-        }
-        SavingGroupMembershipRelationRow owner = savingGroupMapper.selectSavingGroupMembershipForUpdate(target.getGroupId(), memberId);
-        if (owner == null || !"OWNER".equals(owner.getMemberRole()) || !"APPROVED".equals(owner.getMembershipStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "승인된 계주만 가입 신청을 승인할 수 있습니다.");
-        }
+        validateSavingGroupOwner(target, memberId);
         if (!"PENDING".equals(request.getMembershipStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_NOT_PENDING", "대기 중인 가입 신청만 승인할 수 있습니다.");
         }

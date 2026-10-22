@@ -366,10 +366,101 @@ back 폴더에서 실행한다.
 .\gradlew.bat '-Dorg.gradle.java.installations.paths=C:\dev\jdk-17.0.12_windows-x64_bin\jdk-17.0.12' test --tests '*SavingGroupJoinApproval*'
 ```
 
-- Controller 테스트 24개: 두 경로 정상·인증 누락, 잘못된 인증 ID, 클라이언트 회원 ID 무시, 경로 변수 오류, 권한·대상·상태 등 기존 Service 오류의 공통 응답.
+- Controller 테스트 31개: 두 경로 정상·인증 누락, 잘못된 인증 ID, 클라이언트 회원 ID 무시, 경로 변수 오류, 권한·대상·상태 등 기존 Service 오류의 공통 응답 및 아래 신청 목록 조회 계약.
 - Service 단위 테스트 12개: 기존 승인 로직의 회귀 검증.
-- 실제 MySQL 테스트 7개: 별도 테스트 서버 설정이 없으면 건너뛴다. 실행 조건은 saving-group-join-request-design.md의 6.5절을 참고한다.
+- 실제 MySQL 테스트 9개: 별도 테스트 서버 설정이 없으면 건너뛴다. 실행 조건은 saving-group-join-request-design.md의 6.5절을 참고한다.
 - Postman: 요청 본문 없이 PATCH하면 현재 JWT 미연결 상태에서는 401 / UNAUTHORIZED가 예상 결과다. 성공·권한 실패·만료 토큰 등의 실제 JWT 통합 확인은 병합과 경로 등록 후 수행한다. 인증 우회용 헤더나 임시 회원 ID는 추가하지 않는다.
 - 실제 앱 기동·JWT·공용 DB 통합은 아직 검증하지 않았다.
 
 공식 근거: https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-methods/requestattrib.html
+
+<!-- AI작성: 실제 가입 신청 조회 API와 프론트 개별 승인 연결의 계약·제한·파일 목록을 기록한다. -->
+## 계주 전용 가입 신청 목록과 프론트 승인 연결
+
+### 목록 요청
+
+`GET /api/saving-groups/{savingGroupId}/join-requests`
+
+기존 Controller 별칭 `/saving-groups/{savingGroupId}/join-requests`도 동일하게 제공한다.
+
+| 파라미터 | 타입 | 규칙 |
+| --- | --- | --- |
+| savingGroupId | Long 경로 변수 | 양수, saving_group.saving_group_id |
+| status | String 쿼리 | 생략하면 전체, PENDING / APPROVED / REJECTED만 허용 |
+| page | int 쿼리 | 기본 1, 1 이상, 고정 페이지 크기 10 |
+
+- 서버 인증 속성 memberId가 없거나 유효하지 않으면 401 / UNAUTHORIZED. 클라이언트가 보낸 회원 ID를 사용하지 않는다.
+- 모임 없음·삭제는 404 / SAVING_GROUP_NOT_FOUND, groups.member_id 불일치 또는 OWNER + APPROVED 관계가 없으면 403 / SAVING_GROUP_OWNER_REQUIRED.
+- 권한 확인은 승인과 같은 공통 검증을 사용한다. 기존 계모임·계주 관계의 잠금 조회를 재사용하므로 조회 Service도 트랜잭션으로 실행한다.
+- 목록은 해당 group_id의 현재 PENDING / APPROVED / REJECTED 관계만 대상으로 한다. OWNER 관계, LEFT·EXPELLED, 삭제 회원은 제외한다. 별도 신청 이력 테이블을 만들지 않는다.
+- counts와 rows는 동일한 SQL 조건을 사용하며 requested_at DESC, crew_member_id DESC 정렬, 10개씩 조회한다. count가 0이거나 범위 초과 페이지면 목록 SELECT 없이 정상 빈 배열을 반환한다.
+- 모집중이 아니어도 계주는 목록을 볼 수 있다. 실제 승인 가능 여부는 승인 Service가 다시 검사한다.
+
+### 목록 응답
+
+기존 ApiResponse의 data 배열·meta 구조를 사용한다.
+
+```json
+{
+  "success": true,
+  "data": [{
+    "crewMemberId": "9007199254740993",
+    "applicant": "가**",
+    "regionName": "서울",
+    "identityVerified": true,
+    "regionVerified": false,
+    "applicationMessage": null,
+    "membershipStatus": "PENDING"
+  }],
+  "meta": {"page": 1, "size": 10, "total": 1, "totalPages": 1, "offset": 0},
+  "error": null
+}
+```
+
+- crewMemberId는 BIGINT 정밀도 손실을 막기 위해 문자열이다. 프론트는 Number로 변환하지 않고 승인 경로에 전달한다.
+- 이름은 SQL에서 첫 글자 외 나머지를 *로 마스킹한다. 1글자 이름에도 *를 붙인다. 서버에 이름 원문을 반환하지 않는다.
+- 회원 ID·연락처·생년월일·계좌·인증 시각 원문은 조회·반환하지 않는다. 지역명과 인증 완료 여부만 제공한다. 관심사는 이번 목록 응답에 추가하지 않는다.
+- 신청 메시지는 기존 application_message를 표시하며 React의 텍스트 렌더링을 사용한다. HTML로 삽입하지 않는다. 메시지의 자유 입력 내용에 대한 별도 자동 개인정보 탐지 정책은 이번 범위에 없다.
+
+### 프론트 동작
+
+1. 신청 목록 탭에서 공통 client의 /api 기준 주소로 실제 목록을 조회한다. 기존 가입 신청 Mock 배열은 import하지 않는다.
+2. 전체·대기·승인·거절 필터 변경 시 1페이지로 돌아가고 서버에서 다시 조회한다. 페이지 번호는 기존 최대 5개 묶음 함수를 재사용한다.
+3. 조회 중 안내, 오류·다시 시도, 빈 목록, 범위 초과·첫 페이지 이동을 각각 표시한다. 실패를 빈 목록이나 Mock 데이터로 바꾸지 않는다.
+4. 화면에 있는 대기 신청의 실제 ID로 본문 없는 PATCH를 보낸다. 같은 화면의 추가 승인·필터·페이지 이동은 승인 중 차단하고 연속 클릭은 ref로도 차단한다.
+5. 승인 성공 후 완료 모달을 띄우고 서버 목록을 다시 읽는다. 로컬 상태를 임의로 승인으로 바꾸지 않는다. 재조회 실패 시에는 오류와 재시도를 표시한다.
+6. 승인 실패는 서버 오류 문구로 안내하고 목록을 재조회한다. 실패한 신청을 성공으로 표시하지 않는다. 화면 전환으로 끝난 이전 조회는 취소·무시한다.
+7. 선택 승인·거절·상세 조회는 API가 확정되지 않아 비활성화한다. 선택 승인·거절 연결 TODO를 남긴다.
+
+### 연결 전 남은 사항
+
+- JWT와 토큰 제공은 사용자 요청대로 TODO다. JWT 브랜치 병합 후 위 GET 두 경로와 승인 PATCH 두 경로에 인증을 등록하고 기존 client의 토큰 제공 방식을 연결해야 한다. 임의 토큰 저장소·회원 ID·인증 우회는 추가하지 않았다.
+- 현재 인증 미연결 상태의 실제 목록 요청은 401이며 화면에 로그인 필요 문구가 표시된다. 정상 조회·승인 응답 검증은 테스트에서만 인증 완료 속성을 주입한다.
+- 상위 상세 페이지의 기본 모임 정보·모임 존재 여부 판정은 기존 Mock 상태다. 따라서 Mock에 없는 실제 모임 ID는 상위 페이지에서 차단된다. 상세 조회 API 연결은 별도 작업이며 실제 전체 모임 접근 검증은 그 뒤에 가능하다.
+- 계금 요청 탭의 기존 Mock은 별도 탭으로 유지했다. 실제 가입 신청 목록에 금융 Mock 데이터를 섞지 않는다.
+- schema.sql·공용 DB·새 의존성은 변경하지 않았다. 실제 MySQL SQL·마스킹·동시성은 환경 설정이 없어 미검증이며 브라우저·실제 JWT 통합도 아직 수행하지 않았다.
+
+### 변경 파일 (17개)
+
+Java 구현 경로 기준은 back/src/main/java/com/nightstudy/moa/savingGroup/이다.
+
+| 영역 | 파일 |
+| --- | --- |
+| Controller | controller/SavingGroupController.java |
+| Service | service/SavingGroupService.java, service/SavingGroupServiceImpl.java |
+| Mapper | mapper/SavingGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml |
+| 신규 DTO | dto/SavingGroupJoinRequestRow.java, dto/SavingGroupJoinRequestListResponse.java |
+| 신규 목록 테스트 | back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupJoinRequestServiceTest.java |
+| 기존 테스트 확장 | back/src/test/java/com/nightstudy/moa/savingGroup/controller/SavingGroupJoinApprovalControllerTest.java, back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupJoinApprovalMySqlTest.java |
+| 프론트 API | front/src/api/savingGroups.js, front/src/api/savingGroups.test.js |
+| 화면 | front/src/components/savingGroup/SavingGroupDetail.jsx, front/src/components/savingGroup/SavingGroupJoinRequestsPanel.jsx, front/src/components/savingGroup/SavingGroupJoinRequestList.jsx |
+| 문서 | docs/saving-groups-api.md, docs/ai-usage-log.md |
+
+### 검증 결과와 재현
+
+백엔드: back에서 `gradlew.bat -Dorg.gradle.java.installations.paths=C:\dev\jdk-17.0.12_windows-x64_bin\jdk-17.0.12 test --tests "*SavingGroupJoin*"`.
+컴파일 및 Controller 31개·승인 Service 12개·목록 Service/실제 XML 바인딩 22개, 총 65개 통과. MySQL 통합 9개는 건너뜀.
+
+프론트: front에서 `node --test src/api/savingGroups.test.js` 15개 통과, `npm run lint`와 `npm run build` 통과. 기존 번들 크기 경고는 유지한다.
+
+브라우저 직접 확인: 기존 상세 화면에서 신청 목록 탭을 연다. JWT 미연결 시 로그인 필요 오류와 다시 시도 버튼이 나타나고 Mock 신청은 나오지 않아야 한다. JWT·상세 조회 연결 후에는 계주의 실제 모임으로 정상 목록·필터·빈 목록·개별 승인·실패·중복 클릭을 확인한다.

@@ -139,6 +139,49 @@ class SavingGroupJoinApprovalControllerTest {
                 Arguments.of(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED"));
     }
 
+    // AI작성: 신청 목록도 두 경로 모두 서버 인증 정보를 사용하며 data/meta 구조를 유지한다.
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/saving-groups", "/saving-groups"})
+    void 계주목록정상응답(String root) throws Exception {
+        var row = new com.nightstudy.moa.savingGroup.dto.SavingGroupJoinRequestRow();
+        row.setCrewMemberId("9007199254740993");
+        row.setApplicant("가**");
+        row.setMembershipStatus("PENDING");
+        when(service.getSavingGroupJoinRequests(10L, 40L, "PENDING", 1)).thenReturn(
+                new com.nightstudy.moa.savingGroup.dto.SavingGroupJoinRequestListResponse(java.util.List.of(row),
+                        com.nightstudy.moa.common.dto.PageMeta.of(1, 10, 1)));
+        mvc.perform(get(root + "/10/join-requests").param("status", "PENDING").requestAttr("memberId", 40L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].crewMemberId").value("9007199254740993"))
+                .andExpect(jsonPath("$.data[0].applicant").value("가**"))
+                .andExpect(jsonPath("$.meta.size").value(10));
+        verify(service).getSavingGroupJoinRequests(10L, 40L, "PENDING", 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/saving-groups", "/saving-groups"})
+    void 목록비로그인은401(String root) throws Exception {
+        mvc.perform(get(root + "/10/join-requests").param("memberId", "40"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(service);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "2147483648"})
+    void 목록잘못된페이지타입400(String page) throws Exception {
+        mvc.perform(get("/api/saving-groups/10/join-requests").param("page", page).requestAttr("memberId", 40L))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 목록비계주는403공통응답() throws Exception {
+        when(service.getSavingGroupJoinRequests(10L, 40L, null, 1))
+                .thenThrow(new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "계주만 조회할 수 있습니다."));
+        mvc.perform(get("/api/saving-groups/10/join-requests").requestAttr("memberId", 40L))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("SAVING_GROUP_OWNER_REQUIRED"));
+    }
+
     private static MockMvc controller(SavingGroupService service) {
         return MockMvcBuilders.standaloneSetup(new SavingGroupController(service))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();

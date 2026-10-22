@@ -9,6 +9,11 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 권한 검증으로 확인한 내부 groupId를 사용하고 같은 조건으로 개수와 페이지를 조회한다.
+    int selectSavingGroupJoinRequestCount(@Param("groupId") Long groupId, @Param("status") String status);
+    List<SavingGroupJoinRequestRow> selectSavingGroupJoinRequests(@Param("groupId") Long groupId,
+            @Param("status") String status, @Param("offset") int offset, @Param("limit") int limit);
+
     // 목록 검색 조건에 맞는 공개 계모임의 총 개수를 조회한다.
     // AI작성: 일대다 데이터를 분리 조회하여 공지 수가 계원 집계에 영향을 주지 않게 한다.
     SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);

@@ -3,6 +3,7 @@ import Badge from '../common/Badge';
 import Button from '../common/Button';
 import Checkbox from '../common/Checkbox';
 import SavingGroupPayoutApprovalList from './SavingGroupPayoutApprovalList';
+import { getSavingGroupPages } from '../../api/savingGroups';
 
 const Filters = styled.nav`
   display: flex;
@@ -218,15 +219,19 @@ const filters = [
   { id: '계금 요청', label: '계금 요청' },
 ];
 
-function RequestActions({ request, onApprove, onReject }) {
+// AI작성: 미구현 동작은 비활성화하고 승인 중에는 같은 화면의 추가 처리를 차단한다.
+function RequestActions({ request, onApprove, onReject, pendingId, blocked }) {
   if (request.status !== '대기') {
-    return <ActionButton type="button" $variant="secondary">상세 보기</ActionButton>;
+    return <ActionButton type="button" $variant="secondary" disabled title="상세 조회 준비 중">상세 보기</ActionButton>;
   }
 
   return (
     <ActionGroup>
-      <ActionButton type="button" onClick={() => onApprove(request.id)}>승인</ActionButton>
-      <ActionButton type="button" $variant="secondary" onClick={() => onReject(request.id)}>거절</ActionButton>
+      <ActionButton type="button" disabled={blocked} aria-busy={pendingId === request.id} onClick={() => onApprove(request.id)}>
+        {pendingId === request.id ? '승인 중…' : '승인'}
+      </ActionButton>
+      {/* AI작성: TODO: 가입 거절 API 확정 후 활성화한다. */}
+      <ActionButton type="button" $variant="secondary" disabled title="거절 기능 준비 중" onClick={() => onReject(request.id)}>거절</ActionButton>
     </ActionGroup>
   );
 }
@@ -245,6 +250,11 @@ function SavingGroupJoinRequestList({
   totalPages,
   onPageChange,
   totalCount,
+  isLoading,
+  errorMessage,
+  pendingId,
+  onRetry,
+  onFirstPage,
   payoutRequests,
   payoutCurrentPage,
   payoutTotalPages,
@@ -255,6 +265,9 @@ function SavingGroupJoinRequestList({
 }) {
   const selectableRequests = requests.filter((request) => request.status === '대기');
   const isAllSelected = selectableRequests.length > 0 && selectableRequests.every((request) => selectedIds.includes(request.id));
+  // AI작성: 실패·로딩 중의 이전 목록으로 승인할 수 없으며 페이지 번호는 기존 5개 묶음 규칙을 재사용한다.
+  const blocked = Boolean(pendingId) || isLoading || Boolean(errorMessage);
+  const pages = getSavingGroupPages(currentPage, totalPages);
 
   return (
     <>
@@ -263,6 +276,7 @@ function SavingGroupJoinRequestList({
           <FilterButton
             key={filter.id}
             type="button"
+            disabled={Boolean(pendingId)}
             $active={activeFilter === filter.id}
             aria-current={activeFilter === filter.id ? 'page' : undefined}
             onClick={() => onFilterChange(filter.id)}
@@ -286,13 +300,18 @@ function SavingGroupJoinRequestList({
         <>
           <Card>
         <CardHeader>
-          <Count>신청자 {totalCount}명</Count>
-          <BulkApproveButton type="button" disabled={!selectedIds.length} onClick={onBulkApprove}>
+          <Count>{isLoading ? '신청 목록을 불러오는 중입니다.' : errorMessage ? '가입 신청 목록' : `신청자 ${totalCount}명`}</Count>
+          {/* AI작성: TODO: 선택 승인 정책·API 확정 후 연결한다. */}
+          <BulkApproveButton type="button" disabled title="선택 승인 준비 중" onClick={onBulkApprove}>
             선택 승인
           </BulkApproveButton>
         </CardHeader>
 
-        {requests.length ? (
+        {isLoading ? <Empty role="status">가입 신청 목록을 불러오고 있습니다.</Empty> : errorMessage ? (
+          <Empty role="alert">{errorMessage}<br />
+            <Button type="button" $variant="secondary" disabled={Boolean(pendingId)} onClick={onRetry}>다시 시도</Button>
+          </Empty>
+        ) : requests.length ? (
           <>
             <TableWrap>
               <Table>
@@ -307,10 +326,10 @@ function SavingGroupJoinRequestList({
                 <thead>
                   <tr>
                     <th scope="col">
-                      <Checkbox id="join-request-all" aria-label="대기 신청 전체 선택" checked={isAllSelected} onChange={onToggleAll} />
+                      <Checkbox id="join-request-all" aria-label="대기 신청 전체 선택" checked={isAllSelected} disabled={blocked} onChange={onToggleAll} />
                     </th>
                     <th scope="col">신청자</th>
-                    <th scope="col">지역·관심사</th>
+                    <th scope="col">지역</th>
                     <th scope="col">신청 메시지</th>
                     <th scope="col">상태</th>
                     <th scope="col">처리</th>
@@ -324,7 +343,7 @@ function SavingGroupJoinRequestList({
                           id={`join-request-${request.id}`}
                           aria-label={`${request.applicant} 선택`}
                           checked={selectedIds.includes(request.id)}
-                          disabled={request.status !== '대기'}
+                          disabled={blocked || request.status !== '대기'}
                           onChange={() => onToggleRequest(request.id)}
                         />
                       </td>
@@ -335,7 +354,7 @@ function SavingGroupJoinRequestList({
                       <td>{request.regionInterest}</td>
                       <td>{request.message}</td>
                       <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
-                      <td><RequestActions request={request} onApprove={onApprove} onReject={onReject} /></td>
+                      <td><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} blocked={blocked} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -351,7 +370,7 @@ function SavingGroupJoinRequestList({
                         id={`mobile-join-request-${request.id}`}
                         aria-label={`${request.applicant} 선택`}
                         checked={selectedIds.includes(request.id)}
-                        disabled={request.status !== '대기'}
+                        disabled={blocked || request.status !== '대기'}
                         onChange={() => onToggleRequest(request.id)}
                       />
                       <div>
@@ -362,25 +381,28 @@ function SavingGroupJoinRequestList({
                     <StatusBadge $status={request.status}>{request.status}</StatusBadge>
                   </MobileTop>
                   <MobileInfo>{request.regionInterest}<br />{request.message}</MobileInfo>
-                  <MobileActions><RequestActions request={request} onApprove={onApprove} onReject={onReject} /></MobileActions>
+                  <MobileActions><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} blocked={blocked} /></MobileActions>
                 </MobileItem>
               ))}
             </MobileList>
           </>
         ) : (
-          <Empty>해당 상태의 가입 신청이 없습니다.</Empty>
+          <Empty>{currentPage > 1 ? '현재 페이지에 가입 신청이 없습니다.' : '해당 상태의 가입 신청이 없습니다.'}
+            {currentPage > 1 && <><br /><Button type="button" $variant="secondary" onClick={onFirstPage}>첫 페이지로</Button></>}
+          </Empty>
         )}
           </Card>
 
-          {totalPages > 1 && (
+          {!isLoading && !errorMessage && totalPages > 1 && (
             <Pagination aria-label="가입 신청 목록 페이지 이동">
-              <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
+              <PageButton type="button" $variant="secondary" $size="small" disabled={blocked || currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
                 이전
               </PageButton>
-              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              {pages.map((page) => (
                 <PageButton
                   key={page}
                   type="button"
+                  disabled={blocked}
                   $variant={page === currentPage ? 'primary' : 'secondary'}
                   $size="small"
                   aria-current={page === currentPage ? 'page' : undefined}
@@ -389,7 +411,7 @@ function SavingGroupJoinRequestList({
                   {page}
                 </PageButton>
               ))}
-              <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
+              <PageButton type="button" $variant="secondary" $size="small" disabled={blocked || currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)}>
                 다음
               </PageButton>
             </Pagination>
