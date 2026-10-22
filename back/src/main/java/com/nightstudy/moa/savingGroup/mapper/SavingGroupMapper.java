@@ -15,6 +15,21 @@ public interface SavingGroupMapper {
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
     List<String> selectApprovedMemberRoles(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    // AI작성: 권한 검증으로 확인한 내부 groupId를 사용하고 같은 조건으로 개수와 페이지를 조회한다.
+    int selectSavingGroupJoinRequestCount(@Param("groupId") Long groupId, @Param("status") String status);
+    List<SavingGroupJoinRequestRow> selectSavingGroupJoinRequests(@Param("groupId") Long groupId,
+            @Param("status") String status, @Param("offset") int offset, @Param("limit") int limit);
+
+    // AI작성: 신청 ID·모임 ID·PENDING 조건이 일치하는 기존 행만 승인하고 영향 행 수를 반환한다.
+    int approveSavingGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
+            @Param("groupId") Long groupId, @Param("approvedBy") Long approvedBy);
+
+    // AI작성: 회원 잠금 순서를 지키기 위한 식별 조회이며 검증 결과로 사용하지 않는다.
+    SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTarget(@Param("crewMemberId") Long crewMemberId);
+
+    // AI작성: 회원과 계모임 잠금 이후 신청 행의 소속과 상태를 다시 확인한다.
+    SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTargetForUpdate(@Param("crewMemberId") Long crewMemberId);
+
     int selectSavingGroupCount(SavingGroupListCondition condition);
 
     // 목록 검색 조건에 맞는 공개 계모임의 기본 정보를 조회한다.

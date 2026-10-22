@@ -191,12 +191,16 @@ left_at               = NULL
 
 ### 6.2 자진 탈퇴 후 재신청
 
+<!-- AI작성: 승인 컬럼 반영 후 재신청에서는 과거 승인자·시각도 함께 초기화한다. -->
+
 이력 보존 없이 기존 `LEFT` 행을 아래 값으로 갱신한다.
 
 ```text
 membership_status     = PENDING
 member_role           = MEMBER
 requested_at          = 재신청 시각
+approved_by           = NULL
+approved_at           = NULL
 joined_at             = NULL
 left_at               = NULL
 application_message   = NULL
@@ -216,7 +220,41 @@ PENDING 상태인지 확인
 → joined_at 저장
 ```
 
+<!-- AI작성: 가입 승인 2단계의 확정된 Service·저장 정책이며 Controller는 후속 단계다. -->
+### 6.4 가입 승인 Service 구현 (2단계)
+
+- 계약: `approveSavingGroupJoin(Long savingGroupId, Long crewMemberId, Long memberId)`, 반환값 없음. memberId는 승인하는 계주의 ID다.
+- Spring Service 프록시의 쓰기 트랜잭션에서 기존 `validateSavingGroupJoinApproval`을 호출한 뒤 UPDATE한다. 내부 호출의 MANDATORY에 의존하지 않고 승인 진입점의 `@Transactional`로 전체를 묶는다.
+- 초기 신청 조회는 식별용이며 신청 회원 → 계모임 → 신청 재조회 순서로 잠근다. 검증 결과를 별도 트랜잭션으로 넘기지 않는다.
+- 계주는 groups.member_id와 일치하고 해당 모임 관계가 OWNER + APPROVED여야 한다.
+- 기존 신청 행의 crew_member_id·group_id·PENDING 조건으로만 UPDATE한다. INSERT는 하지 않는다.
+- 저장값: membership_status=APPROVED, member_role=MEMBER, approved_by=계주 회원 ID. joined_at과 approved_at은 한 UPDATE의 CURRENT_TIMESTAMP로 동일하게 저장한다. requested_at은 유지한다.
+- 영향 행 수가 1이 아니면 HTTP 409에 해당하는 ApiException(`JOIN_REQUEST_APPROVAL_FAILED`)을 발생시켜 트랜잭션을 롤백한다. DB 예외도 전파되어 롤백된다.
+- 중복 승인은 잠금 후 PENDING 재검증 또는 조건부 UPDATE로 차단한다. 교착·일시적 DB 경합은 트랜잭션 실패로 종료하며 자동 재시도 정책은 추가하지 않았다.
+- Controller와 외부 호출 API는 아직 추가하지 않았다.
+
+### 6.5 2단계 검증 방법
+
+back 폴더에서 다음 명령을 실행한다.
+
+```powershell
+.\gradlew.bat '-Dorg.gradle.java.installations.paths=C:\dev\jdk-17.0.12_windows-x64_bin\jdk-17.0.12' test --tests '*SavingGroupJoinApproval*'
+```
+
+- 단위 테스트: 실제 Spring 트랜잭션 인터셉터로 검증→UPDATE→커밋 순서, 영향 행 수 불일치·DB 예외의 롤백 요청, 중복·권한·정원·가입 수 차단, 실제 MyBatis XML 파싱과 저장 SQL 바인딩을 확인한다. 단위 테스트의 롤백 검증은 트랜잭션 관리자 호출 확인이며 실제 DB 복구 검증과 구분한다.
+- 실제 MySQL 테스트: 저장값과 행 수 유지, 중복 승인, 조건부 UPDATE 영향 행 수 0, 실제 롤백, 재신청 초기화, 같은 신청·같은 모임·같은 회원의 동시 승인을 확인한다.
+- MySQL 테스트는 별도 테스트 서버의 MOA_TEST_MYSQL_URL / MOA_TEST_MYSQL_USER / MOA_TEST_MYSQL_PASSWORD와 MOA_TEST_MYSQL_ALLOW_SCHEMA_CREATE=true를 모두 설정할 때만 실행한다. 실제 값은 코드·문서·로그에 남기지 않는다. 공용 DB 접속 설정을 재사용하지 않는다.
+- 테스트 계정에는 CREATE/DROP DATABASE 권한이 필요하다. 실행마다 moa_approval_test_로 시작하는 고유 스키마를 생성하고 그 안의 합성 데이터만 사용한다. 종료 시 자신이 생성한 스키마만 삭제하며 기존 DB 테이블은 변경하지 않는다.
+- 환경변수가 없으면 MySQL 테스트는 건너뛴다. 건너뛴 결과를 실제 SQL·롤백·동시성 검증 통과로 간주하지 않는다. 교착 피해자의 롤백은 허용하지만 최종 성공 수와 정원·최대 5개 제한을 검사한다.
+
 ## 7. DB 의존 조건
+
+<!-- AI작성: 가입 승인 DB 선행 변경은 관리자 검토 문서로 연결하며 미반영 정책을 확정 사항과 구분한다. -->
+가입 승인에 필요한 승인 처리자·승인 시각, UNIQUE, EXPELLED, 인덱스 및 재신청 초기화 변경 제안은
+[가입 승인 DB 선행 변경 요청](saving-group-join-approval-db.md)을 참고한다.
+해당 요청서의 최초 작성 상태는 관리자 검토 대기다. 2단계 착수 시 갱신된 schema.sql에서 approved_by·approved_at, 승인자 FK, 회원·모임 UNIQUE, EXPELLED, 모임·상태 인덱스를 확인했다.
+공용 DB 직접 접속 검증은 수행하지 않았다. `schema.sql`은 DB 관리자가 갱신하며 이 작업에서는 수정하지 않는다.
+회원·상태 복합 인덱스는 현재 스키마에서 확인되지 않으므로 관리자 성능 검토 사항으로 남긴다.
 
 다음 DB 반영은 다른 담당 작업의 결과물로 전제한다. 가입 신청 구현 작업에서 임의로 반영하지 않는다.
 

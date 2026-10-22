@@ -2,6 +2,39 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 계주 본인 관계·탈퇴·추방·삭제 회원을 제외한 신청 상태를 동일한 조건으로 집계·조회한다. -->
+    <sql id="joinRequestFromWhere">
+        FROM group_member gm
+        JOIN members m ON m.member_id = gm.member_id
+        LEFT JOIN region r ON r.region_id = m.region_id
+        WHERE gm.group_id = #{groupId}
+          AND gm.member_role != 'OWNER'
+          AND m.deleted_at IS NULL
+          AND gm.membership_status IN ('PENDING', 'APPROVED', 'REJECTED')
+        <if test="status != null">
+          AND gm.membership_status = #{status}
+        </if>
+    </sql>
+
+    <select id="selectSavingGroupJoinRequestCount" resultType="int">
+        SELECT COUNT(*)
+        <include refid="joinRequestFromWhere"/>
+    </select>
+
+    <!-- AI작성: 이름 원문·회원 ID·연락처·금융정보를 반환하지 않으며 신청 ID의 자바스크립트 정밀도 손실을 방지한다. -->
+    <select id="selectSavingGroupJoinRequests" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinRequestRow">
+        SELECT CAST(gm.crew_member_id AS CHAR) AS crew_member_id,
+               CONCAT(LEFT(m.name, 1), REPEAT('*', GREATEST(CHAR_LENGTH(m.name) - 1, 1))) AS applicant,
+               r.region_name,
+               (m.identity_verified_at IS NOT NULL) AS identity_verified,
+               (m.region_verified_at IS NOT NULL) AS region_verified,
+               gm.application_message,
+               gm.membership_status
+        <include refid="joinRequestFromWhere"/>
+        ORDER BY gm.requested_at DESC, gm.crew_member_id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <sql id="listFrom">
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
@@ -163,7 +196,8 @@
         SELECT sg.saving_group_id,
         sg.group_id,
         sg.status,
-        g.max_members
+        g.max_members,
+        g.member_id AS owner_member_id
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.saving_group_id = #{savingGroupId}
@@ -358,6 +392,26 @@
         AND gm.membership_status = 'APPROVED'
         AND g.deleted_at IS NULL
         AND sg.status IN ('00', '01', '02', '03')
+        <!-- AI작성: 승인 대상 식별 조회가 만든 과거 스냅샷 대신 잠금 획득 후 최신 가입 수를 확인한다. -->
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 식별 조회와 잠금 재조회에서 같은 신청 필드를 사용한다. -->
+    <sql id="joinApprovalTargetSelect">
+        SELECT crew_member_id, member_id, group_id, membership_status
+        FROM group_member
+        WHERE crew_member_id = #{crewMemberId}
+    </sql>
+
+    <select id="selectSavingGroupJoinApprovalTarget"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow">
+        <include refid="joinApprovalTargetSelect"/>
+    </select>
+
+    <select id="selectSavingGroupJoinApprovalTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow">
+        <include refid="joinApprovalTargetSelect"/>
+        FOR UPDATE
     </select>
 
     <!-- AI작성: 신청 메시지 없이 인증 회원의 신청을 PENDING 상태로 한 건 저장한다. -->
@@ -377,11 +431,27 @@
         )
     </insert>
 
+    <!-- AI작성: 같은 UPDATE의 CURRENT_TIMESTAMP를 사용해 가입 시각과 승인 시각을 동일하게 기록한다. -->
+    <update id="approveSavingGroupJoinRequest">
+        UPDATE group_member
+        SET membership_status = 'APPROVED',
+            member_role = 'MEMBER',
+            joined_at = CURRENT_TIMESTAMP,
+            approved_at = CURRENT_TIMESTAMP,
+            approved_by = #{approvedBy}
+        WHERE crew_member_id = #{crewMemberId}
+          AND group_id = #{groupId}
+          AND membership_status = 'PENDING'
+    </update>
+
     <!-- AI작성: 재신청은 LEFT 상태일 때만 허용해 거절·추방 이력을 신청 상태로 바꾸지 않는다. -->
     <update id="reactivateLeftSavingGroupMembership">
         UPDATE group_member
         SET member_role = 'MEMBER',
         membership_status = 'PENDING',
+        <!-- AI작성: 이전 승인 정보가 재신청이나 다음 승인으로 이어지지 않도록 초기화한다. -->
+        approved_by = NULL,
+        approved_at = NULL,
         joined_at = NULL,
         left_at = NULL,
         application_message = NULL,
