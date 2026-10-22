@@ -266,7 +266,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : activeMenu === 'dues' ? (
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
       ) : activeMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel />
+        // AI작성: 모임 전환 시 이전 조회·필터·상세 상태를 초기화한다. 실제 인가는 서버 연결 시 적용한다.
+        <SavingGroupTransactionHistoryPanel key={group.id} groupId={group.id} />
       ) : activeMenu === 'payoutRequest' ? (
         <SavingGroupPayoutRequestPanel groupType={group.groupType} />
       ) : activeMenu === 'joinRequests' ? (
