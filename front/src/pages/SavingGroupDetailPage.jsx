@@ -5,6 +5,7 @@ import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import { defaultSavingGroupDetail, savingGroupDetails, savingGroups } from '../mocks/savingGroups';
+import { requestSavingGroupJoin } from '../api/savingGroups';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -40,14 +41,31 @@ function SavingGroupDetailPage() {
   const { id } = useParams();
   const [activeMenu, setActiveMenu] = useState('notice');
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isJoinSubmitting, setIsJoinSubmitting] = useState(false);
+  const [joinErrorMessage, setJoinErrorMessage] = useState(null);
+  const [isIdentityVerificationModalOpen, setIsIdentityVerificationModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   // TODO: Spring Boot 계모임 상세 조회 API로 mock 데이터를 대체합니다.
   const group = savingGroups.find((item) => item.id === Number(id));
   const detail = savingGroupDetails[id] || defaultSavingGroupDetail;
 
-  const handleJoinRequest = () => {
-    // TODO: Spring Boot 계모임 가입 신청 API에 선택한 계모임 ID를 전송합니다.
-    setIsJoinModalOpen(true);
+  const handleJoinRequest = async () => {
+    if (isJoinSubmitting) return;
+
+    setIsJoinSubmitting(true);
+    try {
+      await requestSavingGroupJoin(Number(id));
+      setIsJoinModalOpen(true);
+    } catch (error) {
+      // AI작성: 본인 인증 오류만 별도 안내해 사용자가 선택할 때 인증 화면으로 이동하게 한다.
+      if (error.code === 'IDENTITY_VERIFICATION_REQUIRED') {
+        setIsIdentityVerificationModalOpen(true);
+      } else {
+        setJoinErrorMessage(error.message || '가입 신청 처리에 실패했습니다.');
+      }
+    } finally {
+      setIsJoinSubmitting(false);
+    }
   };
 
   const handleSettingsSubmit = (event) => {
@@ -83,6 +101,7 @@ function SavingGroupDetailPage() {
           activeMenu={activeMenu}
           onMenuChange={setActiveMenu}
           onJoinRequest={handleJoinRequest}
+          isJoinSubmitting={isJoinSubmitting}
           onBack={() => navigate('/saving-groups')}
           onSettingsSubmit={handleSettingsSubmit}
           onSettingsCancel={() => setActiveMenu('notice')}
@@ -92,11 +111,32 @@ function SavingGroupDetailPage() {
       {isJoinModalOpen && (
         <ConfirmModal
           title="가입 신청 완료"
-          description={`${group.name}에 가입 신청이 완료되었습니다. 모임장 승인 후 참여할 수 있습니다.`}
+          description="가입 신청이 완료되었습니다."
           confirmLabel="확인"
           showCancel={false}
           onConfirm={() => setIsJoinModalOpen(false)}
           onCancel={() => setIsJoinModalOpen(false)}
+        />
+      )}
+      {isIdentityVerificationModalOpen && (
+        <ConfirmModal
+          title="본인 인증 필요"
+          description="본인 인증 완료 후 신청이 가능합니다."
+          confirmLabel="인증하러 가기"
+          cancelLabel="닫기"
+          cancelFirst
+          onConfirm={() => navigate('/member/verify')}
+          onCancel={() => setIsIdentityVerificationModalOpen(false)}
+        />
+      )}
+      {joinErrorMessage && (
+        <ConfirmModal
+          title="가입 신청 실패"
+          description={joinErrorMessage}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setJoinErrorMessage(null)}
+          onCancel={() => setJoinErrorMessage(null)}
         />
       )}
       {isDeleteModalOpen && (
