@@ -89,9 +89,12 @@ test('검색·지역·페이지를 전달하고 API 실패를 정상 데이터�
     client.get = async (path, options) => {
       assert.equal(path, '/saving-groups');
       assert.deepEqual(options.params, { keyword: '산책', regionCode: '01', page: 2 });
-      return { data: { success: true, data: { items: [], totalElements: 7, totalPages: 2 } } };
+      return { data: { success: true, data: [], meta: { page: 2, size: 6, total: 7, totalPages: 2 } } };
     };
-    assert.equal((await getSavingGroups({ keyword: '산책', regionCode: '01', page: 2 })).totalPages, 2);
+    const result = await getSavingGroups({ keyword: '산책', regionCode: '01', page: 2 });
+    assert.deepEqual(result, {
+      items: [], totalElements: 7, totalPages: 2, currentPage: 2, pageSize: 6,
+    });
     client.get = async () => ({ data: { success: false, error: { message: '요청 오류' } } });
     await assert.rejects(() => getSavingGroups({ page: 1 }), /요청 오류/);
     client.get = async () => { throw new Error('network failure'); };

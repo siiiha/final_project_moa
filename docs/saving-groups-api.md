@@ -149,41 +149,39 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 
 ## 응답
 
-기존 게시글과 동일하게 `ApiResponse.ok(items, pageMeta)`를 사용한다.
-`data`는 카드 배열, `meta`는 기존 `PageMeta`이다. 공통 클래스는 변경하지 않았다.
-페이지·크기·전체 개수·전체 페이지·offset은 모두 int로 계산한다.
-기존 `ApiResponse.ok(data)`를 사용한다. 고정 크기 목록 전용 DTO 안에 페이징을 담으므로
-공통 `meta`는 null이다. 기존 PageMeta와 다른 긴 정수 개수·offset을 지원하면서 공통 인터페이스는 바꾸지 않았다.
+2026-10-22부터 기존 게시글과 동일하게 `ApiResponse.ok(items, pageMeta)`를 사용한다.
+`data`는 카드 배열, `meta`는 `PageMeta`이며 페이지·크기·전체 개수·전체 페이지·offset은 모두 int다.
 
 ```json
 {
   "success": true,
-  "data": {
-    "items": [{
-      "savingGroupId": 101,
-      "groupName": "산책 모임",
-      "description": "이웃과 함께하는 모임",
-      "regionName": "서울",
-      "maxMembers": 8,
-      "memberCount": 5,
-      "duesAmount": 50000.00,
-      "duesDay": 25,
-      "status": "01"
-    }],
-    "totalElements": 1,
+  "data": [{
+    "savingGroupId": 101,
+    "groupId": 42,
+    "groupName": "산책 모임",
+    "description": "이웃과 함께하는 모임",
+    "regionName": "서울",
+    "maxMembers": 8,
+    "memberCount": 5,
+    "duesAmount": 50000.00,
+    "duesDay": 25,
+    "status": "01"
+  }],
+  "meta": {
+    "page": 1,
+    "size": 6,
+    "total": 1,
     "totalPages": 1,
-    "currentPage": 1,
-    "pageSize": 6
+    "offset": 0
   },
-  "meta": null,
   "error": null
 }
 ```
 
 - PageMeta의 기존 getOffset()도 JSON의 offset 필드로 직렬화된다.
 - 카드 필드는 위 예시와 같다. description/maxMembers/duesAmount/duesDay는 null 가능하다.
-- 결과 0건: items=[], totalElements=0, totalPages=0, currentPage=요청 페이지, pageSize=6.
-- 전체 7건에 page=3: items=[], totalElements=7, totalPages=2, currentPage=3, pageSize=6.
+- 결과 0건: data=[], meta.total=0, meta.totalPages=0, meta.page=요청 페이지, meta.size=6.
+- 전체 7건에 page=3: data=[], meta.total=7, meta.totalPages=2, meta.page=3, meta.size=6.
 - 범위 초과·빈 결과는 HTTP 200이며 요청 페이지를 강제로 보정하지 않는다.
 - 잘못된 요청: HTTP 400, success=false, data/meta=null, error.code=`BAD_REQUEST`.
 - DB 등 예기치 않은 실패: 기존 HTTP 500, error.code=`INTERNAL_ERROR`, 공통 메시지 사용.

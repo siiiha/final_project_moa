@@ -33,10 +33,11 @@ public class SavingGroupController {
         return ApiResponse.ok(savingGroupService.getSavingGroupDetail(id, null));
     }
 
-    // AI작성: 인증 정보 없이 공개 목록을 조회하고 기존 성공 응답으로 감싼다.
+    // AI작성: 목록 배열과 페이징 정보를 공통 ApiResponse의 data·meta에 각각 담아 반환한다.
     @GetMapping
-    public ApiResponse<SavingGroupListResponse> list(
+    public ApiResponse<List<SavingGroupSummaryResponse>> list(
             @Valid @ModelAttribute SavingGroupSearchCondition condition) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupList(condition));
+        SavingGroupListResponse result = savingGroupService.getSavingGroupList(condition);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
 }
