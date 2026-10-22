@@ -234,6 +234,7 @@ function SavingGroupDetail({
   activeMenu,
   onMenuChange,
   onJoinRequest,
+  isJoinSubmitting,
   onBack,
   onSettingsSubmit,
   onSettingsCancel,
@@ -249,8 +250,8 @@ function SavingGroupDetail({
             <Title>{group.name}</Title>
             <StatusBadge $ongoing={isOngoing}>{group.status}</StatusBadge>
           </TitleLine>
-          <JoinButton type="button" onClick={onJoinRequest}>
-            가입 신청하기
+          <JoinButton type="button" onClick={onJoinRequest} disabled={isJoinSubmitting} aria-busy={isJoinSubmitting}>
+            {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
           </JoinButton>
         </HeaderTop>
         <Description>{group.description}</Description>
