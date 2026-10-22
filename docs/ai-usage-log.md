@@ -42,3 +42,13 @@
   실제 collations/격리 수준, 이상 납부일·소수 회비 별도 정정,
   로컬 YAML의 중복 spring 블록 정리. 상세 Mock 화면 연결은 이번 범위에서 제외.
 - 파일별 이유와 재현 방법: [계모임 API 명세](saving-groups-api.md).
+
+## 2026-10-20 — 기존 PageMeta 재사용
+
+- 사용자 요청: 게시글의 PageMeta 재사용, 페이지·크기·개수·offset을 int로 통일.
+- 변경: Service에서 PageMeta.of/getOffset 사용, 결과 DTO는 items/pageMeta만 보유,
+  Controller는 ApiResponse.ok(items, pageMeta) 반환. 전체 개수 Mapper도 int로 변경.
+- 프론트: data 배열과 meta를 기존 화면 상태 필드로 변환하여 화면 구성 유지.
+- 검증: 공통 응답 구조·0/1/6/7건·범위 초과·큰 페이지·입력 오류 테스트 및 빌드.
+- DB 구조·데이터·공통 PageMeta·의존성은 변경하지 않음. 개발자 최종 검토 대기.
+- 최종 검증 결과: 백엔드 28개 통과, MySQL 전용 3개 건너뜀, 프론트 4개 통과, lint·프로덕션 빌드 통과. 기존 번들 크기 경고 유지.

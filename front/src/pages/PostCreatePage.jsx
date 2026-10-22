@@ -1,8 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { createPost, getPostDetail, updatePost } from '../api/postApi';
 import PostCreateForm from '../components/post/PostCreateForm';
-import { postCategories, postItems } from '../mocks/posts';
+import { postCategories } from '../mocks/posts';
+
+const CATEGORY_ID_BY_NAME = {
+  '행사·축제': 1,
+  '일자리': 2,
+  '거래·나눔': 3,
+};
+
+// AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
+const TEMP_WRITER_ID = 44;
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -36,43 +46,120 @@ const Content = styled.main`
   margin-top: 14px;
 `;
 
+const ErrorMessage = styled.p`
+  margin-bottom: 12px;
+  color: ${({ theme }) => theme.colors.danger || '#c62828'};
+  font-size: 13px;
+`;
+
+const StatusMessage = styled.p`
+  padding: 32px 16px;
+  color: ${({ theme }) => theme.colors.muted};
+  text-align: center;
+`;
+
 function PostCreatePage() {
   const navigate = useNavigate();
   const { id: postId } = useParams();
   const isEditMode = Boolean(postId);
-  const editingPost = postItems.find((item) => item.id === Number(postId));
-  const [category, setCategory] = useState(editingPost?.category || '행사·축제');
-  const [title, setTitle] = useState(editingPost?.title || '');
-  const [content, setContent] = useState(editingPost?.content || '');
-  const [imageName, setImageName] = useState(editingPost?.imageName || '');
+  const [category, setCategory] = useState('행사·축제');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [imageName, setImageName] = useState('');
+  const [isLoadingPost, setIsLoadingPost] = useState(isEditMode);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (!isEditMode) return undefined;
+
+    let isActive = true;
+
+    async function loadPost() {
+      setIsLoadingPost(true);
+      setErrorMessage('');
+
+      try {
+        // AI작성: 수정 화면에 기존 게시글의 카테고리·제목·내용을 표시합니다.
+        const response = await getPostDetail(postId);
+        if (!response.success || !response.data) {
+          throw new Error(response.error?.message || '게시글을 불러오지 못했습니다.');
+        }
+
+        if (!isActive) return;
+
+        setCategory(response.data.categoryName || '행사·축제');
+        setTitle(response.data.title || '');
+        setContent(response.data.content || '');
+      } catch (error) {
+        if (!isActive) return;
+        setErrorMessage(
+          error.response?.data?.error?.message || error.message || '게시글을 불러오지 못했습니다.'
+        );
+      } finally {
+        if (isActive) setIsLoadingPost(false);
+      }
+    }
+
+    loadPost();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isEditMode, postId]);
 
   const handleImageChange = (event) => {
     // TODO: Spring Boot 이미지 업로드 API와 연결해 업로드한 이미지 URL을 게시글 등록 요청에 포함합니다.
     setImageName(event.target.files?.[0]?.name || '');
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // TODO: Spring Boot 게시글 등록·수정 API 요청 후 게시글 상세 페이지로 이동합니다.
-    const today = new Date();
-    const createdDate = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
-    const targetPostId = isEditMode ? postId : 'new';
+    if (isSubmitting || isLoadingPost) return;
 
-    navigate(`/post/${targetPostId}`, {
-      state: {
-        post: {
-          id: targetPostId,
-          category,
-          title,
-          content,
-          author: editingPost?.author || '모아이웃',
-          date: editingPost?.date || createdDate,
-          views: editingPost?.views || 0,
-          imageName,
-        },
-        comments: [],
-      },
-    });
+    const categoryId = CATEGORY_ID_BY_NAME[category];
+    if (!categoryId) {
+      setErrorMessage('올바른 카테고리를 선택해주세요.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      let response;
+
+      if (isEditMode) {
+        // TODO AI작성: 로그인 연동 후 백엔드에서 로그인 회원과 게시글 작성자의 수정 권한을 검증해야 합니다.
+        response = await updatePost(postId, {
+          categoryId,
+          title: title.trim(),
+          content: content.trim(),
+        });
+      } else {
+        // AI작성: 인증 연동 후 TEMP_WRITER_ID를 로그인 회원 ID로 교체해야 합니다.
+        response = await createPost({
+          writerId: TEMP_WRITER_ID,
+          categoryId,
+          title: title.trim(),
+          content: content.trim(),
+        });
+      }
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || `게시글 ${isEditMode ? '수정' : '등록'}에 실패했습니다.`);
+      }
+
+      navigate(`/post/${isEditMode ? postId : response.data}`);
+    } catch (error) {
+      setErrorMessage(
+        error.response?.data?.error?.message ||
+          error.message ||
+          `게시글 ${isEditMode ? '수정' : '등록'}에 실패했습니다.`
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -91,20 +178,25 @@ function PostCreatePage() {
         </p>
       </Heading>
       <Content>
-        <PostCreateForm
-          categories={postCategories.filter((item) => item !== '전체')}
-          category={category}
-          title={title}
-          content={content}
-          imageName={imageName}
-          onCategoryChange={setCategory}
-          onTitleChange={setTitle}
-          onContentChange={setContent}
-          onImageChange={handleImageChange}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-          submitLabel={isEditMode ? '수정' : '게시글 등록'}
-        />
+        {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
+        {isLoadingPost ? (
+          <StatusMessage>게시글을 불러오는 중입니다.</StatusMessage>
+        ) : (
+          <PostCreateForm
+            categories={postCategories.filter((item) => item !== '전체')}
+            category={category}
+            title={title}
+            content={content}
+            imageName={imageName}
+            onCategoryChange={setCategory}
+            onTitleChange={setTitle}
+            onContentChange={setContent}
+            onImageChange={handleImageChange}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+            submitLabel={isSubmitting ? (isEditMode ? '수정 중...' : '등록 중...') : isEditMode ? '수정' : '게시글 등록'}
+          />
+        )}
       </Content>
     </Page>
   );

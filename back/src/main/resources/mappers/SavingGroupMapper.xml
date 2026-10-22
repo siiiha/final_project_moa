@@ -20,7 +20,8 @@
         </if>
     </sql>
 
-    <select id="selectSavingGroupCount" resultType="long">
+    <!-- AI작성: 공통 PageMeta의 전체 개수 타입인 int에 맞춘다. -->
+    <select id="selectSavingGroupCount" resultType="int">
         SELECT COUNT(*)
         <include refid="listFrom"/>
         <include refid="listWhere"/>
@@ -46,6 +47,7 @@
         </foreach>
         GROUP BY group_id
     </select>
+
     <!-- AI작성: URL ID는 saving_group_id가 아닌 groups.group_id다. -->
     <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
         SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,

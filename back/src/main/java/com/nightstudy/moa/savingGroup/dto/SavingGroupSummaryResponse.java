@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 // AI작성: 상세 URL은 groupId를 사용하며 기존 savingGroupId도 호환성을 위해 유지한다.
+// AI작성: 공개 카드 필드만 반환하고 내부 집계용 groupId는 노출하지 않는다.
 @Getter
 @AllArgsConstructor
 public class SavingGroupSummaryResponse {

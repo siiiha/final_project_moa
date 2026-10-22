@@ -2,6 +2,8 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
+import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;

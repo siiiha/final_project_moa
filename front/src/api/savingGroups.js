@@ -68,6 +68,13 @@ export async function getSavingGroups({ keyword, regionCode, page, signal }) {
   if (!response.data.success) {
     throw new Error(response.data.error?.message || '목록을 불러오지 못했습니다.');
   }
-  const data = response.data.data;
-  return { ...data, items: data.items.map(toSavingGroupCard) };
+  // AI작성: 공통 data/meta 응답을 기존 목록 화면의 상태 필드로 변환한다.
+  const { data, meta } = response.data;
+  return {
+    items: data.map(toSavingGroupCard),
+    totalElements: meta.total,
+    totalPages: meta.totalPages,
+    currentPage: meta.page,
+    pageSize: meta.size,
+  };
 }

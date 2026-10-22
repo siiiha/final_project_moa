@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import SavingGroupFilterBar from '../components/savingGroup/SavingGroupFilterBar';
 import SavingGroupList from '../components/savingGroup/SavingGroupList';
-import { savingGroupRegions, savingGroups } from '../mocks/savingGroups';
+import { getSavingGroups, savingGroupRegionOptions } from '../api/savingGroups';
 
-const GROUPS_PER_PAGE = 6;
+// AI작성: 목록 화면의 지역 선택은 실제 API 코드표를 사용한다.
+const savingGroupRegions = ['전체', ...savingGroupRegionOptions.map((item) => item.name)];
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -70,6 +71,7 @@ const Result = styled.p`
   }
 `;
 
+// AI작성: 검색 조건과 서버 페이징을 연결하고 이전 요청의 응답을 폐기한다.
 function SavingGroupsPage() {
   const navigate = useNavigate();
   const [region, setRegion] = useState('전체');
@@ -77,27 +79,41 @@ function SavingGroupsPage() {
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const filteredGroups = useMemo(() => {
-    // TODO: Spring Boot 계모임 목록 조회 API에 region, keyword, page 정보를 전달합니다.
-    const normalizedKeyword = submittedKeyword.trim().toLowerCase();
+  const [result, setResult] = useState({ items: [], totalElements: 0, totalPages: 0, requestKey: null, error: '' });
+  const [searchError, setSearchError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const requestKey = JSON.stringify([region, submittedKeyword, currentPage, retry]);
+  const loading = result.requestKey !== requestKey;
+  const error = result.error;
 
-    return savingGroups.filter((group) => {
-      const matchesRegion = region === '전체' || group.region === region;
-      const matchesKeyword =
-        !normalizedKeyword ||
-        group.name.toLowerCase().includes(normalizedKeyword) ||
-        group.description.toLowerCase().includes(normalizedKeyword);
-
-      return matchesRegion && matchesKeyword;
+  // AI작성: 조건 변경·화면 이탈 시 요청을 취소하고 오래된 성공·실패 결과를 무시한다.
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    getSavingGroups({
+      keyword: submittedKeyword,
+      regionCode: savingGroupRegionOptions.find((item) => item.name === region)?.code,
+      page: currentPage, signal: controller.signal,
+    }).then((data) => {
+      if (active) setResult({ ...data, requestKey, error: '' });
+    }).catch((failure) => {
+      if (active) setResult({ items: [], totalElements: 0, totalPages: 0, requestKey,
+        error: failure.response?.data?.error?.message
+          || '목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
     });
-  }, [region, submittedKeyword]);
+    return () => { active = false; controller.abort(); };
+  }, [region, submittedKeyword, currentPage, retry, requestKey]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / GROUPS_PER_PAGE));
-  const visibleGroups = filteredGroups.slice((currentPage - 1) * GROUPS_PER_PAGE, currentPage * GROUPS_PER_PAGE);
-
+  // AI작성: 서버와 동일하게 앞뒤 공백 제거 후 길이를 검사한다.
   const handleSearch = (event) => {
     event.preventDefault();
-    setSubmittedKeyword(keyword);
+    const normalizedKeyword = keyword.trim();
+    if (normalizedKeyword.length > 20) {
+      setSearchError('검색어는 20자 이내로 입력해 주세요.');
+      return;
+    }
+    setSearchError('');
+    setSubmittedKeyword(normalizedKeyword);
     setCurrentPage(1);
   };
 
@@ -129,15 +145,23 @@ function SavingGroupsPage() {
           onKeywordChange={setKeyword}
           onSearch={handleSearch}
         />
-        <Result>
-          총 <strong>{filteredGroups.length}</strong>개의 계모임
-        </Result>
-        <SavingGroupList
-          groups={visibleGroups}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
+        {searchError && <Result role="alert">{searchError}</Result>}
+        {loading ? <Result role="status">계모임 목록을 불러오는 중입니다.</Result> : error ? (
+          <div role="alert">
+            <Result>{error}</Result>
+            <Button type="button" onClick={() => setRetry((value) => value + 1)}>다시 시도</Button>
+          </div>
+        ) : (
+          <>
+            <Result>총 <strong>{result.totalElements}</strong>개의 계모임</Result>
+            <SavingGroupList
+              groups={result.items}
+              currentPage={currentPage}
+              totalPages={result.totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
       </Content>
     </Page>
   );

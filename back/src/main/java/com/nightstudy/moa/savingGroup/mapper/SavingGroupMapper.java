@@ -13,7 +13,7 @@ public interface SavingGroupMapper {
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
     List<String> selectApprovedMemberRoles(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
-    long selectSavingGroupCount(SavingGroupListCondition condition);
+    int selectSavingGroupCount(SavingGroupListCondition condition);
     List<SavingGroupRow> selectSavingGroupList(SavingGroupListCondition condition);
     List<SavingGroupMemberCount> selectApprovedMemberCounts(@Param("groupIds") List<Long> groupIds);
 }

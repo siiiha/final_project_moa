@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import org.springframework.http.HttpStatus;
 import java.util.List;
@@ -56,12 +57,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 : REGIONS.get(Integer.parseInt(request.getRegionCode()) - 1);
         SavingGroupListCondition condition = new SavingGroupListCondition(
                 escapeKeyword(request.getKeyword()), regionName,
-                (request.getPage() - 1L) * PAGE_SIZE, PAGE_SIZE);
-        long total = savingGroupMapper.selectSavingGroupCount(condition);
-        long totalPages = total / PAGE_SIZE + (total % PAGE_SIZE == 0 ? 0 : 1);
-        if (condition.getOffset() >= total) {
-            return new SavingGroupListResponse(List.of(), total, totalPages, request.getPage(), PAGE_SIZE);
+                0, PAGE_SIZE);
+        int total = savingGroupMapper.selectSavingGroupCount(condition);
+        PageMeta pageMeta = PageMeta.of(request.getPage(), PAGE_SIZE, total);
+        // AI작성: 범위 초과는 offset 계산 전에 반환하여 큰 페이지 번호의 int 곱셈을 피한다.
+        if (pageMeta.getPage() > pageMeta.getTotalPages()) {
+            return new SavingGroupListResponse(List.of(), pageMeta);
         }
+        condition.setOffset(pageMeta.getOffset());
         List<SavingGroupRow> rows = savingGroupMapper.selectSavingGroupList(condition);
         Map<Long, Long> counts = rows.isEmpty() ? Map.of()
                 : savingGroupMapper.selectApprovedMemberCounts(
@@ -73,7 +76,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                         row.getDescription(), row.getRegionName(), row.getMaxMembers(),
                         counts.getOrDefault(row.getGroupId(), 0L), row.getDuesAmount(),
                         row.getDuesDay(), row.getStatus())).toList();
-        return new SavingGroupListResponse(items, total, totalPages, request.getPage(), PAGE_SIZE);
+        return new SavingGroupListResponse(items, pageMeta);
     }
 
     // AI작성: 바인딩과 별개로 LIKE 특수문자를 일반 문자로 검색하도록 처리한다.

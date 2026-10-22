@@ -1,4 +1,5 @@
 <!-- AI작성: 2026-10-20 확정 설계에 따른 구현·검증 명세. -->
+# 계모임 목록 조회 API
 # 계모임 조회 API
 
 ## 2026-10-20 상세 조회 확장 — 최신 계약
@@ -148,6 +149,9 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 
 ## 응답
 
+기존 게시글과 동일하게 `ApiResponse.ok(items, pageMeta)`를 사용한다.
+`data`는 카드 배열, `meta`는 기존 `PageMeta`이다. 공통 클래스는 변경하지 않았다.
+페이지·크기·전체 개수·전체 페이지·offset은 모두 int로 계산한다.
 기존 `ApiResponse.ok(data)`를 사용한다. 고정 크기 목록 전용 DTO 안에 페이징을 담으므로
 공통 `meta`는 null이다. 기존 PageMeta와 다른 긴 정수 개수·offset을 지원하면서 공통 인터페이스는 바꾸지 않았다.
 
@@ -176,6 +180,7 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 }
 ```
 
+- PageMeta의 기존 getOffset()도 JSON의 offset 필드로 직렬화된다.
 - 카드 필드는 위 예시와 같다. description/maxMembers/duesAmount/duesDay는 null 가능하다.
 - 결과 0건: items=[], totalElements=0, totalPages=0, currentPage=요청 페이지, pageSize=6.
 - 전체 7건에 page=3: items=[], totalElements=7, totalPages=2, currentPage=3, pageSize=6.
