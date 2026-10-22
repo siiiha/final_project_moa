@@ -16,9 +16,4 @@ public interface AdminPostMapper {
     PostDto selectPostDetail(@Param("postId") Long postId);
 
     int deletePost(@Param("postId") Long postId);
-
-    int deleteComment(
-            @Param("postId") Long postId,
-            @Param("commentId") Long commentId
-    );
 }
