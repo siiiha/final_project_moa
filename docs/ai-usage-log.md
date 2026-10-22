@@ -206,3 +206,9 @@
   백엔드 Gradle 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 컴파일 전에 중단됐다.
 - 직접 확인 필요: Java 17 준비 후 `back\\gradlew.bat test` 실행, JWT 병합 뒤 계주·비계주·인증 없음 요청과
   MySQL에서 동시 승인·정원·최대 가입 수 조건을 통합 검증한다.
+
+## 2026-10-22 — 계모임 서비스 병합 문법 오류 수정
+
+- 목적: 가입 신청 승인 기능 병합 뒤 발생한 `SavingGroupServiceImpl` 컴파일 오류를 해결한다.
+- AI 제안·작성: `getEditableFields` 메서드의 누락된 종료 중괄호를 복구해 가입 신청 메서드가 클래스 범위에 선언되도록 수정했다.
+- 검증: `git diff --check` 실행. Gradle 테스트는 실행 환경의 Java 17 toolchain 부재로 컴파일 전에 중단된다.

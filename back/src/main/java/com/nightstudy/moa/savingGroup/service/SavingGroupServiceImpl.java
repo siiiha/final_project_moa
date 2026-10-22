@@ -434,6 +434,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             case "03" -> List.of();
             default -> null;
         };
+    }
+
     // AI작성: 회원과 계모임을 같은 트랜잭션에서 잠가 중복 신청·정원·가입 수 검증 뒤에만 대기 상태를 저장한다.
     @Override
     @Transactional
