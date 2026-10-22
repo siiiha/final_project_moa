@@ -15,4 +15,7 @@ public interface SavingGroupService {
     void updateSavingGroupSettings(Long savingGroupId, Long loginMemberId, SavingGroupSettingsPatchRequest request);
     void applyDueSettingChanges();
     void changeSavingGroupStatus(Long groupId, String nextStatus);
+
+    // AI작성: 인증된 회원 본인 명의로 계모임 가입 신청을 대기 상태로 등록한다.
+    void requestSavingGroupJoin(Long savingGroupId, Long memberId);
 }
