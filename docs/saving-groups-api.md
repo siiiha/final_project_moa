@@ -156,22 +156,24 @@ DB ID와 코드를 동일시하지 않으며 `region.region_name`을 해당 명�
 ```json
 {
   "success": true,
-  "data": {
-    "items": [{
-      "savingGroupId": 101,
-      "groupName": "산책 모임",
-      "description": "이웃과 함께하는 모임",
-      "regionName": "서울",
-      "maxMembers": 8,
-      "memberCount": 5,
-      "duesAmount": 50000.00,
-      "duesDay": 25,
-      "status": "01"
-    }],
-    "totalElements": 1,
+  "data": [{
+    "savingGroupId": 101,
+    "groupId": 42,
+    "groupName": "산책 모임",
+    "description": "이웃과 함께하는 모임",
+    "regionName": "서울",
+    "maxMembers": 8,
+    "memberCount": 5,
+    "duesAmount": 50000.00,
+    "duesDay": 25,
+    "status": "01"
+  }],
+  "meta": {
+    "page": 1,
+    "size": 6,
+    "total": 1,
     "totalPages": 1,
-    "currentPage": 1,
-    "pageSize": 6
+    "offset": 0
   },
   "meta": null,
   "error": null

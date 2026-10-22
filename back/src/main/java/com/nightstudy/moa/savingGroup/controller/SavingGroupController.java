@@ -35,6 +35,7 @@ public class SavingGroupController {
 
     // AI작성: 인증 정보 없이 공개 목록을 조회하고 기존 성공 응답으로 감싼다.
     // AI작성: 게시글과 동일하게 data에 목록, meta에 공통 페이징 정보를 반환한다.
+    // AI작성: 목록 배열과 페이징 정보를 공통 ApiResponse의 data·meta에 각각 담아 반환한다.
     @GetMapping
     public ApiResponse<List<SavingGroupSummaryResponse>> list(
             @Valid @ModelAttribute SavingGroupSearchCondition condition) {

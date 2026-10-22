@@ -1,6 +1,15 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-22 — 계모임 목록 공통 응답 형식 정정
+
+- 목적: 목록 조회 실패를 해결하기 위해 `GET /api/saving-groups` 응답을 공통 목록 형식으로 통일한다.
+- 사용자 선택: `data`에는 카드 배열, `meta`에는 `PageMeta`를 반환하는 방식을 선택했다.
+- AI 제안·작성: Controller가 Service 결과의 `items`와 `pageMeta`를 `ApiResponse.ok(items, pageMeta)`로 반환하도록 정정하고, 프론트 API 테스트와 API 명세를 같은 구조로 맞췄다.
+- 개발자 검토·수정: 최종 검토 대기.
+- 데이터·외부 서비스·의존성·설정 변경: 없음.
+- 검증 결과: `node --test src/api/savingGroups.test.js` 7개 통과. JDK 17을 지정한 `gradlew.bat test --offline`도 통과.
+
 ## 2026-10-20 — 계모임 공개 상세 조회 구현
 
 <!-- AI작성: 구현 중 사용자 정정·승인과 실제 검증 결과를 기록한다. -->
