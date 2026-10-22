@@ -8,6 +8,12 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 회원 잠금 순서를 지키기 위한 식별 조회이며 검증 결과로 사용하지 않는다.
+    SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTarget(@Param("crewMemberId") Long crewMemberId);
+
+    // AI작성: 회원과 계모임 잠금 이후 신청 행의 소속과 상태를 다시 확인한다.
+    SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTargetForUpdate(@Param("crewMemberId") Long crewMemberId);
+
     int selectSavingGroupCount(SavingGroupListCondition condition);
     List<SavingGroupRow> selectSavingGroupList(SavingGroupListCondition condition);
     List<SavingGroupMemberCount> selectApprovedMemberCounts(@Param("groupIds") List<Long> groupIds);
