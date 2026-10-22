@@ -1,6 +1,6 @@
 -- Moa schema submission draft, 2026-10-08.
 -- Select an empty MySQL database before executing this file.
--- 25 tables, 35 foreign keys, 2 UNIQUE constraints, 1 CHECK constraint.
+-- 26 tables, 37 foreign keys, 3 UNIQUE constraints, 1 CHECK constraint.
 -- Single-column numeric primary keys use AUTO_INCREMENT.
 -- ERDCloud export supplemented in SQL; not applied to ERDCloud.
 -- Structural validation only; execution in MySQL is still pending.
@@ -131,12 +131,17 @@ CREATE TABLE IF NOT EXISTS `group_member` (
 	`group_id`	BIGINT	NOT NULL,
 	`member_role`	ENUM('OWNER', 'MANAGER', 'MEMBER')	NOT NULL	DEFAULT 'MEMBER',
 	`sequence_number`	INT	NULL,
-	`membership_status`	ENUM('PENDING', 'APPROVED', 'REJECTED', 'LEFT')	NOT NULL	DEFAULT 'PENDING',
-	`joined_at`	DATETIME	NULL,
+	`membership_status`	ENUM('PENDING', 'APPROVED', 'REJECTED', 'LEFT', 'EXPELLED')	NOT NULL	DEFAULT 'PENDING',
+	`approved_by` BIGINT NULL,
+    `approved_at` DATETIME NULL,
+    `joined_at`	DATETIME	NULL,
 	`left_at`	DATETIME	NULL,
 	`application_message`	VARCHAR(500)	NULL,
 	`requested_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`crew_member_id`)
+	PRIMARY KEY (`crew_member_id`),
+    UNIQUE KEY `uq_group_member_member_group` (`member_id`, `group_id`),
+    KEY `fk_group_member_approved_by` (`approved_by`),
+    KEY `ix_group_member_group_status` (`group_id`, `membership_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `groups` (
@@ -186,16 +191,53 @@ CREATE TABLE IF NOT EXISTS `term` (
 	PRIMARY KEY (`term_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `member_report` (
-	`report_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`reporter_id`	BIGINT	NOT NULL,
-	`target_type`	ENUM('USER', 'BOARD','COMMENT')	NOT NULL,
-	`target_id`	BIGINT	NOT NULL,
-	`reason`	VARCHAR(255)	NOT NULL,
-    `process_reason` VARCHAR(500) NULL DEFAULT NULL,
-	`status`	ENUM('PENDING','PROCESSED','REJECTED')	NOT NULL	DEFAULT 'PENDING',
-	PRIMARY KEY (`report_id`)
+CREATE TABLE IF NOT EXISTS `report_case` (
+    `case_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `report_type` ENUM(
+        'BOARD_POST',
+        'BOARD_COMMENT',
+        'BOARD_MEMBER',
+        'MEETING',
+        'MEETING_MEMBER'
+) NOT NULL,
+`target_id` BIGINT NOT NULL,
+`reported_member_id` BIGINT NOT NULL,
+`status` ENUM(
+    'PENDING',
+    'CONFIRMED',
+    'REJECTED'
+    ) NOT NULL DEFAULT 'PENDING',
+    `process_reason` VARCHAR(1000) NULL DEFAULT NULL,
+    `processed_at` DATETIME NULL,
+    `restricted_until` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`case_id`),
+    KEY `ix_report_case_target` (
+        `report_type`, `target_id`, `status`
+        ),
+    KEY `ix_report_case_violation` (
+        `reported_member_id`, `report_type`, `status`, `processed_at`
+        ),
+    KEY `ix_report_case_restriction` (
+        `reported_member_id`, `report_type`, `restricted_until`
+        )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `member_report` (
+    `report_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `case_id` BIGINT NOT NULL,
+    `reporter_id` BIGINT NOT NULL,
+    `reason` TEXT NOT NULL,
+    `process_reason` VARCHAR(500) NULL DEFAULT NULL,
+    `reported_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `evidence_files` JSON NULL,
+    `evidence_deleted_at` DATETIME NULL,
+    PRIMARY KEY (`report_id`),
+    UNIQUE KEY `uq_member_report_case_reporter` (
+        `case_id`, `reporter_id`
+        ),
+    KEY `FK_members_TO_member_report_1` (`reporter_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `email_verification` (
 	`verification_id`	BIGINT	NOT NULL AUTO_INCREMENT,
@@ -276,6 +318,7 @@ CREATE TABLE IF NOT EXISTS `post` (
 	`view_count`	INT	NOT NULL	DEFAULT 0,
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
 	`deleted_at`	DATETIME	NULL,
+    `updated_at` DATETIME NULL,
 	PRIMARY KEY (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -415,6 +458,11 @@ REFERENCES `members` (
 	`member_id`
 );
 
+ALTER TABLE `group_member`
+ADD CONSTRAINT `fk_group_member_approved_by`
+FOREIGN KEY (`approved_by`)
+REFERENCES `members` (`member_id`);
+
 ALTER TABLE `groups`
 ADD CONSTRAINT `FK_region_TO_groups_1`
 FOREIGN KEY (`region_id`)
@@ -434,6 +482,20 @@ ALTER TABLE `small_group`
 ADD CONSTRAINT `FK_groups_TO_small_group_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);
+
+ALTER TABLE `report_case` ADD CONSTRAINT `fk_report_case_reported_member` FOREIGN KEY (
+    `reported_member_id`
+    )
+REFERENCES `members` (
+    `member_id`
+);
+
+ALTER TABLE `member_report` ADD CONSTRAINT `fk_member_report_case` FOREIGN KEY (
+    `case_id`
+)
+REFERENCES `report_case` (
+    `case_id`
+);
 
 ALTER TABLE `member_report` ADD CONSTRAINT `FK_members_TO_member_report_1` FOREIGN KEY (
 	`reporter_id`
