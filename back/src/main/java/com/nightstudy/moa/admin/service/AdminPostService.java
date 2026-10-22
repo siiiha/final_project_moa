@@ -11,6 +11,4 @@ public interface AdminPostService {
     PostDto getPostDetail(Long postId);
 
     void deletePost(Long postId);
-
-    void deleteComment(Long postId, Long commentId);
 }
