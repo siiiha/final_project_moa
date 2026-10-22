@@ -78,3 +78,88 @@ export async function getSavingGroups({ keyword, regionCode, page, signal }) {
     pageSize: meta.size,
   };
 }
+
+function toNullableNumber(value) {
+  if (value == null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function toSavingGroupSettingsError(error, fallbackMessage, status) {
+  const failure = new Error(error?.message || fallbackMessage);
+  failure.name = 'SavingGroupSettingsError';
+  failure.code = error?.code;
+  failure.status = status;
+  return failure;
+}
+
+export function toSavingGroupSettings(data) {
+  const current = data.current;
+  const pending = data.pending;
+
+  return {
+    id: data.savingGroupId,
+    status: data.status,
+    canAccessSettings: data.canAccessSettings,
+    canEditSettings: data.canEditSettings,
+    current: current == null ? null : {
+      groupName: current.groupName ?? '',
+      description: current.description ?? '',
+      maxMembers: toNullableNumber(current.maxMembers),
+      approvedMemberCount: toNullableNumber(current.approvedMemberCount),
+      duesAmount: toNullableNumber(current.duesAmount),
+      duesDay: toNullableNumber(current.duesDay),
+    },
+    pending: pending == null ? null : {
+      duesAmount: toNullableNumber(pending.duesAmount),
+      duesDay: toNullableNumber(pending.duesDay),
+      effectiveAt: pending.effectiveAt,
+      status: pending.status,
+    },
+    editableFields: Array.isArray(data.editableFields) ? data.editableFields : [],
+  };
+}
+
+export async function getSavingGroupSettings(savingGroupId, { signal } = {}) {
+  try {
+    const response = await client.get(`/saving-groups/${savingGroupId}/settings`, { signal });
+    if (!response.data.success || !response.data.data) {
+      throw toSavingGroupSettingsError(
+        response.data.error,
+        '계모임 설정 정보를 불러오지 못했습니다.',
+        response.status
+      );
+    }
+    return toSavingGroupSettings(response.data.data);
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupSettingsError') {
+      throw error;
+    }
+    throw toSavingGroupSettingsError(
+      error.response?.data?.error,
+      '계모임 설정 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      error.response?.status
+    );
+  }
+}
+
+export async function updateSavingGroupSettings(savingGroupId, changedFields) {
+  try {
+    const response = await client.patch(`/saving-groups/${savingGroupId}`, changedFields);
+    if (!response.data.success) {
+      throw toSavingGroupSettingsError(
+        response.data.error,
+        '계모임 설정을 저장하지 못했습니다.',
+        response.status
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error.name === 'SavingGroupSettingsError') throw error;
+    throw toSavingGroupSettingsError(
+      error.response?.data?.error,
+      '계모임 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      error.response?.status
+    );
+  }
+}

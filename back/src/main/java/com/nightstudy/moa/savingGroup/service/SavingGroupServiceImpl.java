@@ -4,9 +4,28 @@ import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentSettingsResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentDuesUpdate;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupListCondition;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupRow;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsBasicUpdate;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingChangeRow;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupSummaryResponse;
+import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import org.springframework.http.HttpStatus;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
     private static final int PAGE_SIZE = 6;
+    private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
@@ -68,15 +88,258 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         List<SavingGroupRow> rows = savingGroupMapper.selectSavingGroupList(condition);
         Map<Long, Long> counts = rows.isEmpty() ? Map.of()
                 : savingGroupMapper.selectApprovedMemberCounts(
-                        rows.stream().map(SavingGroupRow::getGroupId).distinct().toList())
-                .stream().collect(Collectors.toMap(
-                        SavingGroupMemberCount::getGroupId, SavingGroupMemberCount::getMemberCount));
+                                rows.stream().map(SavingGroupRow::getGroupId).distinct().toList())
+                        .stream().collect(Collectors.toMap(
+                                SavingGroupMemberCount::getGroupId, SavingGroupMemberCount::getMemberCount));
         List<SavingGroupSummaryResponse> items = rows.stream().map(row ->
                 new SavingGroupSummaryResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(),
                         row.getDescription(), row.getRegionName(), row.getMaxMembers(),
                         counts.getOrDefault(row.getGroupId(), 0L), row.getDuesAmount(),
                         row.getDuesDay(), row.getStatus())).toList();
         return new SavingGroupListResponse(items, pageMeta);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupSettingsResponse getSavingGroupSettings(Long savingGroupId, Long loginMemberId) {
+        if (loginMemberId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupSettingsAuthorityRow authority =
+                savingGroupMapper.selectSavingGroupSettingsAuthority(savingGroupId);
+        if (authority == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        boolean isOwner = Objects.equals(authority.getGroupLeaderMemberId(), loginMemberId)
+                && Objects.equals(authority.getOwnerMemberId(), loginMemberId);
+        if (!isOwner) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_SETTINGS_FORBIDDEN",
+                    "계주만 설정을 조회할 수 있습니다.");
+        }
+
+        if ("04".equals(authority.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "종료된 계모임의 설정은 조회할 수 없습니다.");
+        }
+
+        List<String> editableFields = getEditableFields(authority.getStatus());
+        if (editableFields == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "현재 상태에서는 계모임 설정을 조회할 수 없습니다.");
+        }
+
+        SavingGroupCurrentSettingsResponse current =
+                savingGroupMapper.selectSavingGroupCurrentSettings(savingGroupId);
+        if (current == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        // TODO: 예정 설정 테이블 추가 후 적용 예정 설정을 별도 Mapper 함수로 조회한다.
+
+        return new SavingGroupSettingsResponse(
+                authority.getSavingGroupId(),
+                authority.getStatus(),
+                true,
+                !editableFields.isEmpty(),
+                current,
+                null,
+                editableFields
+        );
+    }
+
+    @Override
+    @Transactional
+    public void updateSavingGroupSettings(
+            Long savingGroupId, Long loginMemberId, SavingGroupSettingsPatchRequest request) {
+        if (loginMemberId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupSettingsAuthorityRow authority =
+                savingGroupMapper.selectSavingGroupSettingsAuthorityForUpdate(savingGroupId);
+        if (authority == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        Long ownerMemberId = savingGroupMapper.selectSavingGroupOwnerMemberIdForUpdate(authority.getGroupId());
+        boolean isOwner = Objects.equals(authority.getGroupLeaderMemberId(), loginMemberId)
+                && Objects.equals(ownerMemberId, loginMemberId);
+        if (!isOwner) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_SETTINGS_FORBIDDEN",
+                    "계주만 설정을 변경할 수 있습니다.");
+        }
+
+        validateEditableFields(authority.getStatus(), request);
+        normalizeBasicSettings(request);
+
+        if (hasBasicSettingsUpdate(request)) {
+            SavingGroupSettingsBasicUpdate basicUpdate =
+                    createBasicSettingsUpdate(authority.getGroupId(), request);
+
+            if (basicUpdate.getMaxMembers() != null) {
+                long approvedMemberCount =
+                        savingGroupMapper.selectApprovedMemberCountForUpdate(authority.getGroupId());
+                if (basicUpdate.getMaxMembers() < approvedMemberCount) {
+                    throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_BELOW_MEMBERS",
+                            "승인된 계원 수보다 작게 설정할 수 없습니다.");
+                }
+            }
+
+            savingGroupMapper.updateSavingGroupBasicSettings(basicUpdate);
+        }
+
+        updateDuesSettings(authority, request);
+    }
+
+    @Override
+    @Transactional
+    public void applyDueSettingChanges() {
+        LocalDateTime appliedAt = LocalDateTime.now(KOREA_ZONE_ID);
+        List<SavingGroupSettingChangeRow> candidates =
+                savingGroupMapper.selectDueSettingChanges(appliedAt);
+
+        for (SavingGroupSettingChangeRow candidate : candidates) {
+            String savingGroupStatus =
+                    savingGroupMapper.selectSavingGroupStatusForUpdate(candidate.getGroupId());
+            if (!"02".equals(savingGroupStatus)) {
+                continue;
+            }
+
+            SavingGroupSettingChangeRow change = savingGroupMapper.selectSavingGroupSettingChangeForApply(
+                    candidate.getSettingChangeId(), appliedAt);
+            if (change == null) {
+                continue;
+            }
+
+            savingGroupMapper.applySavingGroupSettingChange(change);
+            savingGroupMapper.markSavingGroupSettingChangeApplied(
+                    change.getSettingChangeId(), appliedAt);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void changeSavingGroupStatus(Long groupId, String nextStatus) {
+        if (nextStatus == null || !List.of("00", "01", "02", "03", "04").contains(nextStatus)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_STATUS_INVALID",
+                    "계모임 상태를 확인해주세요.");
+        }
+
+        String currentStatus = savingGroupMapper.selectSavingGroupStatusForUpdate(groupId);
+        if (currentStatus == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        if (Objects.equals(currentStatus, nextStatus)) {
+            return;
+        }
+
+        int updatedCount = savingGroupMapper.updateSavingGroupStatus(groupId, nextStatus);
+        if (updatedCount != 1) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임 정보를 찾을 수 없습니다.");
+        }
+
+        LocalDateTime changedAt = LocalDateTime.now(KOREA_ZONE_ID);
+        if ("02".equals(currentStatus) && "03".equals(nextStatus)) {
+            savingGroupMapper.holdPendingSavingGroupSettingChanges(groupId);
+            return;
+        }
+
+        if ("04".equals(nextStatus)) {
+            savingGroupMapper.cancelUnappliedSavingGroupSettingChanges(groupId, changedAt);
+            return;
+        }
+
+        if ("03".equals(currentStatus) && "02".equals(nextStatus)) {
+            savingGroupMapper.resumeHeldSavingGroupSettingChanges(
+                    groupId, changedAt, getNextMonthEffectiveAt(changedAt));
+        }
+    }
+
+    private void validateEditableFields(String status, SavingGroupSettingsPatchRequest request) {
+        if ("03".equals(status) || "04".equals(status)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "현재 상태에서는 계모임 정보를 수정할 수 없습니다.");
+        }
+
+        if (!"00".equals(status) && !"01".equals(status) && !"02".equals(status)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOT_EDITABLE",
+                    "현재 상태에서는 계모임 정보를 수정할 수 없습니다.");
+        }
+
+        if ("02".equals(status) && request.isMaxMembersProvided()) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_FIELD_NOT_EDITABLE",
+                    "진행 중인 계모임에서는 정원을 수정할 수 없습니다.");
+        }
+
+    }
+
+    private void normalizeBasicSettings(SavingGroupSettingsPatchRequest request) {
+        if (request.isGroupNameProvided()) {
+            request.setGroupName(request.getGroupName().strip());
+        }
+        if (request.isDescriptionProvided()) {
+            request.setDescription(request.getDescription().strip());
+        }
+    }
+
+    private SavingGroupSettingsBasicUpdate createBasicSettingsUpdate(
+            Long groupId, SavingGroupSettingsPatchRequest request) {
+        String groupName = request.isGroupNameProvided() ? request.getGroupName() : null;
+        String description = request.isDescriptionProvided() ? request.getDescription() : null;
+        Integer maxMembers = request.isMaxMembersProvided() ? request.getMaxMembers() : null;
+
+        return new SavingGroupSettingsBasicUpdate(
+                groupId, groupName, description, maxMembers);
+    }
+
+    private boolean hasBasicSettingsUpdate(SavingGroupSettingsPatchRequest request) {
+        return request.isGroupNameProvided()
+                || request.isDescriptionProvided()
+                || request.isMaxMembersProvided();
+    }
+
+    private void updateDuesSettings(
+            SavingGroupSettingsAuthorityRow authority, SavingGroupSettingsPatchRequest request) {
+        if (!request.isDuesAmountProvided() && !request.isDuesDayProvided()) {
+            return;
+        }
+
+        BigDecimal duesAmount = request.isDuesAmountProvided()
+                ? BigDecimal.valueOf(request.getDuesAmount()) : null;
+        Integer duesDay = request.isDuesDayProvided() ? request.getDuesDay() : null;
+
+        if ("02".equals(authority.getStatus())) {
+            SavingGroupSettingChangeRow change = new SavingGroupSettingChangeRow();
+            change.setGroupId(authority.getGroupId());
+            change.setDuesAmount(duesAmount);
+            change.setDuesDay(duesDay);
+            change.setEffectiveAt(getNextMonthEffectiveAt());
+            savingGroupMapper.upsertSavingGroupSettingChange(change);
+            return;
+        }
+
+        savingGroupMapper.updateSavingGroupCurrentDues(
+                new SavingGroupCurrentDuesUpdate(authority.getSavingGroupId(), duesAmount, duesDay));
+    }
+
+    private LocalDateTime getNextMonthEffectiveAt() {
+        return getNextMonthEffectiveAt(LocalDateTime.now(KOREA_ZONE_ID));
+    }
+
+    private LocalDateTime getNextMonthEffectiveAt(LocalDateTime referenceAt) {
+        return YearMonth.from(referenceAt).plusMonths(1).atDay(1).atStartOfDay();
+    }
+
+    private List<String> getEditableFields(String status) {
+        return switch (status) {
+            case "00", "01" -> List.of("groupName", "description", "maxMembers", "duesAmount", "duesDay");
+            case "02" -> List.of("groupName", "description", "duesAmount", "duesDay");
+            case "03" -> List.of();
+            default -> null;
+        };
     }
 
     // AI작성: 바인딩과 별개로 LIKE 특수문자를 일반 문자로 검색하도록 처리한다.

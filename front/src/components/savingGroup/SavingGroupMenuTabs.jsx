@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 import { getSavingGroupMenus } from '../../api/savingGroups.js';
 
 const Menu = styled.nav`
@@ -25,6 +26,7 @@ const MenuButton = styled.button`
   border-radius: ${({ theme }) => `${theme.radius.sm} ${theme.radius.sm} 0 0`};
   font-size: 12px;
   font-weight: ${({ $active }) => ($active ? 800 : 600)};
+  text-decoration: none;
   white-space: nowrap;
 
   &::after {
@@ -61,17 +63,22 @@ const menuItems = [
   { id: 'joinRequests', label: '신청 목록' },
 ];
 
-// AI작성: 역할에 맞는 탭만 렌더링한다. 실제 업무 API의 권한 검증은 서버에서 별도로 수행한다.
-function SavingGroupMenuTabs({ activeMenu, onMenuChange, myRole = null }) {
+function SavingGroupMenuTabs({ activeMenu, onMenuChange, canAccessSettings = false, settingsPath }) {
+  const visibleMenuItems = menuItems.filter(
+    (item) => item.id !== 'settings' || (canAccessSettings && settingsPath)
+  );
+
   return (
     <Menu aria-label="계모임 메뉴">
-      {menuItems.filter((item) => getSavingGroupMenus(myRole).includes(item.id)).map((item) => (
+      {visibleMenuItems.map((item) => (
         <MenuButton
           key={item.id}
-          type="button"
+          as={item.id === 'settings' ? Link : 'button'}
+          to={item.id === 'settings' ? settingsPath : undefined}
+          type={item.id === 'settings' ? undefined : 'button'}
           $active={activeMenu === item.id}
           aria-current={activeMenu === item.id ? 'page' : undefined}
-          onClick={() => onMenuChange(item.id)}
+          onClick={item.id === 'settings' ? undefined : () => onMenuChange(item.id)}
         >
           {item.label}
         </MenuButton>
