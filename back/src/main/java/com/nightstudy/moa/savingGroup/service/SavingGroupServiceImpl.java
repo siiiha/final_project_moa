@@ -24,6 +24,20 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
 
+    // AI작성: 내부 검증 호출의 MANDATORY는 프록시를 거치지 않으므로 이 진입점에서 트랜잭션을 보장한다.
+    @Override
+    @Transactional
+    public void approveSavingGroupJoin(Long savingGroupId, Long crewMemberId, Long memberId) {
+        SavingGroupJoinApprovalTargetRow request = validateSavingGroupJoinApproval(savingGroupId, crewMemberId, memberId);
+        int affectedRows = savingGroupMapper.approveSavingGroupJoinRequest(
+                request.getCrewMemberId(), request.getGroupId(), memberId);
+        // AI작성: 대기 상태인 기존 신청 한 행만 변경되어야 하며 불일치는 예외로 전체 롤백한다.
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
+                    "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
+        }
+    }
+
     // AI작성: 후속 승인 처리의 트랜잭션에 반드시 참여하며 이 단계에서는 저장하지 않는다.
     @Override
     @Transactional(propagation = Propagation.MANDATORY)

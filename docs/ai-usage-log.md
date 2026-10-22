@@ -1,6 +1,24 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-22 — 가입 승인 2단계: 기존 신청 행 상태 변경
+
+- 목적: 1단계 조회·검증과 조건부 승인 UPDATE를 하나의 Service 트랜잭션에서 실행한다.
+- 사용자 지시·승인: DB 변경 확인 후 앞서 안내한 8개 파일 범위로 2단계 진행. Controller와 외부 승인 API는 추가하지 않는다.
+- DB 확인: 관리자가 갱신한 schema.sql에 approved_by BIGINT NULL, approved_at DATETIME NULL, 승인자 FK, UNIQUE(member_id, group_id), EXPELLED, ix_group_member_group_status가 존재한다. 공용 DB에는 직접 접속하지 않았다. 회원·상태 복합 인덱스는 확인되지 않아 성능 검토 TODO다.
+- AI 작성: approveSavingGroupJoin 계약·구현, approveSavingGroupJoinRequest Mapper·조건부 SQL, LEFT 재신청 승인 정보 초기화, 단위·실제 MySQL 선택 실행 테스트, 설계 명세 갱신.
+- 처리: Service 프록시의 @Transactional 진입점에서 초기 식별 → 신청 회원 잠금 → 계모임 잠금 → 신청 재조회·전체 검증 → UPDATE 순서로 처리한다. 내부 검증 메서드의 MANDATORY 자체에 의존하지 않는다.
+- 저장: 기존 crew_member_id + group_id + PENDING 행만 APPROVED/MEMBER로 변경한다. joined_at·approved_at은 같은 SQL의 CURRENT_TIMESTAMP, approved_by는 계주 회원 ID다. 신규 INSERT와 requested_at 변경은 없다.
+- 실패: 영향 행 수가 1이 아니면 JOIN_REQUEST_APPROVAL_FAILED(409), 기존 검증 실패는 기존 ApiException을 사용한다. 예외 발생 시 트랜잭션을 롤백하며 DB 예외는 공통 처리로 전파한다.
+- 재신청: LEFT 행을 PENDING으로 바꿀 때 approved_by·approved_at도 NULL로 초기화한다.
+- 검증: Java 17 컴파일·테스트 컴파일 통과, 승인 단위 테스트 12개 통과. 실제 MyBatis 전체 XML 파싱·바인딩과 Spring 트랜잭션 인터셉터의 커밋·롤백 요청을 확인했다. git diff --check 통과.
+- 미검증: 별도 MySQL 테스트 접속 환경변수와 생성 허용 설정이 없어 통합 테스트 7개를 건너뛰었다. 실제 저장값·행 수 유지·DB 롤백·재신청 초기화·같은 신청/모임/회원 동시 승인은 미검증이다. 실제 DB 검증 완료로 간주하면 안 된다.
+- 통합 테스트는 명시적 MOA_TEST_MYSQL_ALLOW_SCHEMA_CREATE=true 및 별도 테스트 서버 환경변수가 있어야 실행한다. 고유 테스트 스키마를 생성·정리하며 공용 DB 테이블은 사용하지 않는다. 구체적인 실행 요건은 가입 신청 설계 문서 6.5절에 기록했다.
+- 작업 시작 시 1단계 SavingGroup 테스트 파일들은 현재 저장소에 없었다. 삭제된 테스트를 임의 복구하지 않았으며 이번 12개 테스트를 과거 43개 회귀 테스트 통과와 동일시하지 않는다.
+- 후속 TODO: 별도 테스트 MySQL에서 7개 통합 테스트 실행 및 실제 잠금·교착 영향 확인. 자동 재시도 정책은 추가하지 않았다. 개설 SQL의 pending/approved와 확정 코드 00~04 불일치는 기존 담당 확인 사항으로 유지한다.
+- 공식 근거: https://dev.mysql.com/doc/refman/8.4/en/date-and-time-functions.html (한 쿼리의 현재 시각 함수), https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html (프록시와 내부 호출).
+- 수정하지 않은 범위: schema.sql, 공용 DB, Controller, API 명세, 의존성·설정. 실제 git commit은 수행하지 않았다. 개발자 최종 검토·수정 대기이며 3단계는 진행하지 않는다.
+
 ## 2026-10-22 — 가입 승인 1단계: 대상 조회 및 검증
 
 - 목적: 가입 신청 승인 대상의 존재·소속·권한·상태·정원·가입 수를 저장 없이 검증한다.
