@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import SavingGroupMenuTabs from './SavingGroupMenuTabs';
+import SavingGroupSettingsForm from './SavingGroupSettingsForm';
 import SavingGroupJoinRequestsPanel from './SavingGroupJoinRequestsPanel';
 import SavingGroupMembersPanel from './SavingGroupMembersPanel';
 import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
@@ -234,6 +235,7 @@ function SavingGroupDetail({
   activeMenu,
   onMenuChange,
   onJoinRequest,
+  isJoinSubmitting,
   onBack,
   canAccessSettings = false,
 }) {
@@ -248,7 +250,9 @@ function SavingGroupDetail({
             <Title>{group.groupName}</Title>
             <StatusBadge $ongoing={group.status === '02'}>{statusLabel}</StatusBadge>
           </TitleLine>
-          <JoinButton type="button" onClick={onJoinRequest}>가입 신청하기</JoinButton>
+          <JoinButton type="button" onClick={onJoinRequest} disabled={isJoinSubmitting} aria-busy={isJoinSubmitting}>
+            {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
+          </JoinButton>
         </HeaderTop>
         <Description>{group.description?.trim() || '소개글이 없습니다.'}</Description>
         <MetaList>
@@ -279,6 +283,15 @@ function SavingGroupDetail({
         <JoinRequestsContent>
           <SavingGroupJoinRequestsPanel />
         </JoinRequestsContent>
+      ) : activeMenu === 'settings' ? (
+        <SettingsContent>
+          <SavingGroupSettingsForm
+            group={group}
+            onSubmit={onSettingsSubmit}
+            onCancel={onSettingsCancel}
+            onDeleteRequest={onDeleteRequest}
+          />
+        </SettingsContent>
       ) : (
         <Layout>
           <MainColumn>

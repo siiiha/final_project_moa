@@ -1,5 +1,13 @@
 import client from './client.js';
 
+class SavingGroupJoinRequestError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SavingGroupJoinRequestError';
+    this.code = code;
+  }
+}
+
 // AI작성: API 지역 코드를 화면 이름과 연결하며 DB ID로 해석하지 않는다.
 export const savingGroupRegionOptions = [
   { code: '01', name: '서울' }, { code: '02', name: '경기' },
@@ -162,6 +170,29 @@ export async function updateSavingGroupSettings(savingGroupId, changedFields) {
       error.response?.data?.error,
       '계모임 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.',
       error.response?.status
+    );
+  }
+}
+
+// AI작성: 가입 신청은 별도 입력값 없이 계모임 ID만 경로에 담아 요청하고 서버 오류 코드를 화면에 전달한다.
+export async function requestSavingGroupJoin(savingGroupId) {
+  try {
+    const response = await client.post(`/saving-groups/${savingGroupId}/join-requests`);
+    if (!response.data?.success) {
+      throw new SavingGroupJoinRequestError(
+        response.data?.error?.code || 'JOIN_REQUEST_FAILED',
+        response.data?.error?.message || '가입 신청 처리에 실패했습니다.',
+      );
+    }
+    return response.data;
+  } catch (error) {
+    if (error instanceof SavingGroupJoinRequestError) {
+      throw error;
+    }
+    const responseError = error.response?.data?.error;
+    throw new SavingGroupJoinRequestError(
+      responseError?.code || 'JOIN_REQUEST_FAILED',
+      responseError?.message || '가입 신청 처리에 실패했습니다.',
     );
   }
 }
