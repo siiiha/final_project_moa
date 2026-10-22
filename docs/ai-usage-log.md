@@ -213,3 +213,13 @@
 - 목적: 가입 신청 승인 기능 병합 뒤 발생한 `SavingGroupServiceImpl` 컴파일 오류를 해결한다.
 - AI 제안·작성: `getEditableFields` 메서드의 누락된 종료 중괄호를 복구해 가입 신청 메서드가 클래스 범위에 선언되도록 수정했다.
 - 검증: `git diff --check` 실행. Gradle 테스트는 실행 환경의 Java 17 toolchain 부재로 컴파일 전에 중단된다.
+
+## 2026-10-22 — 계모임 패키지 및 Spring 빈 이름 통합
+
+- 목적: `saving_group`과 `savingGroup`에 중복된 Controller·Service·Mapper 이름 때문에 발생한 Spring 빈 등록 충돌을 해소한다.
+- AI 제안·작성: 기존 `savingGroup` 패키지로 개설 요청 DTO를 옮기고, 개설 전용 Controller·Service·ServiceImpl을
+  `SavingGroupCreation*`으로 분리했다. 개설 Mapper 메서드는 기존 `SavingGroupMapper`와 XML namespace로 통합하고,
+  XML의 생성 키 프로퍼티를 Java 필드명 `groupId`로 정정했으며 테스트의 DTO 참조도 함께 갱신했다.
+- 개발자 검토·수정: 최종 검토 대기. API URL과 DB 스키마는 변경하지 않았다.
+- 데이터·외부 서비스·의존성·설정 변경: 없음.
+- 검증: `git diff --check`, Gradle 컴파일 및 테스트 실행 결과를 확인해야 한다.
