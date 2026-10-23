@@ -307,14 +307,6 @@
         FOR UPDATE
     </select>
 
-    <select id="selectApprovedMemberCountForUpdate" resultType="long">
-        SELECT COUNT(DISTINCT member_id)
-        FROM group_member
-        WHERE group_id = #{groupId}
-        AND membership_status = 'APPROVED'
-        FOR UPDATE
-    </select>
-
     <update id="updateSavingGroupBasicSettings">
         UPDATE `groups`
         <set>

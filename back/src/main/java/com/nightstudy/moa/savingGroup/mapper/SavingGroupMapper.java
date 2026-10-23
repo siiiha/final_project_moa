@@ -25,10 +25,6 @@ public interface SavingGroupMapper {
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
     List<String> selectApprovedMemberRoles(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
-    // AI작성: 권한 검증으로 확인한 내부 groupId를 사용하고 같은 조건으로 개수와 페이지를 조회한다.
-    int selectSavingGroupJoinRequestCount(@Param("groupId") Long groupId, @Param("status") String status);
-    List<SavingGroupJoinRequestRow> selectSavingGroupJoinRequests(@Param("groupId") Long groupId,
-            @Param("status") String status, @Param("offset") int offset, @Param("limit") int limit);
 
     // AI작성: 신청 ID·모임 ID·PENDING 조건이 일치하는 기존 행만 승인하고 영향 행 수를 반환한다.
     int approveSavingGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
@@ -86,9 +82,6 @@ public interface SavingGroupMapper {
     // 승인된 OWNER 계원 행을 잠근 뒤 계주 회원 ID를 조회한다.
     Long selectSavingGroupOwnerMemberIdForUpdate(@Param("groupId") Long groupId);
 
-    // 승인 계원 행을 잠근 뒤 정원 검증에 사용할 계원 수를 집계한다.
-    long selectApprovedMemberCountForUpdate(@Param("groupId") Long groupId);
-
     // 요청으로 전달된 이름, 소개글, 정원 필드만 기본 모임 정보에 수정한다.
     int updateSavingGroupBasicSettings(@Param("update") SavingGroupSettingsBasicUpdate update);
 
@@ -131,23 +124,5 @@ public interface SavingGroupMapper {
             @Param("groupId") Long groupId,
             @Param("resumedAt") LocalDateTime resumedAt,
             @Param("nextEffectiveAt") LocalDateTime nextEffectiveAt);
-    // AI작성: 가입 신청 전 회원의 계정 상태와 본인 인증 완료 여부를 잠근 상태로 조회한다.
-    SavingGroupJoinMemberRow selectSavingGroupJoinMemberForUpdate(@Param("memberId") Long memberId);
 
-    // AI작성: 가입 신청 대상의 내부 모임 ID, 상태, 정원을 잠근 상태로 조회한다.
-    SavingGroupJoinTargetRow selectSavingGroupJoinTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
-
-    // AI작성: 동일 회원의 기존 가입·신청 이력을 잠근 상태로 조회한다.
-    SavingGroupMembershipRelationRow selectSavingGroupMembershipForUpdate(
-            @Param("groupId") Long groupId, @Param("memberId") Long memberId);
-
-    // AI작성: 승인된 실제 가입만 집계하고 종료·삭제 모임은 최대 가입 수에서 제외한다.
-    long selectApprovedSavingGroupCount(@Param("memberId") Long memberId);
-
-    // AI작성: 추가 입력 없이 인증 회원 본인의 가입 신청을 대기 상태로 저장한다.
-    int insertSavingGroupJoinRequest(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
-
-    // AI작성: 자진 탈퇴한 회원만 기존 관계 행을 대기 신청 상태로 되돌린다.
-    int reactivateLeftSavingGroupMembership(
-            @Param("groupId") Long groupId, @Param("memberId") Long memberId);
 }
