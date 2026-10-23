@@ -73,6 +73,19 @@ public class SavingGroupController {
         return ApiResponse.ok();
     }
 
+    // AI작성: 추방 대상은 URL의 groupId·memberId로 받고, 실행 계주는 서버 인증 속성으로만 식별한다.
+    @PatchMapping("/{groupId}/members/{memberId}/expel")
+    public ApiResponse<Void> expelApprovedMember(
+            @PathVariable("groupId") Long groupId,
+            @PathVariable("memberId") Long targetMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        savingGroupService.expelApprovedSavingGroupMember(groupId, targetMemberId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 게시글과 동일하게 data에 목록, meta에 공통 페이징 정보를 반환한다.
     @GetMapping
     public ApiResponse<List<SavingGroupSummaryResponse>> list(
