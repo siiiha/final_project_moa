@@ -12,7 +12,20 @@ public interface SavingGroupMapper {
     // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
     int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
-    int approveForCreationSavingGroup(@Param("savingGroupId") Long savingGroupId);
+    int insertSavingGroupCreationApproval(@Param("groupId") Long groupId);
+    Long selectRegionIdByName(@Param("regionName") String regionName);
+    boolean existsMember(@Param("memberId") Long memberId);
+    int selectSavingGroupCreationApplicationCount(SavingGroupCreationApplicationListCondition condition);
+    List<SavingGroupCreationApplicationListItemResponse> selectSavingGroupCreationApplications(
+            SavingGroupCreationApplicationListCondition condition);
+    SavingGroupCreationApplicationDetailResponse selectSavingGroupCreationApplication(
+            @Param("approvalId") Long approvalId);
+    SavingGroupCreationApplicationDetailResponse selectSavingGroupCreationApplicationForUpdate(
+            @Param("approvalId") Long approvalId);
+    int approveSavingGroupCreationApplication(@Param("approvalId") Long approvalId);
+    int rejectSavingGroupCreationApplication(@Param("approvalId") Long approvalId,
+                                             @Param("rejectReason") String rejectReason);
+    int publishApprovedSavingGroup(@Param("groupId") Long groupId);
 
     // AI작성: 권한 검증으로 확인한 내부 groupId를 사용하고 같은 조건으로 개수와 페이지를 조회한다.
     int selectSavingGroupJoinRequestCount(@Param("groupId") Long groupId, @Param("status") String status);
@@ -111,7 +124,12 @@ public interface SavingGroupMapper {
     // 삭제되지 않은 계모임의 상태를 변경한다.
     int updateSavingGroupStatus(
             @Param("groupId") Long groupId, @Param("status") String status);
+    // AI작성: URL의 groupId로 계모임과 생성 계주를 잠가 추방 권한 검증에 사용한다.
+    SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(@Param("groupId") Long groupId);
 
+    // AI작성: 승인 상태인 기존 계원 관계 한 건만 추방 상태로 조건부 변경한다.
+    int expelApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,
+                                       @Param("groupId") Long groupId);
     // 정지된 계모임의 아직 반영되지 않은 예정 변경을 HELD 상태로 보류한다.
     int holdPendingSavingGroupSettingChanges(@Param("groupId") Long groupId);
 
@@ -124,5 +142,12 @@ public interface SavingGroupMapper {
             @Param("groupId") Long groupId,
             @Param("resumedAt") LocalDateTime resumedAt,
             @Param("nextEffectiveAt") LocalDateTime nextEffectiveAt);
+    // AI작성: 삭제 요청 시 계모임의 내부 모임 ID·상태·생성 계주를 잠가 존재와 권한을 같은 트랜잭션에서 검증한다.
+    SavingGroupJoinTargetRow selectSavingGroupDeleteTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
 
+    // AI작성: 물리 삭제 대신 아직 삭제되지 않은 공통 모임 행에 삭제 시각만 기록한다.
+    int softDeleteSavingGroup(@Param("groupId") Long groupId);
+    // AI작성: 자진 탈퇴는 잠금 조회로 확인한 본인의 승인 관계 한 건만 LEFT 상태로 전환한다.
+    int leaveApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,
+                                       @Param("groupId") Long groupId);
 }
