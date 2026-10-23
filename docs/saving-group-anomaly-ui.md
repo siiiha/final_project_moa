@@ -1,6 +1,17 @@
 <!-- AI작성: 승인된 7단계 화면의 저장 모델 결과 출처와 실제 연동 경계를 기록한다. -->
 # 계모임 거래 이상 감지 화면 — 저장 모델 결과 재생
 
+## 2026-10-22 새 합성 거래 분석 시연 추가
+- stage10 serve_replay.py를 기존 stage9 서버 대신 같은8767포트로 실행한다. 두 서버 동시 실행 불가.
+- 서버 시작 때 별도 runs DB를 새로 만들며 stage8/운영 DB는 보존한다. 계좌10013의 9월18일 이전 이력으로 시작, 화면9월8건/남은6건.
+- 로컬 조회에서 서버가 replay.enabled를 반환한 경우만 다음 합성 거래 수신·분석 버튼을 표시한다.
+- 버튼은 서버에 정해진 다음 거래를 저장→과거 특성 계산→기존 stage5 scorer로 새 추론→결과 저장 후 목록 갱신한다. 임의 거래 입력·실제 자금 이동·재학습은 없다.
+- POST /__moa_test__/groups/12/replay-next의 expectedNextToken은 중복 방지용. 같은 토큰 재전송은 같은 거래를 재사용한다. 새 토큰을 임의로 만들지 않는다.
+- 종료 후14건/경고4건이 기존 저장 결과와 일치해야 한다. 첫 출금은 경고 없음, 이후 반복 출금에서 경고가 나타나는 실험이다. 매 거래가 이상이라는 뜻은 아니다.
+- 다시 조회는 여전히 읽기 전용. 분석 실패와 수신 성공을 구분하고 원래 거래를 보존한다.
+- 실제 은행/인증/운영 DB 미연결, group12/account10013 매핑은 시연 전용이다.
+
+
 ## 2026-10-22 브라우저 확인 완료
 로컬 서버 실제 조회14건/경고4건, 모델 경고 없음10건, 상세·페이지·날짜 오류·빈 결과·모바일390px·키보드 닫기를 확인했다.
 조회 서버 실제 중단 시 오류/이전 목록 제거와 재시작 복구를 확인했다. 다른 모임은 빈 목록이었다.
@@ -53,3 +64,50 @@
 stage6 계약에 맞춰 savingGroupId/groupId/accountId 매핑, 모임장·승인 운영진 서버 인가, 최신 revision 결과, 서버 필터·페이지·합계를 확정해야 함.
 서버 snake_case는 API 경계에서 camelCase로 변환(status, revision_no, anomaly_score, threshold, is_anomaly, requires_review, cold_start, quality_flags, model_version, feature_schema_version, analyzed_at).
 금융정보 조회·출금·재분석 요청·확인 완료 저장·다운로드·모델 재학습은 이번 변경 범위가 아님.
+
+
+## 내부 거래 이력 분석 연결 (2026-10-22)
+
+AI작성: 공개 조회/인가/DB 저장 API가 아닌 Spring 내부 호출 계약이다. 기존 화면 연결은 변경하지 않았다.
+
+- Python: `POST /v1/anomalies/score-history`. 입력은 `account_id`, `target_transaction_id`, `transactions`. 각 거래는 `transaction_id`, `account_id`, `transaction_type`, `amount`, offset 포함 `transacted_at`, 선택 `balance_after`, `source_sequence`.
+- 단일 계좌 이력과 대상 거래를 포함한다. 1~2000건/1MiB 제한이며 한도 초과 시 조용히 자르지 않는다. 필요한 과거 이력의 완전성은 호출 측이 보장해야 한다. 대상 이후 시각은 제외하고 동일 시각은 기존 피처 정책을 따른다.
+- 결과: 거래/계좌 ID, 점수, 기준, 경고, cold_start, quality_flags, requires_review, 모델/피처 버전. 오류 422 입력, 413 크기 초과, 503 모델 미준비/분석 실패.
+- Spring: `AnomalyService.analyze(AnomalyHistoryRequest)`. 기본 비활성. `moa.anomaly.enabled=true`, `moa.anomaly.base-url=http://127.0.0.1:8001` 설정 시 호출 가능. 연결 2초/읽기 10초 기본, 각각 `connect-timeout-ms`, `read-timeout-ms` 설정 가능. 공개 Controller 없음.
+- DB 트랜잭션을 오래 유지한 채 호출하지 않도록 향후 저장 서비스에서 분리해야 한다. 자동 재시도·DB 저장·수집·공개 인가는 이번 범위가 아니다.
+- Python 실행: ml 디렉터리에서 의존성 준비 후 `python -m uvicorn app.main:app --host 127.0.0.1 --port 8001`. 인증 미구현이므로 외부 공개 금지. 별도 호스트 운영 시 TLS/서버 인증 설계 필요.
+- 검증: `python tests/verify_history.py`, `python tests/verify_service.py`. Spring은 `gradlew.bat test --tests com.nightstudy.moa.anomaly.AnomalyServiceTest`; 실행 중 Python 주소를 `MOA_TEST_PYTHON_URL`로 지정하면 실제 HTTP 테스트도 실행한다.
+
+
+## 제안 스키마 기준 저장 코드 — DB 미적용 (2026-10-22)
+
+AI작성: `AnomalyIngestionService.receive(StoredTransaction)`와 `AnomalyStoreService`, `AnomalyStorageMapper.xml`을 추가했다. 공개 Controller·프론트 변경 없음.
+
+- 저장 Bean은 `moa.anomaly.persistence.enabled=true`일 때만 생성한다. 기본 비활성. DB 담당자 확정 및 테스트 DB 적용·검증 전 활성화하지 않는다. 모델 호출 활성화는 별도 `moa.anomaly.enabled` 설정이다.
+- 전제: 제안한 group_transaction 추가 4컬럼과 transaction_anomaly_analysis 복합 PK가 모두 존재한다. DDL·기존 schema.sql은 변경/실행하지 않았다. source_sequence를 생략하는 DB안이면 SQL/DTO도 조정해야 한다.
+- 내부 수집 어댑터가 검증한 단일 원천 거래만 전달한다. 원천 제공사·영구 거래 ID가 필수인 경로다. 원천 ID 미제공 거래 수집은 아직 지원하지 않는다. 실제 은행 호출·스케줄러는 없음.
+- 임시 시간 계약은 KST LocalDateTime/초 정밀도다. 소수 초 입력은 반올림하지 않고 거부한다. 실제 DB·원천 시간대/정밀도가 확정되면 조정한다.
+- register는 계좌 행 FOR UPDATE 후 중복/충돌 확인, 거래 INSERT와 revision 1 PENDING 등록을 REQUIRES_NEW에서 수행한다. 중복은 DUPLICATE 반환·재분석 없음. 내용 충돌은 덮어쓰지 않는다.
+- receive는 NEVER로 외부 DB 트랜잭션 안 호출을 거부한다. 등록 커밋 후 모델 호출, 별도 트랜잭션에서 COMPLETED/FAILED 갱신. 서비스 프록시를 통해 호출해야 한다.
+- fingerprint에는 정규화 입력·이력·예상 모델/피처 버전을 포함한다. 완료 직전 계좌 잠금 후 이력과 버전을 재검증하고 변경 시 FAILED 처리한다. 모든 관련 거래 작성자가 같은 계좌 잠금 규약을 따라야 한다.
+- 이력이 2000건을 넘으면 2001건을 감지용으로 읽고 거래/PENDING 등록 후 HISTORY_LIMIT 실패 처리한다. 오래된 이력을 자른 점수를 반환하지 않는다. 대용량 계좌 최적화는 별도 작업이다.
+- expected-model-version은 현재 합성 모델 해시가 기본값이다. 모델 변경 시 설정과 평가를 함께 갱신해야 한다.
+- DB 상태 갱신 자체가 실패하거나 프로세스가 종료되면 PENDING이 남을 수 있다. 자동 복구·재시도·지연 거래 영향분 전체 재분석·revision 2 이상 생성은 미구현이다.
+- 최신 결과 조회·권한 API도 아직 없다. 현재 DB Mapper SQL 파싱/파라미터 및 mock 기반 서비스 분기 테스트만 통과했으며 실제 SQL 실행·FK·UNIQUE·롤백·동시 잠금은 미검증이다.
+
+
+## 지급 기록 업무 문맥 — 내부 조회 준비 (2026-10-22)
+
+AI작성: 기존 payout_request.transaction_id FK만 재사용하는 AnomalyContextService/Mapper를 추가했다. DB·모델·경고·프론트는 변경하지 않았다.
+
+- 기본 비활성. `moa.anomaly.context.enabled=true`에서만 서비스 Bean 생성. 공개 Controller 없음. 모임장/회원 인가는 호출 측이 먼저 검증해야 하며 groupId는 계좌 소속 범위 확인이지 회원 인증이 아니다.
+- `findContext(groupId, transactionId)` 결과 상태: NO_LINK(연결 기록 없음), LINKED_COMPLETED_PAYOUT(완료·검토 기록 있는 지급 요청이 직접 연결됨), LINK_REQUIRES_REVIEW(중복·미완료·불일치·검토 정보 부족). 모델 경고 자동 해제/점수 보정 없음.
+- 지급 요청의 회차 모임과 계좌 모임, 출금 여부, 금액, COMPLETED 상태, 검토자 및 요청/검토/완료 시각 순서를 확인한다. 현재 DB 기록의 정합성일 뿐 지급 승인 진위·정상성·사전 승인까지 입증하는 것은 아니다.
+- expenses/fee_payment는 직접 거래 ID 연결이 없어 사용하지 않는다. 금액·날짜 유사 매칭은 하지 않는다. 향후 연결 컬럼 필요 여부는 DB 담당자와 별도 결정한다.
+- 여러 지급 요청이 같은 거래를 참조하면 임의 한 건을 선택하지 않는다. 미일치/다른 모임 기록의 ID·금액·검토자는 외부 결과에 포함하지 않는다.
+- 추가 분석 테이블·잔액/source 컬럼 없이 기존 스키마를 사용한다. 실제 DB 실행·업무 승인 기록 정확성·권한 API·화면 연동은 미검증이다. 연결 기록 없음은 정상 또는 이상 판정이 아니다.
+
+
+## 내부 추론 응답 검증 보강 (2026-10-22)
+
+AI작성: 응답의 ID뿐 아니라 거래 종류·시각(UTC offset 차이는 동일 순간 비교), 품질 코드 allowlist를 검사한다. 잘못된 응답은 저장 전에 거부한다. 지연/깨진 JSON/모순 응답/불일치/UTC 동등 시각은 AnomalyFaultTest로 검증한다. 외부 API 계약·DB·프론트는 변경하지 않았다.

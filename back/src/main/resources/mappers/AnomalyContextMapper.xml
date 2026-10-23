@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- AI작성: 기존 스키마만 재사용. 권한 검증은 호출 측에서 선행해야 하며 공개 API가 아니다. -->
+<mapper namespace="com.nightstudy.moa.anomaly.mapper.AnomalyContextMapper">
+    <resultMap id="transaction" type="com.nightstudy.moa.anomaly.dto.BusinessContextTransaction">
+        <id property="transactionId" column="transaction_id"/>
+        <result property="groupId" column="group_id"/>
+        <result property="transactionType" column="transaction_type"/>
+        <result property="amount" column="amount"/>
+    </resultMap>
+    <resultMap id="payout" type="com.nightstudy.moa.anomaly.dto.PayoutContextRecord">
+        <id property="payoutRequestId" column="payout_request_id"/>
+        <result property="groupId" column="group_id"/>
+        <result property="status" column="status"/>
+        <result property="amount" column="amount"/>
+        <result property="reviewerId" column="reviewer_id"/>
+        <result property="requestedAt" column="requested_at"/>
+        <result property="reviewedAt" column="reviewed_at"/>
+        <result property="completedAt" column="completed_at"/>
+    </resultMap>
+    <select id="findTransaction" resultMap="transaction">
+        SELECT gt.transaction_id, ga.group_id, gt.transaction_type, gt.amount
+        FROM group_transaction gt JOIN group_account ga ON ga.account_id = gt.account_id
+        WHERE ga.group_id = #{groupId} AND gt.transaction_id = #{transactionId}
+    </select>
+    <!-- AI작성: 모임·상태로 미리 걸러 불일치를 숨기지 않는다. 두 행이면 중복 연결로 판단 가능하다. -->
+    <select id="findPayoutLinks" resultMap="payout">
+        SELECT pr.payout_request_id, mr.group_id, pr.status, pr.amount,
+               pr.reviewer_id, pr.requested_at, pr.reviewed_at, pr.completed_at
+        FROM payout_request pr LEFT JOIN meeting_round mr ON mr.round_id = pr.round_id
+        WHERE pr.transaction_id = #{transactionId}
+        ORDER BY pr.payout_request_id LIMIT 2
+    </select>
+</mapper>

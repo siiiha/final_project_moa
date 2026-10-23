@@ -1,0 +1,6 @@
+# AI작성: 저장 모델과 동일한 수치 라이브러리 및 검증된 HTTP 서버 버전.
+scikit-learn==1.9.0
+numpy==2.5.2
+joblib==1.6.0
+fastapi==0.156.8
+uvicorn==0.54.0

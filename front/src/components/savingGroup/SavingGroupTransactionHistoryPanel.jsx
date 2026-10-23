@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
-import { getMockSavingGroupAnomalies, getLocalSavingGroupAnomalies } from '../../api/savingGroupAnomalies';
+import { getMockSavingGroupAnomalies, getLocalSavingGroupAnomalies, receiveNextMockTransaction } from '../../api/savingGroupAnomalies';
 // AI작성: 계좌·기간 표시는 저장 결과 스냅샷 메타데이터와 같은 값을 사용한다.
 import { savingGroupReplayInfo } from '../../mocks/savingGroupAnomalies';
 
@@ -375,11 +375,43 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
   const [scenario, setScenario] = useState('ready');
   // AI작성: 사용자가 명시적으로 선택한 경우만 로컬 서버를 조회한다. 운영 모드는 아니다.
   const [dataSource, setDataSource] = useState('snapshot');
+  // AI작성: 처리 중 중복 클릭을 막고, 연결/모임 전환 때 진행 중 요청을 취소한다.
+  const [isReceiving, setIsReceiving] = useState(false);
+  const [receiveNotice, setReceiveNotice] = useState('');
+  const advanceController = useRef(null);
   const [requestVersion, setRequestVersion] = useState(0);
   const [query, setQuery] = useState({ status: 'loading', items: [], error: '' });
   const [selected, setSelected] = useState(null);
   const [filterError, setFilterError] = useState('');
   const detailRef = useRef(null);
+
+  // AI작성: 화면을 벗어나면 응답을 새 모임 상태에 반영하지 않는다. 서버는 같은 토큰 재수신을 중복 처리하지 않는다.
+  useEffect(() => {
+    setReceiveNotice('');
+    setIsReceiving(false);
+    return () => advanceController.current?.abort();
+  }, [groupId, dataSource]);
+
+  const handleReceiveNext = async () => {
+    if (isReceiving || dataSource !== 'local' || !query.meta?.replay?.nextToken) return;
+    const controller = new AbortController();
+    advanceController.current = controller;
+    setIsReceiving(true);
+    setReceiveNotice('');
+    try {
+      const result = await receiveNextMockTransaction({ groupId, expectedNextToken: query.meta.replay.nextToken, signal: controller.signal });
+      if (!controller.signal.aborted) setReceiveNotice(result.analysisStatus === 'FAILED'
+        ? '합성 거래는 저장됐지만 분석에 실패했습니다. 조회 결과를 확인해 주세요.'
+        : result.duplicate ? '이미 처리한 합성 거래입니다. 중복 저장하지 않았습니다.' : '새 합성 거래를 저장하고 기존 모델로 분석했습니다.');
+    } catch (error) {
+      if (!controller.signal.aborted) setReceiveNotice(error.message || '합성 거래 처리 상태를 다시 확인해 주세요.');
+    } finally {
+      if (!controller.signal.aborted) {
+        setIsReceiving(false);
+        setRequestVersion((value) => value + 1);
+      }
+    }
+  };
 
   // AI작성: 모임 변경·재조회 시 이전 요청을 취소하고 오래된 결과 표시를 차단한다.
   useEffect(() => {
@@ -454,9 +486,9 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
           <Description>모임 자금의 입출금 내역입니다. 잔액과 변동 내역을 확인할 수 있습니다.</Description>
           {/* AI작성: 실제 추론 결과와 실시간 API 연결을 혼동하지 않도록 출처·임시 매핑을 표시한다. */}
           <AccessibleNotice>
-            {dataSource === 'local' ? '로컬 서버에서 stage8 HTTP 분석 결과가 저장된 합성 DB를 조회합니다.' : '합성 계좌의 저장된 모델 결과 파일을 재생합니다.'}
+            {dataSource === 'local' ? (query.meta?.replay?.enabled ? '새 합성 거래를 수신·분석하는 로컬 시연입니다.' : '로컬 서버에서 stage8 HTTP 분석 결과가 저장된 합성 DB를 조회합니다.') : '합성 계좌의 저장된 모델 결과 파일을 재생합니다.'}
             {' '}합성 계좌 {savingGroupReplayInfo.sourceAccountId} · {savingGroupReplayInfo.periodStart} ~ {savingGroupReplayInfo.periodEnd}.
-            {' '}현재 모임은 시연 위치입니다. 조회할 때 새 분석을 실행하지 않으며 은행·운영 인증과 연결되지 않습니다.
+            {' '}현재 모임은 시연 위치입니다. 다시 조회는 저장 결과만 읽습니다. 합성 거래 수신 버튼만 새 분석을 실행하며 은행·운영 인증과 연결되지 않습니다.
             {query.meta?.runId && <span> 조회 실행본: {query.meta.runId}</span>}
           </AccessibleNotice>
         </div>
@@ -530,8 +562,14 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
             <option value="error">조회 오류</option><option value="forbidden">권한 없음</option>
           </Select>
         </Field>}
-        <Button type="button" $variant="secondary" onClick={() => setRequestVersion((value) => value + 1)}>다시 조회</Button>
+        <Button type="button" $variant="secondary" disabled={isReceiving} onClick={() => setRequestVersion((value) => value + 1)}>다시 조회</Button>
+        {/* AI작성: stage10 서버가 기능을 명시한 경우만 표시한다. 실제 은행 송금 버튼이 아니다. */}
+        {dataSource === 'local' && query.meta?.replay?.enabled && <Button type="button" disabled={isReceiving || query.status !== 'ready' || !query.meta.replay.nextToken} onClick={handleReceiveNext}>
+          {isReceiving ? '합성 거래 분석 중…' : query.meta.replay.nextToken ? '다음 합성 거래 수신·분석' : '합성 거래 처리 완료'}
+        </Button>}
       </AnalysisTools>
+      {dataSource === 'local' && query.meta?.replay?.enabled && <AccessibleNotice>남은 합성 거래 {query.meta.replay.remaining}건. 9월 18일 이후 거래를 원래 시간순으로 한 건씩 처리합니다. 초기 거래8건에서 최종14건으로 늘어납니다.</AccessibleNotice>}
+      {receiveNotice && <AccessibleNotice role="status">{receiveNotice}</AccessibleNotice>}
       <AccessibleNotice>모델 경고는 평소와 다른 패턴을 뜻하며 사고 판정이 아닙니다. 이력·품질 확인은 모델 경고와 별개입니다.</AccessibleNotice>
 
       <ListCard>

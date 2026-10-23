@@ -1,0 +1,7 @@
+# AI작성: 로컬 환경·캐시·실행 결과는 공유하지 않는다.
+.venv/
+__pycache__/
+*.py[cod]
+.env
+runs/
+*.log

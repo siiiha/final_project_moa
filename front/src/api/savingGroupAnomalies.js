@@ -1,5 +1,22 @@
 import { savingGroupAnomalyFixtures } from '../mocks/savingGroupAnomalies';
 
+// AI작성: 은행 입출금/임의 거래 입력이 아니라 서버에 정해 둔 다음 합성 거래만 수신한다.
+// 같은 토큰을 재전송해도 다음 거래를 중복 소비하지 않는다. 사용 가능한 모드에서만 표시한다.
+export async function receiveNextMockTransaction({ groupId, expectedNextToken, signal }) {
+  if (!import.meta.env.DEV || Number(groupId) !== 12 || !/^[a-f0-9]{64}$/.test(expectedNextToken || '')) {
+    throw new Error('새 합성 거래를 수신할 수 없는 상태입니다. 먼저 로컬 결과를 조회해 주세요.');
+  }
+  const response = await fetch('/__moa_test__/groups/12/replay-next', {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ expectedNextToken }),
+  });
+  if (!response.ok) throw new Error('합성 거래 처리 실패 (HTTP ' + response.status + '). 다시 조회해 상태를 확인해 주세요.');
+  const body = await response.json();
+  if (body.received !== true || !['COMPLETED', 'FAILED'].includes(body.analysisStatus)) throw new Error('합성 거래 처리 응답을 확인해 주세요.');
+  return body;
+}
+
+
 // AI작성: 저장 Mock과 분리된 로컬 합성 결과 조회다. 개발 서버 프록시만 거치며 실패 시 Mock으로 바꾸지 않는다.
 export async function getLocalSavingGroupAnomalies({ groupId, signal }) {
   if (!import.meta.env.DEV) throw new Error('로컬 합성 서버 조회는 개발 모드에서만 사용할 수 있습니다.');

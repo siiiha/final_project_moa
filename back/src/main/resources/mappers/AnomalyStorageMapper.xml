@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- AI작성: DB 담당자 확정 전 제안 스키마. 이 파일은 DDL을 실행하지 않는다. -->
+<mapper namespace="com.nightstudy.moa.anomaly.mapper.AnomalyStorageMapper">
+    <resultMap id="transaction" type="com.nightstudy.moa.anomaly.dto.StoredTransaction">
+        <id property="transactionId" column="transaction_id"/>
+        <result property="accountId" column="account_id"/>
+        <result property="transactionType" column="transaction_type"/>
+        <result property="amount" column="amount"/>
+        <result property="transactedAt" column="transacted_at"/>
+        <result property="balanceAfter" column="balance_after"/>
+        <result property="sourceProvider" column="source_provider"/>
+        <result property="sourceTransactionId" column="source_transaction_id"/>
+        <result property="sourceSequence" column="source_sequence"/>
+    </resultMap>
+    <sql id="columns">transaction_id, account_id, transaction_type, amount, transacted_at,
+        balance_after, source_provider, source_transaction_id, source_sequence</sql>
+    <select id="lockAccount" resultType="long">
+        SELECT account_id FROM group_account WHERE account_id = #{accountId} FOR UPDATE
+    </select>
+    <select id="findSource" resultMap="transaction">
+        SELECT <include refid="columns"/> FROM group_transaction
+        WHERE account_id = #{accountId} AND source_provider = #{sourceProvider}
+        AND source_transaction_id = #{sourceTransactionId}
+    </select>
+    <insert id="insertTransaction" useGeneratedKeys="true" keyProperty="transactionId" keyColumn="transaction_id">
+        INSERT INTO group_transaction
+        (account_id, transaction_type, amount, transacted_at, balance_after,
+         source_provider, source_transaction_id, source_sequence)
+        VALUES (#{accountId}, #{transactionType}, #{amount}, #{transactedAt}, #{balanceAfter},
+                #{sourceProvider}, #{sourceTransactionId}, #{sourceSequence})
+    </insert>
+    <select id="findTransaction" resultMap="transaction">
+        SELECT <include refid="columns"/> FROM group_transaction WHERE transaction_id = #{transactionId}
+    </select>
+    <!-- AI작성: 동일 시각 전체 포함. 2001건이면 한도 초과로 실패시키며 2000건으로 잘라 분석하지 않는다. -->
+    <select id="selectHistory" resultMap="transaction">
+        SELECT <include refid="columns"/> FROM group_transaction
+        WHERE account_id = #{accountId} AND transacted_at &lt;= #{transactedAt}
+        ORDER BY transacted_at, transaction_id LIMIT 2001
+    </select>
+    <insert id="insertPending">
+        INSERT INTO transaction_anomaly_analysis
+        (transaction_id, revision_no, input_fingerprint, status, quality_flags)
+        VALUES (#{transactionId}, 1, #{fingerprint}, 'PENDING', JSON_ARRAY())
+    </insert>
+    <update id="complete">
+        UPDATE transaction_anomaly_analysis SET status = 'COMPLETED',
+        anomaly_score = #{result.anomaly_score}, threshold = #{result.threshold},
+        is_anomaly = #{result.is_anomaly}, cold_start = #{result.cold_start},
+        quality_flags = #{qualityFlags}, model_version = #{result.model_version},
+        feature_schema_version = #{result.feature_schema_version},
+        analyzed_at = CURRENT_TIMESTAMP(6), error_code = NULL
+        WHERE transaction_id = #{transactionId} AND revision_no = 1
+        AND input_fingerprint = #{fingerprint} AND status = 'PENDING'
+    </update>
+    <update id="fail">
+        UPDATE transaction_anomaly_analysis SET status = 'FAILED', error_code = #{errorCode}
+        WHERE transaction_id = #{transactionId} AND revision_no = 1
+        AND input_fingerprint = #{fingerprint} AND status = 'PENDING'
+    </update>
+</mapper>

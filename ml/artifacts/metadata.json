@@ -1,0 +1,351 @@
+{
+  "stage": 4,
+  "algorithm": "sklearn.ensemble.IsolationForest",
+  "model_parameters": {
+    "bootstrap": false,
+    "contamination": "auto",
+    "max_features": 1.0,
+    "max_samples": "auto",
+    "n_estimators": 200,
+    "n_jobs": 1,
+    "random_state": 42,
+    "verbose": 0,
+    "warm_start": false
+  },
+  "score_definition": "-IsolationForest.score_samples(X); higher means more anomalous",
+  "seed": 42,
+  "python_version": "3.14.6",
+  "numpy_version": "2.5.2",
+  "scikit_learn_version": "1.9.0",
+  "joblib_version": "1.6.0",
+  "train_period": {
+    "from": "2026-04-01",
+    "through": "2026-07-31"
+  },
+  "feature_allowlist": [
+    "amount_log1p",
+    "is_withdrawal",
+    "hour_sin",
+    "hour_cos",
+    "seconds_since_previous",
+    "withdrawal_count_prev_1h",
+    "withdrawal_count_prev_24h",
+    "withdrawal_sum_prev_24h",
+    "amount_to_same_direction_median_30d",
+    "withdrawal_to_balance_before"
+  ],
+  "retained_features": [
+    "amount_log1p",
+    "is_withdrawal",
+    "hour_sin",
+    "hour_cos",
+    "seconds_since_previous",
+    "withdrawal_count_prev_1h",
+    "withdrawal_count_prev_24h",
+    "withdrawal_sum_prev_24h",
+    "amount_to_same_direction_median_30d",
+    "withdrawal_to_balance_before"
+  ],
+  "dropped_all_missing_features": {},
+  "transformed_feature_order": [
+    "amount_log1p",
+    "amount_log1p__is_missing",
+    "is_withdrawal",
+    "is_withdrawal__is_missing",
+    "hour_sin",
+    "hour_sin__is_missing",
+    "hour_cos",
+    "hour_cos__is_missing",
+    "seconds_since_previous",
+    "seconds_since_previous__is_missing",
+    "withdrawal_count_prev_1h",
+    "withdrawal_count_prev_1h__is_missing",
+    "withdrawal_count_prev_24h",
+    "withdrawal_count_prev_24h__is_missing",
+    "withdrawal_sum_prev_24h",
+    "withdrawal_sum_prev_24h__is_missing",
+    "amount_to_same_direction_median_30d",
+    "amount_to_same_direction_median_30d__is_missing",
+    "withdrawal_to_balance_before",
+    "withdrawal_to_balance_before__is_missing"
+  ],
+  "imputation_medians_fit_on_train_only": {
+    "amount_log1p": 10.463131911491967,
+    "is_withdrawal": 0.0,
+    "hour_sin": -0.16870439414067664,
+    "hour_cos": -0.42745647388753244,
+    "seconds_since_previous": 37596.5,
+    "withdrawal_count_prev_1h": 0.0,
+    "withdrawal_count_prev_24h": 0.0,
+    "withdrawal_sum_prev_24h": 0.0,
+    "amount_to_same_direction_median_30d": 1.0,
+    "withdrawal_to_balance_before": 0.01700314762268791
+  },
+  "missing_indicator_policy": "one indicator per retained input feature; true means original or policy-masked value missing",
+  "balance_ratio_mask_flags": [
+    "bank_balance_arithmetic_mismatch",
+    "bank_balance_missing",
+    "ledger_balance_mismatch",
+    "same_timestamp_order_unknown"
+  ],
+  "thresholds_fit_on_validation_only": {
+    "isolation_forest": {
+      "0.01": {
+        "target_rate": 0.01,
+        "target_max_alert_count": 2,
+        "threshold": 0.6970004061844903,
+        "comparison": ">",
+        "validation_alert_count": 2,
+        "validation_alert_rate": 0.006968641114982578,
+        "score_coverage": 287,
+        "score_coverage_rate": 1.0,
+        "threshold_ties_not_alerted": 0,
+        "target_boundary_score_tie_count": 1
+      },
+      "0.03": {
+        "target_rate": 0.03,
+        "target_max_alert_count": 8,
+        "threshold": 0.6518976813589574,
+        "comparison": ">",
+        "validation_alert_count": 8,
+        "validation_alert_rate": 0.027874564459930314,
+        "score_coverage": 287,
+        "score_coverage_rate": 1.0,
+        "threshold_ties_not_alerted": 0,
+        "target_boundary_score_tie_count": 1
+      },
+      "0.05": {
+        "target_rate": 0.05,
+        "target_max_alert_count": 14,
+        "threshold": 0.6180405340153708,
+        "comparison": ">",
+        "validation_alert_count": 14,
+        "validation_alert_rate": 0.04878048780487805,
+        "score_coverage": 287,
+        "score_coverage_rate": 1.0,
+        "threshold_ties_not_alerted": 0,
+        "target_boundary_score_tie_count": 1
+      }
+    },
+    "amount_log1p": {
+      "0.01": {
+        "target_rate": 0.01,
+        "target_max_alert_count": 2,
+        "threshold": 12.864400543268301,
+        "comparison": ">",
+        "validation_alert_count": 2,
+        "validation_alert_rate": 0.006968641114982578,
+        "score_coverage": 287,
+        "score_coverage_rate": 1.0,
+        "threshold_ties_not_alerted": 0,
+        "target_boundary_score_tie_count": 1
+      },
+      "0.03": {
+        "target_rate": 0.03,
+        "target_max_alert_count": 8,
+        "threshold": 12.616442852549675,
+        "comparison": ">",
+        "validation_alert_count": 8,
+        "validation_alert_rate": 0.027874564459930314,
+        "score_coverage": 287,
+        "score_coverage_rate": 1.0,
+        "threshold_ties_not_alerted": 0,
+        "target_boundary_score_tie_count": 1
+      },
+      "0.05": {
+        "target_rate": 0.05,
+        "target_max_alert_count": 14,
+        "threshold": 12.389764288316519,
+        "comparison": ">",
+        "validation_alert_count": 14,
+        "validation_alert_rate": 0.04878048780487805,
+        "score_coverage": 287,
+        "score_coverage_rate": 1.0,
+        "threshold_ties_not_alerted": 0,
+        "target_boundary_score_tie_count": 1
+      }
+    },
+    "amount_to_same_direction_median_30d": {
+      "0.01": {
+        "target_rate": 0.01,
+        "target_max_alert_count": 2,
+        "threshold": 1.25,
+        "comparison": ">",
+        "validation_alert_count": 0,
+        "validation_alert_rate": 0.0,
+        "score_coverage": 221,
+        "score_coverage_rate": 0.7700348432055749,
+        "threshold_ties_not_alerted": 2,
+        "target_boundary_score_tie_count": 2
+      },
+      "0.03": {
+        "target_rate": 0.03,
+        "target_max_alert_count": 8,
+        "threshold": 1.2,
+        "comparison": ">",
+        "validation_alert_count": 2,
+        "validation_alert_rate": 0.006968641114982578,
+        "score_coverage": 221,
+        "score_coverage_rate": 0.7700348432055749,
+        "threshold_ties_not_alerted": 10,
+        "target_boundary_score_tie_count": 10
+      },
+      "0.05": {
+        "target_rate": 0.05,
+        "target_max_alert_count": 14,
+        "threshold": 1.1666666666666667,
+        "comparison": ">",
+        "validation_alert_count": 12,
+        "validation_alert_rate": 0.041811846689895474,
+        "score_coverage": 221,
+        "score_coverage_rate": 0.7700348432055749,
+        "threshold_ties_not_alerted": 7,
+        "target_boundary_score_tie_count": 7
+      }
+    }
+  },
+  "threshold_comparison": "score > threshold; validation ties at threshold are not warned",
+  "split_counts": {
+    "train": 1100,
+    "validation": 287,
+    "test": 288
+  },
+  "split_missing_rates": {
+    "train": {
+      "amount_log1p": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "is_withdrawal": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "hour_sin": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "hour_cos": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "seconds_since_previous": {
+        "missing_count": 20,
+        "missing_rate": 0.01818181818181818
+      },
+      "withdrawal_count_prev_1h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_count_prev_24h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_sum_prev_24h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "amount_to_same_direction_median_30d": {
+        "missing_count": 280,
+        "missing_rate": 0.2545454545454545
+      },
+      "withdrawal_to_balance_before": {
+        "missing_count": 951,
+        "missing_rate": 0.8645454545454545
+      }
+    },
+    "validation": {
+      "amount_log1p": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "is_withdrawal": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "hour_sin": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "hour_cos": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "seconds_since_previous": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_count_prev_1h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_count_prev_24h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_sum_prev_24h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "amount_to_same_direction_median_30d": {
+        "missing_count": 66,
+        "missing_rate": 0.22996515679442509
+      },
+      "withdrawal_to_balance_before": {
+        "missing_count": 236,
+        "missing_rate": 0.8222996515679443
+      }
+    },
+    "test": {
+      "amount_log1p": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "is_withdrawal": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "hour_sin": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "hour_cos": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "seconds_since_previous": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_count_prev_1h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_count_prev_24h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "withdrawal_sum_prev_24h": {
+        "missing_count": 0,
+        "missing_rate": 0.0
+      },
+      "amount_to_same_direction_median_30d": {
+        "missing_count": 64,
+        "missing_rate": 0.2222222222222222
+      },
+      "withdrawal_to_balance_before": {
+        "missing_count": 235,
+        "missing_rate": 0.8159722222222222
+      }
+    }
+  },
+  "input_sha256": {
+    "deliverables\\moa-anomaly-stage3\\generated\\feature_names.json": "6534da0d65caf7c23c32db679b9027a93bc59f4a1ad9d224e0ae6f5918649263",
+    "deliverables\\moa-anomaly-stage3\\generated\\train.jsonl": "2783edd9c1a61af8b10e19fc52c3ab2110cc722f7d38601cac99d77a6a30d9ba",
+    "deliverables\\moa-anomaly-stage3\\generated\\validation.jsonl": "a675d72fda7e5d67955f42095a83ddc181da9fc32ad72ffc161c6610819fe408",
+    "deliverables\\moa-anomaly-stage3\\generated\\test.jsonl": "08e99ba418671a20cd7144fbe7a95cb0f6f76354a0f7da2e6c7075dbf2c7bd07",
+    "deliverables\\moa-anomaly-stage1-2\\generated\\splits.json": "baeda5784c50d9103e7662f9b77c1922f4c731dae465e2ced022a0d4f95a60b7"
+  },
+  "model_sha256": "f43c3fc790d8a4824f9d5036f732a133714d40e60fa977b917ddcaa8b6863f8d",
+  "prediction_reloaded_train_scores_exact": true,
+  "labels_read_by_this_program": false
+}
