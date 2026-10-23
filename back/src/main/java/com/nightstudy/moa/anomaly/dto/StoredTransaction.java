@@ -3,7 +3,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Data;
 
-// AI작성: 제안 group_transaction 컬럼에 대응한다. 외부 입력을 직접 바인딩하는 공개 DTO가 아니다.
+// AI작성: 사용자 첨부 group_transaction 정의에 대응한다. 원천 순번은 스키마에 없어 저장하지 않는다.
 @Data
 public class StoredTransaction {
     private Long transactionId;
@@ -14,5 +14,5 @@ public class StoredTransaction {
     private BigDecimal balanceAfter;
     private String sourceProvider;
     private String sourceTransactionId;
-    private Long sourceSequence;
+    // AI작성: 같은 시각의 원천 순서를 추정하지 않는다. Python 요청에는 null을 전달한다.
 }

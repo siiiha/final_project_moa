@@ -328,3 +328,33 @@
 - 개발자 검토·수정: 최종 검토 대기. API URL과 DB 스키마는 변경하지 않았다.
 - 데이터·외부 서비스·의존성·설정 변경: 없음.
 - 검증: `git diff --check`, Gradle 컴파일 및 테스트 실행 결과를 확인해야 한다.
+
+
+## 2026-10-23 지정 schema.sql 기준 최신 분석 조회 준비
+
+- AI작성: anomaly 조회 DTO 2개, Mapper/XML, Service/ServiceImpl, 단위 테스트를 추가했다. groups/group_id 관계를 유지한다.
+- 승인 OWNER 거래 범위 확인, 분석 저장소 미사용/미분석/최신 대기·실패·완료 구분, 손상 결과 검사를 구현했다. 공개 API/인증 Principal 연결은 추가하지 않았다.
+- 기본 schema.sql에 없는 분석 확장은 기본 비활성으로 구분했다. 실제 DB·스키마 파일·모델·프론트는 변경하지 않았고 네트워크 DB 연결도 수행하지 않았다.
+- 검증은 Java 컴파일·mock 서비스/SQL 파싱/기준 schema.sql 계약 테스트이다. 실제 DB 저장/조회·권한 통합은 별도 검증 대상이다.
+
+
+## 2026-10-23 사용자 첨부 스키마 기준 정정
+
+- AI작성: 구버전 로컬 파일을 기준으로 분석 테이블이 없다고 판단한 오류를 정정했다. 사용자 첨부 전체 스키마를 테스트 계약으로 고정했다.
+- source_sequence의 DB 의존을 제거하고 null/순서 미상 처리, 잔액·원천 거래 ID·분석 저장 및 최신 조회 구조는 유지했다. 잘못 만든 비저장 우회 코드/구버전 차단기 7개는 백업 후 제거했다.
+- 변경은 저장 DTO/Mapper/Service, 조회 Service, 계약/회귀 테스트, 기존 기록에 한정했다. 공유 DB/원본 schema.sql/모델/프론트는 변경하지 않았다.
+- 실제 DB 쓰기 및 금융 API 호출 없이 첨부 컬럼 정합성·Java 회귀·Python 순서 미상 처리를 검증한다.
+
+
+## 2026-10-23 실제 로컬 DB 통합·새 가상환경 검증
+
+- AI작성: 환경변수로 명시 활성화하는 AnomalyLocalDatabaseTest를 추가해 합성 데이터의 실제 DB 저장/롤백/동시성 및 Python 분석·최신 조회·회원 범위를 검증했다. 테스트 데이터는 격리 DB에만 보존했다.
+- 새 ml/.venv에 기존 요구 패키지를 설치했고 전역 환경·외부 runtime을 참조하지 않는지 검사했다. requirements-lock.txt와 loopback 전용 run-server.ps1를 추가했다.
+- Python 의존성 검사, 14건 점수 회귀, 입력 오류/미래 제외/순번 미상 테스트 통과. 실제 탐지 성능 향상·공개 인증/화면 연동 완료를 의미하지 않는다.
+
+
+## 2026-10-23 JWT 계약 기반 단건 분석 조회 API
+
+- AI작성: origin/feature/member의 JwtAuthenticationFilter/SecurityConfig/MemberController를 읽기 전용으로 확인했다. JWT 검증 뒤 memberId(Long) 속성과 Long Principal을 전달하는 계약에 맞춰 AnomalyQueryController를 추가했다.
+- 인증 코드 미병합 상태에서는 fail-closed 401, 클라이언트 회원 ID 무시, 기존 OWNER Service 범위 검사·no-store·공통 응답을 적용했다. 인증 구현 복사/브랜치 병합/새 의존성/프론트/DB 변경 없음.
+- MVC 경계 테스트 10개 통과. 로컬 DB 통합 테스트에 Controller와 모의 Principal 검증을 추가했다. 실제 JWT 서명·로그인·브라우저 연결은 인증 코드 반영 후 별도 검증이 필요하다.

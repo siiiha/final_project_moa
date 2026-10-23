@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @ConditionalOnProperty(name="moa.anomaly.persistence.enabled", havingValue="true")
 public class AnomalyStoreServiceImpl implements AnomalyStoreService {
+    // AI작성: 사용자 첨부 스키마의 분석 테이블을 사용한다. 로컬 구버전 파일로 활성화를 차단하지 않는다.
     private final AnomalyStorageMapper mapper;
     private final String modelVersion;
     private static final String SCHEMA="moa-anomaly-features-v1";
@@ -88,7 +89,7 @@ public class AnomalyStoreServiceImpl implements AnomalyStoreService {
         return new AnomalyHistoryRequest(String.valueOf(target.getAccountId()),String.valueOf(target.getTransactionId()),
             rows.stream().map(t->new AnomalyHistoryRequest.Transaction(String.valueOf(t.getTransactionId()),
                 String.valueOf(t.getAccountId()),t.getTransactionType(),decimal(t.getAmount()),
-                t.getTransactedAt().atOffset(ZoneOffset.ofHours(9)).toString(),decimal(t.getBalanceAfter()),t.getSourceSequence())).toList());
+                t.getTransactedAt().atOffset(ZoneOffset.ofHours(9)).toString(),decimal(t.getBalanceAfter()),null)).toList());
     }
 
     // AI작성: 필드 길이를 포함해 경계 충돌을 방지하고 SQL 순서·금액 표기·모델/규격 버전을 고정한다.
@@ -110,8 +111,7 @@ public class AnomalyStoreServiceImpl implements AnomalyStoreService {
     private String decimal(BigDecimal value) { return value==null?null:value.stripTrailingZeros().toPlainString(); }
     private boolean same(StoredTransaction a,StoredTransaction b) {
         return Objects.equals(a.getTransactionType(),b.getTransactionType()) && Objects.equals(decimal(a.getAmount()),decimal(b.getAmount()))
-            && Objects.equals(a.getTransactedAt(),b.getTransactedAt()) && Objects.equals(decimal(a.getBalanceAfter()),decimal(b.getBalanceAfter()))
-            && Objects.equals(a.getSourceSequence(),b.getSourceSequence());
+            && Objects.equals(a.getTransactedAt(),b.getTransactedAt()) && Objects.equals(decimal(a.getBalanceAfter()),decimal(b.getBalanceAfter()));
     }
     private void validate(StoredTransaction tx) {
         if(tx==null || tx.getTransactionId()!=null || tx.getAccountId()==null || tx.getAccountId()<1
@@ -120,8 +120,7 @@ public class AnomalyStoreServiceImpl implements AnomalyStoreService {
                 || (tx.getBalanceAfter()!=null && !money(tx.getBalanceAfter()))
                 || tx.getTransactedAt()==null || tx.getTransactedAt().getNano()!=0
                 || tx.getSourceProvider()==null || tx.getSourceProvider().isBlank() || tx.getSourceProvider().length()>50
-                || tx.getSourceTransactionId()==null || tx.getSourceTransactionId().isBlank() || tx.getSourceTransactionId().length()>128
-                || (tx.getSourceSequence()!=null && tx.getSourceSequence()<0)) throw error("ANOMALY_INVALID_INPUT");
+                || tx.getSourceTransactionId()==null || tx.getSourceTransactionId().isBlank() || tx.getSourceTransactionId().length()>128) throw error("ANOMALY_INVALID_INPUT");
         // AI작성: 현재 스키마의 초 정밀도·KST를 임시 계약으로 두고 반올림하지 않는다. DB 담당자 확정 후 조정한다.
     }
     private boolean money(BigDecimal value) {

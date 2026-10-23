@@ -24,7 +24,7 @@ class AnomalyStorageTest {
         var t=new StoredTransaction();t.setAccountId(10013L);t.setTransactionType("WITHDRAWAL");
         t.setAmount(new BigDecimal("50000.00"));t.setBalanceAfter(new BigDecimal("1000000.00"));
         t.setTransactedAt(LocalDateTime.of(2026,9,18,20,8));t.setSourceProvider("MOCK");
-        t.setSourceTransactionId("synthetic-2");t.setSourceSequence(2L);return t;
+        t.setSourceTransactionId("synthetic-2");return t;
     }
     AnomalyResult result() {
         return new AnomalyResult("10013","2","2026-09-18T20:08:00+09:00","WITHDRAWAL",0.7,0.6,true,
@@ -43,6 +43,8 @@ class AnomalyStorageTest {
         var t=tx();var m=mapper(t);var store=new AnomalyStoreServiceImpl(m,VERSION);
         var work=store.register(t);
         assertEquals(64,work.fingerprint().length());
+        assertNull(work.request().transactions().get(0).source_sequence());
+        assertEquals("1000000",work.request().transactions().get(0).balance_after());
         assertEquals("COMPLETED",store.complete(work,result()));
         var order=inOrder(m);order.verify(m).insertTransaction(t);
         order.verify(m).insertPending(2L,work.fingerprint());

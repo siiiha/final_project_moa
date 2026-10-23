@@ -320,6 +320,16 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 - https://dev.mysql.com/doc/refman/8.4/en/string-comparison-functions.html
 - https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html
 
+
+## 분석 결과 단건 조회 (2026-10-23)
+
+AI작성: GET /api/groups/{groupId}/transactions/{transactionId}/anomaly. groupId는 groups.group_id이며 saving_group_id가 아니다. 응답은 기존 ApiResponse 봉투의 data에 LatestAnomalyResult를 넣는다.
+
+- 요청 본문/쿼리/사용자 지정 헤더로 회원 ID를 받지 않는다. origin/feature/member의 JWT 필터가 설정한 Long memberId 속성과 서버 Principal.getName()이 일치해야 한다. 현재 feature/ML에는 인증 코드가 아직 병합되지 않아 실제 익명 요청은 401로 차단된다. 이 Controller 자체는 JWT 서명 검증기가 아니다.
+- 승인 OWNER·활성 회원·동일 모임 거래 범위를 기존 Service에서 확인한다. ADMIN 자동 우회 없음. 권한 없음/없는 거래는 404, 잘못된 ID는 400. 성공·Controller 처리 오류에는 Cache-Control: no-store 적용.
+- data: transactionId, status, revisionNo, anomalyScore, threshold, isAnomaly, coldStart, qualityFlags, modelVersion, featureSchemaVersion, analyzedAt, errorCode. 상태는 STORAGE_UNAVAILABLE/NOT_ANALYZED/PENDING/FAILED/COMPLETED. 미완료 점수·경고는 null.
+- 실제 JWT 필터·로그인 UI·프론트 토큰 전달 연결은 미완료다. 현재 MVC 테스트의 Principal/속성은 서버 측 테스트 주입이며 실로그인 검증으로 표현하지 않는다.
+
 <!-- AI작성: 가입 신청 승인 Controller 계약과 사용자 요청으로 제외한 JWT 연결 TODO를 기록한다. -->
 ## 가입 신청 승인 API (3단계)
 

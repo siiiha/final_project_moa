@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- AI작성: DB 담당자 확정 전 제안 스키마. 이 파일은 DDL을 실행하지 않는다. -->
+<!-- AI작성: 사용자 첨부 스키마 기준. source_sequence 컬럼은 사용하지 않으며 DDL은 실행하지 않는다. -->
 <mapper namespace="com.nightstudy.moa.anomaly.mapper.AnomalyStorageMapper">
     <resultMap id="transaction" type="com.nightstudy.moa.anomaly.dto.StoredTransaction">
         <id property="transactionId" column="transaction_id"/>
@@ -11,10 +11,10 @@
         <result property="balanceAfter" column="balance_after"/>
         <result property="sourceProvider" column="source_provider"/>
         <result property="sourceTransactionId" column="source_transaction_id"/>
-        <result property="sourceSequence" column="source_sequence"/>
+        <!-- AI작성: 원천 순번이 없으므로 DTO/SQL에 가짜 순서를 만들지 않는다. -->
     </resultMap>
     <sql id="columns">transaction_id, account_id, transaction_type, amount, transacted_at,
-        balance_after, source_provider, source_transaction_id, source_sequence</sql>
+        balance_after, source_provider, source_transaction_id</sql>
     <select id="lockAccount" resultType="long">
         SELECT account_id FROM group_account WHERE account_id = #{accountId} FOR UPDATE
     </select>
@@ -26,9 +26,9 @@
     <insert id="insertTransaction" useGeneratedKeys="true" keyProperty="transactionId" keyColumn="transaction_id">
         INSERT INTO group_transaction
         (account_id, transaction_type, amount, transacted_at, balance_after,
-         source_provider, source_transaction_id, source_sequence)
+         source_provider, source_transaction_id)
         VALUES (#{accountId}, #{transactionType}, #{amount}, #{transactedAt}, #{balanceAfter},
-                #{sourceProvider}, #{sourceTransactionId}, #{sourceSequence})
+                #{sourceProvider}, #{sourceTransactionId})
     </insert>
     <select id="findTransaction" resultMap="transaction">
         SELECT <include refid="columns"/> FROM group_transaction WHERE transaction_id = #{transactionId}

@@ -33,6 +33,16 @@ async def main():
     oversized = copy.deepcopy(body); oversized['transactions'] *= 1001
     assert (await request('POST','/v1/anomalies/score-history',oversized))[0] == 422
     assert (await request('POST','/v1/anomalies/score-history',{'padding':'x'*1048576}))[0] == 413
+    # AI작성: 첨부 DB 스키마에는 순번 컬럼이 없다. 동시각 거래는 순서 미상으로 분석해야 한다.
+    unordered = copy.deepcopy(body)
+    for transaction in unordered['transactions']:
+        transaction['source_sequence'] = None
+        transaction['transacted_at'] = '2026-09-18T20:08:00+09:00'
+    status, unordered_result = await request('POST','/v1/anomalies/score-history',unordered)
+    assert status == 200, unordered_result
+    assert 'source_sequence_missing' in unordered_result['quality_flags']
+    assert 'same_timestamp_order_unknown' in unordered_result['quality_flags']
+    assert unordered_result['requires_review']
     ready = scorer.ready
     try:
         scorer.ready = False

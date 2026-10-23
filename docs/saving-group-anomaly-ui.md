@@ -111,3 +111,39 @@ AI작성: 기존 payout_request.transaction_id FK만 재사용하는 AnomalyCont
 ## 내부 추론 응답 검증 보강 (2026-10-22)
 
 AI작성: 응답의 ID뿐 아니라 거래 종류·시각(UTC offset 차이는 동일 순간 비교), 품질 코드 allowlist를 검사한다. 잘못된 응답은 저장 전에 거부한다. 지연/깨진 JSON/모순 응답/불일치/UTC 동등 시각은 AnomalyFaultTest로 검증한다. 외부 API 계약·DB·프론트는 변경하지 않았다.
+
+
+## 2026-10-23 사용자 지정 schema.sql 기준 최신 분석 조회
+
+AI작성: 기준은 back/src/main/resources/schema.sql의 groups/group_id이다. 실제 Aiven의 meeting 구조로 변경하지 않는다.
+
+- AnomalyQueryService.findLatest(authenticatedMemberId, groupId, transactionId)는 내부 서비스다. 공개 Controller 없음. memberId는 향후 인증 계층에서 얻어야 하며 클라이언트 전달값을 신뢰하면 안 된다.
+- 기본 스키마의 group_account.group_id와 group_member.group_id를 연결해 승인된 OWNER·탈퇴 아님·활성 회원·삭제되지 않은 모임의 거래인지 확인한다. 미승인/비소유/타 모임/없는 거래는 같은 NOT_FOUND 응답으로 처리한다.
+- moa.anomaly.results.enabled=false가 기본이다. 분석 테이블을 조회하지 않고 STORAGE_UNAVAILABLE을 반환한다. 기본 schema.sql에 transaction_anomaly_analysis와 추가 거래 컬럼은 없다. 미반영 확장은 기본 구조로 가장하지 않는다.
+- 분석 확장 반영 후 명시적으로 enabled=true일 때 최신 revision_no를 조회한다. 결과 없음은 NOT_ANALYZED, 최신 PENDING/FAILED는 점수·경고를 null로 반환한다. 과거 완료 점수로 대체하지 않는다.
+- COMPLETED 점수·기준·경고·모델/피처 버전·품질 JSON의 정합성을 검증한다. 손상 결과는 내부 오류로 처리한다. 계좌번호·원천 거래 ID·설명·개인정보는 조회하지 않는다.
+- 기본 파일과 불일치하는 현재 Aiven DB에서 이 조회를 활성화하지 않는다. DB 연결·DDL·프론트·모델은 이번 작업에서 변경하지 않았다. 테스트는 mock 분기·XML 파싱·기본 파일 계약 검증이며 실제 SQL 실행/회원 인증 연동을 의미하지 않는다.
+
+
+## 정정: 사용자 첨부 최신 스키마를 기준으로 적용 (2026-10-23)
+
+AI작성: 이 절이 앞선 구버전 schema.sql 기준의 미반영 판단보다 우선한다. 기준은 사용자가 제공한 붙여넣은 텍스트.txt의 전체 정의이며 테스트 계약은 src/test/resources/anomaly-approved-schema.sql에 원본 해시와 함께 추출했다. 기존 resources/schema.sql과 실제 DB는 이번에 덮어쓰거나 변경하지 않았다.
+
+- groups/group_id 관계와 기존 거래 저장 → PENDING 등록 → Python 분석 → COMPLETED/FAILED 저장 → 최신 결과 조회 구조를 유지한다. 첨부 정의에 balance_after/source_provider/source_transaction_id 및 transaction_anomaly_analysis가 모두 존재한다.
+- source_sequence는 첨부 스키마에 없다. 저장 DTO·SQL 의존을 제거하고 Python 요청에는 null을 전달한다. bank balance를 버리지 않으며 동시각 거래는 기존 순서 미상 정책을 적용한다. API의 선택 source_sequence 필드/품질 코드는 하위 호환과 피처 규격을 위해 유지한다.
+- 잘못 추가한 분석 비저장 우회 서비스·기본 거래 전용 Mapper·구버전 파일 기반 저장 차단기는 제거했다. 제거한 신규 파일 7개는 ChatGPT 작업 폴더의 deliverables/schema-correction-backup에 백업했다.
+- persistence.enabled / results.enabled / context.enabled / anomaly.enabled의 기존 명시적 활성화 정책은 유지한다. 실제 DB 구조·시간대 및 테스트 데이터 범위 확인 없이 공유 DB에 쓰지 않는다.
+- 새 계약 테스트는 Mapper 결과 컬럼 존재, source_sequence SQL 미사용, group_id 관계를 검사한다. Python 테스트는 순번 없는 동시각 요청의 source_sequence_missing/same_timestamp_order_unknown 문맥을 확인한다.
+- 이번 검증은 컴파일·단위 테스트·로컬 Python API이며 실제 DB SQL 실행/트랜잭션/권한 Principal·프론트 연동 완료를 뜻하지 않는다.
+
+
+## 2026-10-23 로컬 DB 통합 및 독립 Python 환경 검증
+
+AI작성: 공유 Aiven 설정을 로드하지 않는 AnomalyLocalDatabaseTest를 추가했다. MOA_LOCAL_DB_TEST=true 및 명시적 로컬 JSON 설정/127.0.0.1 Python 주소가 있을 때만 실행된다.
+
+- 첨부 스키마를 적용한 격리 MySQL 8.0.46 / moa_ml_test_20261023 / +09:00에서 Spring 트랜잭션·실제 MyBatis·모델 HTTP 호출을 검증했다. 계정·주소를 코드에 넣지 않고 기존 application.yaml은 변경하지 않았다.
+- 합성 거래 저장·모델 분석·최신 조회, 중복·내용 충돌·타 회원/모임 차단, 분석 503 시 원거래 보존, 동시 중복 한 건 삽입, PENDING 등록 오류 시 거래 롤백을 확인했다. revision 2/3은 조회 검증용 직접 fixture이며 자동 재분석 구현이 아니다.
+- 모델 경고가 나온다는 연결 검증이지 실제 금융 탐지 성능을 보증하는 테스트는 아니다. 인증 Principal/공개 API/브라우저 연결은 아직 미완료다.
+- ml/.venv를 새로 생성해 requirements.txt 설치 후 pip check와 기존 14건 점수·입력 오류·미래 제외·동시각 순번 미상 테스트를 통과했다. PYTHONPATH/사용자 패키지는 사용하지 않았다.
+- Python 3.14.6에서 python -m venv .venv → .venv/Scripts/python.exe -m pip install -r requirements-lock.txt → PowerShell의 ./run-server.ps1 순서로 실행한다. 기본 포트 8001, -Port로 변경 가능. Windows PowerShell 정책이 스크립트를 막으면 .venv/Scripts/python.exe -E -s -m uvicorn app.main:app --host 127.0.0.1 --port 8001을 사용한다.
+- 검증은 같은 PC의 새 가상환경에서 수행했다. 다른 PC/OS에서의 실제 실행까지 검증했다고 표현하지 않는다. 잠금 파일은 버전 목록이며 공급망 해시 잠금은 아니다.
