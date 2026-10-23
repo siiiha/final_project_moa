@@ -19,6 +19,8 @@ public class PostDto {
     private Long postId;
     private Long writerId; //작성자
     private Long categoryId;
+    // AI작성: 게시글 목록과 상세 화면에 카테고리 이름을 표시하기 위한 조회 필드
+    private String categoryName;
     @NotBlank(message = "제목은 필수입니다.")
     private String title;
     @NotBlank(message = "내용은 필수입니다.")

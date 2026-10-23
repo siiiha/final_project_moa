@@ -1,13 +1,26 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { getPosts } from '../api/postApi';
 import Button from '../components/common/Button';
 import PostFilterBar from '../components/post/PostFilterBar';
 import PostTable from '../components/post/PostTable';
-import { postCategories, postItems } from '../mocks/posts';
 
 const POSTS_PER_PAGE = 10;
 const PAGE_BUTTON_COUNT = 5;
+
+// AI작성: 화면의 카테고리 이름을 DB의 post_category ID와 연결합니다.
+const POST_CATEGORIES = [
+  { name: '전체', id: null },
+  { name: '행사·축제', id: 1 },
+  { name: '일자리', id: 2 },
+  { name: '거래·나눔', id: 3 },
+];
+
+const SEARCH_TYPE_BY_CONDITION = {
+  '제목': 'title',
+  '내용': 'content',
+};
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -60,17 +73,87 @@ const Content = styled.main`
   margin-top: 14px;
 `;
 
+const StatusMessage = styled.p`
+  padding: 32px 16px;
+  color: ${({ theme }) => theme.colors.muted};
+  text-align: center;
+`;
+
 function PostListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [keywordDraft, setKeywordDraft] = useState(searchParams.get('keyword') || '');
   const [currentPage, setCurrentPage] = useState(1);
+  const [posts, setPosts] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const category = searchParams.get('category') || '전체';
   const condition = searchParams.get('condition') || '제목+내용';
   const sort = searchParams.get('sort') || '최신순';
   const keyword = searchParams.get('keyword') || '';
   const order = sort === '최신순' ? 'desc' : 'asc';
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadPosts() {
+      setIsLoading(true);
+      setErrorMessage('');
+
+      const selectedCategory = POST_CATEGORIES.find((item) => item.name === category);
+      const params = {
+        page: currentPage,
+        size: POSTS_PER_PAGE,
+        order,
+      };
+
+      if (selectedCategory?.id) params.categoryId = selectedCategory.id;
+      if (keyword) params.keyword = keyword;
+      if (SEARCH_TYPE_BY_CONDITION[condition]) {
+        params.searchType = SEARCH_TYPE_BY_CONDITION[condition];
+      }
+
+      try {
+        // AI작성: Spring Boot 게시글 목록 API의 데이터와 페이징 정보를 화면 형식으로 변환합니다.
+        const response = await getPosts(params);
+        if (!response.success) {
+          throw new Error(response.error?.message || '게시글 목록을 불러오지 못했습니다.');
+        }
+
+        if (!isActive) return;
+
+        setPosts(
+          (response.data || []).map((post) => ({
+            id: post.postId,
+            category: post.categoryName || '기타',
+            title: post.title,
+            author: post.writerNickname || '알 수 없음',
+            date: post.createdAtStr || '',
+            views: post.viewCount,
+          }))
+        );
+        setTotalCount(response.meta?.total || 0);
+        setTotalPages(response.meta?.totalPages || 0);
+      } catch (error) {
+        if (!isActive) return;
+        setPosts([]);
+        setTotalCount(0);
+        setTotalPages(0);
+        setErrorMessage(error.message || '게시글 목록을 불러오지 못했습니다.');
+      } finally {
+        if (isActive) setIsLoading(false);
+      }
+    }
+
+    loadPosts();
+
+    return () => {
+      isActive = false;
+    };
+  }, [category, condition, currentPage, keyword, order]);
 
   const updateFilters = (nextFilters) => {
     const nextCategory = nextFilters.category ?? category;
@@ -93,23 +176,6 @@ function PostListPage() {
     setSearchParams(nextParams);
   };
 
-  const filteredPosts = useMemo(() => {
-    // TODO: Spring Boot 게시글 목록 조회 API에 category, condition, keyword, sort, order, page 정보를 전달합니다.
-    const normalizedKeyword = keyword.toLowerCase();
-    const visiblePosts = postItems.filter((post) => {
-      if (category !== '전체' && post.category !== category) return false;
-      if (!normalizedKeyword) return true;
-
-      const searchableText =
-        condition === '제목' ? post.title : condition === '내용' ? post.content : `${post.title} ${post.content}`;
-      return searchableText.toLowerCase().includes(normalizedKeyword);
-    });
-
-    return [...visiblePosts].sort((a, b) => (order === 'desc' ? b.id - a.id : a.id - b.id));
-  }, [category, condition, keyword, order]);
-
-  const totalPages = Math.max(Math.ceil(filteredPosts.length / POSTS_PER_PAGE), 1);
-  const visiblePosts = filteredPosts.slice((currentPage - 1) * POSTS_PER_PAGE, currentPage * POSTS_PER_PAGE);
   const pageStart = Math.floor((currentPage - 1) / PAGE_BUTTON_COUNT) * PAGE_BUTTON_COUNT + 1;
   const pageNumbers = Array.from(
     { length: Math.min(PAGE_BUTTON_COUNT, totalPages - pageStart + 1) },
@@ -143,7 +209,7 @@ function PostListPage() {
       </Heading>
       <Content>
         <PostFilterBar
-          categories={postCategories}
+          categories={POST_CATEGORIES.map((item) => item.name)}
           category={category}
           condition={condition}
           keyword={keywordDraft}
@@ -154,14 +220,20 @@ function PostListPage() {
           onSortChange={(value) => updateFilters({ sort: value })}
           onSearch={handleSearch}
         />
-        <PostTable
-          posts={visiblePosts}
-          totalCount={filteredPosts.length}
-          currentPage={currentPage}
-          pageNumbers={pageNumbers}
-          onPageChange={setCurrentPage}
-          onPostClick={handlePostClick}
-        />
+        {isLoading ? (
+          <StatusMessage>게시글을 불러오는 중입니다.</StatusMessage>
+        ) : errorMessage ? (
+          <StatusMessage role="alert">{errorMessage}</StatusMessage>
+        ) : (
+          <PostTable
+            posts={posts}
+            totalCount={totalCount}
+            currentPage={currentPage}
+            pageNumbers={pageNumbers}
+            onPageChange={setCurrentPage}
+            onPostClick={handlePostClick}
+          />
+        )}
       </Content>
     </Page>
   );
