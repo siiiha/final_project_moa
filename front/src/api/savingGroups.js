@@ -141,8 +141,6 @@ export async function getSavingGroups({ keyword, regionCode, page, signal }) {
     currentPage: meta.page,
     pageSize: meta.size,
   };
-  const data = response.data.data;
-  return { ...data, items: data.items.map(toSavingGroupCard) };
 }
 
 function toNullableNumber(value) {

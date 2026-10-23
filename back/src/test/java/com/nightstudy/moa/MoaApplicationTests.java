@@ -5,11 +5,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
+// AI작성: 테스트에서는 실제 메일을 발송하지 않고 로컬 인증번호 발송 Bean을 사용한다.
+@ActiveProfiles("local")
 class MoaApplicationTests {
 
 	@Autowired
