@@ -405,6 +405,80 @@ back 폴더에서 실행한다.
 
 공식 근거: https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-methods/requestattrib.html
 
+<!-- AI작성: 계주가 승인 계원을 추방하는 API의 식별자·권한·상태 전이 계약을 기록한다. -->
+## 승인 계원 추방 API (4단계)
+
+### 경로와 요청
+
+```http
+PATCH /api/saving-groups/{groupId}/members/{memberId}/expel
+```
+
+기존 Controller 별칭도 유지한다.
+
+```http
+PATCH /saving-groups/{groupId}/members/{memberId}/expel
+```
+
+- groupId: 양수 Long, `groups.group_id`이면서 삭제되지 않은 계모임이어야 한다.
+- memberId: 양수 Long, 추방 대상 `members.member_id`다.
+- 요청 본문은 없다. 대상은 URL 경로로만 식별하며, 실행 계주·상태·역할은 클라이언트 입력으로 받지 않는다.
+- 실행자는 서버 인증 처리에서 설정한 request attribute `memberId`(Long)만 사용한다. 현재 JWT 연결 전에는 이 속성이 없으므로 HTTP 요청은 401을 반환한다.
+- Service는 `groups.member_id` 일치와 `group_member`의 `OWNER` + `APPROVED` 관계를 모두 확인한다.
+
+### 처리와 상태 전이
+
+1. 계모임과 요청 계주 관계를 `FOR UPDATE`로 확인한다.
+2. `groupId`와 대상 `memberId`의 `group_member` 행을 잠금 조회하고, `APPROVED` 상태인 경우에만 `crew_member_id`를 사용한다.
+3. 계주 본인을 대상자로 요청하면 상태를 변경하지 않고 409을 반환한다.
+4. 대상 행의 `crew_member_id`, `group_id`, `membership_status = 'APPROVED'`가 모두 일치할 때만 `membership_status`를 `EXPELLED`로 변경한다.
+
+`EXPELLED`는 기존 `group_member.membership_status` 상태값이므로 DB 마이그레이션·컬럼 변경은 없다. `left_at`, 역할, 승인 이력은 이 작업에서 변경하지 않는다.
+
+```java
+// TODO: 알림 기능 구현 후 추방당한 회원에게 추방 알림을 발송한다.
+```
+
+위 TODO만 남겼으며 알림 테이블 저장, 외부 알림 발송, 외부 서비스 연동은 구현하지 않는다.
+
+### 성공 응답
+
+HTTP 200, 기존 `ApiResponse.ok()`를 사용한다.
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 오류 응답
+
+기존 `GlobalExceptionHandler`와 `ApiResponse.fail`을 재사용한다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | BAD_REQUEST | 경로 변수 타입·범위 오류 |
+| 401 | UNAUTHORIZED | 서버 인증 회원 ID가 없거나 0 이하 |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 해당 모임의 승인된 계주가 아님 |
+| 404 | SAVING_GROUP_NOT_FOUND | 계모임이 없거나 삭제됨 |
+| 404 | SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND | 대상 계원이 없거나 현재 상태가 APPROVED가 아님 |
+| 409 | SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED | 계주 본인을 추방하려는 요청 |
+| 409 | SAVING_GROUP_MEMBER_EXPULSION_FAILED | 조건부 상태 변경 영향 행 수가 1이 아님 |
+| 500 | INTERNAL_ERROR | 예상하지 못한 DB·서버 오류 |
+
+### 테스트 및 직접 검증
+
+`SavingGroupJoinApprovalServiceTest`는 계주 성공, 비계주, 대상 없음·비승인 상태, 계주 본인 차단, 조건부 UPDATE 영향 행 수 불일치를 검증한다. `SavingGroupJoinApprovalControllerTest`는 두 URL 별칭, 인증 누락, 잘못된 경로 값, Service 오류의 공통 응답을 검증한다.
+
+현재 실행 환경에는 Java 17 toolchain이 없어 Gradle 테스트는 컴파일 전에 중단된다. Java 17을 준비한 뒤 아래 명령으로 재검증한다.
+
+```powershell
+.\gradlew.bat test --tests '*SavingGroupJoinApprovalServiceTest' --tests '*SavingGroupJoinApprovalControllerTest' --tests '*SavingGroupServiceImplTest'
+```
+
 <!-- AI작성: 실제 가입 신청 조회 API와 프론트 개별 승인 연결의 계약·제한·파일 목록을 기록한다. -->
 ## 계주 전용 가입 신청 목록과 프론트 승인 연결
 
