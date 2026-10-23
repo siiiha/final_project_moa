@@ -356,6 +356,16 @@
         AND membership_status = 'APPROVED'
     </update>
 
+    <!-- AI작성: 승인 상태인 본인 관계만 자진 탈퇴로 전환하고 실제 탈퇴 시각을 기록한다. -->
+    <update id="leaveApprovedSavingGroupMember">
+        UPDATE group_member
+        SET membership_status = 'LEFT',
+        left_at = CURRENT_TIMESTAMP
+        WHERE crew_member_id = #{crewMemberId}
+        AND group_id = #{groupId}
+        AND membership_status = 'APPROVED'
+    </update>
+
     <select id="selectApprovedMemberCountForUpdate" resultType="long">
         SELECT COUNT(DISTINCT member_id)
         FROM group_member

@@ -133,6 +133,10 @@ public interface SavingGroupMapper {
     int expelApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,
             @Param("groupId") Long groupId);
 
+    // AI작성: 자진 탈퇴는 잠금 조회로 확인한 본인의 승인 관계 한 건만 LEFT 상태로 전환한다.
+    int leaveApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,
+            @Param("groupId") Long groupId);
+
     // AI작성: 승인된 실제 가입만 집계하고 종료·삭제 모임은 최대 가입 수에서 제외한다.
     long selectApprovedSavingGroupCount(@Param("memberId") Long memberId);
 
