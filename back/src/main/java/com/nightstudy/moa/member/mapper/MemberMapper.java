@@ -85,4 +85,8 @@ public interface MemberMapper {
     int withdrawMember(
             @Param("memberId") Long memberId
     );
+
+    int countNotWithdrawnMemberById(
+            @Param("memberId") Long memberId
+    );
 }

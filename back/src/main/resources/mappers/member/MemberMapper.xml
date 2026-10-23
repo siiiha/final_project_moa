@@ -231,4 +231,12 @@
         WHERE member_id = #{memberId}
             AND deleted_at IS NULL
     </update>
+
+    <select id="countNotWithdrawnMemberById" resultType="int">
+        SELECT COUNT(*)
+        FROM members
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+            AND account_status != 'INACTIVE'
+    </select>
 </mapper>
