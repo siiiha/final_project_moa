@@ -275,6 +275,41 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 6. 상세 페이지는 기존 Mock 상태이므로 목록 카드의 실제 ID와 상세 Mock 데이터의 연결은 별도 범위다.
 7. 생성·수정 API에서 소수 회비 차단 및 1~28일 납부일 검증을 구현해야 한다.
 8. 현재 Java 17, Boot 4.0.9-SNAPSHOT, MyBatis starter 4.0.1 선언을 유지했다.
+
+## 계모임 개설 신청 및 관리자 심사 API
+
+### 신청
+
+`POST /api/saving-group`은 `multipart/form-data`로 아래 필드를 받는다.
+
+| 필드 | 타입 | 필수 | 검증 |
+|---|---|---:|---|
+| groupName | String | 예 | 1~100자 |
+| groupType | String | 예 | 친목계 또는 순번계 |
+| regionName | String | 예 | `region` 테이블의 지역명 |
+| duesAmount | BigDecimal | 예 | 1원 이상의 원 단위 정수 |
+| duesDay | Integer | 예 | 1~28 |
+| maxMembers | Integer | 예 | 1~999 |
+| description | String | 예 | 1~50자(현재 스키마 기준) |
+| groupImage | File | 아니오 | JPG/PNG/WEBP, 5MB 이하 |
+| memberId | Long | 예 | 인증 연동 전의 임시 신청자 ID |
+
+처리 성공 시 `groups`, `saving_group(status='00')`, `meeting_approval(type='CREATE', status='PENDING')`를 하나의 트랜잭션에서 생성한다. 지역명은 서버에서 `region_id`로 조회하므로 프론트가 DB ID를 추정하지 않는다.
+
+`memberId`는 로그인 인증이 병합되기 전 시연을 위한 임시 계약이다. 현재 프론트는 `1`을 전송하며, 실제 테스트 DB에는 삭제되지 않은 회원 ID 1이 필요하다. JWT 도입 시 이 필드는 제거하고 서버 인증 회원 ID로 대체해야 한다.
+
+### 관리자 개설 심사
+
+| API | 설명 |
+|---|---|
+| `GET /api/admin/saving-group-applications?status=&keyword=&page=` | CREATE 유형 신청 목록. status는 PENDING/APPROVED/REJECTED, 페이지 크기는 8 |
+| `GET /api/admin/saving-group-applications/{approvalId}` | 신청 상세 |
+| `PATCH /api/admin/saving-group-applications/{approvalId}/approve` | 대기 신청을 승인하고 `saving_group.status`를 공개 모집 상태 `01`로 변경 |
+| `PATCH /api/admin/saving-group-applications/{approvalId}/reject` | `{ "rejectReason": "..." }`를 받아 대기 신청을 반려 |
+
+목록의 신청 ID는 JavaScript 정밀도 손실을 피하기 위해 문자열로 반환한다. 승인·반려는 `meeting_approval` 행을 잠근 뒤 PENDING 상태인지 재확인하므로 이미 처리된 신청은 HTTP 409으로 거절한다. 반려된 계모임은 비공개 심사 상태 `00`으로 남아 공개 목록에 노출되지 않는다.
+
+현재는 관리자 권한 인증이 아직 없으므로 `/api/admin/**` 경로 자체는 접근 제어하지 않는다. JWT/Spring Security 병합 시 반드시 ADMIN 권한 검증을 추가해야 한다.
    Java 17로 컴파일·대상 테스트를 검증하며 버전 업그레이드는 하지 않는다.
 
 ## 공식 근거

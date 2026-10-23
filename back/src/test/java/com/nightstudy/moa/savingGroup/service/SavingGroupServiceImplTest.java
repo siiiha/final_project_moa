@@ -73,6 +73,93 @@ class SavingGroupServiceImplTest {
         private int reactivateCalls;
 
         @Override
+        public int insertGroups(SavingGroupCreationRequest request) {
+            return 0;
+        }
+
+        @Override
+        public int insertSavingGroup(SavingGroupCreationRequest request) {
+            return 0;
+        }
+
+        @Override
+        public int insertSavingGroupCreationApproval(Long groupId) {
+            return 0;
+        }
+
+        @Override
+        public Long selectRegionIdByName(String regionName) {
+            return null;
+        }
+
+        @Override
+        public boolean existsMember(Long memberId) {
+            return false;
+        }
+
+        @Override
+        public int selectSavingGroupCreationApplicationCount(SavingGroupCreationApplicationListCondition condition) {
+            return 0;
+        }
+
+        @Override
+        public List<SavingGroupCreationApplicationListItemResponse> selectSavingGroupCreationApplications(
+                SavingGroupCreationApplicationListCondition condition) {
+            return List.of();
+        }
+
+        @Override
+        public SavingGroupCreationApplicationDetailResponse selectSavingGroupCreationApplication(Long approvalId) {
+            return null;
+        }
+
+        @Override
+        public SavingGroupCreationApplicationDetailResponse selectSavingGroupCreationApplicationForUpdate(Long approvalId) {
+            return null;
+        }
+
+        @Override
+        public int approveSavingGroupCreationApplication(Long approvalId) {
+            return 0;
+        }
+
+        @Override
+        public int rejectSavingGroupCreationApplication(Long approvalId, String rejectReason) {
+            return 0;
+        }
+
+        @Override
+        public int publishApprovedSavingGroup(Long groupId) {
+            return 0;
+        }
+
+        @Override
+        public int selectSavingGroupJoinRequestCount(Long groupId, String status) {
+            return 0;
+        }
+
+        @Override
+        public List<SavingGroupJoinRequestRow> selectSavingGroupJoinRequests(
+                Long groupId, String status, int offset, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public int approveSavingGroupJoinRequest(Long crewMemberId, Long groupId, Long approvedBy) {
+            return 0;
+        }
+
+        @Override
+        public SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTarget(Long crewMemberId) {
+            return null;
+        }
+
+        @Override
+        public SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTargetForUpdate(Long crewMemberId) {
+            return null;
+        }
+
+        @Override
         public int selectSavingGroupCount(SavingGroupListCondition condition) {
             return 0;
         }
@@ -125,6 +212,11 @@ class SavingGroupServiceImplTest {
         @Override
         public Long selectSavingGroupOwnerMemberIdForUpdate(Long groupId) {
             return null;
+        }
+
+        @Override
+        public long selectApprovedMemberCountForUpdate(Long groupId) {
+            return approvedMemberCount;
         }
 
         @Override
