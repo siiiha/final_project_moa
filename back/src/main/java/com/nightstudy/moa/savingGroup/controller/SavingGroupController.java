@@ -15,6 +15,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -83,6 +84,19 @@ public class SavingGroupController {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
         savingGroupService.expelApprovedSavingGroupMember(groupId, targetMemberId, memberId);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 탈퇴 대상은 서버 인증 회원으로 고정하고 URL·본문에서 다른 회원 ID를 받지 않는다.
+    @DeleteMapping("/{savingGroupId}/members/me")
+    public ApiResponse<Void> leaveSavingGroup(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        // AI작성: JWT 병합 후 LoginInterceptor가 memberId를 설정하도록 이 경로도 인증 대상에 등록해야 한다.
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        savingGroupService.leaveSavingGroup(savingGroupId, memberId);
         return ApiResponse.ok();
     }
 
