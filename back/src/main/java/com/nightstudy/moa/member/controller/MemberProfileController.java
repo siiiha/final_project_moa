@@ -4,15 +4,12 @@ import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.member.dto.MemberProfileResponse;
 import com.nightstudy.moa.member.service.MemberService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestAttribute;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
+import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 @RestController
 @RequestMapping("/api/members")
@@ -54,6 +51,16 @@ public class MemberProfileController {
             @Valid @RequestBody MemberPasswordUpdateRequest request
     ) {
         memberService.updatePassword(memberId, request);
+
+        return ResponseEntity.ok(ApiResponse.<Void>ok(null));
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<ApiResponse<Void>> withdrawMember(
+            @RequestAttribute("memberId") Long memberId,
+            @Valid @RequestBody MemberWithdrawalRequest request
+    ) {
+        memberService.withdrawMember(memberId, request);
 
         return ResponseEntity.ok(ApiResponse.<Void>ok(null));
     }

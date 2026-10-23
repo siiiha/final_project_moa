@@ -217,7 +217,7 @@
                 OR EXISTS (
                     SELECT 1
                     FROM group_member gm
-                    WHERE gm.group_id = g.gruop_id
+                    WHERE gm.group_id = g.group_id
                         AND gm.member_id = #{memberId}
                         AND gm.membership_status = 'APPROVED'
                 )
@@ -231,7 +231,4 @@
         WHERE member_id = #{memberId}
             AND deleted_at IS NULL
     </update>
-
-
-
 </mapper>
