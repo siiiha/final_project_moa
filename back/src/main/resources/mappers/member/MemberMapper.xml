@@ -205,5 +205,38 @@
         WHERE member_id = #{memberId}
     </delete>
 
+    <select id="countWithdrawalBlockingGroups" resultType="int">
+        SELECT COUNT(*)
+        FROM `groups` g
+        INNER JOIN saving_group sg
+            ON sg.group_id = g.group_id
+        WHERE g.deleted_at IS NULL
+            AND sg.status IN ('02', '03')
+            AND (
+                g.member_id = #{memberId}
+                OR EXISTS (
+                    SELECT 1
+                    FROM group_member gm
+                    WHERE gm.group_id = g.group_id
+                        AND gm.member_id = #{memberId}
+                        AND gm.membership_status = 'APPROVED'
+                )
+            )
+    </select>
 
+    <update id="withdrawMember">
+        UPDATE members
+        SET account_status = 'INACTIVE',
+            deleted_at = CURRENT_TIMESTAMP
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+    </update>
+
+    <select id="countNotWithdrawnMemberById" resultType="int">
+        SELECT COUNT(*)
+        FROM members
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+            AND account_status != 'INACTIVE'
+    </select>
 </mapper>

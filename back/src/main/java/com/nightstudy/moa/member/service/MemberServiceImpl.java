@@ -18,6 +18,7 @@ import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.member.dto.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
+import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
 
 import java.nio.charset.StandardCharsets;
 
@@ -500,6 +501,71 @@ public class MemberServiceImpl implements MemberService {
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "PASSWORD_UPDATE_FAILED",
                     "비밀번호 수정에 실패했습니다."
+            );
+        }
+    }
+
+    @Override
+    @Transactional
+    public void withdrawMember(
+            Long memberId,
+            MemberWithdrawalRequest request
+    ) {
+        if (!request.isAgreed()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "WITHDRAWAL_AGREEMENT_REQUIRED",
+                    "회원탈퇴 안내사항에 동의해주세요."
+            );
+        }
+
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        String currentPassword = request.getCurrentPassword();
+
+        if (currentPassword == null
+            || currentPassword.isBlank()
+            || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+            || member.getPasswordHash() == null
+            || !passwordEncoder.matches(
+                    currentPassword,
+                    member.getPasswordHash()
+        )) {
+        throw new ApiException(
+            HttpStatus.BAD_REQUEST,
+                "INVALID_CURRENT_PASSWORD",
+                "현재 비밀번호가 올바르지 않습니다."
+    );
+        }
+
+        int blockingGroupCount =
+                memberMapper.countWithdrawalBlockingGroups(memberId);
+
+        if (blockingGroupCount > 0) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "WITHDRAWAL_BLOCKED_BY_GROUP",
+                    "진행 중이거나 정지된 계모임에 참여하고 있어 "
+                            + "지금은 탈퇴할 수 없습니다."
+            );
+        }
+
+        int updateRows = memberMapper.withdrawMember(memberId);
+
+        if (updateRows != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "MEMBER_WITHDRAWAL_FAILED",
+                    "회원탈퇴를 처리하지 못했습니다. 다시 시도해주세요."
             );
         }
     }

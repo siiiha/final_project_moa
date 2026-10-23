@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Checkbox from '../components/common/Checkbox';
@@ -7,6 +7,8 @@ import PasswordInput from '../components/common/PasswordInput';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import WithdrawalPanel from '../components/member/WithdrawalPanel';
 import { memberMenuItems, withdrawalStatus } from '../mocks/mypage';
+import { withdrawMyAccount } from '../api/member';
+import useAuthStore from '../store/authStore';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -74,6 +76,17 @@ const Agreement = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
+// AI작성: 탈퇴 요청 오류를 확인창 안에 표시합니다.
+const ErrorNotice = styled.p`
+  margin: 12px 0;
+  padding: 12px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 13px;
+  line-height: 1.6;
+`;
+
 function DeleteAccountPage() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState('');
@@ -82,16 +95,81 @@ function DeleteAccountPage() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isAgreed, setIsAgreed] = useState(false);
 
+  // AI작성: 로그인 토큰을 사용하고, 탈퇴 성공 시 로그인 정보를 정리합니다.
+  const token = useAuthStore((state) => state.token);
+  const clearToken = useAuthStore((state) => state.clearToken);
+
+  // AI작성: 요청 중복을 방지하고 처리 상태와 오류를 화면에 표시합니다.
+  const submittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  // AI작성: 처리 중에는 확인창을 유지하고, 닫을 때 입력값을 초기화합니다.
   const closeModal = () => {
+    if (submittingRef.current) return;
+
     setIsModalOpen(false);
     setPassword('');
     setIsPasswordVisible(false);
     setIsAgreed(false);
+    setErrorMessage('');
   };
 
-  const handleWithdrawalConfirm = () => {
-    // TODO: Spring Boot 회원 탈퇴 API 요청이 성공하면 인증 상태를 정리한 뒤 로그인 전 메인 화면으로 이동합니다.
-    navigate('/');
+  const handleWithdrawalConfirm = async () => {
+    if (submittingRef.current) return;
+
+    setErrorMessage('');
+
+    // AI작성: 서버 요청 전에 로그인 상태와 필수 입력값을 확인합니다.
+    if (!token) {
+      navigate('/member/login', { replace: true });
+      return;
+    }
+
+    if (!password.trim()) {
+      setErrorMessage('현재 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    if (!isAgreed) {
+      setErrorMessage('회원탈퇴 안내사항에 동의해주세요.');
+      return;
+    }
+
+    submittingRef.current = true;
+    setIsSubmitting(true);
+
+    try {
+      await withdrawMyAccount(token, {
+        currentPassword: password,
+        agreed: isAgreed,
+      });
+
+      // AI작성: 탈퇴 성공 후 로그인 정보를 지우고 메인 화면으로 이동합니다.
+      clearToken();
+      navigate('/', { replace: true });
+    } catch (error) {
+      // AI작성: 만료되거나 사용할 수 없는 토큰은 정리하고 로그인을 안내합니다.
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      const errorCode = error.response?.data?.error?.code;
+
+      if (errorCode === 'INVALID_CURRENT_PASSWORD') {
+        setErrorMessage('비밀번호가 맞지 않아요. 다시 확인해주세요.');
+      } else if (errorCode === 'WITHDRAWAL_BLOCKED_BY_GROUP') {
+        setErrorMessage('진행 중이거나 정지된 계모임이 있어요. 해당 모임이 종료된 후 탈퇴할 수 있습니다.');
+      } else {
+        setErrorMessage(
+          error.response?.data?.error?.message ?? '회원탈퇴를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.'
+        );
+      }
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -115,19 +193,19 @@ function DeleteAccountPage() {
       {isModalOpen && (
         <ConfirmModal
           title="회원탈퇴 확인"
-          confirmLabel="회원탈퇴"
+          confirmLabel={isSubmitting ? '처리 중...' : '회원탈퇴'}
+          isBusy={isSubmitting}
           cancelLabel="취소"
           confirmVariant="danger"
           onConfirm={handleWithdrawalConfirm}
           onCancel={closeModal}
         >
-          <ModalNotice>현재 계모임 0개 · 미정산 금액 0원 · 탈퇴 가능</ModalNotice>
+          <ModalNotice>진행 중이거나 정지된 계모임이 있으면 탈퇴할 수 없습니다.</ModalNotice>
           <WarningTitle>탈퇴하기 전에 아래 내용을 확인해주세요.</WarningTitle>
           <WarningList>
-            <li>탈퇴 중인 계모임과 종료되어야 탈퇴할 수 있습니다.</li>
-            <li>탈퇴 시 참여 중인 모임 및 관련 서비스 이용 정보가 삭제됩니다.</li>
-            <li>작성한 게시글과 댓글은 운영 정책에 따라 보관될 수 있습니다.</li>
-            <li>탈퇴 후 30일 이내에는 계정을 복구할 수 있습니다.</li>
+            <li>탈퇴하면 현재 계정으로 로그인하거나 서비스를 이용할 수 없습니다.</li>
+            <li>작성한 게시글과 댓글은 탈퇴만으로 삭제되지 않습니다.</li>
+            <li>아래 안내사항에 동의하고 현재 비밀번호를 입력해주세요.</li>
           </WarningList>
           <PasswordInput
             id="withdrawal-password"
@@ -140,6 +218,7 @@ function DeleteAccountPage() {
             isVisible={isPasswordVisible}
             onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
           />
+          {errorMessage && <ErrorNotice role="alert">{errorMessage} </ErrorNotice>}
           <Agreement>
             <Checkbox
               id="withdrawal-agreement"
