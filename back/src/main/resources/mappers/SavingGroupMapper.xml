@@ -320,6 +320,21 @@
         FOR UPDATE
     </select>
 
+    <!-- AI작성: 추방 요청의 groupId로 계모임·생성 계주 관계를 잠가 권한 검증의 기준을 고정한다. -->
+    <select id="selectSavingGroupExpulsionTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow">
+        SELECT sg.saving_group_id,
+        sg.group_id,
+        sg.status,
+        g.max_members,
+        g.member_id AS owner_member_id
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
     <!-- AI작성: 동일 회원의 기존 관계를 잠가 중복 신청과 LEFT 상태 재신청 분기를 안전하게 판단한다. -->
     <select id="selectSavingGroupMembershipForUpdate"
             resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow">
@@ -331,6 +346,15 @@
         AND member_id = #{memberId}
         FOR UPDATE
     </select>
+
+    <!-- AI작성: 잠금 조회로 얻은 식별값의 승인 관계만 추방으로 바꿔 동시 상태 변경을 막는다. -->
+    <update id="expelApprovedSavingGroupMember">
+        UPDATE group_member
+        SET membership_status = 'EXPELLED'
+        WHERE crew_member_id = #{crewMemberId}
+        AND group_id = #{groupId}
+        AND membership_status = 'APPROVED'
+    </update>
 
     <select id="selectApprovedMemberCountForUpdate" resultType="long">
         SELECT COUNT(DISTINCT member_id)

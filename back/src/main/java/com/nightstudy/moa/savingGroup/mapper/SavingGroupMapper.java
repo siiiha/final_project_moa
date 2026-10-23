@@ -122,9 +122,16 @@ public interface SavingGroupMapper {
     // AI작성: 가입 신청 대상의 내부 모임 ID, 상태, 정원을 잠근 상태로 조회한다.
     SavingGroupJoinTargetRow selectSavingGroupJoinTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
 
+    // AI작성: URL의 groupId로 계모임과 생성 계주를 잠가 추방 권한 검증에 사용한다.
+    SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(@Param("groupId") Long groupId);
+
     // AI작성: 동일 회원의 기존 가입·신청 이력을 잠근 상태로 조회한다.
     SavingGroupMembershipRelationRow selectSavingGroupMembershipForUpdate(
             @Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    // AI작성: 승인 상태인 기존 계원 관계 한 건만 추방 상태로 조건부 변경한다.
+    int expelApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,
+            @Param("groupId") Long groupId);
 
     // AI작성: 승인된 실제 가입만 집계하고 종료·삭제 모임은 최대 가입 수에서 제외한다.
     long selectApprovedSavingGroupCount(@Param("memberId") Long memberId);

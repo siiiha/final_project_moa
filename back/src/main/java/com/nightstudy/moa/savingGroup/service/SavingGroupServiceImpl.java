@@ -79,6 +79,42 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         }
     }
 
+    // AI작성: 계주 권한과 대상의 승인 관계를 같은 트랜잭션에서 잠가 확인한 뒤 추방 상태로 변경한다.
+    @Override
+    @Transactional
+    public void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId) {
+        if (groupId == null || groupId <= 0 || targetMemberId == null || targetMemberId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 또는 추방 대상 회원 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(groupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        validateSavingGroupOwner(target, memberId);
+
+        SavingGroupMembershipRelationRow member = savingGroupMapper
+                .selectSavingGroupMembershipForUpdate(target.getGroupId(), targetMemberId);
+        if (member == null || !"APPROVED".equals(member.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND",
+                    "승인 상태의 계원을 찾을 수 없습니다.");
+        }
+        if (Objects.equals(targetMemberId, memberId)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED",
+                    "계주 본인은 추방할 수 없습니다.");
+        }
+
+        int affectedRows = savingGroupMapper.expelApprovedSavingGroupMember(member.getCrewMemberId(), target.getGroupId());
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_EXPULSION_FAILED",
+                    "계원 상태가 변경되어 추방할 수 없습니다. 다시 확인해주세요.");
+        }
+        // TODO: 알림 기능 구현 후 추방당한 회원에게 추방 알림을 발송한다.
+    }
+
     // AI작성: 후속 승인 처리의 트랜잭션에 반드시 참여하며 이 단계에서는 저장하지 않는다.
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
