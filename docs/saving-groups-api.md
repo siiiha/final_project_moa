@@ -569,3 +569,71 @@ Java 구현 경로 기준은 back/src/main/java/com/nightstudy/moa/savingGroup/�
 프론트: front에서 `node --test src/api/savingGroups.test.js` 15개 통과, `npm run lint`와 `npm run build` 통과. 기존 번들 크기 경고는 유지한다.
 
 브라우저 직접 확인: 기존 상세 화면에서 신청 목록 탭을 연다. JWT 미연결 시 로그인 필요 오류와 다시 시도 버튼이 나타나고 Mock 신청은 나오지 않아야 한다. JWT·상세 조회 연결 후에는 계주의 실제 모임으로 정상 목록·필터·빈 목록·개별 승인·실패·중복 클릭을 확인한다.
+
+<!-- AI작성: 계원이 모집중인 계모임에서 본인 관계만 탈퇴 처리하는 API 계약이다. -->
+## 계원 자진 탈퇴 API
+
+### 경로와 요청
+
+```http
+DELETE /api/saving-groups/{savingGroupId}/members/me
+```
+
+기존 Controller 별칭도 유지한다.
+
+```http
+DELETE /saving-groups/{savingGroupId}/members/me
+```
+
+- `savingGroupId`는 양수 Long이며 `saving_group.saving_group_id`다.
+- 요청 본문은 없다. 탈퇴 대상 회원 ID는 URL·쿼리·헤더·본문에서 받지 않고, 서버 인증 처리의 request attribute `memberId`(Long)로만 결정한다.
+- 인증 속성이 없거나 0 이하이면 HTTP 401 `UNAUTHORIZED`를 반환한다.
+- 현재 JWT 인터셉터가 이 브랜치에 연결되지 않았으므로 실제 HTTP 요청은 인증 속성이 없어 401을 반환한다. JWT 병합 시 두 DELETE 경로를 보호하고 `memberId`를 설정해야 한다.
+
+### 처리와 상태 전이
+
+1. `saving_group`과 삭제되지 않은 `groups` 관계를 `FOR UPDATE`로 조회한다.
+2. 계모임 상태가 기존 시작 전 상태 코드 `01(모집중)`인지 확인한다. `00`, `02(진행중)`, `03`, `04`에서는 탈퇴할 수 없다.
+3. 로그인 회원의 해당 `group_member` 관계를 잠금 조회하고 `membership_status = 'APPROVED'`인지 확인한다.
+4. 조회한 `crew_member_id`, 내부 `group_id`, `membership_status = 'APPROVED'`가 모두 일치할 때만 `membership_status`를 `LEFT`로 변경하고 `left_at`에 현재 시각을 기록한다.
+
+기존 `group_member.membership_status`의 `LEFT` 및 `left_at` 컬럼을 재사용한다. 물리 삭제·새 DTO·DB 마이그레이션은 추가하지 않는다. 조건부 UPDATE 영향 행이 정확히 1건이 아니면 트랜잭션을 롤백한다.
+
+### 성공 응답
+
+HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 오류 응답
+
+기존 `GlobalExceptionHandler`와 `ApiResponse.fail`을 재사용한다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | `BAD_REQUEST` | 계모임 ID가 없거나 0 이하, 경로 타입이 올바르지 않음 |
+| 401 | `UNAUTHORIZED` | 서버 인증 회원 ID가 없거나 0 이하 |
+| 404 | `SAVING_GROUP_NOT_FOUND` | 계모임이 없거나 삭제됨 |
+| 404 | `SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND` | 로그인 회원의 승인된 계원 관계가 없음 |
+| 409 | `SAVING_GROUP_LEAVE_UNAVAILABLE` | 상태가 모집중(`01`)이 아님 |
+| 409 | `SAVING_GROUP_MEMBER_LEAVE_FAILED` | 조건부 상태 변경 영향 행 수가 1이 아님 |
+| 500 | `INTERNAL_ERROR` | 예기치 않은 DB·서버 오류 |
+
+### 테스트 및 직접 검증
+
+`SavingGroupLeaveServiceTest`는 모집중 승인 계원의 탈퇴, 계원이 아님, `00·02·03·04` 상태 차단, 조건부 UPDATE 실패 오류를 검증한다. `SavingGroupLeaveControllerTest`는 두 경로 별칭의 성공 응답, 비로그인 401, 비계원 404, 진행중 409 공통 응답을 검증한다.
+
+Java 17이 준비된 환경에서 back 폴더에서 실행한다.
+
+```powershell
+.\gradlew.bat test --tests "*SavingGroupLeave*"
+```
+
+실제 JWT와 MySQL 통합은 아직 검증하지 않았다. JWT 병합 후에는 유효 토큰의 성공 요청, 비회원·진행중 모임의 실패, `LEFT`와 `left_at` 저장값, 동시 탈퇴 시 조건부 UPDATE·롤백을 별도 테스트 DB에서 확인해야 한다.

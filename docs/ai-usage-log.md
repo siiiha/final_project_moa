@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-23 — 계모임 계원 자진 탈퇴 API
+
+- 목적: 로그인한 계원이 계모임 시작 전인 모집중(`01`) 상태에서 본인의 계원 관계를 탈퇴 처리한다.
+- 사용자 확정: 탈퇴는 모집중(시작 전)에만 허용하고, 나머지 상태는 차단한다. 구현은 Mapper → Service → Controller → 테스트 → 문서 단계로 나누어 진행했다.
+- AI 작성: 기존 MyBatis 잠금 조회를 재사용해 `APPROVED` 관계만 `LEFT` 및 `left_at = CURRENT_TIMESTAMP`로 조건부 변경하는 Mapper, Service 트랜잭션, DELETE API, Service·Controller 단위 테스트, API 명세를 작성했다.
+- 권한·데이터: 탈퇴 대상은 서버 request attribute `memberId`로만 정하며 URL·쿼리·헤더·본문에서 회원 ID를 받지 않는다. 계모임 상태는 `01`만 허용하고, 승인 관계가 없으면 저장하지 않는다.
+- DB·외부 서비스·의존성·설정 변경: 없음. 기존 `group_member.membership_status`의 `LEFT`, `left_at`을 사용했으며 새 테이블·컬럼·DTO·외부 연동을 추가하지 않았다.
+- 검증: `git diff --check`를 통과했다. `gradlew.bat test --tests "*SavingGroupLeave*" --offline` 실행은 Java 17 toolchain 부재로 테스트 컴파일 전에 중단되어 통과 여부는 미확정이다.
+- 직접 확인 필요: Java 17 준비 후 탈퇴 대상 테스트 실행, 별도 MySQL에서 `FOR UPDATE`·조건부 UPDATE·`left_at` 저장·동시 탈퇴 롤백, JWT 인터셉터 병합 뒤 401·성공·비계원·진행중 요청을 확인한다.
+- 개발자 코드 검토·수정: 최종 검토 대기.
+
 ## 2026-10-23 — 계주 승인 계원 추방 API
 
 - 목적: 계주가 자신의 계모임에서 승인된 계원을 `EXPELLED` 상태로 변경할 수 있게 한다.
