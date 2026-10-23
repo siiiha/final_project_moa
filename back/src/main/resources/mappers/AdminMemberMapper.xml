@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.admin.mapper.AdminMemberMapper">
+
+    <!-- AI작성: 목록과 개수 조회에 동일하게 적용하는 회원 검색 조건이다. -->
+    <sql id="adminMemberFromWhere">
+        FROM members m
+        JOIN region r ON r.region_id = m.region_id
+        <where>
+            m.deleted_at IS NULL
+            <if test="keyword != null">
+                AND (m.name LIKE CONCAT('%', #{keyword}, '%')
+                    OR m.nickname LIKE CONCAT('%', #{keyword}, '%')
+                    OR m.email LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="accountStatus != null">
+                AND m.account_status = #{accountStatus}
+            </if>
+            <if test="regionName != null">
+                AND r.region_name LIKE CONCAT(#{regionName}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectMemberCount" resultType="int">
+        SELECT COUNT(*)
+        <include refid="adminMemberFromWhere"/>
+    </select>
+
+    <!-- AI작성: 개인정보는 목록 응답 전에 SQL에서 마스킹한다. -->
+    <select id="selectMemberList"
+            resultType="com.nightstudy.moa.admin.dto.AdminMemberListItemResponse">
+        SELECT
+            m.member_id,
+            CASE
+                WHEN CHAR_LENGTH(m.name) &lt;= 1 THEN '*'
+                WHEN CHAR_LENGTH(m.name) = 2 THEN CONCAT(LEFT(m.name, 1), '*')
+                ELSE CONCAT(LEFT(m.name, 1), REPEAT('*', CHAR_LENGTH(m.name) - 2), RIGHT(m.name, 1))
+            END AS name,
+            m.nickname,
+            CONCAT(LEFT(m.email, 2), '***@', SUBSTRING_INDEX(m.email, '@', -1)) AS email,
+            r.region_name,
+            m.account_status,
+            m.identity_verified_at,
+            m.region_verified_at,
+            m.created_at
+        <include refid="adminMemberFromWhere"/>
+        ORDER BY m.created_at DESC, m.member_id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- AI작성: 상세 조회도 비밀번호 등 인증 비밀값은 제외하고 개인정보를 마스킹한다. -->
+    <select id="selectMemberDetail"
+            resultType="com.nightstudy.moa.admin.dto.AdminMemberDetailResponse">
+        SELECT
+            m.member_id,
+            CASE
+                WHEN CHAR_LENGTH(m.name) &lt;= 1 THEN '*'
+                WHEN CHAR_LENGTH(m.name) = 2 THEN CONCAT(LEFT(m.name, 1), '*')
+                ELSE CONCAT(LEFT(m.name, 1), REPEAT('*', CHAR_LENGTH(m.name) - 2), RIGHT(m.name, 1))
+            END AS name,
+            m.nickname,
+            CONCAT(LEFT(m.email, 2), '***@', SUBSTRING_INDEX(m.email, '@', -1)) AS email,
+            CASE
+                WHEN CHAR_LENGTH(m.phone) &gt;= 7
+                    THEN CONCAT(LEFT(m.phone, 3), '-****-', RIGHT(m.phone, 4))
+                ELSE '***'
+            END AS phone,
+            m.birth_date,
+            m.gender,
+            r.region_name,
+            m.user_level,
+            m.system_role,
+            m.account_status,
+            m.suspended_until,
+            m.identity_verified_at,
+            m.region_verified_at,
+            m.created_at,
+            (SELECT COUNT(DISTINCT gm.group_id)
+               FROM group_member gm
+              WHERE gm.member_id = m.member_id
+                AND gm.membership_status = 'APPROVED') AS joined_group_count,
+            (SELECT COUNT(*)
+               FROM post p
+              WHERE p.writer_id = m.member_id
+                AND p.deleted_at IS NULL) AS written_post_count
+        FROM members m
+        JOIN region r ON r.region_id = m.region_id
+        WHERE m.member_id = #{memberId}
+          AND m.deleted_at IS NULL
+    </select>
+
+</mapper>
