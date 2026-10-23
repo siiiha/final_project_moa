@@ -22,15 +22,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final SecurityErrorResponseWriter errorResponseWriter;
     private final RevokedTokenMapper revokedTokenMapper;
+    private final MemberMapper memberMapper;
 
     public JwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
             SecurityErrorResponseWriter errorResponseWriter,
-            RevokedTokenMapper revokedTokenMapper
+            RevokedTokenMapper revokedTokenMapper,
+            MemberMapper memberMapper
     ) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.errorResponseWriter = errorResponseWriter;
         this.revokedTokenMapper = revokedTokenMapper;
+        this.memberMapper = memberMapper;
     }
 
     @Override
@@ -73,6 +76,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     || (!"USER".equals(systemRole)
                     && !"ADMIN".equals(systemRole))) {
                 throw new IllegalArgumentException("잘못된 토큰 정보");
+            }
+
+            if (memberMapper.countNotWithdrawnMemberById(memberId) != 1) {
+                SecurityContextHolder.clearContext();
+
+                errorResponseWriter.write(
+                        response,
+                        HttpServletResponse.SC_UNAUTHORIZED,
+                        "MEMBER_UNAVAILABLE",
+                        "탈퇴했거나 존재하지 않는 회원입니다."
+                );
+                return;
             }
 
             // 로그아웃 기록이 있는 토큰은 인증 처리 전에 차단

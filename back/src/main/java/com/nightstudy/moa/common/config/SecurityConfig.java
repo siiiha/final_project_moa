@@ -14,6 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
+import com.nightstudy.moa.member.mapper.MemberMapper;
 
 @Configuration
 public class SecurityConfig {
@@ -34,14 +35,16 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http
+            HttpSecurity http,
+            MemberMapper memberMapper
     ) throws Exception {
 
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter(
+                new JwtAuthenticationFilter (
                         jwtTokenProvider,
                         errorResponseWriter,
-                        revokedTokenMapper
+                        revokedTokenMapper,
+                        memberMapper
                 );
 
         http
