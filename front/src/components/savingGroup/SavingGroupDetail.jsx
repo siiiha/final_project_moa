@@ -1,9 +1,9 @@
-import { FiBell, FiCalendar, FiMapPin, FiTrendingUp, FiUser, FiUsers } from 'react-icons/fi';
+import { formatSavingGroupAmount, getSavingGroupMenus } from '../../api/savingGroups.js';
+import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import SavingGroupMenuTabs from './SavingGroupMenuTabs';
-import SavingGroupSettingsForm from './SavingGroupSettingsForm';
 import SavingGroupJoinRequestsPanel from './SavingGroupJoinRequestsPanel';
 import SavingGroupMembersPanel from './SavingGroupMembersPanel';
 import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
@@ -92,10 +92,6 @@ const Layout = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     grid-template-columns: 1fr;
   }
-`;
-
-const SettingsContent = styled.div`
-  margin-top: 16px;
 `;
 
 const JoinRequestsContent = styled.div`
@@ -228,44 +224,37 @@ const ActionButton = styled(Button)`
   font-size: 12px;
 `;
 
-function SavingGroupDetail({
-  group,
-  detail,
-  activeMenu,
-  onMenuChange,
-  onJoinRequest,
-  onBack,
-  onSettingsSubmit,
-  onSettingsCancel,
-  onDeleteRequest,
-}) {
-  const isOngoing = group.status === '진행중';
+// AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
+function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack }) {
+  const allowedMenus = getSavingGroupMenus(group.myRole);
+  const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
+  const paymentDay = group.duesDay == null ? '납부일 미정'
+    : group.duesDay < 1 || group.duesDay > 28 ? '납부일 확인 필요' : '매월 ' + group.duesDay + '일';
+  const statusLabel = { '01': '개설', '02': '진행중' }[group.status] || '상태 확인 필요';
 
   return (
     <>
       <HeaderCard>
         <HeaderTop>
           <TitleLine>
-            <Title>{group.name}</Title>
-            <StatusBadge $ongoing={isOngoing}>{group.status}</StatusBadge>
+            <Title>{group.groupName}</Title>
+            <StatusBadge $ongoing={group.status === '02'}>{statusLabel}</StatusBadge>
           </TitleLine>
-          <JoinButton type="button" onClick={onJoinRequest}>
-            가입 신청하기
+          <JoinButton type="button" onClick={onJoinRequest} disabled={isJoinSubmitting} aria-busy={isJoinSubmitting}>
+            {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
           </JoinButton>
         </HeaderTop>
-        <Description>{group.description}</Description>
+        <Description>{group.description?.trim() || '소개글이 없습니다.'}</Description>
         <MetaList>
-          <Meta>
-            <FiMapPin size={13} aria-hidden="true" /> {group.district}
-          </Meta>
-          <Meta>
-            <FiUsers size={13} aria-hidden="true" /> {group.members}
-          </Meta>
-          <Meta>
-            <FiUser size={13} aria-hidden="true" /> 모임장 {detail.leader}
-          </Meta>
+          <Meta><FiMapPin size={16} aria-hidden="true" /> {group.regionName}</Meta>
+          <Meta><FiUsers size={16} aria-hidden="true" /> {group.memberCount}명 / {group.maxMembers == null ? '정원 미정' : '정원 ' + group.maxMembers + '명'}</Meta>
         </MetaList>
-        <SavingGroupMenuTabs activeMenu={activeMenu} onMenuChange={onMenuChange} />
+        <SavingGroupMenuTabs
+          activeMenu={activeMenu}
+          onMenuChange={onMenuChange}
+          canAccessSettings={allowedMenus.includes('settings')}
+          settingsPath={`/saving-groups/${group.groupId}/settings`}
+        />
       </HeaderCard>
 
       {activeMenu === 'members' ? (
@@ -282,66 +271,40 @@ function SavingGroupDetail({
         <SavingGroupPayoutRequestPanel groupType={group.groupType} />
       ) : activeMenu === 'joinRequests' ? (
         <JoinRequestsContent>
-          <SavingGroupJoinRequestsPanel />
+          {/* AI작성: 화면 모임이 바뀌면 요청·승인 상태를 초기화하고 해당 모임의 실제 신청만 조회한다. */}
+          <SavingGroupJoinRequestsPanel key={group.id} savingGroupId={String(group.id)} />
         </JoinRequestsContent>
-      ) : activeMenu === 'settings' ? (
-        <SettingsContent>
-          <SavingGroupSettingsForm
-            group={group}
-            onSubmit={onSettingsSubmit}
-            onCancel={onSettingsCancel}
-            onDeleteRequest={onDeleteRequest}
-          />
-        </SettingsContent>
       ) : (
         <Layout>
           <MainColumn>
             <Card>
               <CardTitle>모임 소개</CardTitle>
-              <ImagePlaceholder role="img" aria-label={`${group.name} 모임 사진 영역`} />
-              <Content>{detail.goal}</Content>
+              <Content>{group.description?.trim() || '소개글이 없습니다.'}</Content>
             </Card>
             <Card>
-              <CardTitle>
-                <FiBell size={16} aria-hidden="true" /> 최근 공지
-              </CardTitle>
-              <Notice>
-                <strong>{detail.noticeTitle}</strong>
-                <p>{detail.noticeContent}</p>
-              </Notice>
+              <CardTitle><FiBell size={18} aria-hidden="true" /> 최근 공지</CardTitle>
+              {group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
+                : group.notices.map((notice) => (
+                  <Notice key={notice.noticeId}><strong>{notice.title}</strong></Notice>
+                ))}
             </Card>
           </MainColumn>
 
           <SideColumn>
             <Card>
-              <CardTitle>
-                <FiTrendingUp size={16} aria-hidden="true" /> 회비 현황
-              </CardTitle>
-              <Dues>{group.monthlyDues}</Dues>
-              <Content>다음 납부일 {group.nextDate}</Content>
-            </Card>
-            <Card>
-              <CardTitle>
-                <FiCalendar size={16} aria-hidden="true" /> 다음 모임
-              </CardTitle>
-              <Schedule>
-                <strong>{detail.nextMeeting}</strong>
-                <span>{detail.meetingPlace}</span>
-              </Schedule>
+              <CardTitle><FiTrendingUp size={18} aria-hidden="true" /> 월 회비</CardTitle>
+              <Dues>{formatSavingGroupAmount(group.duesAmount)}</Dues>
+              <Content>납부일: {paymentDay}</Content>
             </Card>
             <Card>
               <CardTitle>모임 정보</CardTitle>
               <DetailList>
-                <dt>개설일</dt>
-                <dd>{detail.createdAt}</dd>
-                <dt>모임장</dt>
-                <dd>{detail.leader}</dd>
-                <dt>최근 활동</dt>
-                <dd>{detail.recentActivity}</dd>
+                <dt>지역</dt><dd>{group.regionName}</dd>
+                <dt>계원 수</dt><dd>{group.memberCount}명</dd>
+                <dt>정원</dt><dd>{group.maxMembers == null ? '미정' : group.maxMembers + '명'}</dd>
+                <dt>상태</dt><dd>{statusLabel}</dd>
               </DetailList>
-              <ActionButton type="button" $variant="secondary" onClick={onBack}>
-                계모임 목록으로
-              </ActionButton>
+              <ActionButton type="button" $variant="secondary" onClick={onBack}>계모임 목록으로</ActionButton>
             </Card>
           </SideColumn>
         </Layout>

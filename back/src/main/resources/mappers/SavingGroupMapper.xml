@@ -2,6 +2,40 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 계주 본인 관계·탈퇴·추방·삭제 회원을 제외한 신청 상태를 동일한 조건으로 집계·조회한다. -->
+    <sql id="joinRequestFromWhere">
+        FROM group_member gm
+        JOIN members m ON m.member_id = gm.member_id
+        LEFT JOIN region r ON r.region_id = m.region_id
+        WHERE gm.group_id = #{groupId}
+        AND gm.member_role != 'OWNER'
+        AND m.deleted_at IS NULL
+        AND gm.membership_status IN ('PENDING', 'APPROVED', 'REJECTED')
+        <if test="status != null">
+            AND gm.membership_status = #{status}
+        </if>
+    </sql>
+
+    <select id="selectSavingGroupJoinRequestCount" resultType="int">
+        SELECT COUNT(*)
+        <include refid="joinRequestFromWhere"/>
+    </select>
+
+    <!-- AI작성: 이름 원문·회원 ID·연락처·금융정보를 반환하지 않으며 신청 ID의 자바스크립트 정밀도 손실을 방지한다. -->
+    <select id="selectSavingGroupJoinRequests"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinRequestRow">
+        SELECT CAST(gm.crew_member_id AS CHAR) AS crew_member_id,
+        CONCAT(LEFT(m.name, 1), REPEAT('*', GREATEST(CHAR_LENGTH(m.name) - 1, 1))) AS applicant,
+        r.region_name,
+        (m.identity_verified_at IS NOT NULL) AS identity_verified,
+        (m.region_verified_at IS NOT NULL) AS region_verified,
+        gm.application_message,
+        gm.membership_status
+        <include refid="joinRequestFromWhere"/>
+        ORDER BY gm.requested_at DESC, gm.crew_member_id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <sql id="listFrom">
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
@@ -19,7 +53,167 @@
             AND r.region_name = #{regionName}
         </if>
     </sql>
+    <!-- AI작성: 생성 신청은 공개 목록에 노출하지 않고 00(심사중) 상태로만 저장한다. -->
+    <select id="selectRegionIdByName" resultType="long">
+        SELECT region_id
+        FROM region
+        WHERE region_name = #{regionName}
+    </select>
 
+    <select id="existsMember" resultType="boolean">
+        SELECT EXISTS(
+        SELECT 1 FROM members
+        WHERE member_id = #{memberId}
+        AND deleted_at IS NULL
+        )
+    </select>
+
+    <insert id="insertGroups"
+            parameterType="SavingGroupCreationRequest"
+            useGeneratedKeys="true"
+            keyProperty="groupId">
+        INSERT INTO `groups` (
+        region_id,
+        member_id,
+        group_name,
+        description,
+        max_members,
+        created_at
+        )
+        VALUES (
+        #{regionId},
+        #{memberId},
+        #{groupName},
+        #{description},
+        #{maxMembers},
+        CURRENT_TIMESTAMP()
+        )
+    </insert>
+
+    <insert id="insertSavingGroup">
+        INSERT INTO saving_group (
+        group_id,
+        saving_group_type,
+        dues_amount,
+        dues_day,
+        status,
+        group_image
+        )
+        VALUES (
+        #{groupId},
+        #{groupType},
+        #{duesAmount},
+        #{duesDay},
+        '00',
+        #{groupImagePath}
+        )
+    </insert>
+
+    <insert id="insertSavingGroupCreationApproval">
+        INSERT INTO meeting_approval (group_id, type, status)
+        VALUES (#{groupId}, 'CREATE', 'PENDING')
+    </insert>
+
+    <sql id="creationApplicationFromWhere">
+        FROM meeting_approval ma
+        JOIN `groups` g ON g.group_id = ma.group_id
+        JOIN saving_group sg ON sg.group_id = g.group_id
+        JOIN members m ON m.member_id = g.member_id
+        JOIN region r ON r.region_id = g.region_id
+        WHERE ma.type = 'CREATE'
+        AND g.deleted_at IS NULL
+        AND m.deleted_at IS NULL
+        <if test="status != null">
+            AND ma.status = #{status}
+        </if>
+        <if test="keywordPattern != null">
+            AND g.group_name LIKE #{keywordPattern} ESCAPE '!'
+        </if>
+    </sql>
+
+    <select id="selectSavingGroupCreationApplicationCount" resultType="int">
+        SELECT COUNT(*)
+        <include refid="creationApplicationFromWhere"/>
+    </select>
+
+    <!-- AI작성: JS 정밀도 손실을 막기 위해 목록의 approval_id는 문자열로 반환한다. -->
+    <select id="selectSavingGroupCreationApplications"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListItemResponse">
+        SELECT CAST(ma.approval_id AS CHAR) AS approval_id,
+        g.group_name,
+        m.name AS applicant_name,
+        r.region_name,
+        g.created_at AS applied_at,
+        ma.status
+        <include refid="creationApplicationFromWhere"/>
+        ORDER BY g.created_at DESC, ma.approval_id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <sql id="creationApplicationDetailColumns">
+        SELECT ma.approval_id,
+        g.group_id,
+        g.group_name,
+        m.name AS applicant_name,
+        r.region_name,
+        g.created_at AS applied_at,
+        ma.status,
+        sg.saving_group_type AS group_type,
+        g.max_members,
+        sg.dues_amount,
+        sg.dues_day,
+        g.description,
+        sg.group_image AS group_image_path,
+        ma.reject_reason,
+        ma.processed_at
+        FROM meeting_approval ma
+        JOIN `groups` g ON g.group_id = ma.group_id
+        JOIN saving_group sg ON sg.group_id = g.group_id
+        JOIN members m ON m.member_id = g.member_id
+        JOIN region r ON r.region_id = g.region_id
+        WHERE ma.approval_id = #{approvalId}
+        AND ma.type = 'CREATE'
+        AND g.deleted_at IS NULL
+        AND m.deleted_at IS NULL
+    </sql>
+
+    <select id="selectSavingGroupCreationApplication"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationDetailResponse">
+        <include refid="creationApplicationDetailColumns"/>
+    </select>
+
+    <select id="selectSavingGroupCreationApplicationForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationDetailResponse">
+        <include refid="creationApplicationDetailColumns"/>
+        FOR UPDATE
+    </select>
+
+    <update id="approveSavingGroupCreationApplication">
+        UPDATE meeting_approval
+        SET status = 'APPROVED',
+        reject_reason = NULL,
+        processed_at = CURRENT_TIMESTAMP
+        WHERE approval_id = #{approvalId}
+        AND type = 'CREATE'
+        AND status = 'PENDING'
+    </update>
+
+    <update id="rejectSavingGroupCreationApplication">
+        UPDATE meeting_approval
+        SET status = 'REJECTED',
+        reject_reason = #{rejectReason},
+        processed_at = CURRENT_TIMESTAMP
+        WHERE approval_id = #{approvalId}
+        AND type = 'CREATE'
+        AND status = 'PENDING'
+    </update>
+
+    <update id="publishApprovedSavingGroup">
+        UPDATE saving_group
+        SET status = '01'
+        WHERE group_id = #{groupId}
+        AND status = '00'
+    </update>
     <!-- AI작성: 공통 PageMeta의 전체 개수 타입인 int에 맞춘다. -->
     <select id="selectSavingGroupCount" resultType="int">
         SELECT COUNT(*)
@@ -35,7 +229,410 @@
         ORDER BY g.created_at DESC, sg.saving_group_id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
-    
+
+    <select id="selectSavingGroupSettingsAuthority"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow">
+        SELECT sg.saving_group_id,
+        sg.group_id,
+        g.member_id AS group_leader_member_id,
+        owner.owner_member_id,
+        sg.status
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        LEFT JOIN (
+        SELECT group_id, MAX(member_id) AS owner_member_id
+        FROM group_member
+        WHERE member_role = 'OWNER'
+        AND membership_status = 'APPROVED'
+        GROUP BY group_id
+        ) owner ON owner.group_id = g.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+    </select>
+
+    <select id="selectSavingGroupCurrentSettings"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCurrentSettingsResponse">
+        SELECT g.group_name,
+        g.description,
+        g.max_members,
+        COALESCE(approved.approved_member_count, 0) AS approved_member_count,
+        sg.dues_amount,
+        sg.dues_day
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        LEFT JOIN (
+        SELECT group_id, COUNT(DISTINCT member_id) AS approved_member_count
+        FROM group_member
+        WHERE membership_status = 'APPROVED'
+        GROUP BY group_id
+        ) approved ON approved.group_id = g.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+    </select>
+
+    <select id="selectSavingGroupSettingsAuthorityForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow">
+        SELECT sg.saving_group_id,
+        sg.group_id,
+        g.member_id AS group_leader_member_id,
+        sg.status
+
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <select id="selectSavingGroupOwnerMemberIdForUpdate" resultType="long">
+        SELECT member_id
+        FROM group_member
+        WHERE group_id = #{groupId}
+        AND member_role = 'OWNER'
+        AND membership_status = 'APPROVED'
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 인증 회원의 계정 상태와 본인 인증 완료 시각을 잠가 가입 신청 중 상태 변경과 경합하지 않게 한다. -->
+    <select id="selectSavingGroupJoinMemberForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinMemberRow">
+        SELECT member_id,
+        account_status,
+        identity_verified_at
+        FROM members
+        WHERE member_id = #{memberId}
+        AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: saving_group ID로 가입 관계 저장에 필요한 group ID와 신청 가능 상태·정원을 함께 잠가 조회한다. -->
+    <select id="selectSavingGroupJoinTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow">
+        SELECT sg.saving_group_id,
+        sg.group_id,
+        sg.status,
+        g.max_members,
+        g.member_id AS owner_member_id
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 추방 요청의 groupId로 계모임·생성 계주 관계를 잠가 권한 검증의 기준을 고정한다. -->
+    <select id="selectSavingGroupExpulsionTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow">
+        SELECT sg.saving_group_id,
+        sg.group_id,
+        sg.status,
+        g.max_members,
+        g.member_id AS owner_member_id
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: saving_group ID를 기준으로 삭제되지 않은 모임만 잠가 삭제 가능 상태와 생성 계주를 검증한다. -->
+    <select id="selectSavingGroupDeleteTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow">
+        SELECT sg.saving_group_id,
+        sg.group_id,
+        sg.status,
+        g.member_id AS owner_member_id
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 연관 기록을 보존하기 위해 groups 행만 소프트 삭제하며 이미 삭제된 행은 변경하지 않는다. -->
+    <update id="softDeleteSavingGroup">
+        UPDATE `groups`
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND deleted_at IS NULL
+    </update>
+
+    <!-- AI작성: 동일 회원의 기존 관계를 잠가 중복 신청과 LEFT 상태 재신청 분기를 안전하게 판단한다. -->
+    <select id="selectSavingGroupMembershipForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow">
+        SELECT crew_member_id,
+        member_role,
+        membership_status
+        FROM group_member
+        WHERE group_id = #{groupId}
+        AND member_id = #{memberId}
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 잠금 조회로 얻은 식별값의 승인 관계만 추방으로 바꿔 동시 상태 변경을 막는다. -->
+    <update id="expelApprovedSavingGroupMember">
+        UPDATE group_member
+        SET membership_status = 'EXPELLED'
+        WHERE crew_member_id = #{crewMemberId}
+        AND group_id = #{groupId}
+        AND membership_status = 'APPROVED'
+    </update>
+
+    <!-- AI작성: 승인 상태인 본인 관계만 자진 탈퇴로 전환하고 실제 탈퇴 시각을 기록한다. -->
+    <update id="leaveApprovedSavingGroupMember">
+        UPDATE group_member
+        SET membership_status = 'LEFT',
+        left_at = CURRENT_TIMESTAMP
+        WHERE crew_member_id = #{crewMemberId}
+        AND group_id = #{groupId}
+        AND membership_status = 'APPROVED'
+    </update>
+
+    <select id="selectApprovedMemberCountForUpdate" resultType="long">
+        SELECT COUNT(DISTINCT member_id)
+        FROM group_member
+        WHERE group_id = #{groupId}
+        AND membership_status = 'APPROVED'
+        FOR UPDATE
+    </select>
+
+    <update id="updateSavingGroupBasicSettings">
+        UPDATE `groups`
+        <set>
+            <if test="update.groupName != null">
+                group_name = #{update.groupName},
+            </if>
+            <if test="update.description != null">
+                description = #{update.description},
+            </if>
+            <if test="update.maxMembers != null">
+                max_members = #{update.maxMembers},
+            </if>
+        </set>
+        WHERE group_id = #{update.groupId}
+        AND deleted_at IS NULL
+    </update>
+
+    <update id="updateSavingGroupCurrentDues">
+        UPDATE saving_group
+        <set>
+            <if test="update.duesAmount != null">
+                dues_amount = #{update.duesAmount},
+            </if>
+            <if test="update.duesDay != null">
+                dues_day = #{update.duesDay},
+            </if>
+        </set>
+        WHERE saving_group_id = #{update.savingGroupId}
+    </update>
+
+    <insert id="upsertSavingGroupSettingChange">
+        INSERT INTO saving_group_setting_change (
+        group_id,
+        dues_amount,
+        dues_day,
+        effective_at,
+        status
+        ) VALUES (
+        #{change.groupId},
+        #{change.duesAmount},
+        #{change.duesDay},
+        #{change.effectiveAt},
+        'PENDING'
+        )
+        ON DUPLICATE KEY UPDATE
+        <if test="change.duesAmount != null">
+            dues_amount = #{change.duesAmount},
+        </if>
+        <if test="change.duesDay != null">
+            dues_day = #{change.duesDay},
+        </if>
+        status = 'PENDING',
+        applied_at = NULL,
+        canceled_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    </insert>
+
+    <select id="selectDueSettingChanges" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingChangeRow">
+        SELECT setting_change_id,
+        group_id,
+        dues_amount,
+        dues_day,
+        effective_at,
+        status,
+        applied_at,
+        canceled_at
+        FROM saving_group_setting_change
+        WHERE status = 'PENDING'
+        AND effective_at &lt;= #{appliedAt}
+        ORDER BY effective_at ASC, setting_change_id ASC
+    </select>
+
+    <select id="selectSavingGroupStatusForUpdate" resultType="string">
+        SELECT sg.status
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId}
+        AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <select id="selectSavingGroupSettingChangeForApply"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingChangeRow">
+        SELECT setting_change_id,
+        group_id,
+        dues_amount,
+        dues_day,
+        effective_at,
+        status,
+        applied_at,
+        canceled_at
+        FROM saving_group_setting_change
+        WHERE setting_change_id = #{settingChangeId}
+        AND status = 'PENDING'
+        AND effective_at &lt;= #{appliedAt}
+        FOR UPDATE
+    </select>
+
+    <update id="applySavingGroupSettingChange">
+        UPDATE saving_group
+        <set>
+            <if test="change.duesAmount != null">
+                dues_amount = #{change.duesAmount},
+            </if>
+            <if test="change.duesDay != null">
+                dues_day = #{change.duesDay},
+            </if>
+        </set>
+        WHERE group_id = #{change.groupId}
+    </update>
+
+    <update id="markSavingGroupSettingChangeApplied">
+        UPDATE saving_group_setting_change
+        SET status = 'APPLIED',
+        applied_at = #{appliedAt},
+        updated_at = CURRENT_TIMESTAMP
+        WHERE setting_change_id = #{settingChangeId}
+        AND status = 'PENDING'
+    </update>
+
+    <update id="updateSavingGroupStatus">
+        UPDATE saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        SET sg.status = #{status}
+        WHERE sg.group_id = #{groupId}
+        AND g.deleted_at IS NULL
+    </update>
+
+    <update id="holdPendingSavingGroupSettingChanges">
+        UPDATE saving_group_setting_change
+        SET status = 'HELD',
+        updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND status = 'PENDING'
+    </update>
+
+    <update id="cancelUnappliedSavingGroupSettingChanges">
+        UPDATE saving_group_setting_change
+        SET status = 'CANCELED',
+        canceled_at = #{canceledAt},
+        updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND status IN ('PENDING', 'HELD')
+    </update>
+
+    <update id="resumeHeldSavingGroupSettingChanges">
+        UPDATE saving_group_setting_change
+        SET status = 'PENDING',
+        effective_at = CASE
+        WHEN effective_at &lt; #{resumedAt} THEN #{nextEffectiveAt}
+        ELSE effective_at
+        END,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND status = 'HELD'
+    </update>
+
+
+    <!-- AI작성: 심사중·개설·진행중·정지 모임의 승인 관계만 최대 다섯 개 제한에 포함한다. -->
+    <select id="selectApprovedSavingGroupCount" resultType="long">
+        SELECT COUNT(DISTINCT gm.group_id)
+        FROM group_member gm
+        JOIN `groups` g ON g.group_id = gm.group_id
+        JOIN saving_group sg ON sg.group_id = gm.group_id
+        WHERE gm.member_id = #{memberId}
+        AND gm.membership_status = 'APPROVED'
+        AND g.deleted_at IS NULL
+        AND sg.status IN ('00', '01', '02', '03')
+        <!-- AI작성: 승인 대상 식별 조회가 만든 과거 스냅샷 대신 잠금 획득 후 최신 가입 수를 확인한다. -->
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 식별 조회와 잠금 재조회에서 같은 신청 필드를 사용한다. -->
+    <sql id="joinApprovalTargetSelect">
+        SELECT crew_member_id, member_id, group_id, membership_status
+        FROM group_member
+        WHERE crew_member_id = #{crewMemberId}
+    </sql>
+
+    <select id="selectSavingGroupJoinApprovalTarget"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow">
+        <include refid="joinApprovalTargetSelect"/>
+    </select>
+
+    <select id="selectSavingGroupJoinApprovalTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow">
+        <include refid="joinApprovalTargetSelect"/>
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 신청 메시지 없이 인증 회원의 신청을 PENDING 상태로 한 건 저장한다. -->
+    <insert id="insertSavingGroupJoinRequest">
+        INSERT INTO group_member (
+        member_id,
+        group_id,
+        member_role,
+        membership_status,
+        requested_at
+        ) VALUES (
+        #{memberId},
+        #{groupId},
+        'MEMBER',
+        'PENDING',
+        CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <!-- AI작성: 같은 UPDATE의 CURRENT_TIMESTAMP를 사용해 가입 시각과 승인 시각을 동일하게 기록한다. -->
+    <update id="approveSavingGroupJoinRequest">
+        UPDATE group_member
+        SET membership_status = 'APPROVED',
+        member_role = 'MEMBER',
+        joined_at = CURRENT_TIMESTAMP,
+        approved_at = CURRENT_TIMESTAMP,
+        approved_by = #{approvedBy}
+        WHERE crew_member_id = #{crewMemberId}
+        AND group_id = #{groupId}
+        AND membership_status = 'PENDING'
+    </update>
+
+    <!-- AI작성: 재신청은 LEFT 상태일 때만 허용해 거절·추방 이력을 신청 상태로 바꾸지 않는다. -->
+    <update id="reactivateLeftSavingGroupMembership">
+        UPDATE group_member
+        SET member_role = 'MEMBER',
+        membership_status = 'PENDING',
+        <!-- AI작성: 이전 승인 정보가 재신청이나 다음 승인으로 이어지지 않도록 초기화한다. -->
+        approved_by = NULL,
+        approved_at = NULL,
+        joined_at = NULL,
+        left_at = NULL,
+        application_message = NULL,
+        requested_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND member_id = #{memberId}
+        AND membership_status = 'LEFT'
+    </update>
+
     <!-- AI작성: 승인된 모임장도 계원 행에 있으므로 +1 없이 회원 ID를 중복 제거한다. -->
     <select id="selectApprovedMemberCounts" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMemberCount">
         SELECT group_id, COUNT(DISTINCT member_id) AS member_count
@@ -46,5 +643,40 @@
             #{groupId}
         </foreach>
         GROUP BY group_id
+    </select>
+
+    <!-- AI작성: URL ID는 saving_group_id가 아닌 groups.group_id다. -->
+    <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
+        SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,
+        r.region_name, g.max_members, sg.dues_amount, sg.dues_day, sg.status
+        <include refid="listFrom"/>
+        WHERE g.group_id = #{groupId}
+        AND g.deleted_at IS NULL AND sg.status IN ('01', '02')
+    </select>
+
+    <!-- AI작성: 계주도 APPROVED 행에 포함되며 가입 이력의 나머지 상태는 제외한다. -->
+    <select id="selectDetailMemberCount" resultType="long">
+        SELECT COUNT(DISTINCT member_id) FROM group_member
+        WHERE group_id = #{groupId} AND membership_status = 'APPROVED'
+    </select>
+
+    <resultMap id="noticeSummary" type="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeSummaryResponse">
+        <constructor>
+            <idArg column="notice_id" javaType="java.lang.Long"/>
+            <arg column="title" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <!-- AI작성: 같은 작성 시각에는 ID를 보조 정렬하며 본문은 조회하지 않는다. -->
+    <select id="selectRecentNotices" resultMap="noticeSummary">
+        SELECT notice_id, title FROM group_notice
+        WHERE group_id = #{groupId}
+        ORDER BY created_at DESC, notice_id DESC LIMIT 4
+    </select>
+
+    <select id="selectApprovedMemberRoles" resultType="string">
+        SELECT DISTINCT member_role FROM group_member
+        WHERE group_id = #{groupId} AND member_id = #{memberId}
+        AND membership_status = 'APPROVED'
     </select>
 </mapper>
