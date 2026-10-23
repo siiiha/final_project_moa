@@ -234,7 +234,7 @@ const ActionButton = styled(Button)`
   font-size: 13px;
 `;
 
-function SavingGroupApplicationForm({ regions, onSubmit, onCancel }) {
+function SavingGroupApplicationForm({ regions, onSubmit, onCancel, isSubmitting }) {
   const [imageName, setImageName] = useState('선택된 이미지가 없습니다.');
   const [groupType, setGroupType] = useState('');
 
@@ -251,7 +251,7 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel }) {
         <FieldGrid>
           <Field>
             계모임 이름
-            <Input name="name" required placeholder="계모임 이름을 입력하세요" />
+            <Input name="groupName" maxLength="100" required placeholder="계모임 이름을 입력하세요" />
           </Field>
           <TypeField>
             <Legend>계모임 종류</Legend>
@@ -284,24 +284,26 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel }) {
           </TypeField>
           <Field>
             활동 지역
-            <Select name="region" required defaultValue="">
+            <Select name="regionName" required defaultValue="">
               <option value="" disabled>
                 지역을 선택하세요
               </option>
-              {regions.filter((region) => region !== '전체').map((region) => (
-                <option key={region} value={region}>
-                  {region}
-                </option>
-              ))}
+              {regions
+                .filter((region) => region !== '전체')
+                .map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
             </Select>
           </Field>
           <Field>
             월 회비
-            <Input name="monthlyDues" required inputMode="numeric" placeholder="예: 30,000원" />
+            <Input name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000" />
           </Field>
           <Field>
             납부일
-            <Select name="paymentDate" required defaultValue="">
+            <Select name="duesDay" required defaultValue="">
               <option value="" disabled>
                 납부일을 선택하세요
               </option>
@@ -314,19 +316,25 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel }) {
           </Field>
           <Field>
             모집 인원
-            <Input name="capacity" required inputMode="numeric" placeholder="예: 10명" />
+            <Input name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명" />
           </Field>
         </FieldGrid>
 
         <FullField>
           계모임 소개
-          <Textarea name="description" required placeholder="계모임의 목적과 활동 내용을 소개해주세요" />
+          <Textarea name="description" maxLength="50" required placeholder="계모임의 목적과 활동 내용을 소개해주세요" />
         </FullField>
 
         <FullField as="div">
           <span>계모임 이미지 (선택)</span>
           <UploadArea>
-            <FileInput id="saving-group-image" type="file" accept="image/*" onChange={handleImageChange} />
+            <FileInput
+              id="saving-group-image"
+              name="groupImage"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleImageChange}
+            />
             <UploadButton htmlFor="saving-group-image">
               <FiImage size={15} aria-hidden="true" /> 이미지 선택
             </UploadButton>
@@ -336,8 +344,10 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel }) {
         </FullField>
 
         <Actions>
-          <ActionButton type="submit">개설 신청</ActionButton>
-          <ActionButton type="button" $variant="secondary" onClick={onCancel}>
+          <ActionButton type="submit" disabled={isSubmitting}>
+            {isSubmitting ? '신청 중...' : '개설 신청'}
+          </ActionButton>
+          <ActionButton type="button" $variant="secondary" onClick={onCancel} disabled={isSubmitting}>
             취소
           </ActionButton>
         </Actions>

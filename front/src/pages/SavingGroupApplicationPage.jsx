@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupApplicationForm from '../components/savingGroup/SavingGroupApplicationForm';
-import { savingGroupRegions } from '../mocks/savingGroups';
+import { createSavingGroupApplication, savingGroupRegionOptions } from '../api/savingGroups';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -38,10 +39,23 @@ const Content = styled.main`
 
 function SavingGroupApplicationPage() {
   const navigate = useNavigate();
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const regions = ['전체', ...savingGroupRegionOptions.map((item) => item.name)];
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // TODO: Spring Boot 계모임 개설 신청 API에 입력값과 선택한 이미지 파일을 전송합니다.
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await createSavingGroupApplication(new FormData(event.currentTarget));
+      window.alert('개설 신청이 접수되었습니다. 관리자 심사 후 결과를 안내합니다.');
+      navigate('/saving-groups');
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -53,10 +67,12 @@ function SavingGroupApplicationPage() {
       </Heading>
       <Content>
         <SavingGroupApplicationForm
-          regions={savingGroupRegions}
+          regions={regions}
           onSubmit={handleSubmit}
           onCancel={() => navigate('/saving-groups')}
+          isSubmitting={isSubmitting}
         />
+        {error && <p role="alert">{error}</p>}
       </Content>
     </Page>
   );

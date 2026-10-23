@@ -12,7 +12,20 @@ public interface SavingGroupMapper {
     // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
     int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
-    int approveForCreationSavingGroup(@Param("savingGroupId") Long savingGroupId);
+    int insertSavingGroupCreationApproval(@Param("groupId") Long groupId);
+    Long selectRegionIdByName(@Param("regionName") String regionName);
+    boolean existsMember(@Param("memberId") Long memberId);
+    int selectSavingGroupCreationApplicationCount(SavingGroupCreationApplicationListCondition condition);
+    List<SavingGroupCreationApplicationListItemResponse> selectSavingGroupCreationApplications(
+            SavingGroupCreationApplicationListCondition condition);
+    SavingGroupCreationApplicationDetailResponse selectSavingGroupCreationApplication(
+            @Param("approvalId") Long approvalId);
+    SavingGroupCreationApplicationDetailResponse selectSavingGroupCreationApplicationForUpdate(
+            @Param("approvalId") Long approvalId);
+    int approveSavingGroupCreationApplication(@Param("approvalId") Long approvalId);
+    int rejectSavingGroupCreationApplication(@Param("approvalId") Long approvalId,
+            @Param("rejectReason") String rejectReason);
+    int publishApprovedSavingGroup(@Param("groupId") Long groupId);
 
     // 목록 검색 조건에 맞는 공개 계모임의 총 개수를 조회한다.
     // AI작성: 일대다 데이터를 분리 조회하여 공지 수가 계원 집계에 영향을 주지 않게 한다.

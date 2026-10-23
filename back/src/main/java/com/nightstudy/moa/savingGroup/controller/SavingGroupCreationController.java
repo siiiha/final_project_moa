@@ -3,9 +3,8 @@ package com.nightstudy.moa.savingGroup.controller;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.service.SavingGroupCreationService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,18 +21,10 @@ public class SavingGroupCreationController {
     }
 
     @PostMapping
-    public ApiResponse<String> applyForCreationSavingGroup(
-            @ModelAttribute SavingGroupCreationRequest savingGroupCreationRequest
+    public ApiResponse<Void> applyForCreationSavingGroup(
+            @Valid @ModelAttribute SavingGroupCreationRequest savingGroupCreationRequest
     ) {
         savingGroupCreationService.applyForCreationSavingGroup(savingGroupCreationRequest);
-        return ApiResponse.ok();
-    }
-
-    @PatchMapping("/{id}/approve")
-    public ApiResponse<String> approveForCreationSavingGroup(
-            @PathVariable("id") Long savingGroupId
-    ) {
-        savingGroupCreationService.approveForCreationSavingGroup(savingGroupId);
         return ApiResponse.ok();
     }
 }

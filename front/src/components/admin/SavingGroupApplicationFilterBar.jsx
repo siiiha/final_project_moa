@@ -63,15 +63,7 @@ const SearchButton = styled(Button)`
   }
 `;
 
-function SavingGroupApplicationFilterBar({
-  status,
-  reviewType,
-  query,
-  onStatusChange,
-  onReviewTypeChange,
-  onQueryChange,
-  onSearch,
-}) {
+function SavingGroupApplicationFilterBar({ status, query, onStatusChange, onQueryChange, onSearch }) {
   return (
     <Form onSubmit={onSearch}>
       <Control aria-label="심사 상태" value={status} onChange={(event) => onStatusChange(event.target.value)}>
@@ -79,11 +71,6 @@ function SavingGroupApplicationFilterBar({
         <option value="대기">대기</option>
         <option value="승인">승인</option>
         <option value="반려">반려</option>
-      </Control>
-      <Control aria-label="심사 유형" value={reviewType} onChange={(event) => onReviewTypeChange(event.target.value)}>
-        <option value="전체">전체 심사</option>
-        <option value="개설 심사">개설 심사</option>
-        <option value="삭제 심사">삭제 심사</option>
       </Control>
       <SearchInput
         value={query}
