@@ -100,6 +100,20 @@ public class SavingGroupController {
         return ApiResponse.ok();
     }
 
+    // AI작성: 삭제 대상은 URL ID로 받고, 실행 계주는 서버 인증 계층이 설정한 요청 속성으로만 식별한다.
+    @DeleteMapping("/{savingGroupId}")
+    public ApiResponse<Void> deleteSavingGroup(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        // AI작성: TODO: JWT 브랜치 병합 후 LoginInterceptor가 memberId를 설정하도록 이 경로를 인증 대상에 등록한다.
+        // AI작성: 인증 연동 전에는 헤더·쿼리·본문의 회원 ID나 임시 고정 ID를 사용하지 않고 401로 차단한다.
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        savingGroupService.deleteSavingGroup(savingGroupId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 게시글과 동일하게 data에 목록, meta에 공통 페이징 정보를 반환한다.
     @GetMapping
     public ApiResponse<List<SavingGroupSummaryResponse>> list(
