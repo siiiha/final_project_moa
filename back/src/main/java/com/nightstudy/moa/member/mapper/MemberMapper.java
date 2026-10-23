@@ -77,4 +77,12 @@ public interface MemberMapper {
             @Param("memberId") Long memberId,
             @Param("passwordHash") String passwordHash
     );
+
+    int countWithdrawalBlockingGroups(
+            @Param("memberId") Long memberId
+    );
+
+    int withdrawMember(
+            @Param("memberId") Long memberId
+    );
 }

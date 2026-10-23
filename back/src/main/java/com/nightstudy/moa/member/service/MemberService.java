@@ -24,4 +24,9 @@ public interface MemberService {
             Long memberId,
             MemberPasswordUpdateRequest request
     );
+
+    void withdrawMember(
+            Long memberId,
+            MemberWithdrawalRequest request
+    );
 }
