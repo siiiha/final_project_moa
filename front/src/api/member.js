@@ -50,3 +50,14 @@ export async function updateMyPassword(token, request) {
  
     return response.data.data;
 }
+
+export async function withdrawMyAccount(token, request) {
+    const response = await client.delete('/members/me', {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+        data: request,
+    });
+
+    return response.data.data;
+}

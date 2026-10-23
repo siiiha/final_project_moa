@@ -103,29 +103,49 @@ const DangerDescription = styled.p`
   line-height: 1.6;
 `;
 
-function WithdrawalPanel({ status, onRequestWithdrawal }) {
+// AI작성: 예시 수치 대신 실제 회원탈퇴 조건을 안내합니다.
+function WithdrawalPanel({ onRequestWithdrawal }) {
   return (
     <Panel>
-      <Title>{status.title}</Title>
-      <Description>{status.description}</Description>
+      <Title>탈퇴 전 확인사항</Title>
+      <Description>
+        아래 내용을 확인한 후 회원탈퇴를 진행해주세요.
+      </Description>
+
       <StatusList>
-        {status.checks.map((check) => (
-          <StatusItem key={check.label}>
-            <StatusLabel>{check.label}</StatusLabel>
-            <StatusValue>{check.value}</StatusValue>
-          </StatusItem>
-        ))}
+        <StatusItem>
+          <StatusLabel>진행 중·정지 계모임</StatusLabel>
+          <StatusValue>참여 시 제한</StatusValue>
+        </StatusItem>
+        <StatusItem>
+          <StatusLabel>현재 비밀번호</StatusLabel>
+          <StatusValue>확인 필요</StatusValue>
+        </StatusItem>
+        <StatusItem>
+          <StatusLabel>탈퇴 안내사항</StatusLabel>
+          <StatusValue>동의 필요</StatusValue>
+        </StatusItem>
       </StatusList>
+
       <AvailableNotice>
         <FiCheckCircle size={16} aria-hidden="true" />
-        현재 탈퇴를 제한하는 계모임이나 미정산 금액이 없습니다.
+        진행 중이거나 정지된 계모임이 있으면 해당 모임이 종료된 후
+        탈퇴할 수 있습니다.
       </AvailableNotice>
+
       <DangerArea>
         <div>
           <DangerTitle>회원탈퇴</DangerTitle>
-          <DangerDescription>안내사항 확인과 비밀번호 인증 후 탈퇴할 수 있습니다.</DangerDescription>
+          <DangerDescription>
+            안내사항 확인과 비밀번호 인증 후 탈퇴할 수 있습니다.
+          </DangerDescription>
         </div>
-        <Button type="button" $variant="danger" $size="small" onClick={onRequestWithdrawal}>
+        <Button
+          type="button"
+          $variant="danger"
+          $size="small"
+          onClick={onRequestWithdrawal}
+        >
           <FiAlertTriangle size={14} aria-hidden="true" />
           회원탈퇴
         </Button>
