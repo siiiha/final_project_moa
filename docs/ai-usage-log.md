@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-23 — 계주 승인 계원 추방 API
+
+- 목적: 계주가 자신의 계모임에서 승인된 계원을 `EXPELLED` 상태로 변경할 수 있게 한다.
+- 사용자 확정: 요청 식별자는 `groupId`와 대상 `memberId`를 URL 경로로 받고, 계주 본인 추방은 차단한다.
+- AI 작성: 기존 서버 인증 request attribute와 계주 이중 검증을 재사용한 Service·MyBatis 조건부 UPDATE, Controller API, Service·Controller 단위 테스트, API 명세를 작성했다. 추방 성공 뒤에는 알림 TODO만 남겼다.
+- 권한·데이터: `groups.member_id`와 `OWNER` + `APPROVED` 관계를 모두 확인한다. 대상은 `APPROVED` 상태일 때만 `EXPELLED`로 변경하며, `left_at`·역할·승인 이력·알림 데이터는 바꾸지 않는다.
+- DB·외부 서비스·의존성·설정 변경: 없음. 기존 `group_member.membership_status`의 `EXPELLED` 상태값을 사용했고 실제 알림 발송·저장·외부 연동은 구현하지 않았다.
+- 검증: `git diff --check`와 MyBatis Mapper XML 구조 확인을 통과했다. Gradle 대상 테스트 실행은 Java 17 toolchain 부재로 컴파일 전에 중단되어 통과 여부는 미확정이다.
+- 직접 확인 필요: Java 17을 준비한 뒤 Service·Controller 테스트, 실제 MySQL에서 `FOR UPDATE`와 조건부 UPDATE, JWT 인터셉터 병합 뒤 401·403·성공 요청을 검증한다.
+- 개발자 코드 검토·수정: 최종 검토 대기.
+
 ## 2026-10-22 — 계모임 개설 신청 및 관리자 심사 실제 API 연동
 
 - 목적: 개설 신청을 `meeting_approval`의 CREATE/PENDING 이력으로 저장하고, 관리자 승인·반려 및 React 화면을 실제 API로 연결한다.
