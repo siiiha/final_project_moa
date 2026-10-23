@@ -125,6 +125,12 @@ public interface SavingGroupMapper {
     // AI작성: URL의 groupId로 계모임과 생성 계주를 잠가 추방 권한 검증에 사용한다.
     SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(@Param("groupId") Long groupId);
 
+    // AI작성: 삭제 요청 시 계모임의 내부 모임 ID·상태·생성 계주를 잠가 존재와 권한을 같은 트랜잭션에서 검증한다.
+    SavingGroupJoinTargetRow selectSavingGroupDeleteTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
+
+    // AI작성: 물리 삭제 대신 아직 삭제되지 않은 공통 모임 행에 삭제 시각만 기록한다.
+    int softDeleteSavingGroup(@Param("groupId") Long groupId);
+
     // AI작성: 동일 회원의 기존 가입·신청 이력을 잠근 상태로 조회한다.
     SavingGroupMembershipRelationRow selectSavingGroupMembershipForUpdate(
             @Param("groupId") Long groupId, @Param("memberId") Long memberId);
