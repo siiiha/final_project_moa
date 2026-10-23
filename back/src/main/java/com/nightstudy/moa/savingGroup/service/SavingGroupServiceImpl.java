@@ -115,6 +115,52 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         // TODO: 알림 기능 구현 후 추방당한 회원에게 추방 알림을 발송한다.
     }
 
+    // AI작성: 계주가 승인 후 시작 전인 자신의 계모임만 삭제하도록 대상·소유자·상태를 잠근 동일 트랜잭션에서 검증한다.
+    @Override
+    @Transactional
+    public void deleteSavingGroup(Long savingGroupId, Long memberId) {
+        if (savingGroupId == null || savingGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupJoinTargetRow target = savingGroupMapper
+                .selectSavingGroupDeleteTargetForUpdate(savingGroupId);
+        if (target == null) {
+            // AI작성: TODO: 이미 소프트 삭제된 모임 재요청의 별도 응답 정책이 확정되기 전에는 기존 비노출 조건과 같은 404로 처리한다.
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+
+        validateSavingGroupDeleteOwner(target, memberId);
+        if (!"01".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_UNAVAILABLE",
+                    "승인 후 시작 전인 계모임만 삭제할 수 있습니다.");
+        }
+
+        int affectedRows = savingGroupMapper.softDeleteSavingGroup(target.getGroupId());
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_FAILED",
+                    "계모임 상태가 변경되어 삭제할 수 없습니다. 다시 확인해주세요.");
+        }
+    }
+
+    // AI작성: 생성 계주와 승인된 OWNER 관계가 모두 일치해야만 삭제 권한을 부여한다.
+    private void validateSavingGroupDeleteOwner(SavingGroupJoinTargetRow target, Long memberId) {
+        if (!Objects.equals(memberId, target.getOwnerMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED",
+                    "계주만 계모임을 삭제할 수 있습니다.");
+        }
+        SavingGroupMembershipRelationRow owner = savingGroupMapper
+                .selectSavingGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (owner == null || !"OWNER".equals(owner.getMemberRole())
+                || !"APPROVED".equals(owner.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED",
+                    "승인된 계주만 계모임을 삭제할 수 있습니다.");
+        }
+    }
+
     // AI작성: 계모임과 본인 관계를 잠근 뒤 모집중인 승인 계원만 LEFT 상태로 바꾼다.
     @Override
     @Transactional

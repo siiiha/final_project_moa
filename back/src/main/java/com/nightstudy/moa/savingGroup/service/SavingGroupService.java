@@ -22,6 +22,9 @@ public interface SavingGroupService {
     // AI작성: 계주는 자신의 계모임에 승인된 계원의 관계 상태만 추방으로 변경할 수 있다.
     void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId);
 
+    // AI작성: 계주는 승인 후 시작 전인 자신의 계모임만 소프트 삭제할 수 있다.
+    void deleteSavingGroup(Long savingGroupId, Long memberId);
+
     // AI작성: 인증된 계원 본인은 모집중인 계모임의 승인 관계만 탈퇴 상태로 변경할 수 있다.
     void leaveSavingGroup(Long savingGroupId, Long memberId);
 
