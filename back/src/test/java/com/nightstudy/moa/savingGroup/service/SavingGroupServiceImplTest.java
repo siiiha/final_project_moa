@@ -292,8 +292,18 @@ class SavingGroupServiceImplTest {
         }
 
         @Override
+        public SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(Long groupId) {
+            return target;
+        }
+
+        @Override
         public SavingGroupMembershipRelationRow selectSavingGroupMembershipForUpdate(Long groupId, Long memberId) {
             return relation;
+        }
+
+        @Override
+        public int expelApprovedSavingGroupMember(Long crewMemberId, Long groupId) {
+            return 0;
         }
 
         @Override

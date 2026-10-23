@@ -23,6 +23,8 @@ class SavingGroupJoinApprovalServiceTest {
     private PlatformTransactionManager manager;
     private SavingGroupService service;
     private SavingGroupJoinApprovalTargetRow request;
+    private SavingGroupJoinTargetRow target;
+    private SavingGroupMembershipRelationRow approvedMember;
     private SimpleTransactionStatus transaction;
 
     @BeforeEach
@@ -43,7 +45,7 @@ class SavingGroupJoinApprovalServiceTest {
         request.setMemberId(20L);
         request.setGroupId(30L);
         request.setMembershipStatus("PENDING");
-        var target = new SavingGroupJoinTargetRow();
+        target = new SavingGroupJoinTargetRow();
         target.setGroupId(30L);
         target.setOwnerMemberId(40L);
         target.setStatus("01");
@@ -51,14 +53,21 @@ class SavingGroupJoinApprovalServiceTest {
         var owner = new SavingGroupMembershipRelationRow();
         owner.setMemberRole("OWNER");
         owner.setMembershipStatus("APPROVED");
+        approvedMember = new SavingGroupMembershipRelationRow();
+        approvedMember.setCrewMemberId(50L);
+        approvedMember.setMemberRole("MEMBER");
+        approvedMember.setMembershipStatus("APPROVED");
         when(mapper.selectSavingGroupJoinApprovalTarget(50L)).thenReturn(request);
         when(mapper.selectSavingGroupJoinMemberForUpdate(20L)).thenReturn(new SavingGroupJoinMemberRow());
         when(mapper.selectSavingGroupJoinTargetForUpdate(10L)).thenReturn(target);
+        when(mapper.selectSavingGroupExpulsionTargetForUpdate(30L)).thenReturn(target);
         when(mapper.selectSavingGroupJoinApprovalTargetForUpdate(50L)).thenReturn(request);
         when(mapper.selectSavingGroupMembershipForUpdate(30L, 40L)).thenReturn(owner);
+        when(mapper.selectSavingGroupMembershipForUpdate(30L, 20L)).thenReturn(approvedMember);
         when(mapper.selectApprovedMemberCountForUpdate(30L)).thenReturn(4L);
         when(mapper.selectApprovedSavingGroupCount(20L)).thenReturn(4L);
         when(mapper.approveSavingGroupJoinRequest(50L, 30L, 40L)).thenReturn(1);
+        when(mapper.expelApprovedSavingGroupMember(50L, 30L)).thenReturn(1);
     }
 
     @Test
@@ -76,6 +85,60 @@ class SavingGroupJoinApprovalServiceTest {
         order.verify(mapper).approveSavingGroupJoinRequest(50L, 30L, 40L);
         order.verify(manager).commit(transaction);
         verifyNoMoreInteractions(mapper);
+    }
+
+    @Test
+    void 계주가승인된계원을추방하면기존관계만상태변경한다() {
+        service.expelApprovedSavingGroupMember(30L, 20L, 40L);
+        var order = inOrder(manager, mapper);
+        order.verify(manager).getTransaction(argThat(def -> def.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRED));
+        order.verify(mapper).selectSavingGroupExpulsionTargetForUpdate(30L);
+        order.verify(mapper).selectSavingGroupMembershipForUpdate(30L, 40L);
+        order.verify(mapper).selectSavingGroupMembershipForUpdate(30L, 20L);
+        order.verify(mapper).expelApprovedSavingGroupMember(50L, 30L);
+        order.verify(manager).commit(transaction);
+        verifyNoMoreInteractions(mapper);
+    }
+
+    @Test
+    void 계주가아니면추방상태를변경하지않는다() {
+        assertEquals("SAVING_GROUP_OWNER_REQUIRED", assertThrows(ApiException.class,
+                () -> service.expelApprovedSavingGroupMember(30L, 20L, 41L)).getCode());
+        verify(mapper, never()).expelApprovedSavingGroupMember(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PENDING", "REJECTED", "LEFT", "EXPELLED"})
+    void 승인상태가아닌계원은추방하지않는다(String status) {
+        approvedMember.setMembershipStatus(status);
+        assertEquals("SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.expelApprovedSavingGroupMember(30L, 20L, 40L)).getCode());
+        verify(mapper, never()).expelApprovedSavingGroupMember(any(), any());
+    }
+
+    @Test
+    void 승인상태계원이없으면추방하지않는다() {
+        when(mapper.selectSavingGroupMembershipForUpdate(30L, 20L)).thenReturn(null);
+        assertEquals("SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND", assertThrows(ApiException.class,
+                () -> service.expelApprovedSavingGroupMember(30L, 20L, 40L)).getCode());
+        verify(mapper, never()).expelApprovedSavingGroupMember(any(), any());
+    }
+
+    @Test
+    void 계주본인추방은차단한다() {
+        assertEquals("SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED", assertThrows(ApiException.class,
+                () -> service.expelApprovedSavingGroupMember(30L, 40L, 40L)).getCode());
+        verify(mapper, never()).expelApprovedSavingGroupMember(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 2})
+    void 추방조건부변경의영향행수가하나가아니면롤백한다(int affected) {
+        when(mapper.expelApprovedSavingGroupMember(50L, 30L)).thenReturn(affected);
+        assertEquals("SAVING_GROUP_MEMBER_EXPULSION_FAILED", assertThrows(ApiException.class,
+                () -> service.expelApprovedSavingGroupMember(30L, 20L, 40L)).getCode());
+        verify(manager).rollback(transaction);
+        verify(manager, never()).commit(any());
     }
 
     @ParameterizedTest
@@ -125,7 +188,7 @@ class SavingGroupJoinApprovalServiceTest {
         verify(mapper, never()).approveSavingGroupJoinRequest(any(), any(), any());
     }
 
-    // AI작성: 실제 매퍼 전체를 읽어 승인 SQL의 바인딩·저장값과 조건부 UPDATE를 검사한다.
+    // AI작성: 실제 매퍼 전체를 읽어 승인·추방 SQL의 바인딩·저장값과 조건부 UPDATE를 검사한다.
     @Test
     void 실제매퍼의승인과재신청SQL은저장정책을지킨다() throws Exception {
         var config = new org.apache.ibatis.session.Configuration();
@@ -150,5 +213,15 @@ class SavingGroupJoinApprovalServiceTest {
                 .getBoundSql(java.util.Map.of("memberId", 20L, "groupId", 30L)).getSql();
         assertTrue(reapply.contains("approved_by = NULL"));
         assertTrue(reapply.contains("approved_at = NULL"));
+        var expel = config.getMappedStatement(prefix + "expelApprovedSavingGroupMember");
+        assertEquals(org.apache.ibatis.mapping.SqlCommandType.UPDATE, expel.getSqlCommandType());
+        String expelSql = expel.getBoundSql(java.util.Map.of("crewMemberId", 50L, "groupId", 30L))
+                .getSql().replaceAll("\\s+", " ");
+        assertTrue(expelSql.contains("membership_status = 'EXPELLED'"));
+        assertTrue(expelSql.contains("WHERE crew_member_id = ? AND group_id = ? AND membership_status = 'APPROVED'"));
+        assertEquals(java.util.List.of("crewMemberId", "groupId"),
+                expel.getBoundSql(java.util.Map.of("crewMemberId", 50L, "groupId", 30L))
+                        .getParameterMappings().stream()
+                        .map(org.apache.ibatis.mapping.ParameterMapping::getProperty).toList());
     }
 }
