@@ -22,6 +22,9 @@ public interface SavingGroupService {
     // AI작성: 계주는 자신의 계모임에 승인된 계원의 관계 상태만 추방으로 변경할 수 있다.
     void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId);
 
+    // AI작성: 인증된 계원 본인은 모집중인 계모임의 승인 관계만 탈퇴 상태로 변경할 수 있다.
+    void leaveSavingGroup(Long savingGroupId, Long memberId);
+
     // AI작성: 호출자의 기존 트랜잭션 안에서만 검증하며, 반환값을 별도 트랜잭션의 승인 근거로 사용하지 않는다.
     SavingGroupJoinApprovalTargetRow validateSavingGroupJoinApproval(
             Long savingGroupId, Long crewMemberId, Long memberId);

@@ -115,6 +115,41 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         // TODO: 알림 기능 구현 후 추방당한 회원에게 추방 알림을 발송한다.
     }
 
+    // AI작성: 계모임과 본인 관계를 잠근 뒤 모집중인 승인 계원만 LEFT 상태로 바꾼다.
+    @Override
+    @Transactional
+    public void leaveSavingGroup(Long savingGroupId, Long memberId) {
+        if (savingGroupId == null || savingGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        if (!"01".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_LEAVE_UNAVAILABLE",
+                    "모집중인 계모임에서만 탈퇴할 수 있습니다.");
+        }
+
+        SavingGroupMembershipRelationRow member = savingGroupMapper
+                .selectSavingGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (member == null || !"APPROVED".equals(member.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND",
+                    "승인 상태의 계원을 찾을 수 없습니다.");
+        }
+
+        int affectedRows = savingGroupMapper.leaveApprovedSavingGroupMember(
+                member.getCrewMemberId(), target.getGroupId());
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_LEAVE_FAILED",
+                    "계원 상태가 변경되어 탈퇴할 수 없습니다. 다시 확인해주세요.");
+        }
+    }
+
     // AI작성: 후속 승인 처리의 트랜잭션에 반드시 참여하며 이 단계에서는 저장하지 않는다.
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
