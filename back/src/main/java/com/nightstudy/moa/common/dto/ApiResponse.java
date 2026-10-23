@@ -17,6 +17,11 @@ public class ApiResponse<T> {
     private final PageMeta meta;   // 목록 조회일 때만 채운다
     private final ErrorInfo error; // 실패일 때만 채운다
 
+    // 단순 요청 성공
+    public static <T> ApiResponse<T> ok() {
+        return new ApiResponse<>(true, null, null, null);
+    }
+
     // 단건 조회 성공
     public static <T> ApiResponse<T> ok(T data) {
         return new ApiResponse<>(true, data, null, null);
