@@ -136,5 +136,17 @@
             AND deleted_at IS NULL
     </select>
 
-
+    <!-- 소셜 인증에서 확인한 계정을 모아 회원에게 연결 -->
+    <insert id="insertSocialAccount">
+        INSERT INTO member_social_account (
+        member_id,
+        provider,
+        provider_user_id
+        )
+        VALUES (
+        #{memberId},
+        #{provider},
+        #{providerUserId}
+        )
+    </insert>
 </mapper>

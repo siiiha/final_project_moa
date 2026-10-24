@@ -84,6 +84,12 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/auth/kakao/login",
+                                "/api/auth/kakao/callback"
+                        ).permitAll()
+
+                        .requestMatchers(
                                 "/api/admin/**"
                         ).hasRole("ADMIN")
 

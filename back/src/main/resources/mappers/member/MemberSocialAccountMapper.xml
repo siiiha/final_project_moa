@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.member.mapper.MemberSocialAccountMapper">
+
+    <!-- 소셜 계정에 연결된 모아 회원의 상태와 권한을 조회 -->
+    <select id="findByProviderAndProviderUserId"
+            resultType="com.nightstudy.moa.member.dto.SocialLoginMemberDto">
+        SELECT
+        m.member_id,
+        m.account_status,
+        m.system_role,
+        m.deleted_at
+        FROM member_social_account msa
+        INNER JOIN members m
+        ON m.member_id = msa.member_id
+        WHERE msa.provider = #{provider}
+        AND msa.provider_user_id = #{providerUserId}
+    </select>
+
+</mapper>

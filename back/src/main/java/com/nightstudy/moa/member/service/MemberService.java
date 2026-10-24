@@ -2,6 +2,7 @@ package com.nightstudy.moa.member.service;
 
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
+import com.nightstudy.moa.member.dto.SocialSignupRequest;
 
 public interface MemberService {
 
@@ -12,4 +13,6 @@ public interface MemberService {
     boolean isNicknameAvailable(String nickname);
 
     String login(MemberLoginRequest request);
+
+    Long signupSocial(SocialSignupRequest request);
 }
