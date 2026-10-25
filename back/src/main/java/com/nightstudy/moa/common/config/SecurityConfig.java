@@ -76,6 +76,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/auth/signup",
+                                "/api/auth/social/signup",
                                 "/api/auth/login",
                                 "/api/auth/check-email",
                                 "/api/auth/check-nickname",
@@ -86,7 +87,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/auth/kakao/login",
-                                "/api/auth/kakao/callback"
+                                "/api/auth/kakao/callback",
+                                "/api/auth/kakao/result"
                         ).permitAll()
 
                         .requestMatchers(

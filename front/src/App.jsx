@@ -29,6 +29,7 @@ import SmallGroupsPage from './pages/SmallGroupsPage';
 import SmallGroupCreatePage from './pages/SmallGroupCreatePage';
 import SmallGroupDetailPage from './pages/SmallGroupDetailPage';
 import NotFound from './pages/NotFound';
+import SocialLoginCallbackPage from './pages/SocialLoginCallbackPage.jsx';
 
 function App() {
   return (
@@ -44,6 +45,11 @@ function App() {
         <Route path="/small-groups/:id" element={<SmallGroupDetailPage />} />
         <Route path="/small-groups" element={<SmallGroupsPage />} />
         <Route path="/member/login" element={<LoginPage />} />
+        {/* AI작성: 카카오 인증 후 로그인 결과를 처리하는 화면 */}
+        <Route
+          path="/member/social/callback"
+          element={<SocialLoginCallbackPage />}
+        />
         <Route path="/member/mypage" element={<MyPage />} />
         <Route path="/member/mypage/edit" element={<EditProfilePage />} />
         <Route path="/member/mypage/delete" element={<DeleteAccountPage />} />

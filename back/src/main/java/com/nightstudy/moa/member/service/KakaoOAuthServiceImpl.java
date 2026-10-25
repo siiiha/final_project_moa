@@ -41,6 +41,7 @@ public class KakaoOAuthServiceImpl implements KakaoOAuthService {
                 .queryParam("client_id", properties.getClientId())
                 .queryParam("redirect_uri", properties.getRedirectUri())
                 .queryParam("state", state)
+                .queryParam("prompt", "login")
                 .build()
                 .encode()
                 .toUri();

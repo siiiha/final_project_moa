@@ -20,4 +20,18 @@
         AND msa.provider_user_id = #{providerUserId}
     </select>
 
+    <!-- 인증된 소셜 계정을 모아 회원에게 연결 -->
+    <insert id="insertSocialAccount">
+        INSERT INTO member_social_account (
+        member_id,
+        provider,
+        provider_user_id
+        )
+        VALUES (
+        #{memberId},
+        #{provider},
+        #{providerUserId}
+        )
+    </insert>
+
 </mapper>
