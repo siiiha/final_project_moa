@@ -423,7 +423,7 @@ REFERENCES `members` (
 );
 
 ALTER TABLE `group_account` 
-ADD CONSTRAINT `FK_meeting_TO_group_account_1` 
+ADD CONSTRAINT `FK_groups_TO_group_account_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);
 
@@ -476,7 +476,7 @@ REFERENCES `groups` (
 	`group_id`
 );
 
-ALTER TABLE `group_notice` ADD CONSTRAINT `FK_meeting_TO_group_notice_1` FOREIGN KEY (
+ALTER TABLE `group_notice` ADD CONSTRAINT `FK_groups_TO_group_notice_1` FOREIGN KEY (
 	`group_id`
 )
 REFERENCES `groups` (
@@ -557,7 +557,7 @@ REFERENCES `members` (
 	`member_id`
 );
 
-ALTER TABLE `meeting_round` ADD CONSTRAINT `FK_meeting_TO_meeting_round_1` FOREIGN KEY (
+ALTER TABLE `meeting_round` ADD CONSTRAINT `FK_groups_TO_meeting_round_1` FOREIGN KEY (
 	`group_id`
 )
 REFERENCES `groups` (
