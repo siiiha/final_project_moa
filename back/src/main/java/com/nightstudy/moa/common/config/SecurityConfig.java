@@ -84,11 +84,15 @@ public class SecurityConfig {
                                 "/api/auth/email-verifications/verify"
                         ).permitAll()
 
+                        // AI작성: 소셜 인증 시작·콜백·결과 조회는 비로그인 상태에서 허용한다.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/auth/kakao/login",
                                 "/api/auth/kakao/callback",
-                                "/api/auth/kakao/result"
+                                "/api/auth/kakao/result",
+                                "/api/auth/naver/login",
+                                "/api/auth/naver/callback",
+                                "/api/auth/naver/result"
                         ).permitAll()
 
                         .requestMatchers(

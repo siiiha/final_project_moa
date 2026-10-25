@@ -153,7 +153,7 @@ useEffect(() => {
       event.origin !== window.location.origin ||
       !popupRef.current ||
       event.source !== popupRef.current ||
-      event.data?.type !== 'MOA_KAKAO_RESULT'
+      event.data?.type !== 'MOA_SOCIAL_RESULT'
     ) {
       return;
     }
@@ -241,7 +241,7 @@ useEffect(() => {
 const handleSocialLogin = (providerId) => {
   if (isSubmitting || popupRef.current) return;
 
-  if (providerId !== 'kakao') {
+  if (!['kakao', 'naver'].includes(providerId)) {
     setErrorMessage('해당 소셜 로그인은 준비 중입니다.');
     return;
   }
@@ -260,8 +260,8 @@ const handleSocialLogin = (providerId) => {
   );
 
   const popup = window.open(
-    '/api/auth/kakao/login',
-    `moa-kakao-${crypto.randomUUID()}`,
+  `/api/auth/${providerId}/login`,
+  `moa-${providerId}-${crypto.randomUUID()}`,
     `popup=yes,width=${width},height=${height},left=${left},top=${top}`,
   );
 
@@ -281,7 +281,7 @@ const handleSocialLogin = (providerId) => {
     popupTimerRef.current = null;
     popupRef.current = null;
     setIsSubmitting(false);
-    setErrorMessage('카카오 로그인 창이 닫혔습니다. 다시 시도해주세요.');
+    setErrorMessage('소셜 로그인 창이 닫혔습니다. 다시 시도해주세요.');
   }, 500);
 };
 

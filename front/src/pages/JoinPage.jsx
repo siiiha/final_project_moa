@@ -59,7 +59,7 @@ function JoinPage() {
     return (
       <JoinMain>
         <Heading>
-          <Title>카카오 로그인을 다시 진행해주세요</Title>
+          <Title>소셜 로그인을 다시 진행해주세요</Title>
           <Subtitle>가입 정보가 없거나 유효시간이 지났습니다.</Subtitle>
           <Link to="/member/login">로그인 화면으로 이동</Link>
         </Heading>
