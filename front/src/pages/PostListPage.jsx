@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { getPosts } from '../api/postApi';
+import { getPostCategories, getPosts } from '../api/postApi';
 import Button from '../components/common/Button';
 import PostFilterBar from '../components/post/PostFilterBar';
 import PostTable from '../components/post/PostTable';
@@ -9,15 +9,9 @@ import useAuthStore from '../store/authStore';
 
 const POSTS_PER_PAGE = 10;
 const PAGE_BUTTON_COUNT = 5;
+const ALL_CATEGORY_NAME = '전체보기';
 
 // AI작성: 화면의 카테고리 이름을 DB의 post_category ID와 연결합니다.
-const POST_CATEGORIES = [
-  { name: '전체', id: null },
-  { name: '행사·축제', id: 1 },
-  { name: '일자리', id: 2 },
-  { name: '거래·나눔', id: 3 },
-];
-
 const SEARCH_TYPE_BY_CONDITION = {
   '제목': 'title',
   '내용': 'content',
@@ -88,12 +82,14 @@ function PostListPage() {
   const [keywordDraft, setKeywordDraft] = useState(searchParams.get('keyword') || '');
   const [currentPage, setCurrentPage] = useState(1);
   const [posts, setPosts] = useState([]);
+  const [categories, setCategories] = useState([{ categoryName: ALL_CATEGORY_NAME, categoryId: null }]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const category = searchParams.get('category') || '전체';
+  const category = searchParams.get('category') || ALL_CATEGORY_NAME;
   const condition = searchParams.get('condition') || '제목+내용';
   const sort = searchParams.get('sort') || '최신순';
   const keyword = searchParams.get('keyword') || '';
@@ -101,19 +97,32 @@ function PostListPage() {
 
   useEffect(() => {
     let isActive = true;
+    getPostCategories()
+      .then((response) => {
+        if (!response.success) throw new Error(response.error?.message || '카테고리를 불러오지 못했습니다.');
+        if (isActive) setCategories([{ categoryName: ALL_CATEGORY_NAME, categoryId: null }, ...(response.data || [])]);
+      })
+      .catch((error) => isActive && setErrorMessage(error.response?.data?.error?.message || error.message))
+      .finally(() => isActive && setIsLoadingCategories(false));
+    return () => { isActive = false; };
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
 
     async function loadPosts() {
+      if (isLoadingCategories) return;
       setIsLoading(true);
       setErrorMessage('');
 
-      const selectedCategory = POST_CATEGORIES.find((item) => item.name === category);
+      const selectedCategory = categories.find((item) => item.categoryName === category);
       const params = {
         page: currentPage,
         size: POSTS_PER_PAGE,
         order,
       };
 
-      if (selectedCategory?.id) params.categoryId = selectedCategory.id;
+      if (selectedCategory?.categoryId) params.categoryId = selectedCategory.categoryId;
       if (keyword) params.keyword = keyword;
       if (SEARCH_TYPE_BY_CONDITION[condition]) {
         params.searchType = SEARCH_TYPE_BY_CONDITION[condition];
@@ -156,7 +165,7 @@ function PostListPage() {
     return () => {
       isActive = false;
     };
-  }, [category, condition, currentPage, keyword, order]);
+  }, [categories, category, condition, currentPage, isLoadingCategories, keyword, order]);
 
   const updateFilters = (nextFilters) => {
     const nextCategory = nextFilters.category ?? category;
@@ -213,7 +222,7 @@ function PostListPage() {
       </Heading>
       <Content>
         <PostFilterBar
-          categories={POST_CATEGORIES.map((item) => item.name)}
+          categories={categories.map((item) => item.categoryName)}
           category={category}
           condition={condition}
           keyword={keywordDraft}

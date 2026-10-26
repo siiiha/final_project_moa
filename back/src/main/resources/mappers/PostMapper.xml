@@ -7,7 +7,8 @@
 -->
 <mapper namespace="com.nightstudy.moa.post.mapper.PostMapper">
     <select id="selectPostCategories" resultType="PostCategoryDto">
-        SELECT category_id, category_name
+        <!-- AI작성: 프론트 DTO의 camelCase 필드명과 명확히 매핑한다. -->
+        SELECT category_id AS categoryId, category_name AS categoryName
         FROM post_category
         ORDER BY category_id ASC
     </select>
@@ -19,7 +20,8 @@
         <where>
             p.deleted_at IS NULL
             <!--<when>의 test는 조건이 참(true)인지 거짓(false)인지 검사하는 속성-->
-            <if test="categoryId != null and categoryId != '' and categoryId != '전체'">
+            <!-- AI작성: 전체보기는 categoryId를 보내지 않으므로 null 여부만 확인한다. -->
+            <if test="categoryId != null">
                 AND p.category_id = #{categoryId}
             </if>
 

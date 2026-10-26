@@ -124,6 +124,13 @@ public class PostServiceImpl implements PostService {
             );
         }
 
+        // AI작성: 변경 사항이 없어도 유효한 수정 요청으로 처리한다.
+        if (Objects.equals(post.getCategoryId(), request.getCategoryId())
+                && Objects.equals(post.getTitle(), request.getTitle().trim())
+                && Objects.equals(post.getContent(), request.getContent().trim())) {
+            return postId;
+        }
+
         Long editCount = postMapper.editPost(postId, request);
 
         if (editCount != 1) {

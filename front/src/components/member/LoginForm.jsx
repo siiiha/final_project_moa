@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
-import { Link, useNavigate } from 'react-router-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -9,8 +8,6 @@ import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
 import { socialLoginProviders } from '../../mocks/auth';
 import { getMyMemberId, login } from '../../api/authApi';
-import useAuthStore from '../../store/authStore';
-import { loginMember } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 
 const Card = styled.section`

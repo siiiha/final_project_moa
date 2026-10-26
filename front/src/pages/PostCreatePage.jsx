@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { createPost, getPostDetail, updatePost } from '../api/postApi';
+import { createPost, getPostCategories, getPostDetail, updatePost } from '../api/postApi';
 import PostCreateForm from '../components/post/PostCreateForm';
-import { postCategories } from '../mocks/posts';
 import useAuthStore from '../store/authStore';
 
-const CATEGORY_ID_BY_NAME = {
-  '행사·축제': 1,
-  '일자리': 2,
-  '거래·나눔': 3,
-};
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -62,13 +56,28 @@ function PostCreatePage() {
   const { id: postId } = useParams();
   const isEditMode = Boolean(postId);
   const token = useAuthStore((state) => state.token);
-  const [category, setCategory] = useState('행사·축제');
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [imageName, setImageName] = useState('');
   const [isLoadingPost, setIsLoadingPost] = useState(isEditMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    let isActive = true;
+    getPostCategories()
+      .then((response) => {
+        if (!response.success) throw new Error(response.error?.message || '카테고리를 불러오지 못했습니다.');
+        if (!isActive) return;
+        const loaded = response.data || [];
+        setCategories(loaded);
+        setCategory((current) => current || loaded[0]?.categoryName || '');
+      })
+      .catch((error) => isActive && setErrorMessage(error.response?.data?.error?.message || error.message));
+    return () => { isActive = false; };
+  }, []);
 
   useEffect(() => {
     if (!isEditMode) return undefined;
@@ -88,7 +97,7 @@ function PostCreatePage() {
 
         if (!isActive) return;
 
-        setCategory(response.data.categoryName || '행사·축제');
+        setCategory(response.data.categoryName || '');
         setTitle(response.data.title || '');
         setContent(response.data.content || '');
       } catch (error) {
@@ -121,7 +130,7 @@ function PostCreatePage() {
       return;
     }
 
-    const categoryId = CATEGORY_ID_BY_NAME[category];
+    const categoryId = categories.find((item) => item.categoryName === category)?.categoryId;
     if (!categoryId) {
       setErrorMessage('올바른 카테고리를 선택해주세요.');
       return;
@@ -134,7 +143,6 @@ function PostCreatePage() {
       let response;
 
       if (isEditMode) {
-        // TODO AI작성: 로그인 연동 후 백엔드에서 로그인 회원과 게시글 작성자의 수정 권한을 검증해야 합니다.
         response = await updatePost(postId, {
           categoryId,
           title: title.trim(),
@@ -185,7 +193,7 @@ function PostCreatePage() {
           <StatusMessage>게시글을 불러오는 중입니다.</StatusMessage>
         ) : (
           <PostCreateForm
-            categories={postCategories.filter((item) => item !== '전체')}
+            categories={categories.map((item) => item.categoryName)}
             category={category}
             title={title}
             content={content}

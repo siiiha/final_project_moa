@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { FiBell } from 'react-icons/fi';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import { logout } from '../../api/authApi';
-import useAuthStore from '../../store/authStore';
-import { logoutMember } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 
 const Shell = styled.header`
@@ -161,45 +159,7 @@ function Header() {
       window.location.assign('/');
     }
   };
-  const navigate = useNavigate();
-
-  const token = useAuthStore((state) => state.token);
-  const clearToken = useAuthStore((state) => state.clearToken);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const isLoggedIn = Boolean(token);
-
-  // 서버 로그아웃 성공 후 브라우저의 JWT를 제거
-  const handleLogout = async () => {
-    if (!token || isLoggingOut) return;
-
-    setIsLoggingOut(true);
-
-    try {
-      const result = await logoutMember(token);
-
-      if (!result.success) {
-        throw new Error('로그아웃에 실패했습니다.');
-      }
-
-      clearToken();
-      navigate('/member/login', { replace: true });
-    } catch (error) {
-      // 만료되거나 이미 무효인 JWT도 브라우저에서 제거
-      if (error.response?.status === 401) {
-        clearToken();
-        navigate('/member/login', { replace: true });
-        return;
-      }
-
-      window.alert(
-        error.response?.data?.error?.message ??
-          '로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.',
-      );
-    } finally {
-      setIsLoggingOut(false);
-    }
-  };
+  const isLoggedIn = Boolean(useAuthStore((state) => state.token));
 
   return (
     <Shell>
