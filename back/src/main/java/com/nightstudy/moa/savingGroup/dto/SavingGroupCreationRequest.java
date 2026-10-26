@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -28,9 +27,7 @@ public class SavingGroupCreationRequest {
     @NotBlank(message = "활동 지역을 선택해 주세요.")
     @Size(max = 100, message = "활동 지역을 다시 선택해 주세요.")
     private String regionName;
-    // AI작성: 인증 도입 전 임시 식별값이며, JWT 병합 시 서버 인증 회원 ID로 교체해야 한다.
-    @NotNull(message = "신청자 정보를 확인할 수 없습니다.")
-    @Positive(message = "신청자 정보가 올바르지 않습니다.")
+    // AI작성: 신청자 ID는 클라이언트 입력값이 아닌 JWT 인증 정보로 서버에서 설정한다.
     private Long memberId;
     @NotNull(message = "모집 인원을 입력해 주세요.")
     @Min(value = 1, message = "모집 인원은 1명 이상이어야 합니다.")
