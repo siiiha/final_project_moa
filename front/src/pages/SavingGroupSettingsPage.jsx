@@ -163,6 +163,7 @@ function SavingGroupSettingsPage() {
     );
   }
 
+  // AI작성: 설정 URL의 id는 상세 화면과 같은 groupId이므로 내부 savingGroupId로 대체하지 않는다.
   return (
     <Page>
       <Breadcrumb>계모임 · {settings.current.groupName} · 설정</Breadcrumb>
@@ -180,7 +181,7 @@ function SavingGroupSettingsPage() {
           isSaving={isSaving}
           submitErrorMessage={saveErrorMessage}
           onSubmit={handleSubmit}
-          onCancel={() => navigate(`/saving-groups/${settings.id}`)}
+          onCancel={() => navigate(`/saving-groups/${id}`)}
           onDeleteRequest={() => setIsDeleteModalOpen(true)}
         />
       </Content>
