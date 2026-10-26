@@ -53,6 +53,33 @@ const LoginButton = styled(Button)`
   margin-top: 4px;
 `;
 
+// AI작성: 계정 찾기 링크를 가로로 배치한다.
+const RecoveryActions = styled.div`
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+`;
+
+// AI작성: 로그인 아래에 아이디 찾기 링크를 표시한다.
+const RecoveryLink = styled(Link)`
+  width: fit-content;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 4px;
+  }
+`;
+
 const SignupPrompt = styled.p`
   margin-top: 16px;
   color: ${({ theme }) => theme.colors.muted};
@@ -325,6 +352,16 @@ const handleSocialLogin = (providerId) => {
           {isSubmitting ? '로그인 중…' : '로그인'}
         </LoginButton>
       </Form>
+
+      <RecoveryActions>
+        <RecoveryLink to="/member/find-account">
+          아이디 찾기
+        </RecoveryLink>
+
+        <RecoveryLink to="/member/reset-password">
+          비밀번호 재설정
+        </RecoveryLink>
+      </RecoveryActions>
 
       <SignupPrompt>아직 회원이 아니신가요?</SignupPrompt>
       <SignupButton as={Link} to="/member/join" $variant="secondary">
