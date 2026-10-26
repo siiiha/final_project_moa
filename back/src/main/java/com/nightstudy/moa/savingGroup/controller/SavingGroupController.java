@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,6 +50,18 @@ public class SavingGroupController {
         }
         SavingGroupJoinRequestListResponse result = savingGroupService.getSavingGroupJoinRequests(savingGroupId, memberId, status, page);
         return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+
+    // AI작성: 가입 신청자는 요청값이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
+    @PostMapping("/{savingGroupId}/join-requests")
+    public ApiResponse<Void> requestJoin(
+            @PathVariable("savingGroupId") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        savingGroupService.requestSavingGroupJoin(savingGroupId, memberId);
+        return ApiResponse.ok();
     }
 
     // AI작성: 승인자는 서버 인증 정보로만 받아 기존 트랜잭션 Service에 전달한다. 요청 본문은 사용하지 않는다.
