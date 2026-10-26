@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -112,7 +111,7 @@ const Divider = styled.div`
 
 const SocialActions = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -121,7 +120,7 @@ const SocialActions = styled.div`
 `;
 
 const SocialButton = styled.button`
-  min-height: 40px;
+  min-height: 48px;
   padding: 7px 6px;
   display: inline-flex;
   align-items: center;
@@ -133,9 +132,9 @@ const SocialButton = styled.button`
     if ($provider === 'kakao') return '#fee500';
     return '#ffffff';
   }};
-  border: 1px solid ${({ $provider, theme }) => ($provider === 'google' ? theme.colors.border : 'transparent')};
+  border: 1px solid transparent;
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
 
   &:hover {
@@ -144,9 +143,15 @@ const SocialButton = styled.button`
 `;
 
 function ProviderIcon({ provider }) {
-  if (provider === 'naver') return <SiNaver size={13} aria-hidden="true" />;
-  if (provider === 'kakao') return <SiKakaotalk size={15} aria-hidden="true" />;
-  return <FcGoogle size={15} aria-hidden="true" />;
+  if (provider === 'naver') {
+    return <SiNaver size={16} aria-hidden="true" />;
+  }
+
+  if (provider === 'kakao') {
+    return <SiKakaotalk size={18} aria-hidden="true" />;
+  }
+
+  return null;
 }
 
 function LoginForm() {
