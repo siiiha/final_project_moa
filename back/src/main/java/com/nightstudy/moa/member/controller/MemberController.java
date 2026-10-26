@@ -12,6 +12,7 @@ import com.nightstudy.moa.member.dto.NicknameCheckRequest;
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.common.auth.LoginSessionManager;
 import jakarta.servlet.http.HttpServletResponse;
+import com.nightstudy.moa.member.dto.PasswordResetRequest;
 
 
 @RestController
@@ -80,5 +81,15 @@ public class MemberController {
             @RequestAttribute("memberId") Long memberId
     ) {
         return ResponseEntity.ok(ApiResponse.ok(memberId));
+    }
+
+    // 이메일 인증을 완료한 사용자의 비밀번호를 재설정
+    @PostMapping("/password/reset")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody PasswordResetRequest request
+    ) {
+        memberService.resetPassword(request);
+
+        return ResponseEntity.ok(ApiResponse.<Void>ok(null));
     }
 }

@@ -106,4 +106,12 @@
         AND m.system_role = #{systemRole}
     </select>
 
+    <!-- 해당 회원의 아직 폐기되지 않은 모든 로그인 세션을 폐기 -->
+    <update id="revokeAllSessionsByMemberId">
+        UPDATE member_auth_session
+        SET revoked_at = CURRENT_TIMESTAMP(6)
+        WHERE member_id = #{memberId}
+        AND revoked_at IS NULL
+    </update>
+
 </mapper>

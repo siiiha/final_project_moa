@@ -39,4 +39,11 @@ public interface MemberMapper {
     int countTermById(@Param("termId") Long termId);
 
     MemberLoginDto findByEmail(@Param("email") String email);
+
+    // 조회 당시 비밀번호가 유지된 활성 계정의 비밀번호 변경
+    int updatePasswordForReset(
+            @Param("memberId") Long memberId,
+            @Param("currentPasswordHash") String currentPasswordHash,
+            @Param("newPasswordHash") String newPasswordHash
+    );
 }

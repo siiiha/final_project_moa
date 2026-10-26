@@ -194,6 +194,17 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         }
     }
 
+    // 비밀번호 변경과 같은 트랜잭션에서 기존 로그인 세션을 폐기
+    @Override
+    @Transactional
+    public void revokeAllSessions(Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new IllegalArgumentException("유효한 회원 번호가 필요합니다.");
+        }
+
+        sessionMapper.revokeAllSessionsByMemberId(memberId);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public boolean isAccessAllowed(
@@ -206,16 +217,10 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             return false;
         }
 
-        // 기존 세션 번호 없는 JWT도 현재 회원 상태를 검사
-        if (sessionId == null) {
-            SocialLoginMemberDto member =
-                    sessionMapper.findMemberById(memberId);
-
-            return isActiveMember(member)
-                    && systemRole.equals(member.getSystemRole());
-        }
-
-        if (sessionId.isBlank() || sessionId.length() != 36) {
+        // 세션 폐기 검사를 우회하지 못하도록 세션 번호 없는 토큰도 거절
+        if (sessionId == null
+                || sessionId.isBlank()
+                || sessionId.length() != 36) {
             return false;
         }
 

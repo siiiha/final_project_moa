@@ -13,6 +13,9 @@ public interface AuthSessionService {
     // 토큰에 연결된 로그인 세션 폐기
     void logout(String refreshToken, String accessToken);
 
+    //  회원의 모든 로그인 세션을 폐기
+    void revokeAllSessions(Long memberId);
+
     // 현재 회원 상태 로그인 세션 유효성 확인
     boolean isAccessAllowed(
             Long memberId,

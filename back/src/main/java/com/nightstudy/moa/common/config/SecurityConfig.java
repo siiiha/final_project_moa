@@ -83,12 +83,15 @@ public class SecurityConfig {
                                 "/api/auth/signup",
                                 "/api/auth/social/signup",
                                 "/api/auth/login",
+                                "/api/auth/password/reset",
                                 "/api/auth/check-email",
                                 "/api/auth/check-nickname",
                                 "/api/auth/email-verifications",
                                 "/api/auth/email-verifications/verify",
                                 "/api/auth/refresh",
-                                "/api/auth/logout"
+                                "/api/auth/logout",
+                                "/api/auth/email-verifications/verify",
+                                "/api/auth/email-verifications/find-account"
                         ).permitAll()
 
                         // AI작성: 소셜 인증 시작·콜백·결과 조회는 비로그인 상태에서 허용한다.

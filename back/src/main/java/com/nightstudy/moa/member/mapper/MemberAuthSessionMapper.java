@@ -41,6 +41,11 @@ public interface MemberAuthSessionMapper {
             @Param("sessionId") String sessionId
     );
 
+    // 비밀번호 재설정 시 해당 회원의 모든 로그인 세션을 폐기
+    int revokeAllSessionsByMemberId(
+            @Param("memberId") Long memberId
+    );
+
     // 세션 유효기간과 현재 회원 상태·권한을 함께 검사
 
     int countActiveSession(
