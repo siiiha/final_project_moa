@@ -15,11 +15,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.member.dto.MemberLoginDto;
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
+import com.nightstudy.moa.member.dto.SocialSignupRequest;
 
 import java.nio.charset.StandardCharsets;
 
 @Service
-public class MemberServiceImpl implements MemberService  {
+public class MemberServiceImpl implements MemberService {
 
     private final MemberMapper memberMapper;
     private final PasswordEncoder passwordEncoder;
@@ -41,6 +42,38 @@ public class MemberServiceImpl implements MemberService  {
     @Override
     @Transactional
     public Long signup(MemberSignupRequest request) {
+        return signupInternal(request, false);
+    }
+
+
+    // 소셜 가입도 기존 회원 정보·이메일·약관 검증을 재사용
+    // 소셜 인증 검증은 이 메서드를 호출하는 가입 서비스에서 수행
+    @Override
+    @Transactional
+    public Long signupSocial(SocialSignupRequest request) {
+        MemberSignupRequest memberRequest = new MemberSignupRequest();
+
+        memberRequest.setEmail(request.getEmail());
+        memberRequest.setEmailVerificationToken(
+                request.getEmailVerificationToken()
+        );
+        memberRequest.setName(request.getName());
+        memberRequest.setNickname(request.getNickname());
+        memberRequest.setPhone(request.getPhone());
+        memberRequest.setBirthDate(request.getBirthDate());
+        memberRequest.setGender(request.getGender());
+        memberRequest.setRegionId(request.getRegionId());
+        memberRequest.setAgreedTermIds(request.getAgreedTermIds());
+        memberRequest.setInterestIds(request.getInterestIds());
+
+        return signupInternal(memberRequest, true);
+    }
+
+    // 두 가입 방식의 공통 검증과 회원 저장을 처리
+    private Long signupInternal(
+            MemberSignupRequest request,
+            boolean socialSignup
+    ) {
         String email = request.getEmail().trim();
         String nickname = request.getNickname().trim();
 
@@ -68,9 +101,8 @@ public class MemberServiceImpl implements MemberService  {
             );
         }
 
-
-        // Bcrypt가 처리할 수 있는 비밀번호 길이 확인
-        if (request.getPassword()
+        // 비밀번호를 사용하는 일반 가입에만 적용
+        if (!socialSignup && request.getPassword()
                 .getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
@@ -93,7 +125,7 @@ public class MemberServiceImpl implements MemberService  {
         ArrayList<Long> termIds =
                 new ArrayList<>(new HashSet<>(request.getAgreedTermIds()));
 
-        for  (Long termId : termIds) {
+        for (Long termId : termIds) {
             if (memberMapper.countTermById(termId) != 1) {
                 throw new ApiException(
                         HttpStatus.BAD_REQUEST,
@@ -124,7 +156,9 @@ public class MemberServiceImpl implements MemberService  {
         member.setRegionId(request.getRegionId());
         member.setEmail(email);
         member.setPasswordHash(
-                passwordEncoder.encode(request.getPassword())
+                socialSignup
+                        ? null
+                        : passwordEncoder.encode(request.getPassword())
         );
         member.setName(request.getName().trim());
         member.setNickname(nickname);

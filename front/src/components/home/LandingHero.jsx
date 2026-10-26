@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
+import useAuthStore from '../../store/authStore';
 
 const Hero = styled.section`
   min-height: 376px;
@@ -123,6 +124,9 @@ const MiniCard = styled.span`
   }
 `;
 function LandingHero() {
+  // 헤더와 같은 로그인 상태로 홈 버튼 표시 
+  const token = useAuthStore((state) => state.token);
+  const isLoggedIn = Boolean(token);
   return (
     <Hero>
       <Content>
@@ -134,11 +138,19 @@ function LandingHero() {
         </Title>
         <Description>계모임부터 취미 소모임, 생활 정보까지 믿을 수 있는 이웃과 함께하세요.</Description>
         <Actions>
-          <Button as={Link} to="/member/join">
-            모아 시작하기
+                    <Button
+            as={Link}
+            to={isLoggedIn ? '/saving-groups' : '/member/join'}
+          >
+            {isLoggedIn ? '모임 둘러보기' : '모아 시작하기'}
           </Button>
-          <Button as={Link} to="/member/login" $variant="secondary">
-            로그인
+
+          <Button
+            as={Link}
+            to={isLoggedIn ? '/member/mypage' : '/member/login'}
+            $variant="secondary"
+          >
+            {isLoggedIn ? '마이페이지' : '로그인'}
           </Button>
         </Actions>
       </Content>
