@@ -1,6 +1,5 @@
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
-import { getSavingGroupMenus } from '../../api/savingGroups.js';
 
 const Menu = styled.nav`
   margin-top: 18px;
@@ -63,10 +62,15 @@ const menuItems = [
   { id: 'joinRequests', label: '신청 목록' },
 ];
 
-function SavingGroupMenuTabs({ activeMenu, onMenuChange, canAccessSettings = false, settingsPath }) {
-  const visibleMenuItems = menuItems.filter(
-    (item) => item.id !== 'settings' || (canAccessSettings && settingsPath)
-  );
+function SavingGroupMenuTabs({ activeMenu, onMenuChange, allowedMenus, canAccessSettings = false, settingsPath }) {
+  // AI작성: 권한 목록이 전달되면 해당 메뉴만 표시하고, 기존 호출부는 설정 탭 규칙을 유지해 단계적 전환을 지원한다.
+  const visibleMenuItems = menuItems.filter((item) => {
+    const isAllowed = Array.isArray(allowedMenus)
+      ? allowedMenus.includes(item.id)
+      : item.id !== 'settings' || canAccessSettings;
+
+    return isAllowed && (item.id !== 'settings' || settingsPath);
+  });
 
   return (
     <Menu aria-label="계모임 메뉴">

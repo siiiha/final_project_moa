@@ -219,19 +219,21 @@ const filters = [
   { id: '계금 요청', label: '계금 요청' },
 ];
 
-// AI작성: 미구현 동작은 비활성화하고 승인 중에는 같은 화면의 추가 처리를 차단한다.
-function RequestActions({ request, onApprove, onReject, pendingId, blocked }) {
+// AI작성: 대기 신청만 승인·거절할 수 있고 처리 중에는 같은 화면의 추가 처리를 차단한다.
+function RequestActions({ request, onApprove, onReject, pendingId, pendingAction, blocked }) {
   if (request.status !== '대기') {
     return <ActionButton type="button" $variant="secondary" disabled title="상세 조회 준비 중">상세 보기</ActionButton>;
   }
 
+  const isPending = pendingId === request.id;
   return (
     <ActionGroup>
-      <ActionButton type="button" disabled={blocked} aria-busy={pendingId === request.id} onClick={() => onApprove(request.id)}>
-        {pendingId === request.id ? '승인 중…' : '승인'}
+      <ActionButton type="button" disabled={blocked} aria-busy={isPending && pendingAction === 'approve'} onClick={() => onApprove(request.id)}>
+        {isPending && pendingAction === 'approve' ? '승인 중…' : '승인'}
       </ActionButton>
-      {/* AI작성: TODO: 가입 거절 API 확정 후 활성화한다. */}
-      <ActionButton type="button" $variant="secondary" disabled title="거절 기능 준비 중" onClick={() => onReject(request.id)}>거절</ActionButton>
+      <ActionButton type="button" $variant="secondary" disabled={blocked} aria-busy={isPending && pendingAction === 'reject'} onClick={() => onReject(request.id)}>
+        {isPending && pendingAction === 'reject' ? '거절 중…' : '거절'}
+      </ActionButton>
     </ActionGroup>
   );
 }
@@ -253,6 +255,7 @@ function SavingGroupJoinRequestList({
   isLoading,
   errorMessage,
   pendingId,
+  pendingAction,
   onRetry,
   onFirstPage,
   payoutRequests,
@@ -354,7 +357,7 @@ function SavingGroupJoinRequestList({
                       <td>{request.regionInterest}</td>
                       <td>{request.message}</td>
                       <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
-                      <td><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} blocked={blocked} /></td>
+                      <td><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} pendingAction={pendingAction} blocked={blocked} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -381,7 +384,7 @@ function SavingGroupJoinRequestList({
                     <StatusBadge $status={request.status}>{request.status}</StatusBadge>
                   </MobileTop>
                   <MobileInfo>{request.regionInterest}<br />{request.message}</MobileInfo>
-                  <MobileActions><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} blocked={blocked} /></MobileActions>
+                  <MobileActions><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} pendingAction={pendingAction} blocked={blocked} /></MobileActions>
                 </MobileItem>
               ))}
             </MobileList>
