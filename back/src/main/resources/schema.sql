@@ -291,7 +291,7 @@ CREATE TABLE IF NOT EXISTS `meeting_round` (
 CREATE TABLE IF NOT EXISTS `payout_request` (
 	`payout_request_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`round_id`	BIGINT	NOT NULL,
-	`requester_id`	BIGINT	NOT NULL,
+	`requester_id`	BIGINT	NOT NULL,ㄱ
 	`reviewer_id`	BIGINT	NULL,
 	`transaction_id`	BIGINT	NULL,
 	`amount`	DECIMAL(15,2)	NOT NULL,
