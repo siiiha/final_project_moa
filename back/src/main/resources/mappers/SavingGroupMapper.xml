@@ -275,6 +275,7 @@
     </update>
 
 
+    <!-- AI작성: 설정 화면 URL은 groups.group_id를 사용하므로 조회·수정 권한 확인도 같은 식별자로 찾는다. -->
     <select id="selectSavingGroupSettingsAuthority" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow">
         SELECT sg.saving_group_id,
         sg.group_id,
@@ -290,7 +291,7 @@
         AND membership_status = 'APPROVED'
         GROUP BY group_id
         ) owner ON owner.group_id = g.group_id
-        WHERE sg.saving_group_id = #{savingGroupId}
+        WHERE sg.group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -309,7 +310,7 @@
         WHERE membership_status = 'APPROVED'
         GROUP BY group_id
         ) approved ON approved.group_id = g.group_id
-        WHERE sg.saving_group_id = #{savingGroupId}
+        WHERE sg.group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -320,7 +321,7 @@
         sg.status
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.saving_group_id = #{savingGroupId}
+        WHERE sg.group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
         FOR UPDATE
     </select>
