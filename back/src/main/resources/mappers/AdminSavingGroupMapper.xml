@@ -5,48 +5,29 @@
 
 <mapper namespace="com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper">
 
-    <!-- AI작성: 관리자는 공개 여부와 관계없이 삭제되지 않은 모든 상태의 계모임을 조회한다. -->
     <sql id="adminSavingGroupFromWhere">
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         JOIN region r ON r.region_id = g.region_id
         <where>
             g.deleted_at IS NULL
-            <if test="keyword != null">
-                AND (g.group_name LIKE CONCAT('%', #{keyword}, '%')
-                    OR g.description LIKE CONCAT('%', #{keyword}, '%'))
+            <if test="keywordPattern != null">
+                <!-- AI작성: LIKE 예약문자가 포함된 검색어도 문자 그대로 비교한다. -->
+                AND (g.group_name LIKE #{keywordPattern} ESCAPE '!'
+                    OR g.description LIKE #{keywordPattern} ESCAPE '!')
             </if>
-            <if test="regionName != null">
-                AND r.region_name = #{regionName}
-            </if>
-            <if test="status != null">
-                AND sg.status = #{status}
-            </if>
+            <if test="regionName != null">AND r.region_name = #{regionName}</if>
+            <if test="status != null">AND sg.status = #{status}</if>
         </where>
     </sql>
 
     <select id="selectSavingGroupCount" resultType="int">
-        SELECT COUNT(*)
-        <include refid="adminSavingGroupFromWhere"/>
+        SELECT COUNT(*) <include refid="adminSavingGroupFromWhere"/>
     </select>
 
-    <select id="selectSavingGroupList"
-            resultType="com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse">
-        SELECT
-            sg.saving_group_id,
-            g.group_id,
-            g.group_name,
-            g.description,
-            r.region_name,
-            g.max_members,
-            (SELECT COUNT(DISTINCT gm.member_id)
-               FROM group_member gm
-              WHERE gm.group_id = g.group_id
-                AND gm.membership_status = 'APPROVED') AS member_count,
-            sg.dues_amount,
-            sg.dues_day,
-            sg.status,
-            g.created_at
+    <select id="selectSavingGroupList" resultType="com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse">
+        SELECT sg.saving_group_id, g.group_id, g.group_name, g.description, r.region_name,
+        g.max_members, sg.dues_amount, sg.dues_day, sg.status, g.created_at
         <include refid="adminSavingGroupFromWhere"/>
         ORDER BY g.created_at DESC, sg.saving_group_id DESC
         LIMIT #{limit} OFFSET #{offset}
