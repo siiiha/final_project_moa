@@ -95,18 +95,14 @@
         saving_group_type,
         dues_amount,
         dues_day,
-        start_date,
-        end_date,
         status,
         group_image
         )
         VALUES (
         #{groupId},
-        #{savingGroupType},
+        #{groupType},
         #{duesAmount},
         #{duesDay},
-        #{startDate},
-        #{endDate},
         'pending',
         #{groupImagePath}
         )
