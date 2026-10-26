@@ -103,8 +103,25 @@
         #{groupType},
         #{duesAmount},
         #{duesDay},
-        'pending',
+        '00',
         #{groupImagePath}
+        )
+    </insert>
+
+    <!-- AI작성: 개설 신청자는 관리자 심사 전까지 계주 권한을 행사할 수 없도록 OWNER/PENDING 관계로 저장한다. -->
+    <insert id="insertSavingGroupCreationOwnerMembership">
+        INSERT INTO group_member (
+        member_id,
+        group_id,
+        member_role,
+        membership_status,
+        requested_at
+        ) VALUES (
+        #{memberId},
+        #{groupId},
+        'OWNER',
+        'PENDING',
+        CURRENT_TIMESTAMP
         )
     </insert>
 
@@ -680,5 +697,26 @@
         SET status = '01'
         WHERE group_id = #{groupId}
         AND status = '00'
+    </update>
+
+    <!-- AI작성: 관리자 승인과 함께 개설 신청자의 계주 관계만 승인 상태로 전환한다. -->
+    <update id="approveSavingGroupCreationOwnerMembership">
+        UPDATE group_member
+        SET membership_status = 'APPROVED',
+        approved_by = #{approvedBy},
+        approved_at = CURRENT_TIMESTAMP,
+        joined_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND member_role = 'OWNER'
+        AND membership_status = 'PENDING'
+    </update>
+
+    <!-- AI작성: 반려된 개설 신청의 계주 대기 관계를 이력 보존을 위해 REJECTED로 전환한다. -->
+    <update id="rejectSavingGroupCreationOwnerMembership">
+        UPDATE group_member
+        SET membership_status = 'REJECTED'
+        WHERE group_id = #{groupId}
+        AND member_role = 'OWNER'
+        AND membership_status = 'PENDING'
     </update>
 </mapper>
