@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -127,6 +127,24 @@ function LoginForm() {
   const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  // AI작성: 로그인 입력값과 처리 상태, 소셜 로그인 팝업 참조를 관리한다.
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const popupRef = useRef(null);
+  const popupTimerRef = useRef(null);
+
+  // AI작성: 페이지 이탈 시 남아 있는 팝업 감시 타이머와 인증 창을 정리한다.
+  useEffect(() => () => {
+    if (popupTimerRef.current) {
+      window.clearInterval(popupTimerRef.current);
+    }
+
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.close();
+    }
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -222,8 +240,6 @@ const handleSocialLogin = (providerId) => {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
           disabled={isSubmitting}
         />
 
@@ -235,8 +251,6 @@ const handleSocialLogin = (providerId) => {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
           disabled={isSubmitting}
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
@@ -244,12 +258,6 @@ const handleSocialLogin = (providerId) => {
         {errorMessage && <p role="alert">{errorMessage}</p>}
         <LoginButton type="submit" disabled={isSubmitting}>
           {isSubmitting ? '로그인 중...' : '로그인'}
-        </LoginButton>
-
-        {errorMessage && <p role="alert">{errorMessage}</p>}
-
-        <LoginButton type="submit" disabled={isSubmitting}>
-          {isSubmitting ? '로그인 중…' : '로그인'}
         </LoginButton>
       </Form>
 

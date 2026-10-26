@@ -27,7 +27,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public List<PostCategoryDto> getPostCategories() {
-        return List.of();
+        return postMapper.selectPostCategories();
     }
 
     @Override

@@ -9,11 +9,10 @@ const Main = styled.main`
 
 // 헤더는 로그인 상태를 직접 확인하고, 본문에 현재 페이지를 표시
 function PageLayout() {
-  const isLoggedIn = useAuthStore((state) => Boolean(state.token));
 
   return (
     <>
-      <Header isLoggedIn={isLoggedIn} />
+      <Header />
       <Main>
         <Outlet />
       </Main>

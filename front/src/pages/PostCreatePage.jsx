@@ -62,6 +62,7 @@ function PostCreatePage() {
   const [content, setContent] = useState('');
   const [imageName, setImageName] = useState('');
   const [isLoadingPost, setIsLoadingPost] = useState(isEditMode);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -75,7 +76,8 @@ function PostCreatePage() {
         setCategories(loaded);
         setCategory((current) => current || loaded[0]?.categoryName || '');
       })
-      .catch((error) => isActive && setErrorMessage(error.response?.data?.error?.message || error.message));
+      .catch((error) => isActive && setErrorMessage(error.response?.data?.error?.message || error.message))
+      .finally(() => isActive && setIsLoadingCategories(false));
     return () => { isActive = false; };
   }, []);
 
@@ -189,8 +191,10 @@ function PostCreatePage() {
       </Heading>
       <Content>
         {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
-        {isLoadingPost ? (
+        {isLoadingPost || isLoadingCategories ? (
           <StatusMessage>게시글을 불러오는 중입니다.</StatusMessage>
+        ) : categories.length === 0 ? (
+          <StatusMessage role="alert">게시글 카테고리가 없습니다. 관리자에게 문의해주세요.</StatusMessage>
         ) : (
           <PostCreateForm
             categories={categories.map((item) => item.categoryName)}

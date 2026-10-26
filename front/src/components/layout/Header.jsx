@@ -149,8 +149,13 @@ const LogoutButton = styled.button`
 function Header() {
   const { pathname } = useLocation();
   const clearAuth = useAuthStore((state) => state.clearAuth);
+  // AI작성: 로그아웃 요청 중에는 중복 요청을 막고 처리 상태를 화면에 표시한다.
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    setIsLoggingOut(true);
     try {
       await logout();
     } finally {
@@ -193,7 +198,6 @@ function Header() {
               <FiBell size={15} aria-hidden="true" /> 알림
             </NotificationLink>
             <Link to="/member/mypage">마이페이지</Link>
-            <LogoutButton type="button" onClick={handleLogout}>로그아웃</LogoutButton>
             <LogoutButton
               type="button"
               onClick={handleLogout}
