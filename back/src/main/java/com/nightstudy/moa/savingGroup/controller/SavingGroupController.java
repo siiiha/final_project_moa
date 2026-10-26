@@ -86,19 +86,19 @@ public class SavingGroupController {
 
     @GetMapping("/{savingGroupId}/settings")
     public ApiResponse<SavingGroupSettingsResponse> getSettings(
-            @PathVariable Long savingGroupId) {
-        // TODO: JWT 인증 완료 후 SecurityContext에서 로그인 회원 ID를 추출한다.
-        Long loginMemberId = 67L;
-        return ApiResponse.ok(savingGroupService.getSavingGroupSettings(savingGroupId, loginMemberId));
+            @PathVariable Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        // AI작성: 설정 접근 권한은 클라이언트 입력이 아닌 JWT 필터가 검증한 회원 ID로만 판단한다.
+        return ApiResponse.ok(savingGroupService.getSavingGroupSettings(savingGroupId, memberId));
     }
 
     @PatchMapping("/{savingGroupId}")
     public ApiResponse<Void> updateSettings(
             @PathVariable Long savingGroupId,
-            @Valid @RequestBody SavingGroupSettingsPatchRequest request) {
-        // TODO: JWT 인증 완료 후 SecurityContext에서 로그인 회원 ID를 추출한다.
-        Long loginMemberId = 67L;
-        savingGroupService.updateSavingGroupSettings(savingGroupId, loginMemberId, request);
+            @Valid @RequestBody SavingGroupSettingsPatchRequest request,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        // AI작성: 설정 수정도 조회와 같은 JWT 인증 회원 ID로 계주 권한을 다시 검증한다.
+        savingGroupService.updateSavingGroupSettings(savingGroupId, memberId, request);
         return ApiResponse.ok(null);
     }
 }
