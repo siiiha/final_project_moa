@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.admin.mapper.AdminPostMapper">
+
+    <!-- AI작성: 관리자 목록과 개수 조회가 동일하게 적용하는 미삭제 게시글 검색 조건이다. -->
+    <sql id="adminPostSearchWhere">
+        <where>
+            p.deleted_at IS NULL
+
+            <if test="categoryId != null and categoryId != '' and categoryId != '전체'">
+                AND p.category_id = #{categoryId}
+            </if>
+
+            <if test="keyword != null and keyword != ''">
+                <choose>
+                    <when test="searchType == 'title'">
+                        AND p.title LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <when test="searchType == 'content'">
+                        AND p.content LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <when test="searchType == 'writer'">
+                        AND m.nickname LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <otherwise>
+                        AND (
+                            p.title LIKE CONCAT('%', #{keyword}, '%')
+                            OR p.content LIKE CONCAT('%', #{keyword}, '%')
+                        )
+                    </otherwise>
+                </choose>
+            </if>
+        </where>
+    </sql>
+
+    <!-- AI작성: 기존 게시판 DTO를 재사용하여 관리자 게시글 목록을 조회한다. -->
+    <select id="selectPostList"
+            parameterType="com.nightstudy.moa.post.dto.PostSearchCondition"
+            resultType="com.nightstudy.moa.post.dto.PostDto">
+        SELECT
+            p.post_id,
+            p.writer_id,
+            p.category_id,
+            p.title,
+            p.content,
+            p.view_count,
+            p.created_at,
+            p.updated_at,
+            DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+            m.nickname AS writer_nickname,
+            pc.category_name AS category_name
+        FROM post p
+        LEFT JOIN members m ON p.writer_id = m.member_id
+        JOIN post_category pc ON p.category_id = pc.category_id
+        <include refid="adminPostSearchWhere"/>
+        <choose>
+            <when test="order == 'asc'">
+                ORDER BY p.post_id ASC
+            </when>
+            <otherwise>
+                ORDER BY p.post_id DESC
+            </otherwise>
+        </choose>
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectPostCount"
+            parameterType="com.nightstudy.moa.post.dto.PostSearchCondition"
+            resultType="int">
+        SELECT COUNT(*)
+        FROM post p
+        LEFT JOIN members m ON p.writer_id = m.member_id
+        <include refid="adminPostSearchWhere"/>
+    </select>
+
+    <!-- AI작성: 관리 목적의 상세 조회이므로 조회수 변경 없이 게시글 정보만 반환한다. -->
+    <select id="selectPostDetail"
+            resultType="com.nightstudy.moa.post.dto.PostDto">
+        SELECT
+            p.post_id,
+            p.writer_id,
+            p.category_id,
+            p.title,
+            p.content,
+            p.view_count,
+            p.created_at,
+            p.updated_at,
+            DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+            DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str,
+            m.nickname AS writer_nickname,
+            pc.category_name AS category_name
+        FROM post p
+        LEFT JOIN members m ON p.writer_id = m.member_id
+        JOIN post_category pc ON p.category_id = pc.category_id
+        WHERE p.post_id = #{postId}
+          AND p.deleted_at IS NULL
+    </select>
+
+    <!-- AI작성: 작성자와 관계없이 관리 대상 게시글을 소프트 삭제한다. -->
+    <update id="deletePost">
+        UPDATE post
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+          AND deleted_at IS NULL
+    </update>
+
+</mapper>

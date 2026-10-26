@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    namespace : 해당 XML파일을 어떤 Mapper 인터페이스와 연결할지를 정해주는 속성.
+-->
+<mapper namespace="com.nightstudy.moa.post.mapper.PostMapper">
+    <sql id="searchWhere">
+        <!--
+            <where> : 내부의 <if>들 중 하나라도 참이면 자동으로 WHERE키워드를 붙여주고,
+            맨 앞에 남는 불필요한 AND/OR은 자동으로 제거해준다
+                -->
+        <where>
+            p.deleted_at IS NULL
+            <!--<when>의 test는 조건이 참(true)인지 거짓(false)인지 검사하는 속성-->
+            <if test="categoryId != null and categoryId != '' and categoryId != '전체'">
+                AND p.category_id = #{categoryId}
+            </if>
+
+            <if test="keyword != null and keyword != ''">
+                <choose>
+                    <when test="searchType == 'title'">
+                        And p.title LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <when test="searchType == 'content'">
+                        And p.content LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <when test="searchType == 'writer'">
+                        AND m.nickname LIKE CONCAT('%', #{keyword}, '%')
+                    </when>
+                    <otherwise>
+                        AND (p.title LIKE CONCAT('%', #{keyword}, '%')
+                        OR p.content LIKE CONCAT('%', #{keyword}, '%'))
+                    </otherwise>
+                </choose>
+            </if>
+        </where>
+    </sql>
+    <!--
+    useGeneratedKeys="true" : DB가 자동으로 생성해주는 키를 mybatis로 가져올 수 있게 허용
+    keyProperty="boardId" : DB에서 자동으로 생성된 PK값을 파라미터의 어떤 변수에 넣을 것인가
+    -->
+    <insert id="insertPost" parameterType="com.nightstudy.moa.post.dto.PostDto" useGeneratedKeys="true"
+            keyProperty="postId">
+        INSERT INTO post (writer_id, category_id, title, content, view_count)
+        VALUES (#{writerId}, #{categoryId}, #{title}, #{content}, 0)
+    </insert>
+
+    <select id="selectPostList" parameterType="PostSearchCondition" resultType="PostDto">
+        SELECT p.post_id, p.writer_id, p.category_id, p.title,
+        p.content, p.view_count, p.created_at, p.updated_at,
+        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        m.nickname AS writer_nickname,
+        pc.category_name AS category_name
+        FROM post p
+        LEFT JOIN members m ON p.writer_id = m.member_id
+        <!-- AI작성: 화면 표시용 카테고리 이름을 별도 카테고리 테이블에서 조회한다. -->
+        JOIN post_category pc ON p.category_id = pc.category_id
+        <include refid="searchWhere"/>
+        <!-- AI작성: 요청값을 직접 SQL에 삽입하지 않고 허용된 과거순만 분기한다. -->
+        <choose>
+            <when test="order == 'asc'">
+                ORDER BY p.post_id ASC
+            </when>
+            <otherwise>
+                ORDER BY p.post_id DESC
+            </otherwise>
+        </choose>
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectPostDetail" parameterType="long" resultType="PostDto">
+        SELECT p.post_id, p.category_id, p.writer_id, m.nickname AS writer_nickname, p.title,
+        p.content, p.view_count, p.created_at, p.updated_at,
+        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str,
+        pc.category_name AS category_name
+        FROM post p
+        JOIN members m
+        ON p.writer_id = m.member_id
+        <!-- AI작성: 상세 화면에서도 카테고리 이름을 함께 반환한다. -->
+        JOIN post_category pc ON p.category_id = pc.category_id
+        WHERE p.post_id = #{postId}
+        AND p.deleted_at IS NULL
+    </select>
+
+    <select id="selectPostListCount"
+            parameterType="PostSearchCondition"
+            resultType="int">
+        SELECT COUNT(*)
+        FROM post p
+        LEFT JOIN members m ON p.writer_id = m.member_id
+        <include refid="searchWhere"/>
+    </select>
+
+    <update id="increaseViewCount">
+        UPDATE post
+        SET view_count = view_count + 1
+        WHERE post_id = #{postId}
+        AND deleted_at IS NULL
+        AND (#{loginMemberId} IS NULL
+        OR writer_id != #{loginMemberId})
+        <!--
+        비로그인 사용자거나 작성자가 아닌 경우에만 조회수를 올린다
+        -->
+
+    </update>
+
+    <select id="countCategoryById" resultType="int">
+        SELECT COUNT(*)
+        FROM post_category
+        WHERE category_id = #{categoryId}
+    </select>
+
+    <!--댓글 등록 전 게시글 존재 여부만 확인-->
+    <select id="countPostById"
+            parameterType="long"
+            resultType="int">
+        <!-- AI작성: 삭제된 게시글에는 댓글 조회·등록이 불가능하도록 활성 게시글만 계산합니다. -->
+        SELECT COUNT(*)
+        FROM post
+        WHERE post_id = #{postId}
+        AND deleted_at IS NULL
+    </select>
+
+    <update id="editPost">
+        UPDATE post
+        SET category_id = #{request.categoryId},
+        title = #{request.title},
+        content = #{request.content},
+        updated_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+        AND deleted_at IS NULL
+    </update>
+
+    <update id="deletePost">
+        UPDATE post
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+        AND writer_id = #{loginMemberId}
+        AND deleted_at IS NULL
+    </update>
+
+</mapper>

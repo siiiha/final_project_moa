@@ -1,3 +1,4 @@
+
 # ========================================
 # Frontend - React
 # ========================================
@@ -78,4 +79,7 @@
 /back/.vscode/
 
 # YAML files
-/back/*.yaml
+/back/src/main/resources/application.yaml
+
+# 비밀번호가 포함된 로컬 DB 설정 제외
+/back/src/main/resources/application.yaml

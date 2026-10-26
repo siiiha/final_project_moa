@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.member.mapper.MemberMapper">
+
+    <!-- 동일한 이메일을 가진 회원 수 -->
+    <select id="countByEmail" resultType="int">
+        SELECT COUNT(*)
+        FROM members
+        WHERE email = #{email}
+    </select>
+
+    <!-- 해당 번호의 지역이 존재하는지 확인 -->
+    <select id="countRegionById" resultType="int">
+        SELECT COUNT(*)
+        FROM region
+        WHERE region_id = #{regionId}
+    </select>
+
+    <!-- 회원 저장 후 자동 생성된 회원 번호를 DTO에 전달 -->
+    <insert id="insertMember"
+            parameterType="com.nightstudy.moa.member.dto.MemberInsertDto"
+            useGeneratedKeys="true"
+            keyProperty="memberId"
+            keyColumn="member_id">
+        INSERT INTO members (
+        region_id,
+        email,
+        password_hash,
+        name,
+        nickname,
+        phone,
+        birth_date,
+        gender
+        )
+        VALUES (
+        #{regionId},
+        #{email},
+        #{passwordHash},
+        #{name},
+        #{nickname},
+        #{phone},
+        #{birthDate},
+        #{gender}
+        )
+    </insert>
+    <!-- 가장 최근 이메일 인증이 완료됐고 유효기간이 남았는지 확인 -->
+    <select id="countVerifiedEmail" resultType="int">
+        SELECT COUNT(*)
+        FROM email_verification
+        WHERE verification_id = (
+        SELECT verification_id
+        FROM email_verification
+        WHERE email = #{email}
+        ORDER BY verification_id DESC
+        LIMIT 1
+        )
+        AND verified_at IS NOT NULL
+        AND verified_at &lt;= CURRENT_TIMESTAMP
+        AND verified_at &lt;= expires_at
+        AND expires_at &gt; CURRENT_TIMESTAMP
+    </select>
+
+    <!-- 전체 필수 약관 수 -->
+    <select id="countRequiredTerms" resultType="int">
+        SELECT COUNT(*)
+        FROM term
+        WHERE is_required = TRUE
+    </select>
+
+    <!-- 사용자가 동의한 필수 약관 수 -->
+    <select id="countRequiredAgreedTerms" resultType="int">
+        SELECT COUNT(*)
+        FROM term
+        WHERE is_required = TRUE
+        <choose>
+            <when test="termIds != null and termIds.size() > 0">
+                AND term_id IN
+                <foreach collection="termIds"
+                         item="termId"
+                         open="("
+                         separator=","
+                         close=")">
+                    #{termId}
+                </foreach>
+            </when>
+            <otherwise>
+                AND 1 = 0
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- 회원의 약관 동의 내역 저장 -->
+    <insert id="insertTermAgreement">
+        INSERT INTO term_agreement (member_id, term_id)
+        VALUES (#{memberId}, #{termId})
+    </insert>
+
+    <select id="countByNickname" resultType="int">
+        SELECT COUNT(*)
+        FROM members
+        WHERE nickname = #{nickname}
+    </select>
+
+    <!-- 해당 관심사 번호가 존재하는지 확인 -->
+    <select id="countInterestById" resultType="int">
+        SELECT COUNT(*)
+        FROM interest
+        WHERE interest_id = #{interestId}
+    </select>
+
+    <!-- 회원이 선택한 관심사 저장 -->
+    <insert id="insertMemberInterest">
+        INSERT INTO member_interest (member_id, interest_id)
+        VALUES (#{memberId}, #{interestId})
+    </insert>
+
+    <!-- 약관 번호가 실제로 존재하는지 확인 -->
+    <select id="countTermById" resultType="int">
+        SELECT COUNT(*)
+        FROM term
+        WHERE term_id = #{termId}
+    </select>
+
+    <select id="findByEmail"
+            resultType="com.nightstudy.moa.member.dto.MemberLoginDto">
+        SELECT
+            member_id,
+            password_hash,
+            account_status,
+            system_role
+        FROM members
+        WHERE email = #{email}
+            AND deleted_at IS NULL
+    </select>
+
+    <!-- 소셜 인증에서 확인한 계정을 모아 회원에게 연결 -->
+    <insert id="insertSocialAccount">
+        INSERT INTO member_social_account (
+        member_id,
+        provider,
+        provider_user_id
+        )
+        VALUES (
+        #{memberId},
+        #{provider},
+        #{providerUserId}
+        )
+    </insert>
+</mapper>

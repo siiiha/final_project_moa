@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    namespace : 해당 XML파일을 어떤 Mapper 인터페이스와 연결할지를 정해주는 속성.
+-->
+<mapper namespace="com.nightstudy.moa.comment.mapper.CommentMapper">
+
+    <insert id="insertComment"
+            parameterType="com.nightstudy.moa.comment.dto.CommentDto"
+            useGeneratedKeys="true"
+            keyProperty="commentId">
+        <!-- AI작성: 일반 댓글은 parent_id가 NULL이고 대댓글은 원댓글 번호를 저장합니다. -->
+        INSERT INTO comment (post_id, writer_id, parent_id, content)
+        VALUES (#{postId}, #{memberId}, #{parentId}, #{content})
+    </insert>
+
+    <select id="selectCommentById"
+            parameterType="long"
+            resultType="com.nightstudy.moa.comment.dto.CommentDto">
+        <!-- AI작성: 단건 조회는 소프트 삭제되지 않은 댓글만 반환하도록 통일합니다. -->
+        SELECT comment_id, post_id, writer_id AS member_id, parent_id, content,
+               created_at, updated_at AS updatedAt
+        FROM comment
+        WHERE comment_id = #{commentId}
+        AND deleted_at IS NULL
+    </select>
+
+    <select id="selectCommentCountByPostId"
+            parameterType="long"
+            resultType="int">
+        <!-- AI작성: 페이지 수는 대댓글을 제외한 원댓글 개수를 기준으로 계산합니다. -->
+        SELECT COUNT(*)
+        FROM comment
+        WHERE post_id = #{postId}
+        AND parent_id IS NULL
+    </select>
+
+    <select id="selectTotalCommentCountByPostId"
+            parameterType="long"
+            resultType="int">
+        <!-- AI작성: 삭제 흔적을 포함한 원댓글과 대댓글 전체 개수를 화면에 제공합니다. -->
+        SELECT COUNT(*)
+        FROM comment
+        WHERE post_id = #{postId}
+    </select>
+
+    <select id="selectCommentListByPostId"
+            parameterType="com.nightstudy.moa.comment.dto.CommentSearchCondition"
+            resultType="com.nightstudy.moa.comment.dto.CommentResponse">
+        SELECT
+            c.comment_id AS commentId,
+            c.post_id AS postId,
+            c.parent_id AS parentId,
+            c.writer_id AS memberId,
+            m.nickname AS writerNickname,
+            <!-- AI작성: 소프트 삭제된 댓글은 자리를 유지하고 안내 문구로 내용을 대체합니다. -->
+            CASE
+                WHEN c.deleted_at IS NOT NULL THEN '삭제된 댓글입니다.'
+                ELSE c.content
+            END AS content,
+            c.created_at AS createdAt,
+            c.updated_at AS updatedAt,
+            CASE WHEN c.deleted_at IS NOT NULL THEN TRUE ELSE FALSE END AS deleted
+        FROM comment c
+        JOIN members m
+        ON m.member_id = c.writer_id
+        WHERE c.post_id = #{postId}
+        AND c.parent_id IS NULL
+        ORDER BY c.created_at ASC, c.comment_id ASC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- AI작성: N+1 조회를 피하기 위해 현재 페이지 원댓글의 대댓글을 일괄 조회합니다. -->
+    <select id="selectRepliesByParentIds"
+            resultType="com.nightstudy.moa.comment.dto.CommentResponse">
+        SELECT
+            c.comment_id AS commentId,
+            c.post_id AS postId,
+            c.parent_id AS parentId,
+            c.writer_id AS memberId,
+            m.nickname AS writerNickname,
+            CASE
+                WHEN c.deleted_at IS NOT NULL THEN '삭제된 댓글입니다.'
+                ELSE c.content
+            END AS content,
+            c.created_at AS createdAt,
+            c.updated_at AS updatedAt,
+            CASE WHEN c.deleted_at IS NOT NULL THEN TRUE ELSE FALSE END AS deleted
+        FROM comment c
+        JOIN members m ON m.member_id = c.writer_id
+        WHERE c.post_id = #{postId}
+        AND c.parent_id IN
+        <foreach collection="parentIds" item="parentId" open="(" separator="," close=")">
+            #{parentId}
+        </foreach>
+        ORDER BY c.created_at ASC, c.comment_id ASC
+    </select>
+
+    <update id="updateComment">
+        UPDATE comment
+        SET content = #{request.content},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE comment_id = #{commentId}
+        AND post_id = #{postId}
+        AND deleted_at IS NULL
+    </update>
+
+    <update id="deleteComment">
+        UPDATE comment
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE post_id = #{postId}
+        AND comment_id = #{commentId}
+        AND deleted_at IS NULL
+    </update>
+
+
+</mapper>
