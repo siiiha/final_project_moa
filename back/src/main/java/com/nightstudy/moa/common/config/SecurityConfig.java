@@ -95,6 +95,12 @@ public class SecurityConfig {
                                 "/api/auth/naver/result"
                         ).permitAll()
 
+                        // AI작성: 계모임 목록은 비로그인 사용자도 조회할 수 있다.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/saving-groups"
+                        ).permitAll()
+
                         .requestMatchers(
                                 "/api/admin/**"
                         ).hasRole("ADMIN")
