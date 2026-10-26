@@ -3,6 +3,8 @@ import { FiBell } from 'react-icons/fi';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
+import { logout } from '../../api/authApi';
+import useAuthStore from '../../store/authStore';
 import { logoutMember } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 
@@ -148,6 +150,17 @@ const LogoutButton = styled.button`
 
 function Header() {
   const { pathname } = useLocation();
+  const clearAuth = useAuthStore((state) => state.clearAuth);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      // AI작성: 네트워크 실패에도 브라우저의 로그인 정보는 반드시 제거한다.
+      clearAuth();
+      window.location.assign('/');
+    }
+  };
   const navigate = useNavigate();
 
   const token = useAuthStore((state) => state.token);
@@ -220,6 +233,7 @@ function Header() {
               <FiBell size={15} aria-hidden="true" /> 알림
             </NotificationLink>
             <Link to="/member/mypage">마이페이지</Link>
+            <LogoutButton type="button" onClick={handleLogout}>로그아웃</LogoutButton>
             <LogoutButton
               type="button"
               onClick={handleLogout}

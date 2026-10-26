@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
 import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
 import { socialLoginProviders } from '../../mocks/auth';
+import { getMyMemberId, login } from '../../api/authApi';
+import useAuthStore from '../../store/authStore';
 import { loginMember } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 
@@ -124,114 +127,33 @@ function ProviderIcon({ provider }) {
 
 function LoginForm() {
   const navigate = useNavigate();
-  const setToken = useAuthStore((state) => state.setToken);
-  const clearToken = useAuthStore((state) => state.clearToken);
-
+  const location = useLocation();
+  const setAuth = useAuthStore((state) => state.setAuth);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const popupRef = useRef(null);
-const popupTimerRef = useRef(null);
 
-// AI작성: 우리가 연 카카오 인증 창의 메시지만 처리한다.
-useEffect(() => {
-  const closePopup = () => {
-    window.clearInterval(popupTimerRef.current);
-    popupTimerRef.current = null;
-
-    if (popupRef.current && !popupRef.current.closed) {
-      popupRef.current.close();
-    }
-
-    popupRef.current = null;
-  };
-
-  const handlePopupMessage = (event) => {
-    if (
-      event.origin !== window.location.origin ||
-      !popupRef.current ||
-      event.source !== popupRef.current ||
-      event.data?.type !== 'MOA_SOCIAL_RESULT'
-    ) {
-      return;
-    }
-
-    closePopup();
-    setIsSubmitting(false);
-
-    if (typeof event.data.error === 'string') {
-      setErrorMessage(event.data.error);
-      return;
-    }
-
-    const result = event.data.result;
-
-    if (
-      result?.signupRequired === true &&
-      typeof result.signupToken === 'string' &&
-      /^[A-Za-z0-9_-]{43}$/.test(result.signupToken)
-    ) {
-      clearToken();
-      sessionStorage.setItem(
-        'moa-social-signup',
-        JSON.stringify({
-          signupToken: result.signupToken,
-          expiresAt: Date.now() + 10 * 60 * 1000,
-        }),
-      );
-
-      navigate('/member/join?social=1', { replace: true });
-      return;
-    }
-
-    if (
-      result?.signupRequired === false &&
-      typeof result.token === 'string' &&
-      result.token.trim()
-    ) {
-      sessionStorage.removeItem('moa-social-signup');
-      setToken(result.token);
-      navigate('/member/mypage', { replace: true });
-      return;
-    }
-
-    setErrorMessage('카카오 로그인 결과를 확인할 수 없습니다.');
-  };
-
-  window.addEventListener('message', handlePopupMessage);
-
-  return () => {
-    window.removeEventListener('message', handlePopupMessage);
-    closePopup();
-  };
-}, [navigate, setToken, clearToken]);
-
-  // 로그인 성공 시 JWT를 저장하고 마이페이지로 이동
   const handleSubmit = async (event) => {
     event.preventDefault();
-
     if (isSubmitting) return;
-
     setIsSubmitting(true);
     setErrorMessage('');
-
     try {
-      const token = await loginMember(email.trim(), password);
-
-      if (typeof token !== 'string' || !token.trim()) {
-        throw new Error('로그인 응답을 확인할 수 없습니다.');
+      const loginResponse = await login({ email: email.trim(), password });
+      if (!loginResponse.success || !loginResponse.data) {
+        throw new Error(loginResponse.error?.message || '로그인에 실패했습니다.');
       }
-
-      setToken(token);
-      setPassword('');
-      navigate('/member/mypage', { replace: true });
+      // AI작성: /me 호출 전에 토큰을 저장해 Axios interceptor가 Authorization 헤더를 붙인다.
+      setAuth(loginResponse.data, null);
+      const meResponse = await getMyMemberId();
+      if (!meResponse.success || !meResponse.data) {
+        throw new Error(meResponse.error?.message || '로그인 회원 정보를 확인하지 못했습니다.');
+      }
+      setAuth(loginResponse.data, meResponse.data);
+      const redirect = new URLSearchParams(location.search).get('redirect');
+      // AI작성: 외부 URL 이동을 막고, 로그인 전 보던 내부 화면으로만 복귀시킨다.
+      navigate(redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : '/');
     } catch (error) {
-      setErrorMessage(
-        error.response?.data?.error?.message ??
-          '로그인에 실패했습니다. 입력값과 서버 연결을 확인해주세요.',
-      );
+      useAuthStore.getState().clearAuth();
+      setErrorMessage(error.response?.data?.error?.message || error.message || '로그인에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -300,6 +222,8 @@ const handleSocialLogin = (providerId) => {
           type="email"
           placeholder="이메일을 입력해주세요"
           autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -311,6 +235,8 @@ const handleSocialLogin = (providerId) => {
           label="비밀번호"
           placeholder="비밀번호를 입력해주세요"
           autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -318,6 +244,10 @@ const handleSocialLogin = (providerId) => {
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
         />
+        {errorMessage && <p role="alert">{errorMessage}</p>}
+        <LoginButton type="submit" disabled={isSubmitting}>
+          {isSubmitting ? '로그인 중...' : '로그인'}
+        </LoginButton>
 
         {errorMessage && <p role="alert">{errorMessage}</p>}
 

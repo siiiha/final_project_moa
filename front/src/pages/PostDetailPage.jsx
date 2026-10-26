@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import {
   createComment,
@@ -13,11 +13,9 @@ import {
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
+import useAuthStore from '../store/authStore';
 
 const COMMENTS_PER_PAGE = 20;
-
-// AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
-const TEMP_MEMBER_ID = 44;
 
 // AI작성: 더보기로 가져온 과거 댓글과 방금 작성한 댓글이 시간 순서대로 표시되도록 정렬합니다.
 const sortCommentsByCreatedAt = (comments) =>
@@ -35,6 +33,7 @@ const sortCommentsByCreatedAt = (comments) =>
 // AI작성: 백엔드 댓글 응답을 화면 컴포넌트의 표시 형식으로 변환합니다.
 const mapComment = (comment) => ({
   id: comment.commentId,
+  memberId: comment.memberId,
   author: comment.writerNickname || '알 수 없음',
   content: comment.content,
   createdAt: comment.createdAt,
@@ -42,6 +41,7 @@ const mapComment = (comment) => ({
   // AI작성: 백엔드가 반환한 한 단계 대댓글을 화면 표시 형식으로 변환합니다.
   replies: (comment.replies || []).map((reply) => ({
     id: reply.commentId,
+    memberId: reply.memberId,
     author: reply.writerNickname || '알 수 없음',
     content: reply.content,
     createdAt: reply.createdAt,
@@ -95,7 +95,10 @@ const EmptyCard = styled.section`
 
 function PostDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
+  const memberId = useAuthStore((state) => state.memberId);
+  const token = useAuthStore((state) => state.token);
   const [commentText, setCommentText] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
@@ -120,6 +123,11 @@ function PostDetailPage() {
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
 
+  // AI작성: 인증이 필요한 동작에서 현재 게시글로 다시 돌아올 수 있도록 로그인 이동을 공통 처리한다.
+  const goToLogin = () => {
+    navigate(`/member/login?redirect=${encodeURIComponent(location.pathname)}`);
+  };
+
   useEffect(() => {
     let isActive = true;
 
@@ -143,6 +151,7 @@ function PostDetailPage() {
           title: detail.title,
           content: detail.content,
           author: detail.writerNickname || '알 수 없음',
+          writerId: detail.writerId,
           date: detail.createdAtStr || '',
           views: detail.viewCount,
         });
@@ -257,7 +266,6 @@ function PostDetailPage() {
     setDeleteErrorMessage('');
 
     try {
-      // TODO AI작성: 로그인 연동 후 백엔드의 임시 회원 ID(44L)를 인증된 회원 ID로 교체해야 합니다.
       const response = await deletePost(id);
       if (!response.success) {
         throw new Error(response.error?.message || '게시글 삭제에 실패했습니다.');
@@ -276,6 +284,10 @@ function PostDetailPage() {
 
   const handleCommentSubmit = async (event) => {
     event.preventDefault();
+    if (!token) {
+      goToLogin();
+      return;
+    }
     const trimmedComment = commentText.trim();
     if (!trimmedComment || isSubmittingComment) return;
 
@@ -283,9 +295,7 @@ function PostDetailPage() {
     setCommentErrorMessage('');
 
     try {
-      // TODO AI작성: 로그인 연동 후 TEMP_MEMBER_ID를 인증된 회원 ID로 교체해야 합니다.
       const response = await createComment(id, {
-        memberId: TEMP_MEMBER_ID,
         content: trimmedComment,
       });
 
@@ -321,6 +331,10 @@ function PostDetailPage() {
   };
 
   const handleReplyStart = (commentId) => {
+    if (!token) {
+      goToLogin();
+      return;
+    }
     setCommentErrorMessage('');
     setReplyingCommentId(commentId);
     setReplyText('');
@@ -341,9 +355,7 @@ function PostDetailPage() {
     setCommentErrorMessage('');
 
     try {
-      // TODO AI작성: 로그인 연동 후 TEMP_MEMBER_ID를 인증된 회원 ID로 교체해야 합니다.
       const response = await createReply(id, replyingCommentId, {
-        memberId: TEMP_MEMBER_ID,
         content: trimmedReply,
       });
       if (!response.success || !response.data) {
@@ -390,6 +402,10 @@ function PostDetailPage() {
 
   const handleCommentEditSubmit = async (event) => {
     event.preventDefault();
+    if (!token) {
+      goToLogin();
+      return;
+    }
     const trimmedComment = editingCommentText.trim();
     if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
 
@@ -435,6 +451,10 @@ function PostDetailPage() {
   };
 
   const handleCommentDeleteConfirm = async () => {
+    if (!token) {
+      goToLogin();
+      return;
+    }
     if (!deletingCommentId || isDeletingComment) return;
 
     setIsDeletingComment(true);
@@ -508,6 +528,7 @@ function PostDetailPage() {
         {commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}
         <PostDetail
           post={post}
+          memberId={memberId}
           comments={isLoadingComments ? [] : comments}
           commentTotal={commentTotal}
           hasMoreComments={commentPage < commentTotalPages}

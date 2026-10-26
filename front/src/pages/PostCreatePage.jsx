@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { createPost, getPostDetail, updatePost } from '../api/postApi';
 import PostCreateForm from '../components/post/PostCreateForm';
 import { postCategories } from '../mocks/posts';
+import useAuthStore from '../store/authStore';
 
 const CATEGORY_ID_BY_NAME = {
   '행사·축제': 1,
   '일자리': 2,
   '거래·나눔': 3,
 };
-
-// AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
-const TEMP_WRITER_ID = 44;
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -60,8 +58,10 @@ const StatusMessage = styled.p`
 
 function PostCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: postId } = useParams();
   const isEditMode = Boolean(postId);
+  const token = useAuthStore((state) => state.token);
   const [category, setCategory] = useState('행사·축제');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -116,6 +116,10 @@ function PostCreatePage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (isSubmitting || isLoadingPost) return;
+    if (!token) {
+      navigate(`/member/login?redirect=${encodeURIComponent(location.pathname)}`);
+      return;
+    }
 
     const categoryId = CATEGORY_ID_BY_NAME[category];
     if (!categoryId) {
@@ -137,9 +141,7 @@ function PostCreatePage() {
           content: content.trim(),
         });
       } else {
-        // AI작성: 인증 연동 후 TEMP_WRITER_ID를 로그인 회원 ID로 교체해야 합니다.
         response = await createPost({
-          writerId: TEMP_WRITER_ID,
           categoryId,
           title: title.trim(),
           content: content.trim(),

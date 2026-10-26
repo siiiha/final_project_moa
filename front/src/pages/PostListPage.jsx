@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { getPosts } from '../api/postApi';
 import Button from '../components/common/Button';
 import PostFilterBar from '../components/post/PostFilterBar';
 import PostTable from '../components/post/PostTable';
+import useAuthStore from '../store/authStore';
 
 const POSTS_PER_PAGE = 10;
 const PAGE_BUTTON_COUNT = 5;
@@ -81,6 +82,8 @@ const StatusMessage = styled.p`
 
 function PostListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const token = useAuthStore((state) => state.token);
   const [searchParams, setSearchParams] = useSearchParams();
   const [keywordDraft, setKeywordDraft] = useState(searchParams.get('keyword') || '');
   const [currentPage, setCurrentPage] = useState(1);
@@ -192,7 +195,8 @@ function PostListPage() {
   };
 
   const handleWrite = () => {
-    navigate('/post/create');
+    // AI작성: 작성은 JWT 인증이 필요하므로 비로그인 사용자는 로그인 화면으로 안내한다.
+    navigate(token ? '/post/create' : `/member/login?redirect=${encodeURIComponent(location.pathname)}`);
   };
 
   return (

@@ -2,6 +2,8 @@ package com.nightstudy.moa.post.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostCategoryDto;
+import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 
@@ -34,9 +37,10 @@ public class PostController {
 
     @PostMapping("/write")
     public ApiResponse<Long> write(
-            @Valid @RequestBody PostDto postDto
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestBody PostCreateRequest request
     ) {
-        Long postId = postService.writePost(postDto);
+        Long postId = postService.writePost(loginMemberId, request);
         return ApiResponse.ok(postId);
     }
 
@@ -52,30 +56,35 @@ public class PostController {
         );
     }
 
+    @GetMapping("/categories")
+    public ApiResponse<List<PostCategoryDto>> categories() {
+        return ApiResponse.ok(postService.getPostCategories());
+    }
+
     @GetMapping("/detail/{postId}")
     public ApiResponse<PostDto> detail(
-            @PathVariable Long postId
+            @PathVariable Long postId,
+            @RequestAttribute("memberId") Long loginMemberId
     ) {
-        // TODO: 토큰 인증 구현 후 로그인 회원 ID를 전달하도록 변경
-        PostDto post = postService.getPostDetail(postId, null);
+        PostDto post = postService.getPostDetail(postId, loginMemberId);
         return ApiResponse.ok(post);
     }
 
     @PutMapping("/edit/{postId}")
     public ApiResponse<Long> editPost(
             @PathVariable Long postId,
+            @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody PostEditRequest request) {
-        Long editPostId = postService.editPost(postId, request);
+        Long editPostId = postService.editPost(postId, loginMemberId, request);
 
         return ApiResponse.ok(editPostId);
     }
 
     @DeleteMapping("/{postId}")
     public ApiResponse<Void> deletePost(
-            @PathVariable Long postId) {
-        Long LoginMemberId = 44L;
-
-        postService.deletePost(postId, LoginMemberId);
+            @PathVariable Long postId,
+            @RequestAttribute("memberId") Long loginMemberId) {
+        postService.deletePost(postId, loginMemberId);
 
         return ApiResponse.ok(null);
     }

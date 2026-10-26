@@ -6,6 +6,11 @@
     namespace : 해당 XML파일을 어떤 Mapper 인터페이스와 연결할지를 정해주는 속성.
 -->
 <mapper namespace="com.nightstudy.moa.post.mapper.PostMapper">
+    <select id="selectPostCategories" resultType="PostCategoryDto">
+        SELECT category_id, category_name
+        FROM post_category
+        ORDER BY category_id ASC
+    </select>
     <sql id="searchWhere">
         <!--
             <where> : 내부의 <if>들 중 하나라도 참이면 자동으로 WHERE키워드를 붙여주고,
