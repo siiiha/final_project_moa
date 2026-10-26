@@ -227,6 +227,7 @@ const ActionButton = styled(Button)`
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack }) {
   const allowedMenus = getSavingGroupMenus(group.myRole);
+  // AI작성: 허용되지 않은 탭 상태가 남아 있어도 공지로 되돌려 계주 전용 패널을 렌더링하지 않는다.
   const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
   const paymentDay = group.duesDay == null ? '납부일 미정'
     : group.duesDay < 1 || group.duesDay > 28 ? '납부일 확인 필요' : '매월 ' + group.duesDay + '일';
@@ -250,26 +251,26 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           <Meta><FiUsers size={16} aria-hidden="true" /> {group.memberCount}명 / {group.maxMembers == null ? '정원 미정' : '정원 ' + group.maxMembers + '명'}</Meta>
         </MetaList>
         <SavingGroupMenuTabs
-          activeMenu={activeMenu}
+          activeMenu={currentMenu}
           onMenuChange={onMenuChange}
-          canAccessSettings={allowedMenus.includes('settings')}
+          allowedMenus={allowedMenus}
           settingsPath={`/saving-groups/${group.groupId}/settings`}
         />
       </HeaderCard>
 
-      {activeMenu === 'members' ? (
+      {currentMenu === 'members' ? (
         <MembersContent>
           <SavingGroupMembersPanel />
         </MembersContent>
-      ) : activeMenu === 'payment' ? (
+      ) : currentMenu === 'payment' ? (
         <SavingGroupPaymentStatusPanel />
-      ) : activeMenu === 'dues' ? (
+      ) : currentMenu === 'dues' ? (
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
-      ) : activeMenu === 'transactionHistory' ? (
+      ) : currentMenu === 'transactionHistory' ? (
         <SavingGroupTransactionHistoryPanel />
-      ) : activeMenu === 'payoutRequest' ? (
+      ) : currentMenu === 'payoutRequest' ? (
         <SavingGroupPayoutRequestPanel groupType={group.groupType} />
-      ) : activeMenu === 'joinRequests' ? (
+      ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
           {/* AI작성: 화면 모임이 바뀌면 요청·승인 상태를 초기화하고 API가 요구하는 savingGroupId로 실제 신청만 조회한다. */}
           <SavingGroupJoinRequestsPanel key={group.savingGroupId} savingGroupId={String(group.savingGroupId)} />
