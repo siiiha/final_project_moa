@@ -3,7 +3,7 @@ import test from 'node:test';
 import client from './client.js';
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
-  approveSavingGroupJoin, getSavingGroupJoinRequests } from './savingGroups.js';
+  approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests } from './savingGroups.js';
 
 // AI작성: 추가 테스트 패키지 없이 카드 표시와 페이징·API 실패 계약을 검증한다.
 test('지역 코드는 01~10 순서이며 카드는 기존 필드와 표시 형식을 유지한다', () => {
@@ -164,6 +164,16 @@ test('승인은 원래 신청 ID를 경로에 넣고 요청 본문과 승인자�
   }, async () => assert.equal((await approveSavingGroupJoin('12', '9007199254740993')).success, true));
 });
 
+test('거절은 원래 신청 ID를 경로에 넣고 요청 본문과 처리자를 보내지 않는다', async () => {
+  await withAdapter(async (config) => {
+    assert.equal(config.method, 'patch');
+    assert.equal(config.url, '/saving-groups/12/join-requests/9007199254740993/reject');
+    assert.equal(config.data, undefined);
+    assert.equal(config.params, undefined);
+    return ok(config);
+  }, async () => assert.equal((await rejectSavingGroupJoin('12', '9007199254740993')).success, true));
+});
+
 for (const [status, code] of [[401, 'UNAUTHORIZED'], [403, 'SAVING_GROUP_OWNER_REQUIRED'],
   [404, 'JOIN_REQUEST_NOT_FOUND'], [409, 'JOIN_REQUEST_NOT_PENDING'], [409, 'SAVING_GROUP_CAPACITY_FULL'],
   [409, 'SAVING_GROUP_JOIN_LIMIT_EXCEEDED']]) {
@@ -174,6 +184,19 @@ for (const [status, code] of [[401, 'UNAUTHORIZED'], [403, 'SAVING_GROUP_OWNER_R
       throw error;
     }, async () => assert.rejects(approveSavingGroupJoin('12', '50'),
       (error) => error.code === code && error.message === '승인 조건을 확인해주세요.'));
+  });
+}
+
+for (const [status, code] of [[401, 'UNAUTHORIZED'], [403, 'SAVING_GROUP_OWNER_REQUIRED'],
+  [404, 'JOIN_REQUEST_NOT_FOUND'], [409, 'JOIN_REQUEST_NOT_PENDING'],
+  [409, 'JOIN_REQUEST_REJECTION_FAILED']]) {
+  test(`거절 실패 ${status} ${code}는 성공으로 바꾸지 않는다`, async () => {
+    await withAdapter(async () => {
+      const error = new Error('HTTP 요청 실패');
+      error.response = { status, data: { success: false, error: { code, message: '거절 조건을 확인해주세요.' } } };
+      throw error;
+    }, async () => assert.rejects(rejectSavingGroupJoin('12', '50'),
+      (error) => error.code === code && error.message === '거절 조건을 확인해주세요.'));
   });
 }
 

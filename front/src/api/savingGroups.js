@@ -135,7 +135,7 @@ function savingGroupPathId(value) {
   return String(value);
 }
 
-// AI작성: 목록과 승인 모두 서버의 오류 코드를 보존하며 요청 취소는 화면 오류로 바꾸지 않는다.
+// AI작성: 목록·승인·거절 모두 서버의 오류 코드를 보존하며 요청 취소는 화면 오류로 바꾸지 않는다.
 async function savingGroupJoinResponse(request, fallback) {
   try {
     const response = await request();
@@ -155,7 +155,7 @@ async function savingGroupJoinResponse(request, fallback) {
   }
 }
 
-// AI작성: 실제 신청 목록만 조회한다. 토큰 제공은 기존 JWT 연결 작업으로 남기며 Mock으로 대체하지 않는다.
+// AI작성: 실제 신청 목록만 조회하며 공통 client가 JWT를 자동으로 첨부한다. Mock으로 대체하지 않는다.
 export async function getSavingGroupJoinRequests(savingGroupId, { status, page = 1, signal } = {}) {
   const groupId = savingGroupPathId(savingGroupId);
   const result = await savingGroupJoinResponse(
@@ -200,6 +200,16 @@ export async function approveSavingGroupJoin(savingGroupId, crewMemberId) {
   return savingGroupJoinResponse(
     () => client.patch(`/saving-groups/${groupId}/join-requests/${requestId}/approve`),
     '가입 신청 승인에 실패했습니다.'
+  );
+}
+
+// AI작성: 거절 처리자·사유·상태를 보내지 않고 서버가 반환한 실제 신청 ID만 사용한다.
+export async function rejectSavingGroupJoin(savingGroupId, crewMemberId) {
+  const groupId = savingGroupPathId(savingGroupId);
+  const requestId = savingGroupPathId(crewMemberId);
+  return savingGroupJoinResponse(
+    () => client.patch(`/saving-groups/${groupId}/join-requests/${requestId}/reject`),
+    '가입 신청 거절에 실패했습니다.'
   );
 }
 
