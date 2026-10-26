@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- AI작성: 소모임 생성에 필요한 기존 세 테이블의 조회·저장 SQL을 관리한다. -->
+<mapper namespace="com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper">
+    <select id="selectRegionIdByName" resultType="long">
+        SELECT region_id
+        FROM region
+        WHERE region_name = #{regionName}
+    </select>
+
+    <select id="existsActiveMember" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1
+            FROM members
+            WHERE member_id = #{memberId}
+              AND deleted_at IS NULL
+        )
+    </select>
+
+    <!-- AI작성: 소모임 종료 상태가 없으므로 삭제되지 않은 생성 소모임을 최대 생성 수에 포함한다. -->
+    <!-- TODO: 종료 상태가 확정되면 종료된 소모임을 이 집계에서 제외한다. -->
+    <select id="selectActiveCreatedSmallGroupCount" resultType="long">
+        SELECT COUNT(*)
+        FROM `groups` g
+        JOIN small_group sg ON sg.group_id = g.group_id
+        WHERE g.member_id = #{memberId}
+          AND g.deleted_at IS NULL
+    </select>
+
+    <insert id="insertGroup" parameterType="com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest"
+            useGeneratedKeys="true" keyProperty="groupId">
+        INSERT INTO `groups` (
+            region_id,
+            member_id,
+            group_name,
+            description,
+            max_members,
+            created_at
+        )
+        VALUES (
+            #{regionId},
+            #{memberId},
+            #{groupName},
+            #{description},
+            #{maxMembers},
+            CURRENT_TIMESTAMP()
+        )
+    </insert>
+
+    <insert id="insertSmallGroup" parameterType="com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest"
+            useGeneratedKeys="true" keyProperty="smallGroupId">
+        INSERT INTO small_group (
+            group_id,
+            like_category,
+            meet_date,
+            location
+        )
+        VALUES (
+            #{groupId},
+            #{likeCategory},
+            #{meetDate},
+            #{location}
+        )
+    </insert>
+
+    <!-- AI작성: 생성자는 승인 절차 없이 OWNER 권한을 가진 승인 계원으로 즉시 등록한다. -->
+    <insert id="insertOwnerMembership">
+        INSERT INTO group_member (
+            member_id,
+            group_id,
+            member_role,
+            membership_status,
+            joined_at
+        )
+        VALUES (
+            #{memberId},
+            #{groupId},
+            'OWNER',
+            'APPROVED',
+            CURRENT_TIMESTAMP()
+        )
+    </insert>
+</mapper>
