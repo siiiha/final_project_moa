@@ -271,8 +271,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         <SavingGroupPayoutRequestPanel groupType={group.groupType} />
       ) : activeMenu === 'joinRequests' ? (
         <JoinRequestsContent>
-          {/* AI작성: 화면 모임이 바뀌면 요청·승인 상태를 초기화하고 해당 모임의 실제 신청만 조회한다. */}
-          <SavingGroupJoinRequestsPanel key={group.id} savingGroupId={String(group.id)} />
+          {/* AI작성: 화면 모임이 바뀌면 요청·승인 상태를 초기화하고 API가 요구하는 savingGroupId로 실제 신청만 조회한다. */}
+          <SavingGroupJoinRequestsPanel key={group.savingGroupId} savingGroupId={String(group.savingGroupId)} />
         </JoinRequestsContent>
       ) : (
         <Layout>
