@@ -16,7 +16,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class SmallGroupCreationRequest {
-    // AI작성: TODO: JWT 연동 후 요청 본문의 임시 memberId를 제거하고 토큰의 로그인 회원 식별값을 사용한다.
+    // AI작성: 클라이언트 JSON이 아닌 Controller가 JWT RequestAttribute에서 설정하는 내부 전달값이다.
     private Long memberId;
 
     @NotBlank(message = "소모임 이름을 입력해 주세요.")
