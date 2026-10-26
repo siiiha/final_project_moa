@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
@@ -124,11 +125,26 @@ const ActionButton = styled(Button)`
 `;
 
 function SmallGroupCreateForm({ regions, interests, onSubmit, onCancel }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // AI작성: 비동기 생성 요청이 끝날 때까지 버튼을 잠가 중복 저장과 취소 이동을 막는다.
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(event);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Card>
       <CardTitle>소모임 정보 입력</CardTitle>
       <Description>이웃과 함께할 소모임의 기본 정보를 입력해주세요.</Description>
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={handleSubmit} aria-busy={isSubmitting}>
         <FieldGrid>
           <Field>
             소모임 이름
@@ -180,10 +196,12 @@ function SmallGroupCreateForm({ regions, interests, onSubmit, onCancel }) {
         </DetailFieldGrid>
 
         <Actions>
-          <ActionButton type="button" $variant="secondary" onClick={onCancel}>
+          <ActionButton type="button" $variant="secondary" onClick={onCancel} disabled={isSubmitting}>
             취소
           </ActionButton>
-          <ActionButton type="submit">소모임 만들기</ActionButton>
+          <ActionButton type="submit" disabled={isSubmitting}>
+            {isSubmitting ? '생성 중...' : '소모임 만들기'}
+          </ActionButton>
         </Actions>
       </Form>
     </Card>
