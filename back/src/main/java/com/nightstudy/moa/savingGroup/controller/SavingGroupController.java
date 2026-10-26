@@ -38,7 +38,7 @@ public class SavingGroupController {
         this.savingGroupService = savingGroupService;
     }
 
-    // AI작성: TODO: JWT 병합 후 두 목록 경로에도 인증 인터셉터를 적용한다. 인증 속성이 없으면 조회하지 않는다.
+    // AI작성: JWT 필터가 설정한 인증 회원 ID가 없으면 신청 목록을 조회하지 않는다.
     @GetMapping("/{savingGroupId}/join-requests")
     public ApiResponse<List<SavingGroupJoinRequestRow>> joinRequests(
             @PathVariable("savingGroupId") Long savingGroupId,
@@ -64,18 +64,29 @@ public class SavingGroupController {
         return ApiResponse.ok();
     }
 
-    // AI작성: 승인자는 서버 인증 정보로만 받아 기존 트랜잭션 Service에 전달한다. 요청 본문은 사용하지 않는다.
+    // AI작성: 승인자는 JWT 필터가 검증한 서버 인증 정보로만 식별하며 요청 본문은 사용하지 않는다.
     @PatchMapping("/{savingGroupId}/join-requests/{crewMemberId}/approve")
     public ApiResponse<Void> approveJoinRequest(
             @PathVariable("savingGroupId") Long savingGroupId,
             @PathVariable("crewMemberId") Long crewMemberId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        // AI작성: TODO: JWT 브랜치 병합 후 LoginInterceptor가 두 승인 경로를 검증하고 memberId를 설정하도록 WebConfig에 등록한다.
-        // AI작성: 인증 연결 전에는 401로 차단한다. 헤더·쿼리·본문의 회원 ID나 임시 고정 ID를 인증 정보로 사용하지 않는다.
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
         savingGroupService.approveSavingGroupJoin(savingGroupId, crewMemberId, memberId);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 거절도 승인과 같은 JWT 인증 회원 ID만 사용하며 요청 본문·쿼리로 처리자를 받지 않는다.
+    @PatchMapping("/{savingGroupId}/join-requests/{crewMemberId}/reject")
+    public ApiResponse<Void> rejectJoinRequest(
+            @PathVariable("savingGroupId") Long savingGroupId,
+            @PathVariable("crewMemberId") Long crewMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        savingGroupService.rejectSavingGroupJoin(savingGroupId, crewMemberId, memberId);
         return ApiResponse.ok();
     }
 
