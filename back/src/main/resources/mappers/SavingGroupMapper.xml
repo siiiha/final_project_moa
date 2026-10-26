@@ -257,6 +257,15 @@
           AND membership_status = 'PENDING'
     </update>
 
+    <!-- AI작성: 거절 사유·처리자 정보 없이 대기 신청 한 건만 REJECTED로 전환해 승인 처리와 경합해도 한 요청만 성공하게 한다. -->
+    <update id="rejectSavingGroupJoinRequest">
+        UPDATE group_member
+        SET membership_status = 'REJECTED'
+        WHERE crew_member_id = #{crewMemberId}
+          AND group_id = #{groupId}
+          AND membership_status = 'PENDING'
+    </update>
+
     <!-- AI작성: 재신청은 LEFT 상태일 때만 허용해 거절·추방 이력을 신청 상태로 바꾸지 않는다. -->
     <update id="reactivateLeftSavingGroupMembership">
         UPDATE group_member

@@ -48,6 +48,10 @@ public interface SavingGroupMapper {
     int approveSavingGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
             @Param("groupId") Long groupId, @Param("approvedBy") Long approvedBy);
 
+    // AI작성: 신청 ID·모임 ID·PENDING 조건이 일치하는 기존 행만 거절하고 영향 행 수를 반환한다.
+    int rejectSavingGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
+            @Param("groupId") Long groupId);
+
     // AI작성: 회원 잠금 순서를 지키기 위한 식별 조회이며 검증 결과로 사용하지 않는다.
     SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTarget(@Param("crewMemberId") Long crewMemberId);
 
