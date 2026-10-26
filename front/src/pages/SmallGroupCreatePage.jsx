@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { createSmallGroup } from '../api/smallGroups';
 import SmallGroupCreateForm from '../components/smallGroup/SmallGroupCreateForm';
 import { smallGroupInterests, smallGroupRegions } from '../mocks/smallGroups';
+
+// AI작성: TODO: JWT 연동 후 임시 회원 ID를 제거하고 토큰의 로그인 회원 식별값을 사용한다.
+const TEMP_MEMBER_ID = 1;
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -46,16 +50,37 @@ const Notice = styled.p`
   font-size: 12px;
 `;
 
+const ErrorNotice = styled(Notice)`
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+`;
+
 function SmallGroupCreatePage() {
   const navigate = useNavigate();
   const [createdName, setCreatedName] = useState('');
+  const [submissionError, setSubmissionError] = useState('');
 
-  const handleSubmit = (event) => {
+  // AI작성: 기존 폼 name을 백엔드 소모임 생성 DTO 필드명으로 변환한다.
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    setCreatedName('');
+    setSubmissionError('');
 
-    // TODO: Spring Boot 소모임 생성 API에 폼 입력값을 전송하고 생성 결과를 처리합니다.
-    setCreatedName(formData.get('name'));
+    try {
+      const created = await createSmallGroup(TEMP_MEMBER_ID, {
+        groupName: formData.get('name'),
+        regionName: formData.get('region'),
+        likeCategory: formData.get('interest'),
+        description: formData.get('description'),
+        maxMembers: Number(formData.get('capacity')),
+        meetDate: formData.get('meetingDate'),
+        location: formData.get('place'),
+      });
+      setCreatedName(created.groupName);
+    } catch (error) {
+      setSubmissionError(error.message || '소모임 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
   };
 
   return (
@@ -72,7 +97,8 @@ function SmallGroupCreatePage() {
           onSubmit={handleSubmit}
           onCancel={() => navigate('/small-groups')}
         />
-        {createdName && <Notice role="status">{createdName} 소모임 만들기를 준비했습니다.</Notice>}
+        {createdName && <Notice role="status">{createdName} 소모임을 만들었습니다.</Notice>}
+        {submissionError && <ErrorNotice role="alert">{submissionError}</ErrorNotice>}
       </Content>
     </Page>
   );
