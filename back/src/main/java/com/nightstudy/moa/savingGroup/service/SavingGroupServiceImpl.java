@@ -628,7 +628,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             return;
         }
         if ("APPROVED".equals(relation.getMembershipStatus())) {
-            throw new ApiException(HttpStatus.CONFLICT, "ALREADY_JOINED_SAVING_GROUP", "이미 가입한 계모임입니다.");
+            throw new ApiException(HttpStatus.CONFLICT, "ALREADY_JOINED_SAVING_GROUP", "이미 가입된 계모임입니다.");
         }
         if ("PENDING".equals(relation.getMembershipStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_ALREADY_PENDING",
