@@ -18,7 +18,7 @@ public interface SavingGroupCreationService {
 
     SavingGroupCreationApplicationDetailResponse getCreationApplication(Long approvalId);
 
-    void approveCreationApplication(Long approvalId);
+    void approveCreationApplication(Long approvalId, Long adminMemberId);
 
     void rejectCreationApplication(Long approvalId, String rejectReason);
 }

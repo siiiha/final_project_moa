@@ -9,15 +9,6 @@ const client = axios.create({
   timeout: 10000,
 });
 
-// AI작성: 관리자 API를 포함한 인증 요청은 저장된 JWT를 자동으로 전달한다.
-// 이미 호출부에서 Authorization 헤더를 지정한 경우에는 그 값을 그대로 사용한다.
-client.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token && !config.headers?.Authorization) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 // AI작성: 만료·무효 토큰은 즉시 제거해 이후 요청에 재사용하지 않는다.
 client.interceptors.response.use(
@@ -30,5 +21,16 @@ client.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// AI작성: 로그인한 사용자의 JWT를 인증이 필요한 API 요청 헤더에 자동으로 포함한다.
+client.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().token;
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
 
 export default client;

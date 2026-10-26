@@ -95,20 +95,33 @@
         saving_group_type,
         dues_amount,
         dues_day,
-        start_date,
-        end_date,
         status,
         group_image
         )
         VALUES (
         #{groupId},
-        #{savingGroupType},
+        #{groupType},
         #{duesAmount},
         #{duesDay},
-        #{startDate},
-        #{endDate},
-        'pending',
+        '00',
         #{groupImagePath}
+        )
+    </insert>
+
+    <!-- AI작성: 개설 신청자는 관리자 심사 전까지 계주 권한을 행사할 수 없도록 OWNER/PENDING 관계로 저장한다. -->
+    <insert id="insertSavingGroupCreationOwnerMembership">
+        INSERT INTO group_member (
+        member_id,
+        group_id,
+        member_role,
+        membership_status,
+        requested_at
+        ) VALUES (
+        #{memberId},
+        #{groupId},
+        'OWNER',
+        'PENDING',
+        CURRENT_TIMESTAMP
         )
     </insert>
 
@@ -244,6 +257,15 @@
           AND membership_status = 'PENDING'
     </update>
 
+    <!-- AI작성: 거절 사유·처리자 정보 없이 대기 신청 한 건만 REJECTED로 전환해 승인 처리와 경합해도 한 요청만 성공하게 한다. -->
+    <update id="rejectSavingGroupJoinRequest">
+        UPDATE group_member
+        SET membership_status = 'REJECTED'
+        WHERE crew_member_id = #{crewMemberId}
+          AND group_id = #{groupId}
+          AND membership_status = 'PENDING'
+    </update>
+
     <!-- AI작성: 재신청은 LEFT 상태일 때만 허용해 거절·추방 이력을 신청 상태로 바꾸지 않는다. -->
     <update id="reactivateLeftSavingGroupMembership">
         UPDATE group_member
@@ -262,6 +284,7 @@
     </update>
 
 
+    <!-- AI작성: 설정 화면 URL은 groups.group_id를 사용하므로 조회·수정 권한 확인도 같은 식별자로 찾는다. -->
     <select id="selectSavingGroupSettingsAuthority" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow">
         SELECT sg.saving_group_id,
         sg.group_id,
@@ -277,7 +300,7 @@
         AND membership_status = 'APPROVED'
         GROUP BY group_id
         ) owner ON owner.group_id = g.group_id
-        WHERE sg.saving_group_id = #{savingGroupId}
+        WHERE sg.group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -296,7 +319,7 @@
         WHERE membership_status = 'APPROVED'
         GROUP BY group_id
         ) approved ON approved.group_id = g.group_id
-        WHERE sg.saving_group_id = #{savingGroupId}
+        WHERE sg.group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -307,7 +330,7 @@
         sg.status
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.saving_group_id = #{savingGroupId}
+        WHERE sg.group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
         FOR UPDATE
     </select>
@@ -684,5 +707,26 @@
         SET status = '01'
         WHERE group_id = #{groupId}
         AND status = '00'
+    </update>
+
+    <!-- AI작성: 관리자 승인과 함께 개설 신청자의 계주 관계만 승인 상태로 전환한다. -->
+    <update id="approveSavingGroupCreationOwnerMembership">
+        UPDATE group_member
+        SET membership_status = 'APPROVED',
+        approved_by = #{approvedBy},
+        approved_at = CURRENT_TIMESTAMP,
+        joined_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId}
+        AND member_role = 'OWNER'
+        AND membership_status = 'PENDING'
+    </update>
+
+    <!-- AI작성: 반려된 개설 신청의 계주 대기 관계를 이력 보존을 위해 REJECTED로 전환한다. -->
+    <update id="rejectSavingGroupCreationOwnerMembership">
+        UPDATE group_member
+        SET membership_status = 'REJECTED'
+        WHERE group_id = #{groupId}
+        AND member_role = 'OWNER'
+        AND membership_status = 'PENDING'
     </update>
 </mapper>

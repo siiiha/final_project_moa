@@ -51,9 +51,11 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
         System.out.println(savingGroupCreationRequest.getGroupId());
         int savingGroupResult = savingGroupMapper.insertSavingGroup(savingGroupCreationRequest);
         System.out.println(savingGroupCreationRequest.getGroupId());
+        int ownerMembershipResult = savingGroupMapper.insertSavingGroupCreationOwnerMembership(
+                savingGroupCreationRequest.getGroupId(), savingGroupCreationRequest.getMemberId());
         int approvalResult = savingGroupMapper.insertSavingGroupCreationApproval(
                 savingGroupCreationRequest.getGroupId());
-        if (groupsResult != 1 || savingGroupResult != 1 || approvalResult != 1) {
+        if (groupsResult != 1 || savingGroupResult != 1 || ownerMembershipResult != 1 || approvalResult != 1) {
             throw new ApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "SAVING_GROUP_CREATION_FAILED",
@@ -97,11 +99,16 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
     // AI작성: 심사 상태를 잠근 뒤 PENDING인 신청만 한 번 처리해 중복 승인·반려를 막는다.
     @Override
     @Transactional
-    public void approveCreationApplication(Long approvalId) {
+    public void approveCreationApplication(Long approvalId, Long adminMemberId) {
+        if (adminMemberId == null || adminMemberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
         SavingGroupCreationApplicationDetailResponse application = getCreationApplicationForUpdate(approvalId);
         requirePending(application);
         if (savingGroupMapper.approveSavingGroupCreationApplication(approvalId) != 1
-                || savingGroupMapper.publishApprovedSavingGroup(application.getGroupId()) != 1) {
+                || savingGroupMapper.publishApprovedSavingGroup(application.getGroupId()) != 1
+                || savingGroupMapper.approveSavingGroupCreationOwnerMembership(
+                        application.getGroupId(), adminMemberId) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 승인할 수 없는 신청입니다.");
         }
@@ -112,7 +119,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
     public void rejectCreationApplication(Long approvalId, String rejectReason) {
         SavingGroupCreationApplicationDetailResponse application = getCreationApplicationForUpdate(approvalId);
         requirePending(application);
-        if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, rejectReason.strip()) != 1) {
+        if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, rejectReason.strip()) != 1
+                || savingGroupMapper.rejectSavingGroupCreationOwnerMembership(application.getGroupId()) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 반려할 수 없는 신청입니다.");
         }

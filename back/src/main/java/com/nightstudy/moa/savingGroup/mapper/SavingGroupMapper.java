@@ -12,6 +12,8 @@ public interface SavingGroupMapper {
     // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
     int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
+    int insertSavingGroupCreationOwnerMembership(@Param("groupId") Long groupId,
+                                                  @Param("memberId") Long memberId);
     int insertSavingGroupCreationApproval(@Param("groupId") Long groupId);
     Long selectRegionIdByName(@Param("regionName") String regionName);
     boolean existsMember(@Param("memberId") Long memberId);
@@ -26,6 +28,9 @@ public interface SavingGroupMapper {
     int rejectSavingGroupCreationApplication(@Param("approvalId") Long approvalId,
                                              @Param("rejectReason") String rejectReason);
     int publishApprovedSavingGroup(@Param("groupId") Long groupId);
+    int approveSavingGroupCreationOwnerMembership(@Param("groupId") Long groupId,
+                                                   @Param("approvedBy") Long approvedBy);
+    int rejectSavingGroupCreationOwnerMembership(@Param("groupId") Long groupId);
 
     // AI작성: 권한 검증으로 확인한 내부 groupId를 사용하고 같은 조건으로 개수와 페이지를 조회한다.
     int selectSavingGroupJoinRequestCount(@Param("groupId") Long groupId, @Param("status") String status);
@@ -42,6 +47,10 @@ public interface SavingGroupMapper {
     // AI작성: 신청 ID·모임 ID·PENDING 조건이 일치하는 기존 행만 승인하고 영향 행 수를 반환한다.
     int approveSavingGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
             @Param("groupId") Long groupId, @Param("approvedBy") Long approvedBy);
+
+    // AI작성: 신청 ID·모임 ID·PENDING 조건이 일치하는 기존 행만 거절하고 영향 행 수를 반환한다.
+    int rejectSavingGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
+            @Param("groupId") Long groupId);
 
     // AI작성: 회원 잠금 순서를 지키기 위한 식별 조회이며 검증 결과로 사용하지 않는다.
     SavingGroupJoinApprovalTargetRow selectSavingGroupJoinApprovalTarget(@Param("crewMemberId") Long crewMemberId);

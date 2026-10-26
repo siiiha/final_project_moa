@@ -19,6 +19,9 @@ public interface SavingGroupService {
     // AI작성: 승인 대상 검증과 기존 신청 행의 상태 변경을 하나의 트랜잭션에서 처리한다.
     void approveSavingGroupJoin(Long savingGroupId, Long crewMemberId, Long memberId);
 
+    // AI작성: 승인된 계주가 대기 중인 가입 신청만 거절 상태로 처리한다.
+    void rejectSavingGroupJoin(Long savingGroupId, Long crewMemberId, Long memberId);
+
     // AI작성: 계주는 자신의 계모임에 승인된 계원의 관계 상태만 추방으로 변경할 수 있다.
     void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId);
 
