@@ -24,6 +24,10 @@ app = FastAPI(title="MOA anomaly inference", version="stage5-local-inference-v1"
 from .history import router as history_router
 app.include_router(history_router)
 
+# AI작성: 기존 단건 계약과 분리된 읽기 전용 일별 분석 라우터를 추가한다. 기본 비활성화한다.
+from .daily_history import router as daily_router
+app.include_router(daily_router)
+
 
 def _json_no_constants(raw: bytes) -> Any:
     def reject(value: str) -> None:

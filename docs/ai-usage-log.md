@@ -358,3 +358,11 @@
 - AI작성: origin/feature/member의 JwtAuthenticationFilter/SecurityConfig/MemberController를 읽기 전용으로 확인했다. JWT 검증 뒤 memberId(Long) 속성과 Long Principal을 전달하는 계약에 맞춰 AnomalyQueryController를 추가했다.
 - 인증 코드 미병합 상태에서는 fail-closed 401, 클라이언트 회원 ID 무시, 기존 OWNER Service 범위 검사·no-store·공통 응답을 적용했다. 인증 구현 복사/브랜치 병합/새 의존성/프론트/DB 변경 없음.
 - MVC 경계 테스트 10개 통과. 로컬 DB 통합 테스트에 Controller와 모의 Principal 검증을 추가했다. 실제 JWT 서명·로그인·브라우저 연결은 인증 코드 반영 후 별도 검증이 필요하다.
+
+
+## 2026-10-26 읽기 전용 일별 분석 API 구현
+
+- AI작성: 고정 일별 IF와 검증된 피처·실제 알림주 정책을 별도 router/모델 폴더로 연결함. 기본 비활성화, loopback 실행, 모델/피처/버전 확인, 입력 크기·행수·동시 계산 제한, 오류 비노출을 적용함.
+- 완전성 미확인·이력 부족·잔액/동시각 품질 오류는 NOT_SCORED로 분리함. 주간 후보는 읽기 전용 시뮬레이션이며 DB 저장·알림 발송·실제 주간 발송 중복 방지는 구현하지 않음.
+- 고정 연구 예측 parity, 입력/품질/주간 경계 테스트, 실제 HTTP 합성 호출 및 기존 단건·이력 회귀를 확인함. Spring 일별 OWNER·소속·조회 연결과 실제 금융 운영 검증은 후속 단계임.
+- 개발자 검토/확정은 대기 상태임. 기존 프론트 스테이징·캐시 스테이징·인증·DB·단건 모델은 변경하지 않음.

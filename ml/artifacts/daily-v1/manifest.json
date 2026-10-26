@@ -1,0 +1,32 @@
+{
+  "model_version": "sha256:dbe9ce4d010019b568d24539424e107df14a0ef03f46d4664693c32051e817f0",
+  "model_sha256": "dbe9ce4d010019b568d24539424e107df14a0ef03f46d4664693c32051e817f0",
+  "feature_source_sha256": "43204baa1a909f0ef73e7a85fab18cdef9db3b76f1b5d3e8ac7c283171e48cce",
+  "feature_names": [
+    "withdrawal_log",
+    "deposit_log",
+    "withdrawal_count_log",
+    "net_outflow_log",
+    "three_day_outflow_log",
+    "relative_daily_outflow_log",
+    "relative_three_day_outflow_log",
+    "relative_count_log",
+    "day_balance_fraction",
+    "deposit_withdrawal_ratio_log"
+  ],
+  "feature_schema_version": "moa-daily-features-v1",
+  "policy_version": "next-day-notification-iso-week-v1",
+  "score_definition": "negative_score_samples",
+  "threshold": 0.6305841987055835,
+  "versions": {
+    "python": "3.14.6",
+    "sklearn": "1.9.0",
+    "numpy": "2.5.2",
+    "joblib": "1.6.0"
+  },
+  "training_unit": "closed_active_account_day",
+  "training_rows": 7108,
+  "minimum_complete_history_days": 60,
+  "deployment_status": "read_only_local_demo_not_production_approved",
+  "notification_enabled": false
+}
