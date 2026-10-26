@@ -66,11 +66,12 @@ public class SavingGroupController {
         return ApiResponse.ok();
     }
 
-    // AI작성: JWT 연결 전에는 공개 조회만 제공하며 클라이언트의 사용자 ID·역할은 받지 않는다.
+    // AI작성: JWT 필터가 검증해 요청에 저장한 회원 ID만 상세 역할 조회에 사용한다.
     @GetMapping("/{id}")
     public ApiResponse<SavingGroupDetailResponse> detail(
-            @PathVariable("id") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long id) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupDetail(id, null));
+            @PathVariable("id") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long id,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(savingGroupService.getSavingGroupDetail(id, memberId));
     }
 
     // AI작성: 인증 정보 없이 공개 목록을 조회하고 기존 성공 응답으로 감싼다.
