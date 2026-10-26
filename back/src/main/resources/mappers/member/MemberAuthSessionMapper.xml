@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.member.mapper.MemberAuthSessionMapper">
+
+    <!-- 토큰이 속한 세션 번호를 조회 -->
+    <select id="findSessionIdByTokenHash" resultType="string">
+        SELECT session_id
+        FROM member_refresh_token
+        WHERE token_hash = #{tokenHash}
+    </select>
+
+    <!-- 같은 세션의 재발급과 로그아웃을 순서대로 처리 -->
+    <select id="findSessionForUpdate"
+            resultType="com.nightstudy.moa.member.dto.MemberAuthSessionDto">
+        SELECT
+        session_id,
+        member_id,
+        expires_at_ms,
+        revoked_at
+        FROM member_auth_session
+        WHERE session_id = #{sessionId}
+        FOR UPDATE
+    </select>
+
+    <!-- 세션 잠금 이후 토큰의 최신 사용 상태를 조회 -->
+    <select id="findTokenForUpdate"
+            resultType="com.nightstudy.moa.member.dto.MemberRefreshTokenDto">
+        SELECT
+        token_hash,
+        session_id,
+        used_at
+        FROM member_refresh_token
+        WHERE token_hash = #{tokenHash}
+        FOR UPDATE
+    </select>
+
+    <!-- 기존 회원 상태 DTO를 재사용 -->
+    <select id="findMemberById"
+            resultType="com.nightstudy.moa.member.dto.SocialLoginMemberDto">
+        SELECT
+        member_id,
+        account_status,
+        system_role,
+        deleted_at
+        FROM members
+        WHERE member_id = #{memberId}
+    </select>
+
+    <!-- 새 로그인 세션을 저장 -->
+    <insert id="insertSession">
+        INSERT INTO member_auth_session (
+        session_id,
+        member_id,
+        expires_at_ms
+        )
+        VALUES (
+        #{sessionId},
+        #{memberId},
+        #{expiresAtMs}
+        )
+    </insert>
+
+    <!-- refresh token 원본 대신 해시만 저장 -->
+    <insert id="insertToken">
+        INSERT INTO member_refresh_token (
+        token_hash,
+        session_id
+        )
+        VALUES (
+        #{tokenHash},
+        #{sessionId}
+        )
+    </insert>
+
+    <!-- 아직 사용하지 않은 토큰만 사용 처리 -->
+    <update id="markTokenUsed">
+        UPDATE member_refresh_token
+        SET used_at = CURRENT_TIMESTAMP(6)
+        WHERE token_hash = #{tokenHash}
+        AND used_at IS NULL
+    </update>
+
+    <!-- 로그아웃하거나 토큰 재사용이 감지되면 세션을 폐기 -->
+    <update id="revokeSession">
+        UPDATE member_auth_session
+        SET revoked_at = CURRENT_TIMESTAMP(6)
+        WHERE session_id = #{sessionId}
+        AND revoked_at IS NULL
+    </update>
+
+    <!-- 현재 회원 상태와 권한까지 확인해 세션 접근을 허용 -->
+    <select id="countActiveSession" resultType="int">
+        SELECT COUNT(*)
+        FROM member_auth_session s
+        INNER JOIN members m
+        ON m.member_id = s.member_id
+        WHERE s.session_id = #{sessionId}
+        AND s.member_id = #{memberId}
+        AND s.expires_at_ms &gt; #{nowMs}
+        AND s.revoked_at IS NULL
+        AND m.account_status = 'ACTIVE'
+        AND m.deleted_at IS NULL
+        AND m.system_role = #{systemRole}
+    </select>
+
+</mapper>
