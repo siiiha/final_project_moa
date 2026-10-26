@@ -93,6 +93,44 @@ CREATE TABLE IF NOT EXISTS `members` (
 	PRIMARY KEY (`member_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS member_auth_session (
+    session_id CHAR(36)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    member_id BIGINT NOT NULL,
+    expires_at_ms BIGINT NOT NULL,
+    revoked_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (session_id),
+    KEY ix_member_auth_session_member (member_id),
+    KEY ix_member_auth_session_expires (expires_at_ms),
+
+    CONSTRAINT fk_member_auth_session_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE  TABLE IF NOT EXISTS member_refresh_token (
+    token_hash CHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    session_id CHAR(36)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    used_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT
+CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (token_hash),
+    KEY ix_member_refresh_token_session (session_id),
+
+    CONSTRAINT fk_member_refresh_token_session
+        FOREIGN KEY (session_id)
+        REFERENCES member_auth_session (session_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS member_social_account (
                                                      social_account_id BIGINT NOT NULL AUTO_INCREMENT,
                                                      member_id BIGINT NOT NULL,
