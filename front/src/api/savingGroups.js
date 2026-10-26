@@ -1,8 +1,5 @@
 import client from './client.js';
 
-// AI작성: 인증 연동 전 시연용 신청자 ID이며, JWT 병합 시 서버가 로그인 회원 ID를 사용해야 한다.
-const TEMP_CREATION_APPLICANT_ID = '67';
-
 class SavingGroupCreationApplicationError extends Error {
   constructor(code, message) {
     super(message);
@@ -20,13 +17,12 @@ function toCreationApplicationError(error, fallbackMessage) {
   );
 }
 
-// AI작성: 화면 입력명을 서버 DTO 필드명으로 맞춘 multipart 요청을 만들고, 임시 회원 ID를 한 곳에서만 관리한다.
+// AI작성: 화면 입력명을 서버 DTO 필드명으로 맞춘 multipart 요청을 만든다. 신청자 ID는 JWT에서 서버가 설정한다.
 export async function createSavingGroupApplication(formData) {
   const requestData = new FormData();
   ['groupName', 'regionName', 'maxMembers', 'description', 'groupType', 'duesAmount', 'duesDay'].forEach((field) =>
     requestData.append(field, String(formData.get(field) || '').trim())
   );
-  requestData.append('memberId', TEMP_CREATION_APPLICANT_ID);
   const image = formData.get('groupImage');
   if (image instanceof File && image.size > 0) requestData.append('groupImage', image);
 
