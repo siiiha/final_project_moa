@@ -5,9 +5,6 @@ import { createSmallGroup } from '../api/smallGroups';
 import SmallGroupCreateForm from '../components/smallGroup/SmallGroupCreateForm';
 import { smallGroupInterests, smallGroupRegions } from '../mocks/smallGroups';
 
-// AI작성: TODO: JWT 연동 후 임시 회원 ID를 제거하고 토큰의 로그인 회원 식별값을 사용한다.
-const TEMP_MEMBER_ID = 1;
-
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
   margin: 0 auto;
@@ -68,7 +65,7 @@ function SmallGroupCreatePage() {
     setSubmissionError('');
 
     try {
-      const created = await createSmallGroup(TEMP_MEMBER_ID, {
+      const created = await createSmallGroup({
         groupName: formData.get('name'),
         regionName: formData.get('region'),
         likeCategory: formData.get('interest'),

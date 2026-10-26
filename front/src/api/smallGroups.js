@@ -18,14 +18,10 @@ function toSmallGroupCreationError(error, fallbackMessage) {
   );
 }
 
-// AI작성: 현재는 호출자가 전달한 members.member_id를 임시로 본문에 넣고, 생성 결과만 반환한다.
-// TODO: JWT 연동 후 memberId 인자를 제거하고 서버가 JWT 토큰의 로그인 회원 식별값으로 생성자를 결정한다.
-export async function createSmallGroup(memberId, request) {
+// AI작성: 생성자 정보는 JWT에서 서버가 결정하므로, 입력값만 본문에 담아 생성 결과를 반환한다.
+export async function createSmallGroup(request) {
   try {
-    const response = await client.post('/smallgroups', {
-      ...request,
-      memberId,
-    });
+    const response = await client.post('/smallgroups', request);
     if (!response.data?.success || !response.data.data) {
       throw new SmallGroupCreationError(
         response.data?.error?.code || 'SMALL_GROUP_CREATION_FAILED',
