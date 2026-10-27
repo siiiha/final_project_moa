@@ -42,6 +42,7 @@
 
 /back/HELP.md
 /back/.gradle/
+/back/.gradle-user/
 /back/build/
 !/back/gradle/wrapper/gradle-wrapper.jar
 !/back/**/src/main/**/build/
