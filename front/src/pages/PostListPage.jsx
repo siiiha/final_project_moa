@@ -122,6 +122,7 @@ function PostListPage() {
       if (isLoadingCategories) return;
       setIsLoading(true);
       setErrorMessage('');
+      console.log("111")
 
       const selectedCategory = categories.find((item) => item.categoryName === category);
       const params = {
@@ -175,6 +176,7 @@ function PostListPage() {
         );
         setTotalCount(response.meta?.total || 0);
         setTotalPages(responseTotalPages);
+        console.log("2222")
       } catch (error) {
         if (!isActive) return;
         setPosts([]);
