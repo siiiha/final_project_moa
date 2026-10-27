@@ -262,4 +262,14 @@
         #{providerUserId}
         )
     </insert>
+
+    <!-- 현재 비밀번호 검증 후 암호화된 새 비밀번호 저장 -->
+    <update id="updatePassword">
+        UPDATE members
+        SET password_hash = #{passwordHash}
+        WHERE member_id = #{memberId}
+            AND account_status = 'ACTIVE'
+            AND deleted_at IS NULL
+    </update>
+
 </mapper>
