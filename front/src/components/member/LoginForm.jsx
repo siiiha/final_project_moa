@@ -225,7 +225,7 @@ useEffect(() => {
     ) {
       sessionStorage.removeItem('moa-social-signup');
       setToken(result.token);
-      navigate('/member/mypage', { replace: true });
+      navigate('/', { replace: true });
       return;
     }
 
@@ -240,7 +240,7 @@ useEffect(() => {
   };
 }, [navigate, setToken, clearToken]);
 
-  // 로그인 성공 시 JWT를 저장하고 마이페이지로 이동
+// 로그인 성공 시 JWT를 저장하고 메인페이지로 이동
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -258,7 +258,7 @@ useEffect(() => {
 
       setToken(token);
       setPassword('');
-      navigate('/member/mypage', { replace: true });
+      navigate('/', { replace: true });
     } catch (error) {
       setErrorMessage(
         error.response?.data?.error?.message ??
