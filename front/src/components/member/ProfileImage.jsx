@@ -10,9 +10,18 @@ const Image = styled.img`
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
+  visibility: ${({ $loading }) => ($loading ? 'hidden' : 'visible')};
 `;
 
-// AI작성: 인증이 필요한 프로필 사진을 가져와 표시합니다.
+// AI작성: 사진 조회 진행 상태와 실패 안내를 표시합니다.
+const ImageStatus = styled.span`
+  padding: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  word-break: keep-all;
+`;
+
 function ProfileImage({ imageUrl, size = 38 }) {
   const token = useAuthStore((state) => state.token);
   const [image, setImage] = useState(null);
@@ -34,10 +43,16 @@ function ProfileImage({ imageUrl, size = 38 }) {
           token,
           imageUrl,
           src: objectUrl,
+          status: 'loading',
         });
       } catch {
         if (!cancelled) {
-          setImage(null);
+          setImage({
+            token,
+            imageUrl,
+            src: null,
+            status: 'error',
+          });
         }
       }
     }
@@ -47,34 +62,52 @@ function ProfileImage({ imageUrl, size = 38 }) {
     // AI작성: 사진 변경 또는 화면 종료 시 임시 주소를 해제합니다.
     return () => {
       cancelled = true;
-
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [token, imageUrl]);
 
-  const imageSrc =
-    image?.token === token && image?.imageUrl === imageUrl
-      ? image.src
-      : null;
-
-  if (!imageSrc) {
+  if (!token || !imageUrl) {
     return (
-      <FiUser
-        size={size}
-        role="img"
-        aria-label="기본 프로필"
-      />
+      <FiUser size={size} role="img" aria-label="기본 프로필" />
     );
   }
 
+  const currentImage =
+    image?.token === token && image?.imageUrl === imageUrl
+      ? image
+      : null;
+
+  if (currentImage?.status === 'error') {
+    return (
+      <ImageStatus role="alert">사진 불러오기 실패</ImageStatus>
+    );
+  }
+
+  const isLoading = currentImage?.status !== 'loaded';
+
+  // AI작성: 실제 이미지 표시가 완료될 때까지 로딩 안내를 유지합니다.
+  const updateImageStatus = (status) => {
+    setImage((current) =>
+      current === currentImage ? { ...current, status } : current,
+    );
+  };
+
   return (
-    <Image
-      src={imageSrc}
-      alt="내 프로필 사진"
-      onError={() => setImage(null)}
-    />
+    <>
+      {isLoading && (
+        <ImageStatus role="status">사진을 준비하고 있어요</ImageStatus>
+      )}
+
+      {currentImage?.src && (
+        <Image
+          src={currentImage.src}
+          alt="내 프로필 사진"
+          $loading={isLoading}
+          onLoad={() => updateImageStatus('loaded')}
+          onError={() => updateImageStatus('error')}
+        />
+      )}
+    </>
   );
 }
 

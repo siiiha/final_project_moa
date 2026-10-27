@@ -65,6 +65,21 @@ const Avatar = styled.div`
   }
 `;
 
+// AI작성: 사진 등록 상태를 프로필 사진 위에 표시합니다.
+const PhotoStatus = styled.span`
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+`;
+
 const AvatarLabel = styled.strong`
   margin-top: 10px;
   font-size: 13px;
@@ -218,6 +233,9 @@ function EditProfileForm() {
   const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
     useState(false);
+  
+  // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
+  const [photoStatus, setPhotoStatus] = useState('');
 
   // 수정 화면에 현재 회원정보를 채움.
   useEffect(() => {
@@ -380,16 +398,20 @@ function EditProfileForm() {
     }
 
     setIsSaving(true);
+    setPhotoStatus('uploading');
 
     try {
       const result = await uploadMyProfileImage(token, file);
+      setPhotoStatus('');
 
       setProfile((current) =>
         current
           ? { ...current, profileImageUrl: result.profileImageUrl }
           : current,
       );
-    } catch (error) {
+            } catch (error) {
+      setPhotoStatus('error');
+
       if (error.response?.status === 401) {
         clearToken();
         navigate('/member/login', { replace: true });
@@ -414,6 +436,7 @@ function EditProfileForm() {
 
     try {
       await deleteMyProfileImage(token);
+      setPhotoStatus('');
 
       setProfile((current) =>
         current
@@ -447,8 +470,18 @@ function EditProfileForm() {
   return (
     <Card>
       <AvatarPanel>
-        <Avatar>
+        <Avatar aria-busy={photoStatus === 'uploading'}>
           <ProfileImage imageUrl={profile.profileImageUrl} />
+
+          {photoStatus && (
+            <PhotoStatus
+              role={photoStatus === 'error' ? 'alert' : 'status'}
+            >
+              {photoStatus === 'uploading' 
+              ? '사진을 준비하고 있어요' 
+              : '사진을 변경하지 못했어요'}
+            </PhotoStatus>
+          )}
         </Avatar>
         <AvatarLabel>프로필 사진</AvatarLabel>
                 <input
