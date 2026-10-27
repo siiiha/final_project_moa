@@ -182,7 +182,6 @@ function SmallGroupsPage() {
           onSearch={handleSearch}
         />
 
-        {categoryState.loading && <Result role="status">관심사 목록을 불러오는 중입니다.</Result>}
         {categoryState.error && (
           <div role="alert">
             <Result>{categoryState.error}</Result>
