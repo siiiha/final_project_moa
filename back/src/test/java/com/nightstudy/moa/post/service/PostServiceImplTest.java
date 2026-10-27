@@ -109,9 +109,6 @@ class PostServiceImplTest {
     // AI작성: 수정 대상이 없으면 POST_NOT_FOUND로 처리하는지 확인한다.
     void editPostThrowsWhenPostDoesNotExist() {
         PostEditRequest request = editRequest(2L);
-        when(postMapper.countCategoryById(2L)).thenReturn(1);
-        when(postMapper.editPost(999L, request)).thenReturn(0L);
-
         when(postMapper.selectPostDetail(999L)).thenReturn(null);
         assertThatThrownBy(() -> postService.editPost(999L, 10L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->

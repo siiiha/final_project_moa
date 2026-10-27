@@ -152,7 +152,6 @@ class CommentServiceImplTest {
     // AI작성: 없거나 이미 삭제된 댓글은 COMMENT_NOT_FOUND로 처리하는지 확인한다.
     void deleteCommentThrowsWhenCommentDoesNotExist() {
         when(postMapper.countPostById(1L)).thenReturn(1);
-        when(commentMapper.deleteComment(1L, 999L)).thenReturn(0);
 
         assertThatThrownBy(() -> commentService.deleteComment(1L, 999L, 2L))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
