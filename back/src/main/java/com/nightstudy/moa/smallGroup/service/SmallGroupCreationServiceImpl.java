@@ -3,7 +3,9 @@ package com.nightstudy.moa.smallGroup.service;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,9 +22,16 @@ public class SmallGroupCreationServiceImpl implements SmallGroupCreationService 
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<SmallGroupRegionResponse> getSmallGroupRegions() {
+        // AI작성: 화면의 선택지와 저장 기준을 일치시키기 위해 DB의 지역 기준 데이터만 반환한다.
+        return smallGroupMapper.selectSmallGroupRegions();
+    }
+
+    @Override
     @Transactional
     public SmallGroupCreationResponse createSmallGroup(SmallGroupCreationRequest request) {
-        // AI작성: TODO: JWT 연동 후 request.memberId 대신 JWT 토큰의 로그인 회원 식별값을 사용한다.
+        // AI작성: Controller가 JWT 필터에서 검증한 회원 ID를 request에 설정해 전달한다.
         if (request == null || request.getMemberId() == null || request.getMemberId() <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }

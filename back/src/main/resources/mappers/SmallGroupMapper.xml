@@ -2,6 +2,14 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 소모임 생성에 필요한 기존 세 테이블의 조회·저장 SQL을 관리한다. -->
 <mapper namespace="com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper">
+    <!-- AI작성: 지역 ID 순서로 반환해 DB에서 관리하는 팔도 기준 선택 순서를 보존한다. -->
+    <select id="selectSmallGroupRegions"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse">
+        SELECT region_id, region_name
+        FROM region
+        ORDER BY region_id ASC
+    </select>
+
     <select id="selectRegionIdByName" resultType="long">
         SELECT region_id
         FROM region

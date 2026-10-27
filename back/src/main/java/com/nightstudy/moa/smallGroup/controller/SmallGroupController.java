@@ -3,8 +3,11 @@ package com.nightstudy.moa.smallGroup.controller;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.service.SmallGroupCreationService;
 import jakarta.validation.Valid;
+import java.util.List;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +22,12 @@ public class SmallGroupController {
 
     public SmallGroupController(SmallGroupCreationService smallGroupCreationService) {
         this.smallGroupCreationService = smallGroupCreationService;
+    }
+
+    // AI작성: 소모임 개설 화면은 로그인한 사용자만 DB에 등록된 활동 지역을 조회한다.
+    @GetMapping("/regions")
+    public ApiResponse<List<SmallGroupRegionResponse>> getSmallGroupRegions() {
+        return ApiResponse.ok(smallGroupCreationService.getSmallGroupRegions());
     }
 
     @PostMapping
