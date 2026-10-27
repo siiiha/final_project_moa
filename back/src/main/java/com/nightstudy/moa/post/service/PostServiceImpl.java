@@ -135,7 +135,8 @@ public class PostServiceImpl implements PostService {
             return postId;
         }
 
-        Long editCount = postMapper.editPost(postId, request);
+        int editCount =
+                postMapper.editPost(postId, loginMemberId, request);
 
         if (editCount != 1) {
             throw new ApiException(
