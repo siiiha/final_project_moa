@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FiPlus } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import SmallGroupFilterBar from '../components/smallGroup/SmallGroupFilterBar';
 import SmallGroupList from '../components/smallGroup/SmallGroupList';
-import { smallGroupInterests, smallGroupRegions, smallGroups } from '../mocks/smallGroups';
-
-const GROUPS_PER_PAGE = 6;
+import { fetchSmallGroupCategories, getSmallGroups, smallGroupRegionOptions } from '../api/smallGroups';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -78,79 +76,74 @@ const Result = styled.p`
   }
 `;
 
-const SortField = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 11px;
-  font-weight: 700;
-`;
-
-const SortSelect = styled.select`
-  width: 110px;
-  height: 32px;
-  padding: 0 9px;
-  color: ${({ theme }) => theme.colors.text};
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
-
-  &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
-    outline: 0;
-    box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
-  }
-`;
-
-const Notice = styled.p`
-  margin-top: 14px;
-  padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.primarySoft};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-`;
-
 function SmallGroupsPage() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [region, setRegion] = useState('서울 마포구');
+  const [region, setRegion] = useState('전체');
   const [interest, setInterest] = useState('전체');
-  const [sort, setSort] = useState('latest');
   const [currentPage, setCurrentPage] = useState(1);
-  const [notice, setNotice] = useState('');
+  const [retry, setRetry] = useState(0);
+  const [result, setResult] = useState({ items: [], totalElements: 0, totalPages: 0, requestKey: null, error: '' });
+  const [categoryState, setCategoryState] = useState({ items: [], loading: true, error: '' });
+  const [categoryRetry, setCategoryRetry] = useState(0);
+  const [searchError, setSearchError] = useState('');
+  const regions = ['전체', ...smallGroupRegionOptions.map((item) => item.name)];
+  const interests = ['전체', ...categoryState.items.map((item) => item.interestName)];
+  const requestKey = JSON.stringify([submittedKeyword, region, interest, currentPage, retry]);
+  const loading = result.requestKey !== requestKey;
 
-  const filteredGroups = useMemo(() => {
-    // TODO: Spring Boot 서버의 소모임 목록 API에 검색어, 지역, 관심사, 정렬 조건을 전달합니다.
-    const normalizedKeyword = submittedKeyword.trim().toLowerCase();
-    const filtered = smallGroups.filter((group) => {
-      const matchesKeyword = !normalizedKeyword || group.name.toLowerCase().includes(normalizedKeyword) || group.description.toLowerCase().includes(normalizedKeyword);
-      const matchesRegion = region === '전체' || group.region === region;
-      const matchesInterest = interest === '전체' || group.interest === interest;
-      return matchesKeyword && matchesRegion && matchesInterest;
+  // AI작성: 조건 변경·화면 이탈 시 목록 요청을 취소해 오래된 결과가 현재 화면을 덮지 않게 한다.
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    getSmallGroups({
+      keyword: submittedKeyword,
+      regionCode: smallGroupRegionOptions.find((item) => item.name === region)?.code,
+      likeCategory: interest === '전체' ? undefined : interest,
+      page: currentPage,
+      signal: controller.signal,
+    }).then((data) => {
+      if (active) setResult({ ...data, requestKey, error: '' });
+    }).catch((error) => {
+      if (active) setResult({ items: [], totalElements: 0, totalPages: 0, requestKey,
+        error: error.message || '소모임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
     });
+    return () => { active = false; controller.abort(); };
+  }, [currentPage, interest, region, requestKey, submittedKeyword]);
 
-    return [...filtered].sort((first, second) => (
-      sort === 'latest'
-        ? second.createdAt.localeCompare(first.createdAt)
-        : first.name.localeCompare(second.name, 'ko')
-    ));
-  }, [interest, region, sort, submittedKeyword]);
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / GROUPS_PER_PAGE));
-  const visibleGroups = filteredGroups.slice((currentPage - 1) * GROUPS_PER_PAGE, currentPage * GROUPS_PER_PAGE);
+  // AI작성: 관심사 선택지는 목록 데이터가 아닌 interest 기준 API에서 별도로 조회한다.
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    fetchSmallGroupCategories({ signal: controller.signal }).then((items) => {
+      if (active) setCategoryState({ items, loading: false, error: '' });
+    }).catch((error) => {
+      if (active) setCategoryState({ items: [], loading: false,
+        error: error.message || '관심사 목록을 불러오지 못했습니다.' });
+    });
+    return () => { active = false; controller.abort(); };
+  }, [categoryRetry]);
 
   const handleSearch = (event) => {
     event.preventDefault();
-    setSubmittedKeyword(keyword);
+    const normalizedKeyword = keyword.trim();
+    if (normalizedKeyword.length > 20) {
+      setSearchError('검색어는 20자 이내로 입력해 주세요.');
+      return;
+    }
+    setSearchError('');
+    setSubmittedKeyword(normalizedKeyword);
     setCurrentPage(1);
-    setNotice('');
   };
 
   const handleCreate = () => {
     navigate('/small-groups/new');
+  };
+
+  const handleCategoryRetry = () => {
+    setCategoryState((previous) => ({ ...previous, loading: true, error: '' }));
+    setCategoryRetry((value) => value + 1);
   };
 
   const handleView = (id) => {
@@ -175,8 +168,8 @@ function SmallGroupsPage() {
           keyword={keyword}
           region={region}
           interest={interest}
-          regions={smallGroupRegions}
-          interests={smallGroupInterests}
+          regions={regions}
+          interests={interests}
           onKeywordChange={setKeyword}
           onRegionChange={(value) => {
             setRegion(value);
@@ -189,32 +182,34 @@ function SmallGroupsPage() {
           onSearch={handleSearch}
         />
 
+        {categoryState.loading && <Result role="status">관심사 목록을 불러오는 중입니다.</Result>}
+        {categoryState.error && (
+          <div role="alert">
+            <Result>{categoryState.error}</Result>
+            <Button type="button" onClick={handleCategoryRetry}>다시 시도</Button>
+          </div>
+        )}
+        {searchError && <Result role="alert">{searchError}</Result>}
+
         <ListHeader>
-          <Result>검색 결과 <strong>{filteredGroups.length}</strong>개</Result>
-          <SortField>
-            정렬
-            <SortSelect
-              value={sort}
-              onChange={(event) => {
-                setSort(event.target.value);
-                setCurrentPage(1);
-              }}
-              aria-label="소모임 정렬"
-            >
-              <option value="latest">최신순</option>
-              <option value="name">이름순</option>
-            </SortSelect>
-          </SortField>
+          <Result>검색 결과 <strong>{result.totalElements}</strong>개</Result>
+          <Result>최신순</Result>
         </ListHeader>
 
-        <SmallGroupList
-          groups={visibleGroups}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={(page) => setCurrentPage(Math.min(Math.max(page, 1), totalPages))}
-          onView={handleView}
-        />
-        {notice && <Notice role="status">{notice}</Notice>}
+        {loading ? <Result role="status">소모임 목록을 불러오는 중입니다.</Result> : result.error ? (
+          <div role="alert">
+            <Result>{result.error}</Result>
+            <Button type="button" onClick={() => setRetry((value) => value + 1)}>다시 시도</Button>
+          </div>
+        ) : (
+          <SmallGroupList
+            groups={result.items}
+            currentPage={currentPage}
+            totalPages={result.totalPages}
+            onPageChange={setCurrentPage}
+            onView={handleView}
+          />
+        )}
       </Content>
     </Page>
   );
