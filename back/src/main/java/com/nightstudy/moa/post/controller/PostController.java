@@ -21,10 +21,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.constraints.Positive;
+import org.springframework.validation.annotation.Validated;
 
 
 
-
+@Validated
 @RestController
 @RequestMapping("/api/community")
 public class PostController {
@@ -63,7 +65,9 @@ public class PostController {
 
     @GetMapping("/detail/{postId}")
     public ApiResponse<PostDto> detail(
-            @PathVariable Long postId,
+            @PathVariable
+            @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
+            Long postId,
             @RequestAttribute("memberId") Long loginMemberId
     ) {
         PostDto post = postService.getPostDetail(postId, loginMemberId);
@@ -72,7 +76,9 @@ public class PostController {
 
     @PutMapping("/edit/{postId}")
     public ApiResponse<Long> editPost(
-            @PathVariable Long postId,
+            @PathVariable
+            @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
+            Long postId,
             @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody PostEditRequest request) {
         Long editPostId = postService.editPost(postId, loginMemberId, request);
@@ -82,7 +88,9 @@ public class PostController {
 
     @DeleteMapping("/{postId}")
     public ApiResponse<Void> deletePost(
-            @PathVariable Long postId,
+            @PathVariable
+            @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
+            Long postId,
             @RequestAttribute("memberId") Long loginMemberId) {
         postService.deletePost(postId, loginMemberId);
 
