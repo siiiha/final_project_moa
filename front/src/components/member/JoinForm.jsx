@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -13,10 +13,11 @@ import {
   signupMember,
   signupSocialMember,
   memberRegionOptions,
-  memberTermOptions,
+  getMemberTerms,
   memberInterestOptions,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
+import ConfirmModal from '../common/ConfirmModal';
 
 const Form = styled.form`
   width: 100%;
@@ -200,6 +201,45 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [isCheckingNickname, setIsCheckingNickname] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupError, setSignupError] = useState('');
+    // AI작성: 서버에서 조회한 약관과 조회 상태를 관리한다.
+  const [memberTermOptions, setMemberTermOptions] = useState([]);
+  const [isTermsLoading, setIsTermsLoading] = useState(true);
+  const [termsError, setTermsError] = useState('');
+    // AI작성: 사용자가 선택한 약관을 내용 보기 모달에 표시한다.
+  const [selectedTerm, setSelectedTerm] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadTerms() {
+      try {
+        const terms = await getMemberTerms();
+
+        if (!Array.isArray(terms) || terms.length === 0) {
+          throw new Error('약관 목록이 없습니다.');
+        }
+
+        if (active) {
+          setMemberTermOptions(terms);
+        }
+      } catch {
+        if (active) {
+          setTermsError('약관을 불러오지 못했습니다. 새로고침해주세요.');
+        }
+      } finally {
+        if (active) {
+          setIsTermsLoading(false);
+        }
+      }
+    }
+
+    loadTerms();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleInterestToggle = (interest) => {
     setSelectedInterests((current) => {
       if (current.includes(interest)) return current.filter((item) => item !== interest);
@@ -334,6 +374,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     if (isSubmitting || isEmailBusy || isCheckingNickname) return;
 
     setSignupError('');
+
+    // AI작성: 약관을 정상적으로 조회한 경우에만 가입을 진행한다.
+    if (isTermsLoading || termsError || memberTermOptions.length === 0) {
+      setSignupError(
+        termsError || '약관을 불러오는 중입니다. 잠시 후 다시 시도해주세요.',
+      );
+      return;
+    }
 
     if (!emailVerificationToken) {
       setSignupError('이메일 인증을 먼저 완료해주세요.');
@@ -738,7 +786,12 @@ navigate('/member/login', { replace: true });
         </InterestContent>
       </InterestCard>
 
-      <AgreementCard title="약관 동의">
+            <AgreementCard title="약관 동의">
+        {isTermsLoading && (
+          <p role="status">약관을 불러오고 있습니다.</p>
+        )}
+        {termsError && <p role="alert">{termsError}</p>}
+
         <AgreementList>
           {memberTermOptions.map((term) => (
             <AgreementRow key={term.termId}>
@@ -749,8 +802,11 @@ navigate('/member/login', { replace: true });
                 onChange={() => handleAgreementChange(term.termId)}
                 required={term.required}
               />
-              <DetailButton type="button" disabled>
-                테스트 약관
+              <DetailButton
+                type="button"
+                onClick={() => setSelectedTerm(term)}
+              >
+                내용 보기
               </DetailButton>
             </AgreementRow>
           ))}
@@ -761,11 +817,42 @@ navigate('/member/login', { replace: true });
 
       <SubmitButton
         type="submit"
-        disabled={isSubmitting || isEmailBusy || isCheckingNickname}
+          disabled={
+          isSubmitting ||
+          isEmailBusy ||
+          isCheckingNickname ||
+          isTermsLoading ||
+          Boolean(termsError) ||
+          memberTermOptions.length === 0
+        }
       >
         {isSubmitting ? '가입 처리 중…' : '회원가입'}
         </SubmitButton>
       </fieldset>
+            {/* AI작성: 약관 본문을 확인하고 닫아도 동의 여부는 직접 선택한다. */}
+      {selectedTerm && (
+        <ConfirmModal
+          title={selectedTerm.title}
+          description={`버전: ${selectedTerm.version}`}
+          size="wide"
+          confirmLabel="닫기"
+          showCancel={false}
+          onConfirm={() => setSelectedTerm(null)}
+          onCancel={() => setSelectedTerm(null)}
+        >
+          <div
+            style={{
+              maxHeight: '50vh',
+              overflowY: 'auto',
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              lineHeight: 1.7,
+            }}
+          >
+            {selectedTerm.content}
+          </div>
+        </ConfirmModal>
+      )}
     </Form>
   );
 }

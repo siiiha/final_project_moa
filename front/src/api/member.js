@@ -152,19 +152,11 @@ export const memberRegionOptions = [
     { regionId: 8, regionName: '서울특별시 마포구' },
 ];
 
-// 현재 DB의 테스트용 약관과 연결
-export const memberTermOptions = [
-    {
-        termId: 1,
-        title: '[테스트] 서비스 이용약관',
-        required: true,
-    },
-    {
-        termId: 2,
-        title: '[테스트] 개인정보 수집·이용 동의',
-        required: true,
-    },
-];
+// AI작성: 일반·소셜 회원가입에서 사용할 약관을 서버에서 조회한다.
+export async function getMemberTerms() {
+  const response = await client.get('/auth/terms');
+  return response.data.data;
+}
 
 export async function withdrawMyAccount(token, request) {
     const response = await client.delete('/members/me', {
