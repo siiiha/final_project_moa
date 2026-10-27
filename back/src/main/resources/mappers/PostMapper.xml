@@ -7,8 +7,7 @@
 -->
 <mapper namespace="com.nightstudy.moa.post.mapper.PostMapper">
     <select id="selectPostCategories" resultType="PostCategoryDto">
-        <!-- AI작성: 프론트 DTO의 camelCase 필드명과 명확히 매핑한다. -->
-        SELECT category_id AS categoryId, category_name AS categoryName
+        SELECT category_id, category_name
         FROM post_category
         ORDER BY category_id ASC
     </select>
@@ -59,7 +58,7 @@
         p.content, p.view_count, p.created_at, p.updated_at,
         DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
         m.nickname AS writer_nickname,
-        pc.category_name AS category_name
+        pc.category_name
         FROM post p
         LEFT JOIN members m ON p.writer_id = m.member_id
         <!-- AI작성: 화면 표시용 카테고리 이름을 별도 카테고리 테이블에서 조회한다. -->
@@ -82,7 +81,7 @@
         p.content, p.view_count, p.created_at, p.updated_at,
         DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
         DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str,
-        pc.category_name AS category_name
+        pc.category_name
         FROM post p
         JOIN members m
         ON p.writer_id = m.member_id
