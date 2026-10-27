@@ -12,6 +12,7 @@ public class EmailVerificationDto {
 
     private Long verificationId;
     private String email;
+    private String purpose;
     private String codeHash;
     private int failedAttempts;
     private LocalDateTime createdAt;

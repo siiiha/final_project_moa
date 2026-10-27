@@ -149,4 +149,14 @@
         #{providerUserId}
         )
     </insert>
+
+    <!-- 홧성 계정의 비밀번호를 변경하고 동시 변경 시 덮어쓰기 방지 -->
+    <update id="updatePasswordForReset">
+        UPDATE members
+        SET password_hash = #{newPasswordHash}
+        WHERE member_id = #{memberId}
+            AND BINARY password_hash = BINARY #{currentPasswordHash}
+            AND account_status = 'ACTIVE'
+            AND deleted_at IS NULL
+    </update>
 </mapper>

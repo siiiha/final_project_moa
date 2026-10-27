@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
 import { socialLoginProviders } from '../../mocks/auth';
-import { getMyMemberId, login } from '../../api/authApi';
+import { loginMember } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 
 const Card = styled.section`
@@ -53,6 +52,33 @@ const LoginButton = styled(Button)`
   margin-top: 4px;
 `;
 
+// AI작성: 계정 찾기 링크를 가로로 배치한다.
+const RecoveryActions = styled.div`
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+`;
+
+// AI작성: 로그인 아래에 아이디 찾기 링크를 표시한다.
+const RecoveryLink = styled(Link)`
+  width: fit-content;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 4px;
+  }
+`;
+
 const SignupPrompt = styled.p`
   margin-top: 16px;
   color: ${({ theme }) => theme.colors.muted};
@@ -85,7 +111,7 @@ const Divider = styled.div`
 
 const SocialActions = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -94,7 +120,7 @@ const SocialActions = styled.div`
 `;
 
 const SocialButton = styled.button`
-  min-height: 40px;
+  min-height: 48px;
   padding: 7px 6px;
   display: inline-flex;
   align-items: center;
@@ -106,9 +132,9 @@ const SocialButton = styled.button`
     if ($provider === 'kakao') return '#fee500';
     return '#ffffff';
   }};
-  border: 1px solid ${({ $provider, theme }) => ($provider === 'google' ? theme.colors.border : 'transparent')};
+  border: 1px solid transparent;
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
 
   &:hover {
@@ -117,15 +143,22 @@ const SocialButton = styled.button`
 `;
 
 function ProviderIcon({ provider }) {
-  if (provider === 'naver') return <SiNaver size={13} aria-hidden="true" />;
-  if (provider === 'kakao') return <SiKakaotalk size={15} aria-hidden="true" />;
-  return <FcGoogle size={15} aria-hidden="true" />;
+  if (provider === 'naver') {
+    return <SiNaver size={16} aria-hidden="true" />;
+  }
+
+  if (provider === 'kakao') {
+    return <SiKakaotalk size={18} aria-hidden="true" />;
+  }
+
+  return null;
 }
 
 function LoginForm() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const setToken = useAuthStore((state) => state.setToken);
+  const clearToken = useAuthStore((state) => state.clearToken);
+
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   // AI작성: 로그인 입력값과 처리 상태, 소셜 로그인 팝업 참조를 관리한다.
   const [email, setEmail] = useState('');
@@ -135,40 +168,100 @@ function LoginForm() {
   const popupRef = useRef(null);
   const popupTimerRef = useRef(null);
 
-  // AI작성: 페이지 이탈 시 남아 있는 팝업 감시 타이머와 인증 창을 정리한다.
-  useEffect(() => () => {
-    if (popupTimerRef.current) {
-      window.clearInterval(popupTimerRef.current);
-    }
+// AI작성: 우리가 연 카카오 인증 창의 메시지만 처리한다.
+useEffect(() => {
+  const closePopup = () => {
+    window.clearInterval(popupTimerRef.current);
+    popupTimerRef.current = null;
 
     if (popupRef.current && !popupRef.current.closed) {
       popupRef.current.close();
     }
-  }, []);
 
+    popupRef.current = null;
+  };
+
+  const handlePopupMessage = (event) => {
+    if (
+      event.origin !== window.location.origin ||
+      !popupRef.current ||
+      event.source !== popupRef.current ||
+      event.data?.type !== 'MOA_SOCIAL_RESULT'
+    ) {
+      return;
+    }
+
+    closePopup();
+    setIsSubmitting(false);
+
+    if (typeof event.data.error === 'string') {
+      setErrorMessage(event.data.error);
+      return;
+    }
+
+    const result = event.data.result;
+
+    if (
+      result?.signupRequired === true &&
+      typeof result.signupToken === 'string' &&
+      /^[A-Za-z0-9_-]{43}$/.test(result.signupToken)
+    ) {
+      clearToken();
+      sessionStorage.setItem(
+        'moa-social-signup',
+        JSON.stringify({
+          signupToken: result.signupToken,
+          expiresAt: Date.now() + 10 * 60 * 1000,
+        }),
+      );
+
+      navigate('/member/join?social=1', { replace: true });
+      return;
+    }
+
+    if (
+      result?.signupRequired === false &&
+      typeof result.token === 'string' &&
+      result.token.trim()
+    ) {
+      sessionStorage.removeItem('moa-social-signup');
+      setToken(result.token);
+      navigate('/', { replace: true });
+      return;
+    }
+
+    setErrorMessage('카카오 로그인 결과를 확인할 수 없습니다.');
+  };
+
+  window.addEventListener('message', handlePopupMessage);
+
+  return () => {
+    window.removeEventListener('message', handlePopupMessage);
+    closePopup();
+  };
+}, [navigate, setToken, clearToken]);
+
+// 로그인 성공 시 JWT를 저장하고 메인페이지로 이동
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
     setErrorMessage('');
     try {
-      const loginResponse = await login({ email: email.trim(), password });
-      if (!loginResponse.success || !loginResponse.data) {
-        throw new Error(loginResponse.error?.message || '로그인에 실패했습니다.');
+      const token = await loginMember(email.trim(), password);
+
+      if (typeof token !== 'string' || !token.trim()) {
+        throw new Error('로그인 응답을 확인할 수 없습니다.');
       }
-      // AI작성: /me 호출 전에 토큰을 저장해 Axios interceptor가 Authorization 헤더를 붙인다.
-      setAuth(loginResponse.data, null);
-      const meResponse = await getMyMemberId();
-      if (!meResponse.success || !meResponse.data) {
-        throw new Error(meResponse.error?.message || '로그인 회원 정보를 확인하지 못했습니다.');
-      }
-      setAuth(loginResponse.data, meResponse.data);
-      const redirect = new URLSearchParams(location.search).get('redirect');
-      // AI작성: 외부 URL 이동을 막고, 로그인 전 보던 내부 화면으로만 복귀시킨다.
-      navigate(redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : '/');
+
+      setToken(token);
+      setPassword('');
+      navigate('/', { replace: true });
     } catch (error) {
-      useAuthStore.getState().clearAuth();
-      setErrorMessage(error.response?.data?.error?.message || error.message || '로그인에 실패했습니다.');
+      setErrorMessage(
+        error.response?.data?.error?.message ??
+          '로그인에 실패했습니다. 입력값과 서버 연결을 확인해주세요.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -237,9 +330,9 @@ const handleSocialLogin = (providerId) => {
           type="email"
           placeholder="이메일을 입력해주세요"
           autoComplete="email"
+          required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          required
           disabled={isSubmitting}
         />
 
@@ -248,18 +341,28 @@ const handleSocialLogin = (providerId) => {
           label="비밀번호"
           placeholder="비밀번호를 입력해주세요"
           autoComplete="current-password"
+          required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          required
           disabled={isSubmitting}
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
         />
         {errorMessage && <p role="alert">{errorMessage}</p>}
         <LoginButton type="submit" disabled={isSubmitting}>
-          {isSubmitting ? '로그인 중...' : '로그인'}
+          {isSubmitting ? '로그인 중…' : '로그인'}
         </LoginButton>
       </Form>
+
+      <RecoveryActions>
+        <RecoveryLink to="/member/find-account">
+          아이디 찾기
+        </RecoveryLink>
+
+        <RecoveryLink to="/member/reset-password">
+          비밀번호 재설정
+        </RecoveryLink>
+      </RecoveryActions>
 
       <SignupPrompt>아직 회원이 아니신가요?</SignupPrompt>
       <SignupButton as={Link} to="/member/join" $variant="secondary">

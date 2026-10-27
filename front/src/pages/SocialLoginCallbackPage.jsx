@@ -88,7 +88,7 @@ function SocialLoginCallbackPage() {
 
         sessionStorage.removeItem('moa-social-signup');
         setToken(result.token);
-        navigate('/member/mypage', { replace: true });
+        navigate('/', { replace: true });
       })
       .catch((error) => {
         if (!active) return;
