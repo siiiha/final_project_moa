@@ -88,12 +88,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throw new IllegalArgumentException("잘못된 토큰 정보");
             }
 
-            // 기존 로그아웃 토큰 차단 기록을 재사용
+            // AI작성: 기존 로그아웃 토큰 차단 기록을 재사용한다.
             if (revokedTokenMapper.countByTokenId(tokenId) > 0) {
                 throw new IllegalArgumentException("로그아웃한 토큰");
             }
 
-            // 탈퇴·정지 회원과 폐기·만료된 로그인 세션을 차단
+            // AI작성: 회원 상태와 세션을 함께 검사해 탈퇴·정지 회원 및 폐기·만료된 세션을 차단한다.
             if (!authSessionService.isAccessAllowed(
                     memberId,
                     systemRole,

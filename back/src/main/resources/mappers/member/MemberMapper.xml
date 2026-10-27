@@ -136,6 +136,119 @@
             AND deleted_at IS NULL
     </select>
 
+    <select id="findProfileByMemberId"
+
+    resultType="com.nightstudy.moa.member.dto.MemberProfileResponse">
+        SELECT
+            member_id AS memberId,
+            name,
+            email,
+            phone,
+            nickname,
+            TIMESTAMPDIFF(YEAR, birth_date, CURRENT_DATE()) AS age,
+            gender,
+            profile_img_url AS profileImageUrl,
+            (identity_verified_at IS NOT NULL) AS
+        identityVerified,
+            (region_verified_at IS NOT NULL) AS regionVerified
+        FROM members
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+    </select>
+
+    <select id="findInterestsByMemberId"
+            resultType="com.nightstudy.moa.member.dto.MemberProfileResponse$Interest">
+
+        SELECT
+            i.interest_id AS interestId,
+            i.interest_name AS interestName
+        FROM member_interest mi
+        INNER JOIN interest i
+            ON mi.interest_id = i.interest_id
+        WHERE mi.member_id = #{memberId}
+        ORDER BY i.interest_id
+    </select>
+
+    <!-- 수정할 회원의 비밀번호 해시와 계정 상태를 조회 -->
+    <select id="findByMemberIdForUpdate"
+            resultType="com.nightstudy.moa.member.dto.MemberLoginDto">
+        SELECT
+        member_id AS memberId,
+        password_hash AS passwordHash,
+        account_status AS accountStatus,
+        system_role AS systemRole
+        FROM members
+        WHERE member_id = #{memberId}
+        AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- 본인을 제외한 닉네임 중복 여부를 확인 -->
+    <select id="countByNicknameExcludingMember" resultType="int">
+        SELECT COUNT(*)
+        FROM members
+        WHERE nickname = #{nickname}
+        AND member_id &lt;&gt; #{memberId}
+    </select>
+
+    <!-- 해당 회원의 닉네임을 변경 -->
+    <update id="updateNickname">
+        UPDATE members
+        SET nickname = #{nickname}
+        WHERE member_id = #{memberId}
+        AND deleted_at IS NULL
+    </update>
+
+    <!-- 해당 회원의 관심사 선택 내역을 삭제 -->
+    <delete id="deleteMemberInterests">
+        DELETE FROM member_interest
+        WHERE member_id = #{memberId}
+    </delete>
+
+    <!-- 프로필 사진 경로 저장 or NULL로 초기화 -->
+    <update id="updateProfileImageUrl">
+        UPDATE members
+        SET profile_img_url = #{profileImageUrl, jdbcType=VARCHAR}
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+    </update>
+
+
+    <select id="countWithdrawalBlockingGroups" resultType="int">
+        SELECT COUNT(*)
+        FROM `groups` g
+        INNER JOIN saving_group sg
+            ON sg.group_id = g.group_id
+        WHERE g.deleted_at IS NULL
+            AND sg.status IN ('02', '03')
+            AND (
+                g.member_id = #{memberId}
+                OR EXISTS (
+                    SELECT 1
+                    FROM group_member gm
+                    WHERE gm.group_id = g.group_id
+                        AND gm.member_id = #{memberId}
+                        AND gm.membership_status = 'APPROVED'
+                )
+            )
+    </select>
+
+    <update id="withdrawMember">
+        UPDATE members
+        SET account_status = 'INACTIVE',
+            deleted_at = CURRENT_TIMESTAMP
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+    </update>
+
+    <select id="countNotWithdrawnMemberById" resultType="int">
+        SELECT COUNT(*)
+        FROM members
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+            AND account_status != 'INACTIVE'
+    </select>
+
     <!-- 소셜 인증에서 확인한 계정을 모아 회원에게 연결 -->
     <insert id="insertSocialAccount">
         INSERT INTO member_social_account (
@@ -150,7 +263,16 @@
         )
     </insert>
 
-    <!-- 홧성 계정의 비밀번호를 변경하고 동시 변경 시 덮어쓰기 방지 -->
+    <!-- AI작성: 서비스에서 현재 비밀번호를 검증한 후 마이페이지의 새 비밀번호를 저장한다. -->
+    <update id="updatePassword">
+        UPDATE members
+        SET password_hash = #{passwordHash}
+        WHERE member_id = #{memberId}
+            AND account_status = 'ACTIVE'
+            AND deleted_at IS NULL
+    </update>
+
+    <!-- AI작성: 이메일 인증 후 비밀번호를 재설정하며 기존 해시를 비교해 동시 변경의 덮어쓰기를 방지한다. -->
     <update id="updatePasswordForReset">
         UPDATE members
         SET password_hash = #{newPasswordHash}

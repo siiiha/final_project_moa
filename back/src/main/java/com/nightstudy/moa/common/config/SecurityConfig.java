@@ -41,8 +41,9 @@ public class SecurityConfig {
             HttpSecurity http
     ) throws Exception {
 
+        // AI작성: 회원 상태와 로그인 세션을 함께 검증하는 JWT 필터를 등록한다.
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter(
+                new JwtAuthenticationFilter (
                         jwtTokenProvider,
                         errorResponseWriter,
                         revokedTokenMapper,
