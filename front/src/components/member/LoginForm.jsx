@@ -160,12 +160,13 @@ function LoginForm() {
   const clearToken = useAuthStore((state) => state.clearToken);
 
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  // AI작성: 로그인 입력값과 처리 상태, 소셜 로그인 팝업 참조를 관리한다.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const popupRef = useRef(null);
-const popupTimerRef = useRef(null);
+  const popupTimerRef = useRef(null);
 
 // AI작성: 우리가 연 카카오 인증 창의 메시지만 처리한다.
 useEffect(() => {
@@ -243,12 +244,9 @@ useEffect(() => {
 // 로그인 성공 시 JWT를 저장하고 메인페이지로 이동
   const handleSubmit = async (event) => {
     event.preventDefault();
-
     if (isSubmitting) return;
-
     setIsSubmitting(true);
     setErrorMessage('');
-
     try {
       const token = await loginMember(email.trim(), password);
 
@@ -350,9 +348,7 @@ const handleSocialLogin = (providerId) => {
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
         />
-
         {errorMessage && <p role="alert">{errorMessage}</p>}
-
         <LoginButton type="submit" disabled={isSubmitting}>
           {isSubmitting ? '로그인 중…' : '로그인'}
         </LoginButton>

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../store/authStore.js';
 
 // AI작성: 기존 공통 Axios 인스턴스에서 쿠키·재발급·재시도를 함께 처리한다.
 const client = axios.create({
