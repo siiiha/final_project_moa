@@ -1,4 +1,4 @@
-package com.nightstudy.moa.smallGroup.service;
+package com.nightstudy.moa.smallGroup;
 
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;

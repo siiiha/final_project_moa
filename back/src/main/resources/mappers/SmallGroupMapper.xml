@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- AI작성: 소모임 생성에 필요한 기존 세 테이블의 조회·저장 SQL을 관리한다. -->
+<!-- AI작성: 기존 생성과 전체 목록 조회에 필요한 SQL을 함께 관리한다. -->
 <mapper namespace="com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper">
-    <!-- AI작성: 지역 ID 순서로 반환해 DB에서 관리하는 팔도 기준 선택 순서를 보존한다. -->
+    <!-- AI작성: 지역 ID 순서로 반환해 DB에서 관리하는 선택 순서를 보존한다. -->
     <select id="selectSmallGroupRegions"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse">
         SELECT region_id, region_name
@@ -26,7 +26,7 @@
     </select>
 
     <!-- AI작성: 소모임 종료 상태가 없으므로 삭제되지 않은 생성 소모임을 최대 생성 수에 포함한다. -->
-    <!-- TODO: 종료 상태가 확정되면 종료된 소모임을 이 집계에서 제외한다. -->
+    <!-- TODO: 소모임 종료 상태가 확정되면 종료된 소모임을 이 집계에서 제외한다. -->
     <select id="selectActiveCreatedSmallGroupCount" resultType="long">
         SELECT COUNT(*)
         FROM `groups` g
@@ -88,4 +88,34 @@
             CURRENT_TIMESTAMP()
         )
     </insert>
+
+    <!-- AI작성: 소모임은 생성 즉시 공개하므로 삭제되지 않은 공통 모임 행만 목록에 포함한다. -->
+    <select id="selectSmallGroupList" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupRow">
+        SELECT sg.small_group_id,
+        g.group_id,
+        g.group_name,
+        g.description,
+        r.region_name,
+        g.max_members,
+        sg.like_category,
+        sg.meet_date,
+        sg.location
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN region r ON r.region_id = g.region_id
+        WHERE g.deleted_at IS NULL
+        ORDER BY g.created_at DESC, sg.small_group_id DESC
+    </select>
+
+    <!-- AI작성: 모임장을 포함한 승인 회원을 중복 없이 집계한다. -->
+    <select id="selectApprovedMemberCounts" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount">
+        SELECT group_id, COUNT(DISTINCT member_id) AS member_count
+        FROM group_member
+        WHERE membership_status = 'APPROVED'
+        AND group_id IN
+        <foreach collection="groupIds" item="groupId" open="(" separator="," close=")">
+            #{groupId}
+        </foreach>
+        GROUP BY group_id
+    </select>
 </mapper>

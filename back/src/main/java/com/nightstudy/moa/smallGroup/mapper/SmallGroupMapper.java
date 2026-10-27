@@ -1,12 +1,14 @@
 package com.nightstudy.moa.smallGroup.mapper;
 
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-// AI작성: 소모임 생성은 기존 MyBatis Mapper/XML 관례로 groups, small_group, group_member를 함께 사용한다.
+// AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
     List<SmallGroupRegionResponse> selectSmallGroupRegions();
@@ -24,4 +26,8 @@ public interface SmallGroupMapper {
     int insertSmallGroup(SmallGroupCreationRequest request);
 
     int insertOwnerMembership(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    List<SmallGroupRow> selectSmallGroupList();
+
+    List<SmallGroupMemberCount> selectApprovedMemberCounts(@Param("groupIds") List<Long> groupIds);
 }
