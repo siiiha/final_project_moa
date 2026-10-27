@@ -1,7 +1,9 @@
 package com.nightstudy.moa.common.auth;
 
 import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
+import com.nightstudy.moa.member.service.AuthSessionService;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,36 +11,46 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
-import com.nightstudy.moa.member.mapper.MemberMapper;
 
 import java.io.IOException;
 import java.util.List;
 
-// JWT 검증 및 로그아웃한 토큰의 재접근 차단
+// JWT 검증과 현재 로그인 세션의 유효성을 함께 확인
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final SecurityErrorResponseWriter errorResponseWriter;
     private final RevokedTokenMapper revokedTokenMapper;
-    private final MemberMapper memberMapper;
+    private final AuthSessionService authSessionService;
 
     public JwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
             SecurityErrorResponseWriter errorResponseWriter,
             RevokedTokenMapper revokedTokenMapper,
-            MemberMapper memberMapper
+            AuthSessionService authSessionService
     ) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.errorResponseWriter = errorResponseWriter;
         this.revokedTokenMapper = revokedTokenMapper;
-        this.memberMapper = memberMapper;
+        this.authSessionService = authSessionService;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return "OPTIONS".equals(request.getMethod());
+        if ("OPTIONS".equals(request.getMethod())) {
+            return true;
+        }
+
+        String path = request.getRequestURI()
+                .substring(request.getContextPath().length());
+
+        // AI작성: 이 두 API는 Controller에서 쿠키와 요청 출처를 검증한다.
+        return "POST".equals(request.getMethod())
+                && ("/api/auth/refresh".equals(path)
+                || "/api/auth/logout".equals(path));
     }
 
     @Override
@@ -47,10 +59,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-
         String authorization = request.getHeader("Authorization");
 
-        // 토큰이 없으면 접근 허용 여부를 Spring Security에서 판단
         if (authorization == null) {
             filterChain.doFilter(request, response);
             return;
@@ -67,8 +77,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Long memberId = Long.valueOf(claims.getSubject());
             String systemRole = claims.get("role", String.class);
             String tokenId = claims.getId();
+            String sessionId = claims.get("sid", String.class);
 
-            // 회원 정보, 만료 시각, 토큰 고유 번호 확인
             if (memberId <= 0
                     || claims.getExpiration() == null
                     || tokenId == null
@@ -78,24 +88,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throw new IllegalArgumentException("잘못된 토큰 정보");
             }
 
-            if (memberMapper.countNotWithdrawnMemberById(memberId) != 1) {
-                SecurityContextHolder.clearContext();
-
-                errorResponseWriter.write(
-                        response,
-                        HttpServletResponse.SC_UNAUTHORIZED,
-                        "MEMBER_UNAVAILABLE",
-                        "탈퇴했거나 존재하지 않는 회원입니다."
-                );
-                return;
-            }
-
-            // 로그아웃 기록이 있는 토큰은 인증 처리 전에 차단
+            // AI작성: 기존 로그아웃 토큰 차단 기록을 재사용한다.
             if (revokedTokenMapper.countByTokenId(tokenId) > 0) {
                 throw new IllegalArgumentException("로그아웃한 토큰");
             }
 
-            var authentication =
+            // AI작성: 회원 상태와 세션을 함께 검사해 탈퇴·정지 회원 및 폐기·만료된 세션을 차단한다.
+            if (!authSessionService.isAccessAllowed(
+                    memberId,
+                    systemRole,
+                    sessionId
+            )) {
+                throw new IllegalArgumentException("유효하지 않은 로그인 세션");
+            }
+
+            UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             memberId,
                             null,
@@ -106,11 +113,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             )
                     );
 
-            var context = SecurityContextHolder.createEmptyContext();
+            SecurityContext context =
+                    SecurityContextHolder.createEmptyContext();
+
             context.setAuthentication(authentication);
             SecurityContextHolder.setContext(context);
 
-            // 검증한 정보를 Controller에 전달
             request.setAttribute("memberId", memberId);
             request.setAttribute("systemRole", systemRole);
             request.setAttribute("tokenId", tokenId);
@@ -118,19 +126,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     "expiresAtMs",
                     claims.getExpiration().getTime()
             );
-
-        } catch (JwtException | IllegalArgumentException e) {
-            SecurityContextHolder.clearContext();
-
-            errorResponseWriter.write(
+        } catch (ExpiredJwtException e) {
+            // 프론트가 토큰 만료와 다른 인증 실패를 구분
+            writeUnauthorized(
                     response,
-                    HttpServletResponse.SC_UNAUTHORIZED,
+                    "ACCESS_TOKEN_EXPIRED",
+                    "로그인 토큰이 만료되었습니다."
+            );
+            return;
+        } catch (JwtException | IllegalArgumentException e) {
+            writeUnauthorized(
+                    response,
                     "INVALID_TOKEN",
-                    "유효하지 않거나 만료 또는 로그아웃된 토큰입니다."
+                    "유효하지 않거나 로그아웃된 로그인 정보입니다."
             );
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void writeUnauthorized(
+            HttpServletResponse response,
+            String code,
+            String message
+    ) throws IOException {
+        SecurityContextHolder.clearContext();
+
+        errorResponseWriter.write(
+                response,
+                HttpServletResponse.SC_UNAUTHORIZED,
+                code,
+                message
+        );
     }
 }

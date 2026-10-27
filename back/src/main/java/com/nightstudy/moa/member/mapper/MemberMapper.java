@@ -95,4 +95,11 @@ public interface MemberMapper {
             @Param("memberId") Long memberId,
             @Param("profileImageUrl")  String profileImageUrl
     );
+
+    // AI작성: 이메일 인증을 통한 비밀번호 재설정 시 조회 당시 비밀번호가 유지된 활성 계정만 변경한다.
+    int updatePasswordForReset(
+            @Param("memberId") Long memberId,
+            @Param("currentPasswordHash") String currentPasswordHash,
+            @Param("newPasswordHash") String newPasswordHash
+    );
 }

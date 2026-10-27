@@ -93,6 +93,44 @@ CREATE TABLE IF NOT EXISTS `members` (
 	PRIMARY KEY (`member_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS member_auth_session (
+    session_id CHAR(36)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    member_id BIGINT NOT NULL,
+    expires_at_ms BIGINT NOT NULL,
+    revoked_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (session_id),
+    KEY ix_member_auth_session_member (member_id),
+    KEY ix_member_auth_session_expires (expires_at_ms),
+
+    CONSTRAINT fk_member_auth_session_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE  TABLE IF NOT EXISTS member_refresh_token (
+    token_hash CHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    session_id CHAR(36)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    used_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT
+CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (token_hash),
+    KEY ix_member_refresh_token_session (session_id),
+
+    CONSTRAINT fk_member_refresh_token_session
+        FOREIGN KEY (session_id)
+        REFERENCES member_auth_session (session_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS member_social_account (
                                                      social_account_id BIGINT NOT NULL AUTO_INCREMENT,
                                                      member_id BIGINT NOT NULL,
@@ -183,12 +221,12 @@ CREATE TABLE IF NOT EXISTS `groups` (
 CREATE TABLE IF NOT EXISTS `saving_group` (
 	`saving_group_id` BIGINT NOT NULL AUTO_INCREMENT,
     `group_id` BIGINT NOT NULL,
-    `saving_group_type` VARCHAR(50) NULL, 
-    `dues_amount` DECIMAL(12,2) NULL, 
-    `dues_day` TINYINT NULL, 
+    `saving_group_type` VARCHAR(50) NULL,
+    `dues_amount` DECIMAL(12,2) NULL,
+    `dues_day` TINYINT NULL,
     `start_date` DATE NULL,
-    `end_date` DATE NULL, 
-    `status` VARCHAR(20) NOT NULL, 
+    `end_date` DATE NULL,
+    `status` VARCHAR(20) NOT NULL,
     `group_image` VARCHAR(255) NULL,
     PRIMARY KEY (`saving_group_id`),
     CONSTRAINT `chk_saving_group_dues_day`
@@ -223,12 +261,12 @@ CREATE TABLE IF NOT EXISTS `small_group` (
 	`small_group_id` BIGINT NOT NULL AUTO_INCREMENT,
     `group_id` BIGINT NOT NULL,
     `like_category` VARCHAR(50) NULL,
-    `meet_date` DATE NULL, 
+    `meet_date` DATE NULL,
     `location` VARCHAR(40) NULL,
     PRIMARY KEY (`small_group_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci;
-    
+
 CREATE TABLE IF NOT EXISTS `term` (
 	`term_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`title`	VARCHAR(200)	NOT NULL,
@@ -287,14 +325,23 @@ CREATE TABLE IF NOT EXISTS `member_report` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `email_verification` (
-	`verification_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`email`	VARCHAR(40)	NOT NULL,
-	`code_hash`	VARCHAR(255)	NOT NULL,
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	`expires_at`	DATETIME	NOT NULL,
-	`verified_at`	DATETIME	NULL,
-	PRIMARY KEY (`verification_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `verification_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `email` VARCHAR(40) NOT NULL,
+    `purpose` VARCHAR(20) NOT NULL DEFAULT 'SIGNUP',
+    `code_hash` VARCHAR(255) NOT NULL,
+    `failed_attempts` INT NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `expires_at` DATETIME NOT NULL,
+    `verified_at` DATETIME NULL,
+    `verification_token_hash` VARCHAR(64) NULL,
+    `token_expires_at` DATETIME NULL,
+    `consumed_at` DATETIME NULL,
+    PRIMARY KEY (`verification_id`),
+    CONSTRAINT `chk_email_verification_purpose`
+    CHECK (`purpose` IN (
+           'SIGNUP', 'FIND_ACCOUNT', 'RESET_PASSWORD'
+            ))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `region` (
 	`region_id`	BIGINT	NOT NULL AUTO_INCREMENT,
@@ -446,7 +493,7 @@ REFERENCES `members` (
 	`member_id`
 );
 
-ALTER TABLE `group_account` 
+ALTER TABLE `group_account`
 ADD CONSTRAINT `FK_groups_TO_group_account_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);

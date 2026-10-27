@@ -11,8 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Locale;
 import java.time.ZoneOffset;
+import java.util.Locale;
 
 
 // 이메일 인증번호 발송, 검증, 회원가입용 토큰 사용 처리
@@ -42,13 +42,39 @@ public class EmailVerificationServiceImpl
         this.tokenProvider = tokenProvider;
     }
 
-    // 인증번호를 저장한 뒤 이메일로 발송
+    // 기존 회원가입 요청은 SIGNUP 목적으로 처리
     @Override
     @Transactional
     public Long sendVerificationCode(String email) {
+        return sendVerificationCode(email, "SIGNUP");
+    }
+
+    // 목적별로 기존 인증번호 발송 로직을 재사용
+    @Override
+    @Transactional
+    public Long sendVerificationCode(String email, String purpose) {
+        if (!"SIGNUP".equals(purpose)
+                && !"FIND_ACCOUNT".equals(purpose)
+                && !"RESET_PASSWORD".equals(purpose)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_VERIFICATION_PURPOSE",
+                    "이메일 인증 목적이 올바르지 않습니다."
+            );
+        }
+
+        if (email == null || email.isBlank()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_EMAIL",
+                    "이메일을 입력해주세요."
+            );
+        }
+
         String normalizedEmail = email.trim();
 
-        if (memberMapper.countByEmail(normalizedEmail) > 0) {
+        if ("SIGNUP".equals(purpose)
+            && memberMapper.countByEmail(normalizedEmail) > 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "EMAIL_ALREADY_EXISTS",
@@ -59,7 +85,10 @@ public class EmailVerificationServiceImpl
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
         EmailVerificationDto latest =
-                verificationMapper.findLatestByEmail(normalizedEmail);
+                verificationMapper.findLatestByEmail(
+                        normalizedEmail,
+                        purpose
+                        );
 
         // 같은 이메일에는 1분 간격으로 재발송 허용
         if (latest != null
@@ -82,6 +111,7 @@ public class EmailVerificationServiceImpl
                 new EmailVerificationDto();
 
         verification.setEmail(normalizedEmail);
+        verification.setPurpose(purpose);
         verification.setCodeHash(passwordEncoder.encode(code));
         verification.setExpiresAt(now.plusMinutes(3));
 
@@ -119,7 +149,8 @@ public class EmailVerificationServiceImpl
         // 가장 최근에 발급한 인증번호인지 확인
         EmailVerificationDto latest =
                 verificationMapper.findLatestByEmail(
-                        verification.getEmail()
+                        verification.getEmail(),
+                        verification.getPurpose()
                 );
 
         if (latest == null
@@ -212,9 +243,31 @@ public class EmailVerificationServiceImpl
     }
 
     // 회원가입할 이메일과 토큰을 확인하고 한 번만 사용 처리
+    // AI작성: 기존 회원가입은 SIGNUP 목적의 토큰을 사용한다.
     @Override
     @Transactional
     public void consumeVerificationToken(String email, String token) {
+        consumeVerificationToken(email, token, "SIGNUP");
+    }
+
+    // AI작성: 이메일과 인증 목적이 일치하는 토큰을 한 번만 사용한다.
+    @Override
+    @Transactional
+    public void consumeVerificationToken(
+            String email,
+            String token,
+            String purpose
+    ) {
+        if (!"SIGNUP".equals(purpose)
+                && !"FIND_ACCOUNT".equals(purpose)
+                && !"RESET_PASSWORD".equals(purpose)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_VERIFICATION_PURPOSE",
+                    "이메일 인증 목적이 올바르지 않습니다."
+            );
+        }
+
         if (email == null || email.isBlank()
                 || token == null
                 || !token.matches("^[A-Za-z0-9_-]{43}$")) {
@@ -227,10 +280,10 @@ public class EmailVerificationServiceImpl
 
         String tokenHash = tokenProvider.hashToken(token);
 
-        // SQL에서 이메일 일치, 인증 완료, 만료, 사용 여부를 확인
         int updatedRows = verificationMapper.consumeVerificationToken(
                 email.trim(),
-                tokenHash
+                tokenHash,
+                purpose
         );
 
         if (updatedRows != 1) {
@@ -240,5 +293,15 @@ public class EmailVerificationServiceImpl
                     "인증 정보가 유효하지 않습니다. 이메일 인증을 다시 진행해주세요."
             );
         }
+    }
+
+    // 계정 찾기용 인증 토큰을 사용한 뒤 가입 여부를 조회
+
+    @Override
+    @Transactional
+    public boolean findAccount(String email, String token) {
+        consumeVerificationToken(email, token, "FIND_ACCOUNT");
+
+        return memberMapper.findByEmail(email.trim()) != null;
     }
 }

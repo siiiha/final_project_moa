@@ -3,6 +3,8 @@ package com.nightstudy.moa.post.service;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostCategoryDto;
+import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
@@ -23,6 +25,10 @@ public class PostServiceImpl implements PostService {
         this.postMapper = postMapper;
     }
 
+    @Override
+    public List<PostCategoryDto> getPostCategories() {
+        return postMapper.selectPostCategories();
+    }
 
     @Override
     public PostListResult getPostList(PostSearchCondition condition) {
@@ -65,9 +71,9 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Long writePost(PostDto postDto) {
+    public Long writePost(Long loginMemberId, PostCreateRequest request) {
         int categoryCount =
-                postMapper.countCategoryById(postDto.getCategoryId());
+                postMapper.countCategoryById(request.getCategoryId());
 
         if (categoryCount != 1) {
             throw new ApiException(
@@ -77,6 +83,12 @@ public class PostServiceImpl implements PostService {
             );
         }
 
+        // AI작성: 작성자 번호는 클라이언트 입력이 아닌 JWT에서 검증된 회원 번호만 사용한다.
+        PostDto postDto = new PostDto();
+        postDto.setWriterId(loginMemberId);
+        postDto.setCategoryId(request.getCategoryId());
+        postDto.setTitle(request.getTitle().trim());
+        postDto.setContent(request.getContent().trim());
         int insertedRows = postMapper.insertPost(postDto);
 
         if (insertedRows != 1) {
@@ -91,7 +103,15 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public Long editPost(Long postId, PostEditRequest request) {
+    public Long editPost(Long postId, Long loginMemberId, PostEditRequest request) {
+        PostDto post = postMapper.selectPostDetail(postId);
+        if (post == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "게시글을 찾을 수 없습니다.");
+        }
+        // AI작성: 수정도 삭제와 동일하게 작성자 본인만 가능하다.
+        if (!Objects.equals(post.getWriterId(), loginMemberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "POST_EDIT_FORBIDDEN", "게시글 수정 권한이 없습니다.");
+        }
 
         int categoryCount =
                 postMapper.countCategoryById(request.getCategoryId());
@@ -102,6 +122,13 @@ public class PostServiceImpl implements PostService {
                     "INVALID_CATEGORY",
                     "존재하지 않는 카테고리입니다."
             );
+        }
+
+        // AI작성: 변경 사항이 없어도 유효한 수정 요청으로 처리한다.
+        if (Objects.equals(post.getCategoryId(), request.getCategoryId())
+                && Objects.equals(post.getTitle(), request.getTitle().trim())
+                && Objects.equals(post.getContent(), request.getContent().trim())) {
+            return postId;
         }
 
         Long editCount = postMapper.editPost(postId, request);

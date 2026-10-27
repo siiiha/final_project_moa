@@ -9,7 +9,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
-// AI작성: mail 환경에서 Gmail을 통해 인증번호 발송
+// mail 환경에서 Gmail을 통해 인증번호 발송
 @Component
 @Profile("mail")
 public class GmailVerificationCodeSender
@@ -32,7 +32,7 @@ public class GmailVerificationCodeSender
 
         message.setFrom(senderEmail);
         message.setTo(email);
-        message.setSubject("[모아] 회원가입 이메일 인증번호");
+        message.setSubject("[모아] 이메일 인증번호");
         message.setText(
                 "안녕하세요. 모아입니다.\n\n"
                         + "인증번호: " + code + "\n\n"

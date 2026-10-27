@@ -7,6 +7,7 @@ import com.nightstudy.moa.member.service.EmailVerificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.nightstudy.moa.member.dto.EmailVerificationTokenRequest;
 
 @RestController
 @RequestMapping("/api/auth/email-verifications")
@@ -27,7 +28,8 @@ public class EmailVerificationController {
     ) {
         Long verificationRequestId =
                 emailVerificationService.sendVerificationCode(
-                        request.getEmail()
+                        request.getEmail(),
+                        request.getPurpose()
                 );
 
         return ResponseEntity.ok(
@@ -47,5 +49,17 @@ public class EmailVerificationController {
         );
 
         return ResponseEntity.ok(ApiResponse.ok(token));
+    }
+
+    @PostMapping("/find-account")
+    public ResponseEntity<ApiResponse<Boolean>> findAccount(
+            @Valid @RequestBody EmailVerificationTokenRequest request
+    ) {
+        boolean found = emailVerificationService.findAccount(
+                request.getEmail(),
+                request.getEmailVerificationToken()
+        );
+
+        return ResponseEntity.ok(ApiResponse.ok(found));
     }
 }

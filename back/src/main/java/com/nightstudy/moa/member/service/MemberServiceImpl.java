@@ -20,6 +20,7 @@ import com.nightstudy.moa.member.dto.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
 import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
+import com.nightstudy.moa.member.dto.PasswordResetRequest;
 
 import java.nio.charset.StandardCharsets;
 
@@ -30,17 +31,20 @@ public class MemberServiceImpl implements MemberService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
+    private final AuthSessionService authSessionService;
 
     public MemberServiceImpl(
             MemberMapper memberMapper,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
-            EmailVerificationService emailVerificationService
+            EmailVerificationService emailVerificationService,
+            AuthSessionService authSessionService
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
+        this.authSessionService = authSessionService;
     }
 
     @Override
@@ -602,5 +606,79 @@ public class MemberServiceImpl implements MemberService {
                     "회원탈퇴를 처리하지 못했습니다. 다시 시도해주세요."
             );
         }
+    }
+
+    // AI작성: 이메일 인증 기반 비밀번호 재설정은 마이페이지 비밀번호 변경과 별도 메소드로 유지한다.
+    @Override
+    @Transactional
+    public void resetPassword(PasswordResetRequest request) {
+        String newPassword = request.getNewPassword();
+
+        if (newPassword == null
+                || newPassword.isBlank()
+                || newPassword.length() < 8
+                || newPassword.length() > 20
+                || !newPassword.equals(request.getNewPasswordConfirm())
+                || newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_NEW_PASSWORD",
+                    "새 비밀번호는 8~20자로 입력하고 확인 값도 동일하게 입력해주세요."
+            );
+        }
+
+        // 비밀번호 재설정 목적으로 인증한 토큰만 허용
+        emailVerificationService.consumeVerificationToken(
+                request.getEmail(),
+                request.getEmailVerificationToken(),
+                "RESET_PASSWORD"
+        );
+
+        MemberLoginDto member =
+                memberMapper.findByEmail(request.getEmail().trim());
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "ACCOUNT_NOT_FOUND",
+                    "해당 이메일로 가입된 계정이 없습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "비밀번호를 재설정할 수 없는 계정 상태입니다."
+            );
+        }
+
+        // 비밀번호 없이 가입한 소셜 계정은 해당 제공사 로그인을 이용
+        if (member.getPasswordHash() == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "SOCIAL_ACCOUNT_ONLY",
+                    "소셜 로그인으로 가입한 계정입니다. 해당 간편 로그인을 이용해주세요."
+            );
+        }
+
+        String newPasswordHash = passwordEncoder.encode(newPassword);
+
+        int updatedRows = memberMapper.updatePasswordForReset(
+                member.getMemberId(),
+                member.getPasswordHash(),
+                newPasswordHash
+        );
+
+        if (updatedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "PASSWORD_RESET_CONFLICT",
+                    "계정 정보가 변경되었습니다. 다시 인증한 후 시도해주세요."
+            );
+        }
+
+        // 비밀번호 변경 성공 시 해당 회원의 기존 로그인 세션 폐기
+        authSessionService.revokeAllSessions(member.getMemberId());
     }
 }

@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import FindAccountPage from './pages/FindAccountPage';
 import MyPage from './pages/MyPage';
 import EditProfilePage from './pages/EditProfilePage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
@@ -30,6 +31,7 @@ import SmallGroupCreatePage from './pages/SmallGroupCreatePage';
 import SmallGroupDetailPage from './pages/SmallGroupDetailPage';
 import NotFound from './pages/NotFound';
 import SocialLoginCallbackPage from './pages/SocialLoginCallbackPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 function App() {
   return (
@@ -45,6 +47,9 @@ function App() {
         <Route path="/small-groups/:id" element={<SmallGroupDetailPage />} />
         <Route path="/small-groups" element={<SmallGroupsPage />} />
         <Route path="/member/login" element={<LoginPage />} />
+        <Route path="/member/find-account" element={<FindAccountPage />} />
+        <Route path="/member/reset-password" element={<ResetPasswordPage />} />
+
         {/* AI작성: 카카오 인증 후 로그인 결과를 처리하는 화면 */}
         <Route
           path="/member/social/callback"

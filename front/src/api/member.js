@@ -91,12 +91,14 @@ export async function uploadMyProfileImage(token, file) {
     return response.data.data;
 }
 
-// 인증번호 발송 후 인증 요청 번호 반환
-export async function sendEmailVerification(email) {
-    const response = await client.post('/auth/email-verifications', {
-        email,
-    });
-    return response.data.data;
+// AI작성: 인증 목적을 지정하고, 기존 회원가입은 SIGNUP을 기본값으로 사용한다.
+export async function sendEmailVerification(email, purpose = 'SIGNUP') {
+  const response = await client.post('/auth/email-verifications', {
+    email,
+    purpose,
+  });
+
+  return response.data.data;
 }
 
 // 인증번호 확인 후 회원가입용 인증 토큰 반환
@@ -177,4 +179,34 @@ export async function withdrawMyAccount(token, request) {
 export async function signupSocialMember(request) {
   const response = await client.post('/auth/social/signup', request);
   return response.data.data;
+}
+
+// AI작성: 이메일 인증 완료 후 가입 계정의 존재 여부를 확인한다.
+export async function findMemberAccount(email, emailVerificationToken) {
+  const response = await client.post(
+    '/auth/email-verifications/find-account',
+    {
+      email,
+      emailVerificationToken,
+    },
+  );
+
+  return response.data.data;
+}
+
+// AI작성: 이메일 인증 완료 토큰과 새 비밀번호로 재설정을 요청한다.
+export async function resetMemberPassword(
+  email,
+  emailVerificationToken,
+  newPassword,
+  newPasswordConfirm,
+) {
+  const response = await client.post('/auth/password/reset', {
+    email,
+    emailVerificationToken,
+    newPassword,
+    newPasswordConfirm,
+  });
+
+  return response.data;
 }
