@@ -11,10 +11,10 @@ import {
   verifyEmailCode,
   checkNicknameAvailable,
   signupMember,
+  signupSocialMember,
   memberRegionOptions,
   memberTermOptions,
   memberInterestOptions,
-  signupSocialMember,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 
@@ -451,7 +451,7 @@ if (isSocialSignup) {
   sessionStorage.removeItem('moa-social-signup');
   setEmailVerificationToken('');
   setToken(result.token);
-  navigate('/member/mypage', { replace: true });
+  navigate('/', { replace: true });
   return;
 }
 

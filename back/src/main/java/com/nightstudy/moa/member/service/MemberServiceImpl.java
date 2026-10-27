@@ -16,6 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.member.dto.MemberLoginDto;
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.member.dto.SocialSignupRequest;
+import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
+import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
+import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
+import com.nightstudy.moa.member.dto.PasswordResetRequest;
 
 import java.nio.charset.StandardCharsets;
 
@@ -26,17 +31,20 @@ public class MemberServiceImpl implements MemberService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
+    private final AuthSessionService authSessionService;
 
     public MemberServiceImpl(
             MemberMapper memberMapper,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
-            EmailVerificationService emailVerificationService
+            EmailVerificationService emailVerificationService,
+            AuthSessionService authSessionService
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
+        this.authSessionService = authSessionService;
     }
 
     @Override
@@ -279,5 +287,398 @@ public class MemberServiceImpl implements MemberService {
                 member.getMemberId(),
                 member.getSystemRole()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true) // 데이터를 조회하는 트랜잭션임을 표시
+    public MemberProfileResponse getMyProfile(Long memberId) {
+
+        MemberProfileResponse profile =
+                memberMapper.findProfileByMemberId(memberId);
+
+        if (profile == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        profile.setInterests(
+                memberMapper.findInterestsByMemberId(memberId)
+        );
+
+        return profile;
+    }
+
+    // 비밀번호와 입력값 검증 후 회원정보 수정
+    @Override
+    @Transactional
+    public MemberProfileResponse updateMyProfile(
+            Long memberId,
+            MemberProfileUpdateRequest request
+    ) {
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "회원정보를 수정할 수 없는 계정 상태입니다."
+            );
+        }
+
+        String currentPassword = request.getCurrentPassword();
+
+        if (currentPassword == null
+                || currentPassword.isBlank()
+                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || member.getPasswordHash() == null
+                || !passwordEncoder.matches(
+                currentPassword,
+                member.getPasswordHash()
+        )) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CURRENT_PASSWORD",
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        String nickname = request.getNickname();
+
+        if (nickname != null) {
+            nickname = nickname.trim();
+
+            if (nickname.length() < 2 || nickname.length() > 12) {
+                throw new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "INVALID_NICKNAME",
+                        "닉네임은 2~12자로 입력해주세요."
+                );
+            }
+
+            if (memberMapper.countByNicknameExcludingMember(
+                    nickname, memberId
+            ) > 0) {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "NICKNAME_ALREADY_EXISTS",
+                        "이미 사용 중인 닉네임입니다."
+                );
+            }
+        }
+
+        // null은 기존 관심사 유지, 빈 목록은 전체 해제
+        HashSet<Long> interestIds = null;
+
+        if (request.getInterestIds() != null) {
+            interestIds = new HashSet<>(request.getInterestIds());
+
+            for (Long interestId : interestIds) {
+                if (interestId == null
+                        || interestId <= 0
+                        || memberMapper.countInterestById(interestId) != 1) {
+                    throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "INVALID_INTEREST",
+                            "존재하지 않는 관심사입니다."
+                    );
+                }
+            }
+        }
+
+        if (nickname != null) {
+            try {
+                memberMapper.updateNickname(memberId, nickname);
+            } catch (DuplicateKeyException e) {
+                // 동시 요청으로 발생한 닉네임 중복도 처리
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "NICKNAME_ALREADY_EXISTS",
+                        "이미 사용 중인 닉네임입니다."
+                );
+            }
+        }
+
+        if (interestIds != null) {
+            memberMapper.deleteMemberInterests(memberId);
+
+            for (Long interestId : interestIds) {
+                int savedRows = memberMapper.insertMemberInterest(
+                        memberId, interestId
+                );
+
+                if (savedRows != 1) {
+                    throw new ApiException(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            "PROFILE_UPDATE_FAILED",
+                            "회원정보 수정에 실패했습니다."
+                    );
+                }
+            }
+        }
+
+        // 두 칸 모두 비어 있으면 기존 비밀번호를 유지
+        String newPassword = request.getNewPassword();
+        String confirmNewPassword = request.getConfirmNewPassword();
+
+        boolean passwordChangeRequested =
+                (newPassword != null && !newPassword.isEmpty())
+                        || (confirmNewPassword != null
+                        && !confirmNewPassword.isEmpty());
+
+        if (passwordChangeRequested) {
+            MemberPasswordUpdateRequest passwordRequest =
+                    new MemberPasswordUpdateRequest();
+
+            passwordRequest.setCurrentPassword(request.getCurrentPassword());
+            passwordRequest.setNewPassword(newPassword);
+            passwordRequest.setConfirmNewPassword(confirmNewPassword);
+
+            updatePassword(memberId, passwordRequest);
+        }
+
+        return getMyProfile(memberId);
+    }
+
+    // 현재 비밀번호를 확인 후 새 비밀번호를 암호화해 저장
+    @Override
+    @Transactional
+    public void updatePassword(
+            Long memberId,
+            MemberPasswordUpdateRequest request
+    ) {
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "비밀번호를 수정할 수 없는 계정 상태입니다."
+            );
+        }
+
+        String currentPassword = request.getCurrentPassword();
+
+        if (currentPassword == null
+                || currentPassword.isBlank()
+                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || member.getPasswordHash() == null
+                || !passwordEncoder.matches(
+                currentPassword,
+                member.getPasswordHash()
+        )) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CURRENT_PASSWORD",
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
+        }
+
+        String newPassword = request.getNewPassword();
+
+        if (newPassword == null
+                || newPassword.isBlank()
+                || newPassword.length() < 8) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_NEW_PASSWORD",
+                    "새 비밀번호는 8자 이상 입력해주세요."
+            );
+        }
+
+        if (newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_TOO_LONG",
+                    "비밀번호가 너무 깁니다. 더 짧게 입력해주세요."
+            );
+        }
+
+        if (!newPassword.equals(request.getConfirmNewPassword())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_CONFIRM_MISMATCH",
+                    "새 비밀번호와 확인 입력값이 일치하지 않습니다."
+            );
+        }
+        if (passwordEncoder.matches(newPassword, member.getPasswordHash())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "NEW_PASSWORD_SAME_AS_CURRENT",
+                    "새 비밀번호는 현재 비밀번호와 다르게 입력해주세요."
+            );
+        }
+
+        String passwordHash = passwordEncoder.encode(newPassword);
+
+        int updatedRows =
+                memberMapper.updatePassword(memberId, passwordHash);
+
+        if (updatedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "PASSWORD_UPDATE_FAILED",
+                    "비밀번호 수정에 실패했습니다."
+            );
+        }
+    }
+
+    @Override
+    @Transactional
+    public void withdrawMember(
+            Long memberId,
+            MemberWithdrawalRequest request
+    ) {
+        if (!request.isAgreed()) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "WITHDRAWAL_AGREEMENT_REQUIRED",
+                    "회원탈퇴 안내사항에 동의해주세요."
+            );
+        }
+
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "MEMBER_NOT_FOUND",
+                    "회원 정보를 찾을 수 없습니다."
+            );
+        }
+
+        String currentPassword = request.getCurrentPassword();
+
+        if (currentPassword == null
+            || currentPassword.isBlank()
+            || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+            || member.getPasswordHash() == null
+            || !passwordEncoder.matches(
+                    currentPassword,
+                    member.getPasswordHash()
+        )) {
+        throw new ApiException(
+            HttpStatus.BAD_REQUEST,
+                "INVALID_CURRENT_PASSWORD",
+                "현재 비밀번호가 올바르지 않습니다."
+    );
+        }
+
+        int blockingGroupCount =
+                memberMapper.countWithdrawalBlockingGroups(memberId);
+
+        if (blockingGroupCount > 0) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "WITHDRAWAL_BLOCKED_BY_GROUP",
+                    "진행 중이거나 정지된 계모임에 참여하고 있어 "
+                            + "지금은 탈퇴할 수 없습니다."
+            );
+        }
+
+        int updateRows = memberMapper.withdrawMember(memberId);
+
+        if (updateRows != 1) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "MEMBER_WITHDRAWAL_FAILED",
+                    "회원탈퇴를 처리하지 못했습니다. 다시 시도해주세요."
+            );
+        }
+    }
+
+    // AI작성: 이메일 인증 기반 비밀번호 재설정은 마이페이지 비밀번호 변경과 별도 메소드로 유지한다.
+    @Override
+    @Transactional
+    public void resetPassword(PasswordResetRequest request) {
+        String newPassword = request.getNewPassword();
+
+        if (newPassword == null
+                || newPassword.isBlank()
+                || newPassword.length() < 8
+                || newPassword.length() > 20
+                || !newPassword.equals(request.getNewPasswordConfirm())
+                || newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_NEW_PASSWORD",
+                    "새 비밀번호는 8~20자로 입력하고 확인 값도 동일하게 입력해주세요."
+            );
+        }
+
+        // 비밀번호 재설정 목적으로 인증한 토큰만 허용
+        emailVerificationService.consumeVerificationToken(
+                request.getEmail(),
+                request.getEmailVerificationToken(),
+                "RESET_PASSWORD"
+        );
+
+        MemberLoginDto member =
+                memberMapper.findByEmail(request.getEmail().trim());
+
+        if (member == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "ACCOUNT_NOT_FOUND",
+                    "해당 이메일로 가입된 계정이 없습니다."
+            );
+        }
+
+        if (!"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "비밀번호를 재설정할 수 없는 계정 상태입니다."
+            );
+        }
+
+        // 비밀번호 없이 가입한 소셜 계정은 해당 제공사 로그인을 이용
+        if (member.getPasswordHash() == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "SOCIAL_ACCOUNT_ONLY",
+                    "소셜 로그인으로 가입한 계정입니다. 해당 간편 로그인을 이용해주세요."
+            );
+        }
+
+        String newPasswordHash = passwordEncoder.encode(newPassword);
+
+        int updatedRows = memberMapper.updatePasswordForReset(
+                member.getMemberId(),
+                member.getPasswordHash(),
+                newPasswordHash
+        );
+
+        if (updatedRows != 1) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "PASSWORD_RESET_CONFLICT",
+                    "계정 정보가 변경되었습니다. 다시 인증한 후 시도해주세요."
+            );
+        }
+
+        // 비밀번호 변경 성공 시 해당 회원의 기존 로그인 세션 폐기
+        authSessionService.revokeAllSessions(member.getMemberId());
     }
 }

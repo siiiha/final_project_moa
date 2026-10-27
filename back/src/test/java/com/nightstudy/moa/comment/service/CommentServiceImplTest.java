@@ -112,7 +112,8 @@ class CommentServiceImplTest {
         when(commentMapper.selectCommentById(10L)).thenReturn(before, after);
         when(commentMapper.updateComment(1L, 10L, request)).thenReturn(1);
 
-        CommentDto result = commentService.updateComment(1L, 10L, request);
+        before.setMemberId(2L);
+        CommentDto result = commentService.updateComment(1L, 10L, 2L, request);
 
         assertThat(result.getContent()).isEqualTo("수정 내용");
         verify(commentMapper).updateComment(1L, 10L, request);
@@ -127,7 +128,7 @@ class CommentServiceImplTest {
         when(postMapper.countPostById(1L)).thenReturn(1);
         when(commentMapper.selectCommentById(10L)).thenReturn(comment);
 
-        assertThatThrownBy(() -> commentService.updateComment(1L, 10L, request))
+        assertThatThrownBy(() -> commentService.updateComment(1L, 10L, 2L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("COMMENT_NOT_FOUND"));
         verify(commentMapper, never()).updateComment(1L, 10L, request);
@@ -139,7 +140,10 @@ class CommentServiceImplTest {
         when(postMapper.countPostById(1L)).thenReturn(1);
         when(commentMapper.deleteComment(1L, 10L)).thenReturn(1);
 
-        commentService.deleteComment(1L, 10L);
+        CommentDto comment = comment(10L, 1L, null, "댓글");
+        comment.setMemberId(2L);
+        when(commentMapper.selectCommentById(10L)).thenReturn(comment);
+        commentService.deleteComment(1L, 10L, 2L);
 
         verify(commentMapper).deleteComment(1L, 10L);
     }
@@ -148,9 +152,8 @@ class CommentServiceImplTest {
     // AI작성: 없거나 이미 삭제된 댓글은 COMMENT_NOT_FOUND로 처리하는지 확인한다.
     void deleteCommentThrowsWhenCommentDoesNotExist() {
         when(postMapper.countPostById(1L)).thenReturn(1);
-        when(commentMapper.deleteComment(1L, 999L)).thenReturn(0);
 
-        assertThatThrownBy(() -> commentService.deleteComment(1L, 999L))
+        assertThatThrownBy(() -> commentService.deleteComment(1L, 999L, 2L))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("COMMENT_NOT_FOUND"));
     }

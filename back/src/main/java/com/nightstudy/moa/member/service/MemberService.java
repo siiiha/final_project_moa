@@ -3,6 +3,12 @@ package com.nightstudy.moa.member.service;
 import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.member.dto.MemberSignupRequest;
 import com.nightstudy.moa.member.dto.SocialSignupRequest;
+import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
+import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
+import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
+
+import com.nightstudy.moa.member.dto.PasswordResetRequest;
 
 public interface MemberService {
 
@@ -15,4 +21,23 @@ public interface MemberService {
     String login(MemberLoginRequest request);
 
     Long signupSocial(SocialSignupRequest request);
+
+    MemberProfileResponse getMyProfile(Long memberId);
+
+    MemberProfileResponse updateMyProfile(
+            Long memberId,
+            MemberProfileUpdateRequest request
+    );
+
+    void updatePassword(
+            Long memberId,
+            MemberPasswordUpdateRequest request
+    );
+
+    void withdrawMember(
+            Long memberId,
+            MemberWithdrawalRequest request
+    );
+
+    void resetPassword(PasswordResetRequest request);
 }

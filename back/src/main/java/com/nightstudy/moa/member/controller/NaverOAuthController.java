@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.nightstudy.moa.common.auth.LoginSessionManager;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.net.URI;
 
@@ -28,12 +30,14 @@ public class NaverOAuthController {
     private final SocialSignupSessionManager signupSessionManager;
     private final SocialLoginResultManager loginResultManager;
     private final String frontendUrl;
+    private final LoginSessionManager loginSessionManager;
 
     public NaverOAuthController(
             NaverOAuthService naverOAuthService,
             OAuthStateManager oauthStateManager,
             SocialSignupSessionManager signupSessionManager,
             SocialLoginResultManager loginResultManager,
+            LoginSessionManager loginSessionManager,
             @Value("${app.frontend-url:http://localhost:5173}")
             String frontendUrl
     ) {
@@ -41,6 +45,7 @@ public class NaverOAuthController {
         this.oauthStateManager = oauthStateManager;
         this.signupSessionManager = signupSessionManager;
         this.loginResultManager = loginResultManager;
+        this.loginSessionManager = loginSessionManager;
         this.frontendUrl = frontendUrl;
     }
 
@@ -102,11 +107,15 @@ public class NaverOAuthController {
                 .build();
     }
 
+    // 소셜 로그인 성공 시 공통 세션과 refresh token 쿠키를 발급
     @GetMapping("/result")
     public ResponseEntity<ApiResponse<SocialLoginResultDto>> result(
-            HttpServletRequest request
+            HttpServletRequest request,
+            HttpServletResponse response
     ) {
         SocialLoginResultDto result = loginResultManager.consume(request);
+
+        result = loginSessionManager.completeLogin(result, response);
 
         return ResponseEntity.ok()
                 .header("Cache-Control", "no-store")

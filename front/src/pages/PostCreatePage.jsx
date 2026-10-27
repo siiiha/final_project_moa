@@ -1,18 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { createPost, getPostDetail, updatePost } from '../api/postApi';
+import { createPost, getPostCategories, getPostDetail, updatePost } from '../api/postApi';
+import ConfirmModal from '../components/common/ConfirmModal';
 import PostCreateForm from '../components/post/PostCreateForm';
-import { postCategories } from '../mocks/posts';
+import useAuthStore from '../store/authStore';
 
-const CATEGORY_ID_BY_NAME = {
-  '행사·축제': 1,
-  '일자리': 2,
-  '거래·나눔': 3,
-};
-
-// AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
-const TEMP_WRITER_ID = 44;
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -60,15 +53,85 @@ const StatusMessage = styled.p`
 
 function PostCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: postId } = useParams();
   const isEditMode = Boolean(postId);
-  const [category, setCategory] = useState('행사·축제');
+  const token = useAuthStore((state) => state.token);
+  const memberId = useAuthStore((state) => state.memberId);
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [imageName, setImageName] = useState('');
   const [isLoadingPost, setIsLoadingPost] = useState(isEditMode);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const postDraftKey = memberId
+    ? `moa-post-draft:${memberId}:${isEditMode ? postId : 'new'}`
+    : null;
+
+  // AI작성: 회원별·게시글별 임시저장 내용을 새 글 작성 또는 수정 화면에 복원합니다.
+  useEffect(() => {
+    if (!postDraftKey || isLoadingPost) return;
+
+    try {
+      const savedDraft = JSON.parse(sessionStorage.getItem(postDraftKey) || 'null');
+      const isValidDraft = savedDraft !== null
+        && typeof savedDraft.category === 'string'
+        && typeof savedDraft.title === 'string'
+        && typeof savedDraft.content === 'string';
+
+      if (!isValidDraft) {
+        if (savedDraft !== null) sessionStorage.removeItem(postDraftKey);
+        return;
+      }
+
+      // oxlint-disable-next-line react/set-state-in-effect -- 외부 sessionStorage 값을 작성 화면에 복원해야 합니다.
+      setCategory(savedDraft.category);
+      setTitle(savedDraft.title);
+      setContent(savedDraft.content);
+    } catch {
+      // AI작성: 손상된 임시저장 값은 제거해 게시글 작성 화면 이용을 방해하지 않도록 합니다.
+      sessionStorage.removeItem(postDraftKey);
+    }
+  }, [isLoadingPost, postDraftKey]);
+
+  const savePostDraft = (nextDraft) => {
+    if (!postDraftKey) return;
+    sessionStorage.setItem(postDraftKey, JSON.stringify(nextDraft));
+  };
+
+  const handleCategoryChange = (value) => {
+    setCategory(value);
+    savePostDraft({ category: value, title, content });
+  };
+
+  const handleTitleChange = (value) => {
+    setTitle(value);
+    savePostDraft({ category, title: value, content });
+  };
+
+  const handleContentChange = (value) => {
+    setContent(value);
+    savePostDraft({ category, title, content: value });
+  };
+
+  useEffect(() => {
+    let isActive = true;
+    getPostCategories()
+      .then((response) => {
+        if (!response.success) throw new Error(response.error?.message || '카테고리를 불러오지 못했습니다.');
+        if (!isActive) return;
+        const loaded = response.data || [];
+        setCategories(loaded);
+        setCategory((current) => current || loaded[0]?.categoryName || '');
+      })
+      .catch((error) => isActive && setErrorMessage(error.response?.data?.error?.message || error.message))
+      .finally(() => isActive && setIsLoadingCategories(false));
+    return () => { isActive = false; };
+  }, []);
 
   useEffect(() => {
     if (!isEditMode) return undefined;
@@ -88,7 +151,7 @@ function PostCreatePage() {
 
         if (!isActive) return;
 
-        setCategory(response.data.categoryName || '행사·축제');
+        setCategory(response.data.categoryName || '');
         setTitle(response.data.title || '');
         setContent(response.data.content || '');
       } catch (error) {
@@ -116,8 +179,12 @@ function PostCreatePage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (isSubmitting || isLoadingPost) return;
+    if (!token) {
+      navigate(`/member/login?redirect=${encodeURIComponent(location.pathname)}`);
+      return;
+    }
 
-    const categoryId = CATEGORY_ID_BY_NAME[category];
+    const categoryId = categories.find((item) => item.categoryName === category)?.categoryId;
     if (!categoryId) {
       setErrorMessage('올바른 카테고리를 선택해주세요.');
       return;
@@ -130,16 +197,13 @@ function PostCreatePage() {
       let response;
 
       if (isEditMode) {
-        // TODO AI작성: 로그인 연동 후 백엔드에서 로그인 회원과 게시글 작성자의 수정 권한을 검증해야 합니다.
         response = await updatePost(postId, {
           categoryId,
           title: title.trim(),
           content: content.trim(),
         });
       } else {
-        // AI작성: 인증 연동 후 TEMP_WRITER_ID를 로그인 회원 ID로 교체해야 합니다.
         response = await createPost({
-          writerId: TEMP_WRITER_ID,
           categoryId,
           title: title.trim(),
           content: content.trim(),
@@ -150,6 +214,7 @@ function PostCreatePage() {
         throw new Error(response.error?.message || `게시글 ${isEditMode ? '수정' : '등록'}에 실패했습니다.`);
       }
 
+      if (postDraftKey) sessionStorage.removeItem(postDraftKey);
       navigate(`/post/${isEditMode ? postId : response.data}`);
     } catch (error) {
       setErrorMessage(
@@ -162,8 +227,31 @@ function PostCreatePage() {
     }
   };
 
-  const handleCancel = () => {
+  // AI작성: 새 글 작성과 게시글 수정 취소 후 각각 원래 화면으로 이동합니다.
+  const leavePostForm = () => {
     navigate(isEditMode ? `/post/${postId}` : '/post/list');
+  };
+
+  const handleCancel = () => {
+    const hasSavedDraft = Boolean(postDraftKey && sessionStorage.getItem(postDraftKey));
+    const hasNewWriting = !isEditMode && Boolean(title.trim() || content.trim());
+    const hasWriting = hasSavedDraft || hasNewWriting || Boolean(imageName);
+
+    // AI작성: 작성하거나 변경한 내용이 없으면 임시저장을 정리하고 바로 이전 화면으로 이동합니다.
+    if (!hasWriting) {
+      if (postDraftKey) sessionStorage.removeItem(postDraftKey);
+      leavePostForm();
+      return;
+    }
+
+    setIsCancelModalOpen(true);
+  };
+
+  const handleDiscardAndLeave = () => {
+    // AI작성: 사용자가 취소 확인창에서 동의한 경우에만 작성 중인 임시저장을 삭제합니다.
+    if (postDraftKey) sessionStorage.removeItem(postDraftKey);
+    setIsCancelModalOpen(false);
+    leavePostForm();
   };
 
   return (
@@ -179,18 +267,20 @@ function PostCreatePage() {
       </Heading>
       <Content>
         {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
-        {isLoadingPost ? (
+        {isLoadingPost || isLoadingCategories ? (
           <StatusMessage>게시글을 불러오는 중입니다.</StatusMessage>
+        ) : categories.length === 0 ? (
+          <StatusMessage role="alert">게시글 카테고리가 없습니다. 관리자에게 문의해주세요.</StatusMessage>
         ) : (
           <PostCreateForm
-            categories={postCategories.filter((item) => item !== '전체')}
+            categories={categories.map((item) => item.categoryName)}
             category={category}
             title={title}
             content={content}
             imageName={imageName}
-            onCategoryChange={setCategory}
-            onTitleChange={setTitle}
-            onContentChange={setContent}
+            onCategoryChange={handleCategoryChange}
+            onTitleChange={handleTitleChange}
+            onContentChange={handleContentChange}
             onImageChange={handleImageChange}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
@@ -198,6 +288,21 @@ function PostCreatePage() {
           />
         )}
       </Content>
+      {isCancelModalOpen && (
+        <ConfirmModal
+          title={isEditMode ? '게시글 수정 취소' : '게시글 작성 취소'}
+          description={
+            isEditMode
+              ? '수정 중인 변경사항을 버리고 나가시겠습니까?'
+              : '작성 중인 내용을 삭제하고 나가시겠습니까?'
+          }
+          confirmLabel={isEditMode ? '변경사항 버리고 나가기' : '내용 삭제하고 나가기'}
+          confirmVariant="danger"
+          cancelFirst
+          onConfirm={handleDiscardAndLeave}
+          onCancel={() => setIsCancelModalOpen(false)}
+        />
+      )}
     </Page>
   );
 }

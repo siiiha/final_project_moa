@@ -1,6 +1,7 @@
 package com.nightstudy.moa.post.mapper;
 
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostCategoryDto;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import java.util.List;
@@ -9,6 +10,7 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface PostMapper {
+    List<PostCategoryDto> selectPostCategories();
     int insertPost(PostDto postDto);
 
     List<PostDto> selectPostList(PostSearchCondition condition);

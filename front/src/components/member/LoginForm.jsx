@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -53,6 +52,33 @@ const LoginButton = styled(Button)`
   margin-top: 4px;
 `;
 
+// AI작성: 계정 찾기 링크를 가로로 배치한다.
+const RecoveryActions = styled.div`
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+`;
+
+// AI작성: 로그인 아래에 아이디 찾기 링크를 표시한다.
+const RecoveryLink = styled(Link)`
+  width: fit-content;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 4px;
+  }
+`;
+
 const SignupPrompt = styled.p`
   margin-top: 16px;
   color: ${({ theme }) => theme.colors.muted};
@@ -85,7 +111,7 @@ const Divider = styled.div`
 
 const SocialActions = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -94,7 +120,7 @@ const SocialActions = styled.div`
 `;
 
 const SocialButton = styled.button`
-  min-height: 40px;
+  min-height: 48px;
   padding: 7px 6px;
   display: inline-flex;
   align-items: center;
@@ -106,9 +132,9 @@ const SocialButton = styled.button`
     if ($provider === 'kakao') return '#fee500';
     return '#ffffff';
   }};
-  border: 1px solid ${({ $provider, theme }) => ($provider === 'google' ? theme.colors.border : 'transparent')};
+  border: 1px solid transparent;
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
 
   &:hover {
@@ -117,9 +143,15 @@ const SocialButton = styled.button`
 `;
 
 function ProviderIcon({ provider }) {
-  if (provider === 'naver') return <SiNaver size={13} aria-hidden="true" />;
-  if (provider === 'kakao') return <SiKakaotalk size={15} aria-hidden="true" />;
-  return <FcGoogle size={15} aria-hidden="true" />;
+  if (provider === 'naver') {
+    return <SiNaver size={16} aria-hidden="true" />;
+  }
+
+  if (provider === 'kakao') {
+    return <SiKakaotalk size={18} aria-hidden="true" />;
+  }
+
+  return null;
 }
 
 function LoginForm() {
@@ -128,12 +160,13 @@ function LoginForm() {
   const clearToken = useAuthStore((state) => state.clearToken);
 
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  // AI작성: 로그인 입력값과 처리 상태, 소셜 로그인 팝업 참조를 관리한다.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const popupRef = useRef(null);
-const popupTimerRef = useRef(null);
+  const popupTimerRef = useRef(null);
 
 // AI작성: 우리가 연 카카오 인증 창의 메시지만 처리한다.
 useEffect(() => {
@@ -193,7 +226,7 @@ useEffect(() => {
     ) {
       sessionStorage.removeItem('moa-social-signup');
       setToken(result.token);
-      navigate('/member/mypage', { replace: true });
+      navigate('/', { replace: true });
       return;
     }
 
@@ -208,15 +241,12 @@ useEffect(() => {
   };
 }, [navigate, setToken, clearToken]);
 
-  // 로그인 성공 시 JWT를 저장하고 마이페이지로 이동
+// 로그인 성공 시 JWT를 저장하고 메인페이지로 이동
   const handleSubmit = async (event) => {
     event.preventDefault();
-
     if (isSubmitting) return;
-
     setIsSubmitting(true);
     setErrorMessage('');
-
     try {
       const token = await loginMember(email.trim(), password);
 
@@ -226,7 +256,7 @@ useEffect(() => {
 
       setToken(token);
       setPassword('');
-      navigate('/member/mypage', { replace: true });
+      navigate('/', { replace: true });
     } catch (error) {
       setErrorMessage(
         error.response?.data?.error?.message ??
@@ -318,13 +348,21 @@ const handleSocialLogin = (providerId) => {
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
         />
-
         {errorMessage && <p role="alert">{errorMessage}</p>}
-
         <LoginButton type="submit" disabled={isSubmitting}>
           {isSubmitting ? '로그인 중…' : '로그인'}
         </LoginButton>
       </Form>
+
+      <RecoveryActions>
+        <RecoveryLink to="/member/find-account">
+          아이디 찾기
+        </RecoveryLink>
+
+        <RecoveryLink to="/member/reset-password">
+          비밀번호 재설정
+        </RecoveryLink>
+      </RecoveryActions>
 
       <SignupPrompt>아직 회원이 아니신가요?</SignupPrompt>
       <SignupButton as={Link} to="/member/join" $variant="secondary">

@@ -14,6 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
+import com.nightstudy.moa.member.service.AuthSessionService;
 
 @Configuration
 public class SecurityConfig {
@@ -21,15 +22,18 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final SecurityErrorResponseWriter errorResponseWriter;
     private final RevokedTokenMapper revokedTokenMapper;
+    private final AuthSessionService authSessionService;
 
     public SecurityConfig(
             JwtTokenProvider jwtTokenProvider,
             SecurityErrorResponseWriter errorResponseWriter,
-            RevokedTokenMapper revokedTokenMapper
+            RevokedTokenMapper revokedTokenMapper,
+            AuthSessionService authSessionService
     ) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.errorResponseWriter = errorResponseWriter;
         this.revokedTokenMapper = revokedTokenMapper;
+        this.authSessionService = authSessionService;
     }
 
     @Bean
@@ -37,11 +41,13 @@ public class SecurityConfig {
             HttpSecurity http
     ) throws Exception {
 
+        // AI작성: 회원 상태와 로그인 세션을 함께 검증하는 JWT 필터를 등록한다.
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter(
+                new JwtAuthenticationFilter (
                         jwtTokenProvider,
                         errorResponseWriter,
-                        revokedTokenMapper
+                        revokedTokenMapper,
+                        authSessionService
                 );
 
         http
@@ -78,10 +84,15 @@ public class SecurityConfig {
                                 "/api/auth/signup",
                                 "/api/auth/social/signup",
                                 "/api/auth/login",
+                                "/api/auth/password/reset",
                                 "/api/auth/check-email",
                                 "/api/auth/check-nickname",
                                 "/api/auth/email-verifications",
-                                "/api/auth/email-verifications/verify"
+                                "/api/auth/email-verifications/verify",
+                                "/api/auth/refresh",
+                                "/api/auth/logout",
+                                "/api/auth/email-verifications/verify",
+                                "/api/auth/email-verifications/find-account"
                         ).permitAll()
 
                         // AI작성: 소셜 인증 시작·콜백·결과 조회는 비로그인 상태에서 허용한다.

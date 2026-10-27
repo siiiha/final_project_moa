@@ -184,6 +184,7 @@ const ReplyForm = styled(CommentEditForm)`
 
 function PostDetail({
   post,
+  memberId,
   comments,
   commentTotal,
   hasMoreComments,
@@ -220,14 +221,14 @@ function PostDetail({
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>
         <PostContent>{post.content}</PostContent>
-        <PostActions>
+        {Number(post.writerId) === Number(memberId) && <PostActions>
           <Button type="button" $size="small" onClick={onEdit}>
             수정
           </Button>
           <Button type="button" $variant="danger" $size="small" onClick={onDelete}>
             삭제
           </Button>
-        </PostActions>
+        </PostActions>}
       </ArticleCard>
       <ListActions>
         <Button type="button" $variant="secondary" $size="small" onClick={onBack}>
@@ -249,12 +250,10 @@ function PostDetail({
                     <TextAction type="button" onClick={() => onReplyStart(comment.id)}>
                       답글
                     </TextAction>
-                    <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
-                      수정
-                    </TextAction>
-                    <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>
-                      삭제
-                    </TextAction>
+                    {Number(comment.memberId) === Number(memberId) && <>
+                      <TextAction type="button" onClick={() => onCommentEditStart(comment)}>수정</TextAction>
+                      <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>삭제</TextAction>
+                    </>}
                   </ReplyActions>
                 )}
               </CommentHeader>
@@ -315,12 +314,10 @@ function PostDetail({
                     {!reply.deleted && (
                       <ReplyActions>
                         {/* AI작성: 대댓글은 한 단계만 허용하므로 수정과 삭제 기능만 제공합니다. */}
-                        <TextAction type="button" onClick={() => onCommentEditStart(reply)}>
-                          수정
-                        </TextAction>
-                        <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>
-                          삭제
-                        </TextAction>
+                        {Number(reply.memberId) === Number(memberId) && <>
+                          <TextAction type="button" onClick={() => onCommentEditStart(reply)}>수정</TextAction>
+                          <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>삭제</TextAction>
+                        </>}
                       </ReplyActions>
                     )}
                   </CommentHeader>

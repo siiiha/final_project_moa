@@ -11,7 +11,8 @@ public interface EmailVerificationMapper {
     int insertVerification(EmailVerificationDto verification);
 
     EmailVerificationDto findLatestByEmail(
-            @Param("email") String email
+            @Param("email") String email,
+            @Param("purpose") String purpose
     );
 
     EmailVerificationDto findById(
@@ -36,6 +37,7 @@ public interface EmailVerificationMapper {
     // 이메일에 맞는 유효한 토큰을 한 번만 사용 처리
     int consumeVerificationToken(
             @Param("email") String email,
-            @Param("tokenHash") String tokenHash
+            @Param("tokenHash") String tokenHash,
+            @Param("purpose") String purpose
     );
 }
