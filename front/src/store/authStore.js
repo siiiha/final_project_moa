@@ -1,22 +1,17 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from 
-"zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-// 로그인 JWT를 화면 간 공유하고 현재 탭에 보관
+// AI작성: JWT와 로그인 회원 번호만 브라우저 저장소에 유지해 API 인증과 화면 권한 표시에 사용한다.
 const useAuthStore = create(
-persist(
-(set) => ({
-    token: null,
-    setToken: (token) => set({ token }),
-
-    clearToken: () => set({ token: null }),
-}),
-{
-    name: 'moa-auth',
-    storage: createJSONStorage(() => sessionStorage),
-    partialize: (state) => ({ token: state.token }),
-        },
-    ),
+  persist(
+    (set) => ({
+      token: null,
+      memberId: null,
+      setAuth: (token, memberId) => set({ token, memberId }),
+      clearAuth: () => set({ token: null, memberId: null }),
+    }),
+    { name: 'moa-auth' }
+  )
 );
 
 export default useAuthStore;

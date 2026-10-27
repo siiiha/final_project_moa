@@ -6,6 +6,11 @@
     namespace : 해당 XML파일을 어떤 Mapper 인터페이스와 연결할지를 정해주는 속성.
 -->
 <mapper namespace="com.nightstudy.moa.post.mapper.PostMapper">
+    <select id="selectPostCategories" resultType="PostCategoryDto">
+        SELECT category_id, category_name
+        FROM post_category
+        ORDER BY category_id ASC
+    </select>
     <sql id="searchWhere">
         <!--
             <where> : 내부의 <if>들 중 하나라도 참이면 자동으로 WHERE키워드를 붙여주고,
@@ -14,7 +19,8 @@
         <where>
             p.deleted_at IS NULL
             <!--<when>의 test는 조건이 참(true)인지 거짓(false)인지 검사하는 속성-->
-            <if test="categoryId != null and categoryId != '' and categoryId != '전체'">
+            <!-- AI작성: 전체보기는 categoryId를 보내지 않으므로 null 여부만 확인한다. -->
+            <if test="categoryId != null">
                 AND p.category_id = #{categoryId}
             </if>
 
@@ -52,7 +58,7 @@
         p.content, p.view_count, p.created_at, p.updated_at,
         DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
         m.nickname AS writer_nickname,
-        pc.category_name AS category_name
+        pc.category_name
         FROM post p
         LEFT JOIN members m ON p.writer_id = m.member_id
         <!-- AI작성: 화면 표시용 카테고리 이름을 별도 카테고리 테이블에서 조회한다. -->
@@ -75,7 +81,7 @@
         p.content, p.view_count, p.created_at, p.updated_at,
         DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
         DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str,
-        pc.category_name AS category_name
+        pc.category_name
         FROM post p
         JOIN members m
         ON p.writer_id = m.member_id

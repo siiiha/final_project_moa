@@ -152,7 +152,7 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public CommentDto updateComment(Long postId, Long commentId, CommentEditRequest request) {
+    public CommentDto updateComment(Long postId, Long commentId, Long loginMemberId, CommentEditRequest request) {
         // AI작성: 삭제된 게시글의 댓글은 수정할 수 없도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
 
@@ -166,6 +166,10 @@ public class CommentServiceImpl implements CommentService {
                     "COMMENT_NOT_FOUND",
                     "댓글을 찾을 수 없습니다."
             );
+        }
+        // AI작성: JWT의 로그인 회원과 댓글 작성자가 다르면 수정할 수 없다.
+        if (!Objects.equals(comment.getMemberId(), loginMemberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "COMMENT_UPDATE_FORBIDDEN", "댓글 수정 권한이 없습니다.");
         }
 
         if (comment.getContent().equals(request.getContent())) {
@@ -185,9 +189,18 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public void deleteComment (Long postId, Long commentId) {
+    public void deleteComment (Long postId, Long commentId, Long loginMemberId) {
         // AI작성: 삭제된 게시글의 댓글은 삭제 요청을 처리하지 않도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
+
+        CommentDto comment = commentMapper.selectCommentById(commentId);
+        if (comment == null || !Objects.equals(comment.getPostId(), postId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다.");
+        }
+        // AI작성: JWT의 로그인 회원과 댓글 작성자가 다르면 삭제할 수 없다.
+        if (!Objects.equals(comment.getMemberId(), loginMemberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "COMMENT_DELETE_FORBIDDEN", "댓글 삭제 권한이 없습니다.");
+        }
 
         int deleteRows = commentMapper.deleteComment(postId, commentId);
 

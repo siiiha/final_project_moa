@@ -9,6 +9,19 @@ const client = axios.create({
   timeout: 10000,
 });
 
+
+// AI작성: 만료·무효 토큰은 즉시 제거해 이후 요청에 재사용하지 않는다.
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
+      useAuthStore.getState().clearAuth();
+      if (window.location.pathname !== '/member/login') window.location.assign('/member/login');
+    }
+    return Promise.reject(error);
+  }
+);
+
 // AI작성: 로그인한 사용자의 JWT를 인증이 필요한 API 요청 헤더에 자동으로 포함한다.
 client.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;

@@ -6,6 +6,11 @@ export async function getPosts(params) {
   return response.data;
 }
 
+export async function getPostCategories() {
+  const response = await client.get('/community/categories');
+  return response.data;
+}
+
 // AI작성: 게시글 ID로 Spring Boot 상세 조회 API를 호출합니다.
 export async function getPostDetail(postId) {
   const response = await client.get(`/community/detail/${postId}`);

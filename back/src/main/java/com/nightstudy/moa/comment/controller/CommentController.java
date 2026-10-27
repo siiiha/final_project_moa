@@ -1,6 +1,7 @@
 package com.nightstudy.moa.comment.controller;
 
 import com.nightstudy.moa.comment.dto.CommentDto;
+import com.nightstudy.moa.comment.dto.CommentCreateRequest;
 import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,11 +34,11 @@ public class CommentController {
     @PostMapping("/post/{postId}/comments")
     public ResponseEntity<ApiResponse<CommentDto>> insertComment(
             @PathVariable Long postId,
-            @Valid @RequestBody CommentDto commentDto) {
-        // TODO AI작성: Spring Security 적용 후 수정 - 요청의 memberId 대신 로그인 회원 ID를 사용해야 함
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestBody CommentCreateRequest request) {
         CommentDto insertedComment = commentService.insertComment(postId,
-                commentDto.getMemberId(),
-                commentDto.getContent());
+                loginMemberId,
+                request.getContent());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -48,13 +50,13 @@ public class CommentController {
     public ResponseEntity<ApiResponse<CommentDto>> insertReply(
             @PathVariable Long postId,
             @PathVariable Long parentCommentId,
-            @Valid @RequestBody CommentDto commentDto) {
-        // TODO AI작성: Spring Security 적용 후 요청의 memberId 대신 로그인 회원 ID를 사용해야 합니다.
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestBody CommentCreateRequest request) {
         CommentDto insertedReply = commentService.insertReply(
                 postId,
                 parentCommentId,
-                commentDto.getMemberId(),
-                commentDto.getContent());
+                loginMemberId,
+                request.getContent());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -77,10 +79,10 @@ public class CommentController {
     public ApiResponse<CommentDto> updateComment(
             @PathVariable Long postId,
             @PathVariable Long commentId,
+            @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody CommentEditRequest request) {
-        // 인증 구현 후 로그인 회원이 댓글 작성자인지 확인 필요
         CommentDto updateComment = commentService.updateComment(postId,
-                commentId, request);
+                commentId, loginMemberId, request);
 
         return  ApiResponse.ok(updateComment);
         }
@@ -88,10 +90,10 @@ public class CommentController {
         @DeleteMapping("/post/{postId}/comments/{commentId}")
         public ApiResponse<Void> deleteComment(
             @PathVariable Long postId,
-            @PathVariable Long commentId) {
+            @PathVariable Long commentId,
+            @RequestAttribute("memberId") Long loginMemberId) {
 
-         // 인증 구현 전에는 임시 회원 ID를 사용하지 않고 댓글 번호로만 삭제
-        commentService.deleteComment(postId, commentId);
+        commentService.deleteComment(postId, commentId, loginMemberId);
 
         return ApiResponse.ok(null);
         }

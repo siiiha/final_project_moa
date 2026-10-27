@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { FiBell } from 'react-icons/fi';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
-import { logoutMember } from '../../api/member';
+import { logout } from '../../api/authApi';
 import useAuthStore from '../../store/authStore';
 
 const Shell = styled.header`
@@ -148,45 +148,23 @@ const LogoutButton = styled.button`
 
 function Header() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
-
-  const token = useAuthStore((state) => state.token);
-  const clearToken = useAuthStore((state) => state.clearToken);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
+  // AI작성: 로그아웃 요청 중에는 중복 요청을 막고 처리 상태를 화면에 표시한다.
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const isLoggedIn = Boolean(token);
-
-  // 서버 로그아웃 성공 후 브라우저의 JWT를 제거
   const handleLogout = async () => {
-    if (!token || isLoggingOut) return;
+    if (isLoggingOut) return;
 
     setIsLoggingOut(true);
-
     try {
-      const result = await logoutMember(token);
-
-      if (!result.success) {
-        throw new Error('로그아웃에 실패했습니다.');
-      }
-
-      clearToken();
-      navigate('/member/login', { replace: true });
-    } catch (error) {
-      // 만료되거나 이미 무효인 JWT도 브라우저에서 제거
-      if (error.response?.status === 401) {
-        clearToken();
-        navigate('/member/login', { replace: true });
-        return;
-      }
-
-      window.alert(
-        error.response?.data?.error?.message ??
-          '로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.',
-      );
+      await logout();
     } finally {
-      setIsLoggingOut(false);
+      // AI작성: 네트워크 실패에도 브라우저의 로그인 정보는 반드시 제거한다.
+      clearAuth();
+      window.location.assign('/');
     }
   };
+  const isLoggedIn = Boolean(useAuthStore((state) => state.token));
 
   return (
     <Shell>

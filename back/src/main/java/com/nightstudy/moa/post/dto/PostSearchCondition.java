@@ -6,7 +6,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class PostSearchCondition {
-    private String categoryId;
+    // AI작성: DB 카테고리 기본 키 타입과 맞춰 숫자로 받는다.
+    private Long categoryId;
 
     private String keyword;
     private String searchType;
