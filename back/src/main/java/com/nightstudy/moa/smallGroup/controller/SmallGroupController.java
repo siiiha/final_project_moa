@@ -4,6 +4,7 @@ import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 // AI작성: 기존 소모임 생성 경로에 목록 조회를 추가하고 생성 기능은 유지한다.
@@ -38,8 +40,9 @@ public class SmallGroupController {
 
     // AI작성: 로그인 정보나 클라이언트 전달 회원 식별자 없이 공개 목록만 반환한다.
     @GetMapping
-    public ApiResponse<List<SmallGroupSummaryResponse>> list() {
-        return ApiResponse.ok(smallGroupService.getSmallGroupList());
+    public ApiResponse<List<SmallGroupSummaryResponse>> list(
+            @Valid @ModelAttribute SmallGroupSearchCondition condition) {
+        return ApiResponse.ok(smallGroupService.getSmallGroupList(condition));
     }
 
     @PostMapping

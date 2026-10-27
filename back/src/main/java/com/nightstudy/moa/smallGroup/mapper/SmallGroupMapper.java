@@ -2,6 +2,7 @@ package com.nightstudy.moa.smallGroup.mapper;
 
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import java.util.List;
@@ -27,7 +28,7 @@ public interface SmallGroupMapper {
 
     int insertOwnerMembership(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 
-    List<SmallGroupRow> selectSmallGroupList();
+    List<SmallGroupRow> selectSmallGroupList(SmallGroupListCondition condition);
 
     List<SmallGroupMemberCount> selectApprovedMemberCounts(@Param("groupIds") List<Long> groupIds);
 }

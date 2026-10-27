@@ -89,6 +89,20 @@
         )
     </insert>
 
+    <sql id="smallGroupListWhere">
+        WHERE g.deleted_at IS NULL
+        <if test="keywordPattern != null">
+            AND (g.group_name LIKE #{keywordPattern} ESCAPE '!'
+            OR g.description LIKE #{keywordPattern} ESCAPE '!')
+        </if>
+        <if test="regionName != null">
+            AND r.region_name = #{regionName}
+        </if>
+        <if test="likeCategory != null">
+            AND sg.like_category = #{likeCategory}
+        </if>
+    </sql>
+
     <!-- AI작성: 소모임은 생성 즉시 공개하므로 삭제되지 않은 공통 모임 행만 목록에 포함한다. -->
     <select id="selectSmallGroupList" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupRow">
         SELECT sg.small_group_id,
@@ -103,7 +117,7 @@
         FROM small_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         JOIN region r ON r.region_id = g.region_id
-        WHERE g.deleted_at IS NULL
+        <include refid="smallGroupListWhere"/>
         ORDER BY g.created_at DESC, sg.small_group_id DESC
     </select>
 
