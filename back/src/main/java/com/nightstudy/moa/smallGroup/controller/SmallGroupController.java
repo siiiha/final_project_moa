@@ -5,6 +5,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
@@ -42,7 +43,8 @@ public class SmallGroupController {
     @GetMapping
     public ApiResponse<List<SmallGroupSummaryResponse>> list(
             @Valid @ModelAttribute SmallGroupSearchCondition condition) {
-        return ApiResponse.ok(smallGroupService.getSmallGroupList(condition));
+        SmallGroupListResponse result = smallGroupService.getSmallGroupList(condition);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
 
     @PostMapping

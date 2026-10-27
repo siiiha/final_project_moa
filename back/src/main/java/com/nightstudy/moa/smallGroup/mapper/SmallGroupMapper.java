@@ -28,6 +28,8 @@ public interface SmallGroupMapper {
 
     int insertOwnerMembership(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 
+    int selectSmallGroupCount(SmallGroupListCondition condition);
+
     List<SmallGroupRow> selectSmallGroupList(SmallGroupListCondition condition);
 
     List<SmallGroupMemberCount> selectApprovedMemberCounts(@Param("groupIds") List<Long> groupIds);
