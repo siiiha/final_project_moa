@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupApplicationFilterBar from '../components/admin/SavingGroupApplicationFilterBar';
 import SavingGroupApplicationTable from '../components/admin/SavingGroupApplicationTable';
 import AdminSidebar from '../components/layout/AdminSidebar';
 import { adminMenuItems } from '../mocks/admin';
-import { adminSavingGroupApplications } from '../mocks/adminSavingGroupApplications';
-
-const PAGE_SIZE = 8;
+import { getSavingGroupCreationApplications } from '../api/savingGroups';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -50,25 +48,37 @@ const Grid = styled.div`
 function AdminSavingGroupApplicationsPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('전체');
-  const [reviewType, setReviewType] = useState('전체');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [result, setResult] = useState({ items: [], meta: null, requestKey: null, error: '' });
+  const [retry, setRetry] = useState(0);
+  const requestKey = JSON.stringify([status, submittedQuery, currentPage, retry]);
+  const loading = result.requestKey !== requestKey;
 
-  const filteredApplications = useMemo(() => {
-    const normalizedQuery = submittedQuery.trim().toLowerCase();
-
-    return adminSavingGroupApplications.filter((application) => {
-      const matchesStatus = status === '전체' || application.status === status;
-      const matchesReviewType = reviewType === '전체' || application.reviewType === reviewType;
-      const matchesQuery = !normalizedQuery || application.name.toLowerCase().includes(normalizedQuery);
-
-      return matchesStatus && matchesReviewType && matchesQuery;
-    });
-  }, [reviewType, status, submittedQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredApplications.length / PAGE_SIZE));
-  const pageApplications = filteredApplications.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // AI작성: 필터·페이지별 요청을 취소해 늦게 도착한 이전 응답이 화면을 덮어쓰지 않게 한다.
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    getSavingGroupCreationApplications({
+      status: { 전체: undefined, 대기: 'PENDING', 승인: 'APPROVED', 반려: 'REJECTED' }[status],
+      keyword: submittedQuery,
+      page: currentPage,
+      signal: controller.signal,
+    })
+      .then((data) => {
+        if (active) setResult({ ...data, requestKey, error: '' });
+      })
+      .catch((failure) => {
+        if (active && failure.code !== 'ERR_CANCELED') {
+          setResult({ items: [], meta: null, requestKey, error: failure.message });
+        }
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [status, submittedQuery, currentPage, retry, requestKey]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -119,35 +129,41 @@ function AdminSavingGroupApplicationsPage() {
     <Page>
       <Heading>
         <h1>계모임 심사 목록</h1>
-        <p>계모임 개설·삭제 신청 내역을 확인하고 심사 상태를 관리하세요.</p>
+        <p>계모임 개설 신청 내역을 확인하고 심사 상태를 관리하세요.</p>
       </Heading>
       <Grid>
         <AdminSidebar items={adminMenuItems} activeItem="gathering-review" onSelect={handleMenuSelect} />
         <main>
-          <SavingGroupApplicationTable
-            applications={pageApplications}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            onReview={handleReview}
-            filter={
-              <SavingGroupApplicationFilterBar
-                status={status}
-                reviewType={reviewType}
-                query={query}
-                onStatusChange={(value) => {
-                  setStatus(value);
-                  setCurrentPage(1);
-                }}
-                onReviewTypeChange={(value) => {
-                  setReviewType(value);
-                  setCurrentPage(1);
-                }}
-                onQueryChange={setQuery}
-                onSearch={handleSearch}
-              />
-            }
-          />
+          {loading ? (
+            <p role="status">심사 목록을 불러오는 중입니다.</p>
+          ) : result.error ? (
+            <div role="alert">
+              <p>{result.error}</p>
+              <button type="button" onClick={() => setRetry((value) => value + 1)}>
+                다시 시도
+              </button>
+            </div>
+          ) : (
+            <SavingGroupApplicationTable
+              applications={result.items}
+              currentPage={currentPage}
+              totalPages={result.meta?.totalPages || 0}
+              onPageChange={setCurrentPage}
+              onReview={handleReview}
+              filter={
+                <SavingGroupApplicationFilterBar
+                  status={status}
+                  query={query}
+                  onStatusChange={(value) => {
+                    setStatus(value);
+                    setCurrentPage(1);
+                  }}
+                  onQueryChange={setQuery}
+                  onSearch={handleSearch}
+                />
+              }
+            />
+          )}
         </main>
       </Grid>
     </Page>

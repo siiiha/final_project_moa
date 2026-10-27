@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FcGoogle } from 'react-icons/fc';
 import { SiKakaotalk, SiNaver } from 'react-icons/si';
 import { Link, useNavigate } from 'react-router-dom';
@@ -125,12 +125,88 @@ function ProviderIcon({ provider }) {
 function LoginForm() {
   const navigate = useNavigate();
   const setToken = useAuthStore((state) => state.setToken);
+  const clearToken = useAuthStore((state) => state.clearToken);
 
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const popupRef = useRef(null);
+const popupTimerRef = useRef(null);
+
+// AI작성: 우리가 연 카카오 인증 창의 메시지만 처리한다.
+useEffect(() => {
+  const closePopup = () => {
+    window.clearInterval(popupTimerRef.current);
+    popupTimerRef.current = null;
+
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.close();
+    }
+
+    popupRef.current = null;
+  };
+
+  const handlePopupMessage = (event) => {
+    if (
+      event.origin !== window.location.origin ||
+      !popupRef.current ||
+      event.source !== popupRef.current ||
+      event.data?.type !== 'MOA_SOCIAL_RESULT'
+    ) {
+      return;
+    }
+
+    closePopup();
+    setIsSubmitting(false);
+
+    if (typeof event.data.error === 'string') {
+      setErrorMessage(event.data.error);
+      return;
+    }
+
+    const result = event.data.result;
+
+    if (
+      result?.signupRequired === true &&
+      typeof result.signupToken === 'string' &&
+      /^[A-Za-z0-9_-]{43}$/.test(result.signupToken)
+    ) {
+      clearToken();
+      sessionStorage.setItem(
+        'moa-social-signup',
+        JSON.stringify({
+          signupToken: result.signupToken,
+          expiresAt: Date.now() + 10 * 60 * 1000,
+        }),
+      );
+
+      navigate('/member/join?social=1', { replace: true });
+      return;
+    }
+
+    if (
+      result?.signupRequired === false &&
+      typeof result.token === 'string' &&
+      result.token.trim()
+    ) {
+      sessionStorage.removeItem('moa-social-signup');
+      setToken(result.token);
+      navigate('/member/mypage', { replace: true });
+      return;
+    }
+
+    setErrorMessage('카카오 로그인 결과를 확인할 수 없습니다.');
+  };
+
+  window.addEventListener('message', handlePopupMessage);
+
+  return () => {
+    window.removeEventListener('message', handlePopupMessage);
+    closePopup();
+  };
+}, [navigate, setToken, clearToken]);
 
   // 로그인 성공 시 JWT를 저장하고 마이페이지로 이동
   const handleSubmit = async (event) => {
@@ -161,10 +237,55 @@ function LoginForm() {
     }
   };
 
-  const handleSocialLogin = () => {
-    // 소셜 로그인 연동 후 구현
-  };
+  // AI작성: 원래 모아 화면을 유지하면서 카카오 인증 창을 연다.
+const handleSocialLogin = (providerId) => {
+  if (isSubmitting || popupRef.current) return;
 
+  if (!['kakao', 'naver'].includes(providerId)) {
+    setErrorMessage('해당 소셜 로그인은 준비 중입니다.');
+    return;
+  }
+
+  setErrorMessage('');
+
+  const width = 480;
+  const height = 720;
+  const left = Math.max(
+    0,
+    window.screenX + (window.outerWidth - width) / 2,
+  );
+  const top = Math.max(
+    0,
+    window.screenY + (window.outerHeight - height) / 2,
+  );
+
+  const popup = window.open(
+  `/api/auth/${providerId}/login`,
+  `moa-${providerId}-${crypto.randomUUID()}`,
+    `popup=yes,width=${width},height=${height},left=${left},top=${top}`,
+  );
+
+  if (!popup) {
+    setErrorMessage('팝업이 차단됐습니다. 팝업을 허용한 뒤 다시 눌러주세요.');
+    return;
+  }
+
+  popupRef.current = popup;
+  setIsSubmitting(true);
+
+  // AI작성: 사용자가 인증 창을 직접 닫으면 다시 시도할 수 있게 한다.
+  popupTimerRef.current = window.setInterval(() => {
+    if (!popup.closed) return;
+
+    window.clearInterval(popupTimerRef.current);
+    popupTimerRef.current = null;
+    popupRef.current = null;
+    setIsSubmitting(false);
+    setErrorMessage('소셜 로그인 창이 닫혔습니다. 다시 시도해주세요.');
+  }, 500);
+};
+
+  // AI작성: 로그인 입력과 소셜 로그인 버튼을 표시한다.
   return (
     <Card aria-labelledby="login-title">
       <Heading>
@@ -217,7 +338,8 @@ function LoginForm() {
             key={provider.id}
             type="button"
             $provider={provider.id}
-            onClick={handleSocialLogin}
+            onClick={() => handleSocialLogin(provider.id)}
+            disabled={isSubmitting}
             aria-label={provider.label}
           >
             <ProviderIcon provider={provider.icon} />

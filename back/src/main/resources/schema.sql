@@ -93,6 +93,30 @@ CREATE TABLE IF NOT EXISTS `members` (
 	PRIMARY KEY (`member_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS member_social_account (
+                                                     social_account_id BIGINT NOT NULL AUTO_INCREMENT,
+                                                     member_id BIGINT NOT NULL,
+                                                     provider VARCHAR(20)
+    CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    provider_user_id VARCHAR(255)
+    CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (social_account_id),
+
+    UNIQUE KEY uq_member_social_account_provider_user
+(provider, provider_user_id),
+
+    CONSTRAINT chk_member_social_account_provider
+    CHECK (provider IN ('KAKAO', 'NAVER', 'GOOGLE')),
+
+    CONSTRAINT fk_member_social_account_member
+    FOREIGN KEY (member_id)
+    REFERENCES members (member_id)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `meeting_approval` (
 	`approval_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`group_id`	BIGINT	NOT NULL,
@@ -423,7 +447,7 @@ REFERENCES `members` (
 );
 
 ALTER TABLE `group_account` 
-ADD CONSTRAINT `FK_meeting_TO_group_account_1` 
+ADD CONSTRAINT `FK_groups_TO_group_account_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);
 
@@ -476,7 +500,7 @@ REFERENCES `groups` (
 	`group_id`
 );
 
-ALTER TABLE `group_notice` ADD CONSTRAINT `FK_meeting_TO_group_notice_1` FOREIGN KEY (
+ALTER TABLE `group_notice` ADD CONSTRAINT `FK_groups_TO_group_notice_1` FOREIGN KEY (
 	`group_id`
 )
 REFERENCES `groups` (
@@ -557,7 +581,7 @@ REFERENCES `members` (
 	`member_id`
 );
 
-ALTER TABLE `meeting_round` ADD CONSTRAINT `FK_meeting_TO_meeting_round_1` FOREIGN KEY (
+ALTER TABLE `meeting_round` ADD CONSTRAINT `FK_groups_TO_meeting_round_1` FOREIGN KEY (
 	`group_id`
 )
 REFERENCES `groups` (

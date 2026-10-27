@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper">
+
+    <!-- AI작성: 관리자는 공개 여부와 관계없이 삭제되지 않은 모든 상태의 계모임을 조회한다. -->
+    <sql id="adminSavingGroupFromWhere">
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN region r ON r.region_id = g.region_id
+        <where>
+            g.deleted_at IS NULL
+            <if test="keyword != null">
+                AND (g.group_name LIKE CONCAT('%', #{keyword}, '%')
+                    OR g.description LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="regionName != null">
+                AND r.region_name = #{regionName}
+            </if>
+            <if test="status != null">
+                AND sg.status = #{status}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectSavingGroupCount" resultType="int">
+        SELECT COUNT(*)
+        <include refid="adminSavingGroupFromWhere"/>
+    </select>
+
+    <select id="selectSavingGroupList"
+            resultType="com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse">
+        SELECT
+            sg.saving_group_id,
+            g.group_id,
+            g.group_name,
+            g.description,
+            r.region_name,
+            g.max_members,
+            (SELECT COUNT(DISTINCT gm.member_id)
+               FROM group_member gm
+              WHERE gm.group_id = g.group_id
+                AND gm.membership_status = 'APPROVED') AS member_count,
+            sg.dues_amount,
+            sg.dues_day,
+            sg.status,
+            g.created_at
+        <include refid="adminSavingGroupFromWhere"/>
+        ORDER BY g.created_at DESC, sg.saving_group_id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectSavingGroupDetail"
+            resultType="com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse">
+        SELECT
+            sg.saving_group_id,
+            g.group_id,
+            g.group_name,
+            g.description,
+            r.region_name,
+            sg.saving_group_type,
+            g.max_members,
+            (SELECT COUNT(DISTINCT gm.member_id)
+               FROM group_member gm
+              WHERE gm.group_id = g.group_id
+                AND gm.membership_status = 'APPROVED') AS member_count,
+            sg.dues_amount,
+            sg.dues_day,
+            sg.start_date,
+            sg.end_date,
+            sg.status,
+            sg.group_image,
+            g.member_id AS owner_member_id,
+            m.nickname AS owner_nickname,
+            g.created_at
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN region r ON r.region_id = g.region_id
+        LEFT JOIN members m ON m.member_id = g.member_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+          AND g.deleted_at IS NULL
+    </select>
+
+</mapper>
