@@ -38,23 +38,17 @@ const Content = styled.main`
   margin: 18px auto 0;
 `;
 
-const Notice = styled.p`
+const ErrorNotice = styled.p`
   margin-top: 14px;
   padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.primarySoft};
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 12px;
 `;
 
-const ErrorNotice = styled(Notice)`
-  color: ${({ theme }) => theme.colors.danger};
-  background: ${({ theme }) => theme.colors.dangerSoft};
-`;
-
 function SmallGroupCreatePage() {
   const navigate = useNavigate();
-  const [createdName, setCreatedName] = useState('');
   const [submissionError, setSubmissionError] = useState('');
   const [regions, setRegions] = useState([]);
   const [isRegionLoading, setIsRegionLoading] = useState(true);
@@ -87,11 +81,10 @@ function SmallGroupCreatePage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    setCreatedName('');
     setSubmissionError('');
 
     try {
-      const created = await createSmallGroup({
+      await createSmallGroup({
         groupName: formData.get('name'),
         regionName: formData.get('region'),
         likeCategory: formData.get('interest'),
@@ -100,7 +93,8 @@ function SmallGroupCreatePage() {
         meetDate: formData.get('meetingDate'),
         location: formData.get('place'),
       });
-      setCreatedName(created.groupName);
+      // AI작성: 저장이 완료된 뒤 목록 화면으로 이동해 중복 생성 페이지에 머무르지 않게 한다.
+      navigate('/small-groups');
     } catch (error) {
       setSubmissionError(error.message || '소모임 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     }
@@ -123,7 +117,6 @@ function SmallGroupCreatePage() {
           onCancel={() => navigate('/small-groups')}
         />
         {regionLoadError && <ErrorNotice role="alert">{regionLoadError}</ErrorNotice>}
-        {createdName && <Notice role="status">{createdName} 소모임을 만들었습니다.</Notice>}
         {submissionError && <ErrorNotice role="alert">{submissionError}</ErrorNotice>}
       </Content>
     </Page>
