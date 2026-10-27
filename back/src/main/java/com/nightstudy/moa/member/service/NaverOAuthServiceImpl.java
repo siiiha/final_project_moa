@@ -33,6 +33,8 @@ public class NaverOAuthServiceImpl implements NaverOAuthService {
                 .queryParam("client_id", properties.getClientId())
                 .queryParam("redirect_uri", properties.getRedirectUri())
                 .queryParam("state", state)
+                // AI작성: 네이버에 로그인돼 있어도 사용자 인증을 다시 요청한다.
+                .queryParam("auth_type", "reauthenticate")
                 .build()
                 .encode()
                 .toUri();
