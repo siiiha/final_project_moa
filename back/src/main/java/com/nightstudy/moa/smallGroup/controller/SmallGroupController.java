@@ -3,6 +3,7 @@ package com.nightstudy.moa.smallGroup.controller;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
@@ -37,6 +38,12 @@ public class SmallGroupController {
     @GetMapping("/regions")
     public ApiResponse<List<SmallGroupRegionResponse>> getSmallGroupRegions() {
         return ApiResponse.ok(smallGroupCreationService.getSmallGroupRegions());
+    }
+
+    // AI작성: 공개 목록의 관심사 필터는 DB 기준 데이터에서 조회한다.
+    @GetMapping("/categories")
+    public ApiResponse<List<SmallGroupCategoryResponse>> getSmallGroupCategories() {
+        return ApiResponse.ok(smallGroupCreationService.getSmallGroupCategories());
     }
 
     // AI작성: 로그인 정보나 클라이언트 전달 회원 식별자 없이 공개 목록만 반환한다.

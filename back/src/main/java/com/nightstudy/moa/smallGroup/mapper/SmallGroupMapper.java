@@ -1,6 +1,7 @@
 package com.nightstudy.moa.smallGroup.mapper;
 
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
@@ -13,6 +14,8 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SmallGroupMapper {
     List<SmallGroupRegionResponse> selectSmallGroupRegions();
+
+    List<SmallGroupCategoryResponse> selectSmallGroupCategories();
 
     Long selectRegionIdByName(@Param("regionName") String regionName);
 

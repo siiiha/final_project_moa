@@ -10,6 +10,14 @@
         ORDER BY region_id ASC
     </select>
 
+    <!-- AI작성: 소모임 카테고리는 interest 기준 데이터의 등록 순서로 반환한다. -->
+    <select id="selectSmallGroupCategories"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse">
+        SELECT interest_id, interest_name
+        FROM interest
+        ORDER BY interest_id ASC
+    </select>
+
     <select id="selectRegionIdByName" resultType="long">
         SELECT region_id
         FROM region

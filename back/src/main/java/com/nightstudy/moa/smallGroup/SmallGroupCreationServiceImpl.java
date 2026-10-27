@@ -3,6 +3,7 @@ package com.nightstudy.moa.smallGroup;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.util.List;
@@ -26,6 +27,14 @@ public class SmallGroupCreationServiceImpl implements SmallGroupCreationService 
     public List<SmallGroupRegionResponse> getSmallGroupRegions() {
         // AI작성: 화면의 선택지와 저장 기준을 일치시키기 위해 DB의 지역 기준 데이터만 반환한다.
         return smallGroupMapper.selectSmallGroupRegions();
+    }
+
+    // AI작성: 목록 필터와 생성 화면이 같은 interest 기준 데이터를 사용하도록 조회한다.
+    @Override
+    @Transactional(readOnly = true)
+    public List<SmallGroupCategoryResponse> getSmallGroupCategories() {
+        // TODO: 운영 DB 연결 설정이 제공되면 기존 small_group.like_category 값과 interest 기준 데이터의 불일치를 점검한다.
+        return smallGroupMapper.selectSmallGroupCategories();
     }
 
     @Override
