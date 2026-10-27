@@ -122,6 +122,55 @@ function PostDetailPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
+  const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
+  const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
+
+  // AI작성: 같은 회원이 같은 게시글에서 작성하던 댓글과 대댓글을 새로고침 후 복원합니다.
+  useEffect(() => {
+    if (!commentDraftKey || !replyDraftKey) return;
+
+    // oxlint-disable-next-line react/set-state-in-effect -- 외부 sessionStorage 값을 화면 상태로 복원해야 합니다.
+    setCommentText(sessionStorage.getItem(commentDraftKey) || '');
+    setReplyingCommentId(null);
+    setReplyText('');
+
+    try {
+      const savedReply = JSON.parse(sessionStorage.getItem(replyDraftKey) || 'null');
+      const parentCommentId = Number(savedReply?.parentCommentId);
+
+      if (Number.isInteger(parentCommentId) && parentCommentId > 0 && typeof savedReply?.content === 'string') {
+        setReplyingCommentId(parentCommentId);
+        setReplyText(savedReply.content);
+      } else if (savedReply !== null) {
+        sessionStorage.removeItem(replyDraftKey);
+      }
+    } catch {
+      // AI작성: 손상된 임시저장 값은 복원하지 않고 제거해 상세 화면 이용을 방해하지 않도록 합니다.
+      sessionStorage.removeItem(replyDraftKey);
+    }
+  }, [commentDraftKey, replyDraftKey]);
+
+  const handleCommentChange = (value) => {
+    setCommentText(value);
+    if (!commentDraftKey) return;
+
+    if (value) sessionStorage.setItem(commentDraftKey, value);
+    else sessionStorage.removeItem(commentDraftKey);
+  };
+
+  const handleReplyChange = (value) => {
+    setReplyText(value);
+    if (!replyDraftKey || !replyingCommentId) return;
+
+    if (value) {
+      sessionStorage.setItem(replyDraftKey, JSON.stringify({
+        parentCommentId: replyingCommentId,
+        content: value,
+      }));
+    } else {
+      sessionStorage.removeItem(replyDraftKey);
+    }
+  };
 
   // AI작성: 인증이 필요한 동작에서 현재 게시글로 다시 돌아올 수 있도록 로그인 이동을 공통 처리한다.
   const goToLogin = () => {
@@ -307,6 +356,8 @@ function PostDetailPage() {
         ...currentComments,
         {
           id: response.data.commentId,
+          // AI작성: 등록 직후에도 본인 댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
+          memberId: response.data.memberId,
           author: '나',
           content: response.data.content,
           createdAt: response.data.createdAt,
@@ -314,6 +365,7 @@ function PostDetailPage() {
         },
       ]);
       setCommentText('');
+      if (commentDraftKey) sessionStorage.removeItem(commentDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
     } catch (error) {
       setCommentErrorMessage(
@@ -338,12 +390,14 @@ function PostDetailPage() {
     setCommentErrorMessage('');
     setReplyingCommentId(commentId);
     setReplyText('');
+    if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
   };
 
   const handleReplyCancel = () => {
     if (isSubmittingReply) return;
     setReplyingCommentId(null);
     setReplyText('');
+    if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
   };
 
   const handleReplySubmit = async (event) => {
@@ -372,6 +426,8 @@ function PostDetailPage() {
                   ...comment.replies,
                   {
                     id: response.data.commentId,
+                    // AI작성: 등록 직후에도 본인 대댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
+                    memberId: response.data.memberId,
                     author: '나',
                     content: response.data.content,
                     createdAt: response.data.createdAt,
@@ -384,6 +440,7 @@ function PostDetailPage() {
       );
       setReplyingCommentId(null);
       setReplyText('');
+      if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
     } catch (error) {
       setCommentErrorMessage(
@@ -488,6 +545,7 @@ function PostDetailPage() {
       if (replyingCommentId === deletingCommentId) {
         setReplyingCommentId(null);
         setReplyText('');
+        if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
       }
       if (editingCommentId === deletingCommentId) {
         setEditingCommentId(null);
@@ -541,10 +599,10 @@ function PostDetailPage() {
           editingCommentText={editingCommentText}
           isUpdatingComment={isUpdatingComment}
           commentText={commentText}
-          onCommentChange={setCommentText}
+          onCommentChange={handleCommentChange}
           onCommentSubmit={handleCommentSubmit}
           onReplyStart={handleReplyStart}
-          onReplyChange={setReplyText}
+          onReplyChange={handleReplyChange}
           onReplySubmit={handleReplySubmit}
           onReplyCancel={handleReplyCancel}
           onCommentEditStart={handleCommentEditStart}

@@ -56,6 +56,7 @@ function PostCreatePage() {
   const { id: postId } = useParams();
   const isEditMode = Boolean(postId);
   const token = useAuthStore((state) => state.token);
+  const memberId = useAuthStore((state) => state.memberId);
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState([]);
   const [title, setTitle] = useState('');
@@ -65,6 +66,55 @@ function PostCreatePage() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const postDraftKey = memberId
+    ? `moa-post-draft:${memberId}:${isEditMode ? postId : 'new'}`
+    : null;
+
+  // AI작성: 회원별·게시글별 임시저장 내용을 새 글 작성 또는 수정 화면에 복원합니다.
+  useEffect(() => {
+    if (!postDraftKey || isLoadingPost) return;
+
+    try {
+      const savedDraft = JSON.parse(sessionStorage.getItem(postDraftKey) || 'null');
+      const isValidDraft = savedDraft !== null
+        && typeof savedDraft.category === 'string'
+        && typeof savedDraft.title === 'string'
+        && typeof savedDraft.content === 'string';
+
+      if (!isValidDraft) {
+        if (savedDraft !== null) sessionStorage.removeItem(postDraftKey);
+        return;
+      }
+
+      // oxlint-disable-next-line react/set-state-in-effect -- 외부 sessionStorage 값을 작성 화면에 복원해야 합니다.
+      setCategory(savedDraft.category);
+      setTitle(savedDraft.title);
+      setContent(savedDraft.content);
+    } catch {
+      // AI작성: 손상된 임시저장 값은 제거해 게시글 작성 화면 이용을 방해하지 않도록 합니다.
+      sessionStorage.removeItem(postDraftKey);
+    }
+  }, [isLoadingPost, postDraftKey]);
+
+  const savePostDraft = (nextDraft) => {
+    if (!postDraftKey) return;
+    sessionStorage.setItem(postDraftKey, JSON.stringify(nextDraft));
+  };
+
+  const handleCategoryChange = (value) => {
+    setCategory(value);
+    savePostDraft({ category: value, title, content });
+  };
+
+  const handleTitleChange = (value) => {
+    setTitle(value);
+    savePostDraft({ category, title: value, content });
+  };
+
+  const handleContentChange = (value) => {
+    setContent(value);
+    savePostDraft({ category, title, content: value });
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -162,6 +212,7 @@ function PostCreatePage() {
         throw new Error(response.error?.message || `게시글 ${isEditMode ? '수정' : '등록'}에 실패했습니다.`);
       }
 
+      if (postDraftKey) sessionStorage.removeItem(postDraftKey);
       navigate(`/post/${isEditMode ? postId : response.data}`);
     } catch (error) {
       setErrorMessage(
@@ -202,9 +253,9 @@ function PostCreatePage() {
             title={title}
             content={content}
             imageName={imageName}
-            onCategoryChange={setCategory}
-            onTitleChange={setTitle}
-            onContentChange={setContent}
+            onCategoryChange={handleCategoryChange}
+            onTitleChange={handleTitleChange}
+            onContentChange={handleContentChange}
             onImageChange={handleImageChange}
             onSubmit={handleSubmit}
             onCancel={handleCancel}

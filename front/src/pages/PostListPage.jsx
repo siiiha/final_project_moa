@@ -80,7 +80,9 @@ function PostListPage() {
   const token = useAuthStore((state) => state.token);
   const [searchParams, setSearchParams] = useSearchParams();
   const [keywordDraft, setKeywordDraft] = useState(searchParams.get('keyword') || '');
-  const [currentPage, setCurrentPage] = useState(1);
+  const pageParam = Number(searchParams.get('page'));
+  // AI작성: 새로고침과 뒤로 가기에도 페이지가 유지되도록 URL의 유효한 페이지 번호를 사용합니다.
+  const currentPage = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
   const [posts, setPosts] = useState([]);
   const [categories, setCategories] = useState([{ categoryName: ALL_CATEGORY_NAME, categoryId: null }]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -94,6 +96,12 @@ function PostListPage() {
   const sort = searchParams.get('sort') || '최신순';
   const keyword = searchParams.get('keyword') || '';
   const order = sort === '최신순' ? 'desc' : 'asc';
+
+  // AI작성: 검색 실행이나 뒤로 가기로 적용 검색어가 바뀌면 입력창도 URL 기준으로 맞춥니다.
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- URL의 적용 검색어를 입력창에 동기화해야 합니다.
+    setKeywordDraft(keyword);
+  }, [keyword]);
 
   useEffect(() => {
     let isActive = true;
@@ -184,7 +192,16 @@ function PostListPage() {
       nextParams.set('keyword', nextKeyword.trim());
     }
 
-    setCurrentPage(1);
+    setSearchParams(nextParams);
+  };
+
+  // AI작성: 페이지 이동 시 기존 검색 조건은 유지하고 page 값만 URL에 반영합니다.
+  const handlePageChange = (page) => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (page <= 1) nextParams.delete('page');
+    else nextParams.set('page', String(page));
+
     setSearchParams(nextParams);
   };
 
@@ -205,7 +222,8 @@ function PostListPage() {
 
   const handleWrite = () => {
     // AI작성: 작성은 JWT 인증이 필요하므로 비로그인 사용자는 로그인 화면으로 안내한다.
-    navigate(token ? '/post/create' : `/member/login?redirect=${encodeURIComponent(location.pathname)}`);
+    const returnPath = `${location.pathname}${location.search}`;
+    navigate(token ? '/post/create' : `/member/login?redirect=${encodeURIComponent(returnPath)}`);
   };
 
   return (
@@ -243,7 +261,7 @@ function PostListPage() {
             totalCount={totalCount}
             currentPage={currentPage}
             pageNumbers={pageNumbers}
-            onPageChange={setCurrentPage}
+            onPageChange={handlePageChange}
             onPostClick={handlePostClick}
           />
         )}
