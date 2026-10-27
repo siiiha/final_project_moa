@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { createPost, getPostCategories, getPostDetail, updatePost } from '../api/postApi';
+import ConfirmModal from '../components/common/ConfirmModal';
 import PostCreateForm from '../components/post/PostCreateForm';
 import useAuthStore from '../store/authStore';
 
@@ -66,6 +67,7 @@ function PostCreatePage() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const postDraftKey = memberId
     ? `moa-post-draft:${memberId}:${isEditMode ? postId : 'new'}`
     : null;
@@ -225,8 +227,31 @@ function PostCreatePage() {
     }
   };
 
-  const handleCancel = () => {
+  // AI작성: 새 글 작성과 게시글 수정 취소 후 각각 원래 화면으로 이동합니다.
+  const leavePostForm = () => {
     navigate(isEditMode ? `/post/${postId}` : '/post/list');
+  };
+
+  const handleCancel = () => {
+    const hasSavedDraft = Boolean(postDraftKey && sessionStorage.getItem(postDraftKey));
+    const hasNewWriting = !isEditMode && Boolean(title.trim() || content.trim());
+    const hasWriting = hasSavedDraft || hasNewWriting || Boolean(imageName);
+
+    // AI작성: 작성하거나 변경한 내용이 없으면 임시저장을 정리하고 바로 이전 화면으로 이동합니다.
+    if (!hasWriting) {
+      if (postDraftKey) sessionStorage.removeItem(postDraftKey);
+      leavePostForm();
+      return;
+    }
+
+    setIsCancelModalOpen(true);
+  };
+
+  const handleDiscardAndLeave = () => {
+    // AI작성: 사용자가 취소 확인창에서 동의한 경우에만 작성 중인 임시저장을 삭제합니다.
+    if (postDraftKey) sessionStorage.removeItem(postDraftKey);
+    setIsCancelModalOpen(false);
+    leavePostForm();
   };
 
   return (
@@ -263,6 +288,21 @@ function PostCreatePage() {
           />
         )}
       </Content>
+      {isCancelModalOpen && (
+        <ConfirmModal
+          title={isEditMode ? '게시글 수정 취소' : '게시글 작성 취소'}
+          description={
+            isEditMode
+              ? '수정 중인 변경사항을 버리고 나가시겠습니까?'
+              : '작성 중인 내용을 삭제하고 나가시겠습니까?'
+          }
+          confirmLabel={isEditMode ? '변경사항 버리고 나가기' : '내용 삭제하고 나가기'}
+          confirmVariant="danger"
+          cancelFirst
+          onConfirm={handleDiscardAndLeave}
+          onCancel={() => setIsCancelModalOpen(false)}
+        />
+      )}
     </Page>
   );
 }
