@@ -83,3 +83,8 @@
 
 # 비밀번호가 포함된 로컬 DB 설정 제외
 /back/src/main/resources/application.yaml
+
+# 로컬 업로드 파일 제외
+/uploads/
+/back/uploads/
+

@@ -112,6 +112,7 @@ function MyPage() {
     ? {
         name: profile.nickname,
         email: profile.email,
+        profileImageUrl: profile.profileImageUrl,
         badges: [
           ...(profile.identityVerified ? ['본인 인증 완료'] : []),
           ...(profile.regionVerified ? ['지역 인증 완료'] : []),

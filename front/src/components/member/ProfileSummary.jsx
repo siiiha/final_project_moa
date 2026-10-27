@@ -1,4 +1,4 @@
-import { FiUser } from 'react-icons/fi';
+import MemberProfileImage from './ProfileImage';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
@@ -24,9 +24,12 @@ const ProfileGroup = styled.div`
   gap: 14px;
 `;
 
+// AI작성: 프로필 사진을 고정된 원형 영역에 표시합니다.
 const ProfileImage = styled.div`
   width: 72px;
   height: 72px;
+  position: relative;
+  overflow: hidden;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
@@ -34,6 +37,15 @@ const ProfileImage = styled.div`
   background: ${({ theme }) => theme.colors.primarySoft};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: 50%;
+
+  > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
 `;
 
 const ProfileDetails = styled.div`
@@ -105,8 +117,11 @@ function ProfileSummary({ profile, onEdit }) {
     <Card>
       <Top>
         <ProfileGroup>
-          <ProfileImage role="img" aria-label={`${profile.name} 프로필 이미지 영역`}>
-            <FiUser size={31} aria-hidden="true" />
+                    <ProfileImage>
+            <MemberProfileImage
+              imageUrl={profile.profileImageUrl}
+              size={31}
+            />
           </ProfileImage>
           <ProfileDetails>
             <Name>{profile.name}</Name>

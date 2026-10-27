@@ -205,6 +205,15 @@
         WHERE member_id = #{memberId}
     </delete>
 
+    <!-- 프로필 사진 경로 저장 or NULL로 초기화 -->
+    <update id="updateProfileImageUrl">
+        UPDATE members
+        SET profile_img_url = #{profileImageUrl, jdbcType=VARCHAR}
+        WHERE member_id = #{memberId}
+            AND deleted_at IS NULL
+    </update>
+
+
     <select id="countWithdrawalBlockingGroups" resultType="int">
         SELECT COUNT(*)
         FROM `groups` g
