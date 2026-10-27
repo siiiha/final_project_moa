@@ -145,6 +145,24 @@ function PostListPage() {
 
         if (!isActive) return;
 
+        const responseTotalPages = response.meta?.totalPages || 0;
+
+        // AI작성: 존재하지 않는 페이지 요청은 마지막 페이지 또는 기본 1페이지로 보정합니다.
+        if (currentPage > 1 && currentPage > responseTotalPages) {
+          setSearchParams((currentParams) => {
+            const nextParams = new URLSearchParams(currentParams);
+
+            if (responseTotalPages > 0) {
+              nextParams.set('page', String(responseTotalPages));
+            } else {
+              nextParams.delete('page');
+            }
+
+            return nextParams;
+          });
+          return;
+        }
+
         setPosts(
           (response.data || []).map((post) => ({
             id: post.postId,
@@ -156,7 +174,7 @@ function PostListPage() {
           }))
         );
         setTotalCount(response.meta?.total || 0);
-        setTotalPages(response.meta?.totalPages || 0);
+        setTotalPages(responseTotalPages);
       } catch (error) {
         if (!isActive) return;
         setPosts([]);
@@ -173,7 +191,7 @@ function PostListPage() {
     return () => {
       isActive = false;
     };
-  }, [categories, category, condition, currentPage, isLoadingCategories, keyword, order]);
+  }, [categories, category, condition, currentPage, isLoadingCategories, keyword, order, setSearchParams]);
 
   const updateFilters = (nextFilters) => {
     const nextCategory = nextFilters.category ?? category;
