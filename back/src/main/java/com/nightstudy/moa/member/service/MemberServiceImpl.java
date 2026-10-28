@@ -21,6 +21,8 @@ import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
 import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
 import com.nightstudy.moa.member.dto.PasswordResetRequest;
+import com.nightstudy.moa.member.dto.MemberTermDto;
+import java.util.List;
 
 import java.nio.charset.StandardCharsets;
 
@@ -45,6 +47,13 @@ public class MemberServiceImpl implements MemberService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
         this.authSessionService = authSessionService;
+    }
+
+    // 기존 회원 Mapper를 재사용해 약관 목록 조회
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberTermDto> getTerms() {
+        return memberMapper.findTerms();
     }
 
     @Override

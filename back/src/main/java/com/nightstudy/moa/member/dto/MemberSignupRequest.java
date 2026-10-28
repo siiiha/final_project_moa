@@ -68,5 +68,6 @@ public class MemberSignupRequest {
     private List<@NotNull @Positive Long> agreedTermIds;
 
     @NotNull(message = "관심사 선택 정보를 확인해주세요.")
-    private  List<@NotNull @Positive Long> interestIds;
+    @Size(max = 3, message = "관심사는 최대 3개까지 선택할 수 있습니다.")
+    private List<@NotNull @Positive Long> interestIds;
 }
