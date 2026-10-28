@@ -22,6 +22,13 @@ function formatDate(value) {
     .replace(/\.$/, '');
 }
 
+function formatCommentStatus(status) {
+  // AI작성: 정의되지 않은 상태를 공개로 오인하지 않도록 확인 필요로 표시한다.
+  if (status === 'VISIBLE') return '공개';
+  if (status === 'DELETED') return '삭제';
+  return '확인 필요';
+}
+
 // AI작성: 관리자 전체 댓글 API 응답을 기존 테이블 표시 형식으로 변환한다.
 export async function getAdminComments({ keyword, regionName, status, page = 1, size = 10, signal } = {}) {
   try {
@@ -48,7 +55,7 @@ export async function getAdminComments({ keyword, regionName, status, page = 1, 
         author: comment.writerNickname,
         postTitle: comment.postTitle,
         region: comment.regionName,
-        status: comment.status === 'DELETED' ? '삭제' : '공개',
+        status: formatCommentStatus(comment.status),
         date: formatDate(comment.createdAt),
       })),
       meta: response.data.meta,
