@@ -1,6 +1,7 @@
 package com.nightstudy.moa.smallGroup;
 
 import com.nightstudy.moa.common.dto.PageMeta;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
@@ -24,6 +25,12 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    @Override
+    public SmallGroupDetailResponse getSmallGroupDetail(Long smallGroupId, Long memberId) {
+        // AI작성: Mapper와 공개 조회 정책은 다음 단계에서 구현하며, 계약 추가 시점의 컴파일을 보장한다.
+        throw new UnsupportedOperationException("소모임 상세 조회는 아직 구현되지 않았습니다.");
     }
 
     // AI작성: 계모임과 동일한 지역 코드 기준으로 변환하고, 카테고리는 소모임 전용 컬럼으로만 필터링한다.
