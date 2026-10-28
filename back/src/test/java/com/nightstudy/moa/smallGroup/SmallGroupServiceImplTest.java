@@ -10,6 +10,7 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,7 +43,24 @@ class SmallGroupServiceImplTest {
 
         assertThat(response.getMyRole()).isNull();
         assertThat(response.getMemberCount()).isEqualTo(2L);
+        assertThat(response.getNotices()).isEmpty();
         verify(smallGroupMapper, never()).selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void getSmallGroupDetailReturnsRecentNoticeSummariesForAnonymousUser() {
+        mockExistingDetail();
+        List<SmallGroupNoticeSummaryResponse> notices = List.of(
+                notice(4L, "네 번째 공지", "운영진", LocalDateTime.of(2026, 10, 4, 10, 0)),
+                notice(3L, "세 번째 공지", "모아회원", LocalDateTime.of(2026, 10, 3, 10, 0)),
+                notice(2L, "두 번째 공지", "운영진", LocalDateTime.of(2026, 10, 2, 10, 0)),
+                notice(1L, "첫 번째 공지", "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0)));
+        when(smallGroupMapper.selectRecentSmallGroupNotices(GROUP_ID)).thenReturn(notices);
+
+        SmallGroupDetailResponse response = smallGroupService.getSmallGroupDetail(SMALL_GROUP_ID, null);
+
+        assertThat(response.getNotices()).containsExactlyElementsOf(notices);
+        verify(smallGroupMapper).selectRecentSmallGroupNotices(GROUP_ID);
     }
 
     @Test
@@ -134,6 +152,7 @@ class SmallGroupServiceImplTest {
     private void mockExistingDetail() {
         when(smallGroupMapper.selectSmallGroupDetail(SMALL_GROUP_ID)).thenReturn(detailRow());
         when(smallGroupMapper.selectApprovedSmallGroupMemberCount(GROUP_ID)).thenReturn(2L);
+        when(smallGroupMapper.selectRecentSmallGroupNotices(GROUP_ID)).thenReturn(List.of());
     }
 
     private SmallGroupDetailRow detailRow() {
@@ -157,5 +176,10 @@ class SmallGroupServiceImplTest {
         row.setMemberRole(memberRole);
         row.setMembershipStatus(membershipStatus);
         return row;
+    }
+
+    private SmallGroupNoticeSummaryResponse notice(
+            Long noticeId, String title, String writerNickname, LocalDateTime createdAt) {
+        return new SmallGroupNoticeSummaryResponse(noticeId, title, writerNickname, createdAt);
     }
 }

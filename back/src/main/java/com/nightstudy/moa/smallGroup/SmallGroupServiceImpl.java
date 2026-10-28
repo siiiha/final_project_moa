@@ -8,6 +8,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
@@ -42,13 +43,15 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
         String myRole = memberId == null ? null : resolveMemberRole(row.getGroupId(), memberId);
         long memberCount = smallGroupMapper.selectApprovedSmallGroupMemberCount(row.getGroupId());
+        // AI작성: 비회원도 제목·작성자·작성일을 볼 수 있도록 역할과 무관하게 공지 요약을 함께 조회한다.
+        List<SmallGroupNoticeSummaryResponse> notices =
+                smallGroupMapper.selectRecentSmallGroupNotices(row.getGroupId());
 
         return new SmallGroupDetailResponse(
                 row.getSmallGroupId(), row.getGroupId(), row.getGroupName(), row.getDescription(),
                 row.getRegionName(), row.getLikeCategory(), row.getMeetDate(), row.getLocation(),
                 row.getMaxMembers(), memberCount, row.getCreatorNickname(), row.getCreatedAt(), myRole,
-                // AI작성: 최근 공지 조회 Mapper가 추가되는 다음 단계 전까지 응답 계약을 빈 목록으로 유지한다.
-                List.of());
+                notices);
     }
 
     // AI작성: MANAGER는 상태와 무관한 오류 데이터이며, 중복·미정의 역할은 권한을 임의로 선택하지 않는다.
