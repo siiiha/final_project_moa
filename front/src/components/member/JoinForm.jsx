@@ -12,7 +12,7 @@ import {
   checkNicknameAvailable,
   signupMember,
   signupSocialMember,
-  memberRegionOptions,
+  getMemberRegions,
   getMemberTerms,
   memberInterestOptions,
 } from '../../api/member';
@@ -213,6 +213,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [regionId, setRegionId] = useState('');
+  // AI작성: 서버의 지역 목록과 시·도 선택 상태를 관리한다.
+  const [memberRegionOptions, setMemberRegionOptions] = useState([]);
+  const [provinceName, setProvinceName] = useState('');
+  const [isRegionsLoading, setIsRegionsLoading] = useState(true);
+  const [regionsError, setRegionsError] = useState('');
   const [nicknameMessage, setNicknameMessage] = useState('');
   const [isCheckingNickname, setIsCheckingNickname] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -255,6 +260,39 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       active = false;
     };
   }, []);
+
+  // AI작성: 일반·소셜 가입에서 사용할 지역 목록을 서버에서 조회한다.
+useEffect(() => {
+  let active = true;
+
+  async function loadRegions() {
+    try {
+      const regions = await getMemberRegions();
+
+      if (!Array.isArray(regions) || regions.length === 0) {
+        throw new Error('지역 목록이 없습니다.');
+      }
+
+      if (active) {
+        setMemberRegionOptions(regions);
+      }
+    } catch {
+      if (active) {
+        setRegionsError('지역을 불러오지 못했습니다. 새로고침해주세요.');
+      }
+    } finally {
+      if (active) {
+        setIsRegionsLoading(false);
+      }
+    }
+  }
+
+  loadRegions();
+
+  return () => {
+    active = false;
+  };
+}, []);
 
   const handleInterestToggle = (interest) => {
     setSelectedInterests((current) => {
@@ -769,28 +807,84 @@ navigate('/member/login', { replace: true });
               </GenderOptions>
             </GenderField>
 
-            <label htmlFor="join-region">
-              활동 지역
-              <select
-                id="join-region"
-                value={regionId}
-                onChange={(event) => setRegionId(event.target.value)}
-                required
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '10px',
-                  marginTop: '8px',
-                }}
-              >
-                <option value="">지역을 선택해주세요</option>
-                {memberRegionOptions.map((region) => (
-                  <option key={region.regionId} value={region.regionId}>
-                    {region.regionName}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div>
+  <p>활동 지역</p>
+
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '10px',
+      marginTop: '8px',
+    }}
+  >
+    <label htmlFor="join-province">
+      시·도
+      <select
+        id="join-province"
+        value={provinceName}
+        onChange={(event) => {
+          setProvinceName(event.target.value);
+          setRegionId('');
+        }}
+        disabled={isRegionsLoading || Boolean(regionsError) || isSubmitting}
+        required
+        style={{
+          display: 'block',
+          width: '100%',
+          minHeight: '44px',
+          marginTop: '6px',
+          padding: '8px',
+        }}
+      >
+        <option value="">시·도 선택</option>
+        {[...new Set(memberRegionOptions.map((region) => region.provinceName))]
+          .map((province) => (
+            <option key={province} value={province}>
+              {province}
+            </option>
+          ))}
+      </select>
+    </label>
+
+    <label htmlFor="join-region">
+      시·군·구
+      <select
+        id="join-region"
+        value={regionId}
+        onChange={(event) => setRegionId(event.target.value)}
+        disabled={
+          !provinceName ||
+          isRegionsLoading ||
+          Boolean(regionsError) ||
+          isSubmitting
+        }
+        required
+        style={{
+          display: 'block',
+          width: '100%',
+          minHeight: '44px',
+          marginTop: '6px',
+          padding: '8px',
+        }}
+      >
+        <option value="">시·군·구 선택</option>
+        {memberRegionOptions
+          .filter((region) => region.provinceName === provinceName)
+          .map((region) => (
+            <option key={region.regionId} value={region.regionId}>
+              {region.districtName}
+            </option>
+          ))}
+      </select>
+    </label>
+  </div>
+
+  {isRegionsLoading && (
+    <p role="status">지역 목록을 불러오고 있습니다.</p>
+  )}
+  {regionsError && <p role="alert">{regionsError}</p>}
+</div>
           </FieldList>
         </SectionCard>
       </DetailsGrid>

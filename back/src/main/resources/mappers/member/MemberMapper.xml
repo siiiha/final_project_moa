@@ -19,6 +19,20 @@
         WHERE region_id = #{regionId}
     </select>
 
+    <!-- 시·도와 시·군·구가 등록된 가입용 지역 목록 조회 -->
+    <select id="findRegions"
+            resultType="com.nightstudy.moa.member.dto.MemberRegionDto">
+        SELECT
+            region_id AS regionId,
+            region_name AS regionName,
+            province_name AS provinceName,
+            district_name AS districtName
+        FROM region
+        WHERE province_name IS NOT NULL
+            AND district_name IS NOT NULL
+        ORDER BY province_name, district_name, region_id
+    </select>
+
     <!-- 회원 저장 후 자동 생성된 회원 번호를 DTO에 전달 -->
     <insert id="insertMember"
             parameterType="com.nightstudy.moa.member.dto.MemberInsertDto"

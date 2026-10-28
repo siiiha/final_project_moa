@@ -5,23 +5,15 @@ import java.util.ArrayList;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.MemberInsertDto;
-import com.nightstudy.moa.member.dto.MemberSignupRequest;
+import com.nightstudy.moa.member.dto.*;
 import com.nightstudy.moa.member.mapper.MemberMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.nightstudy.moa.member.dto.MemberLoginDto;
-import com.nightstudy.moa.member.dto.MemberLoginRequest;
-import com.nightstudy.moa.member.dto.SocialSignupRequest;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
-import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
-import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
-import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
-import com.nightstudy.moa.member.dto.PasswordResetRequest;
-import com.nightstudy.moa.member.dto.MemberTermDto;
+import com.nightstudy.moa.member.dto.MemberRegionDto;
+
 import java.util.List;
 
 import java.nio.charset.StandardCharsets;
@@ -54,6 +46,12 @@ public class MemberServiceImpl implements MemberService {
     @Transactional(readOnly = true)
     public List<MemberTermDto> getTerms() {
         return memberMapper.findTerms();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberRegionDto> getRegions() {
+        return memberMapper.findRegions();
     }
 
     @Override

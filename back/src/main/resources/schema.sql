@@ -345,9 +345,11 @@ CREATE TABLE IF NOT EXISTS `email_verification` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `region` (
-	`region_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`region_name`	VARCHAR(100)	NOT NULL,
-	PRIMARY KEY (`region_id`)
+    `region_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `region_name` VARCHAR(100) NOT NULL,
+    `province_name` VARCHAR(30) NULL,
+    `district_name` VARCHAR(50) NULL,
+    PRIMARY KEY (`region_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `meeting_round` (

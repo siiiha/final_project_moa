@@ -1,12 +1,11 @@
 package com.nightstudy.moa.member.mapper;
 
-import com.nightstudy.moa.member.dto.MemberInsertDto;
+import com.nightstudy.moa.member.dto.*;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import com.nightstudy.moa.member.dto.MemberLoginDto;
-import com.nightstudy.moa.member.dto.MemberTermDto;
+
 import java.util.List;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.MemberRegionDto;
 
 @Mapper
 public interface MemberMapper {
@@ -14,6 +13,7 @@ public interface MemberMapper {
     int countByEmail(@Param("email") String email);
 
     int countRegionById(@Param("regionId") Long regionId);
+    List<MemberRegionDto> findRegions();
 
     int insertMember(MemberInsertDto member);
 

@@ -170,6 +170,12 @@ export async function getMemberTerms() {
   return response.data.data;
 }
 
+// AI작성: 일반·소셜 회원가입에서 사용할 지역 목록을 서버에서 조회한다.
+export async function getMemberRegions() {
+  const response = await client.get('/auth/regions');
+  return response.data.data;
+}
+
 export async function withdrawMyAccount(token, request) {
     const response = await client.delete('/members/me', {
         headers: {

@@ -106,10 +106,11 @@ public class SecurityConfig {
                                 "/api/auth/naver/result"
                         ).permitAll()
 
-                        // 가입 전에도 약관 내용을 확인할 수 있도록 허용
+                        // AI작성: 회원가입 전에도 약관과 활동 지역 목록을 조회할 수 있도록 허용한다.
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/api/auth/terms"
+                                "/api/auth/terms",
+                                "/api/auth/regions"
                         ).permitAll()
 
                         // AI작성: 계모임 목록은 비로그인 사용자도 조회할 수 있다.
