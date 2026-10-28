@@ -89,6 +89,7 @@ function AdminCommentsPage() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -139,6 +140,7 @@ function AdminCommentsPage() {
     if (!deleteTarget || deleting) return;
 
     setDeleting(true);
+    setDeleteErrorMessage('');
     try {
       await deleteAdminComment(deleteTarget.postId, deleteTarget.id);
       setDeleteTarget(null);
@@ -149,14 +151,16 @@ function AdminCommentsPage() {
       // AI작성: 서버의 삭제 상태와 페이징 개수를 반영하도록 현재 조건을 다시 조회한다.
       setReloadKey((current) => current + 1);
     } catch (error) {
-      setDeleteTarget(null);
-      setNotice({
-        title: '댓글 삭제 실패',
-        message: error.message,
-      });
+      // AI작성: 삭제 대상을 유지해 일시적인 오류 후 바로 다시 시도할 수 있게 한다.
+      setDeleteErrorMessage(error.message);
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleDeleteRequest = (comment) => {
+    setDeleteErrorMessage('');
+    setDeleteTarget(comment);
   };
 
   const handleMenuSelect = (menuId) => {
@@ -227,7 +231,7 @@ function AdminCommentsPage() {
             currentPage={currentPage}
             totalPages={pageMeta.totalPages}
             onPageChange={setCurrentPage}
-            onDelete={setDeleteTarget}
+            onDelete={handleDeleteRequest}
             loading={loading}
             deleting={deleting}
           />
@@ -236,14 +240,21 @@ function AdminCommentsPage() {
       {deleteTarget && (
         <ConfirmModal
           title="댓글 삭제"
-          description="이 댓글을 삭제하시겠습니까? 삭제된 댓글은 내용이 숨겨집니다."
+          description={
+            deleteErrorMessage
+              ? `삭제하지 못했습니다. ${deleteErrorMessage} 다시 시도하거나 취소하세요.`
+              : '이 댓글을 삭제하시겠습니까? 삭제된 댓글은 내용이 숨겨집니다.'
+          }
           confirmLabel={deleting ? '삭제 중...' : '댓글 삭제'}
           confirmVariant="danger"
           cancelFirst
           isBusy={deleting}
           onConfirm={handleDeleteConfirm}
           onCancel={() => {
-            if (!deleting) setDeleteTarget(null);
+            if (!deleting) {
+              setDeleteErrorMessage('');
+              setDeleteTarget(null);
+            }
           }}
         />
       )}
