@@ -27,6 +27,15 @@ export class SmallGroupListError extends Error {
   }
 }
 
+// AI작성: 소모임 상세 조회 실패 코드와 메시지를 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupDetailLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupDetailLoadError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -77,6 +86,15 @@ function toSmallGroupListError(error, fallbackMessage) {
   );
 }
 
+function toSmallGroupDetailLoadError(error, fallbackMessage) {
+  if (error instanceof SmallGroupDetailLoadError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupDetailLoadError(
+    responseError?.code || 'SMALL_GROUP_DETAIL_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
 function toSmallGroupCategoryLoadError(error, fallbackMessage) {
   if (error instanceof SmallGroupCategoryLoadError || error.code === 'ERR_CANCELED') return error;
   const responseError = error.response?.data?.error;
@@ -122,7 +140,8 @@ export async function fetchSmallGroupCategories({ signal } = {}) {
 export function toSmallGroupCard(item) {
   const memberCount = Number.isFinite(Number(item.memberCount)) ? Number(item.memberCount) : 0;
   return {
-    id: item.groupId,
+    // AI작성: 상세 API의 경로 변수는 groups.group_id가 아닌 small_group.small_group_id를 사용한다.
+    id: item.smallGroupId,
     name: item.groupName,
     region: item.regionName,
     interest: item.likeCategory?.trim() || '관심사 미정',
@@ -169,6 +188,22 @@ export async function getSmallGroups({ keyword, regionCode, likeCategory, page =
     };
   } catch (error) {
     throw toSmallGroupListError(error, '소모임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 공개 상세 API는 로그인 여부와 관계없이 응답 봉투를 확인한 뒤 원본 상세 데이터를 반환한다.
+export async function getSmallGroupDetail(id, { signal } = {}) {
+  try {
+    const response = await client.get(`/small-groups/${encodeURIComponent(id)}`, { signal });
+    if (!response.data?.success || !response.data.data) {
+      throw new SmallGroupDetailLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '소모임 상세 응답을 확인하지 못했습니다.',
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    throw toSmallGroupDetailLoadError(error, '소모임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 

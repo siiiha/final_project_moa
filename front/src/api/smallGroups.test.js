@@ -5,6 +5,9 @@ import {
   createSmallGroup,
   fetchSmallGroupRegions,
   SmallGroupCreationError,
+  getSmallGroupDetail,
+  SmallGroupDetailLoadError,
+  toSmallGroupCard,
 } from './smallGroups.js';
 
 // AI작성: 화면 연결 전 실제 네트워크 없이 요청 본문·성공 데이터·서버 오류 보존을 검증한다.
@@ -80,3 +83,66 @@ test('활동 지역 목록을 조회해 DB 응답 데이터를 반환한다', as
     client.get = originalGet;
   }
 });
+
+test('소모임 목록 카드는 상세 URL에 사용할 smallGroupId를 보존한다', () => {
+  const card = toSmallGroupCard({
+    smallGroupId: 7,
+    groupId: 42,
+    groupName: '동네 걷기',
+    regionName: '서울',
+    likeCategory: '운동',
+    maxMembers: 10,
+    memberCount: 4,
+    description: '함께 걷는 소모임입니다.',
+  });
+
+  assert.equal(card.id, 7);
+});
+
+test('소모임 상세는 smallGroupId로 공개 API를 호출해 응답 데이터를 반환한다', async () => {
+  const originalGet = client.get;
+  const detail = { smallGroupId: 7, groupName: '동네 걷기', myRole: null };
+
+  try {
+    client.get = async (path) => {
+      assert.equal(path, '/small-groups/7');
+      return { data: { success: true, data: detail, meta: null, error: null } };
+    };
+
+    assert.equal(await getSmallGroupDetail(7), detail);
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 상세 조회는 401 오류 코드와 메시지를 보존한다', async () => {
+  await assertDetailLoadError('UNAUTHORIZED', '로그인이 필요합니다.');
+});
+
+test('소모임 상세 조회는 403 오류 코드와 메시지를 보존한다', async () => {
+  await assertDetailLoadError('ACCESS_DENIED', '접근 권한이 없습니다.');
+});
+
+test('소모임 상세 조회는 404 오류 코드와 메시지를 보존한다', async () => {
+  await assertDetailLoadError('NOT_FOUND', '조회할 수 있는 소모임이 없습니다.');
+});
+
+async function assertDetailLoadError(code, message) {
+  const originalGet = client.get;
+  try {
+    client.get = async () => {
+      const error = new Error(message);
+      error.response = { data: { success: false, error: { code, message } } };
+      throw error;
+    };
+
+    await assert.rejects(
+      getSmallGroupDetail(7),
+      (error) => error instanceof SmallGroupDetailLoadError
+        && error.code === code
+        && error.message === message,
+    );
+  } finally {
+    client.get = originalGet;
+  }
+}
