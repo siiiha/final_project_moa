@@ -7,6 +7,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
@@ -63,6 +64,14 @@ public class SmallGroupController {
             @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(smallGroupService.getSmallGroupDetail(id, memberId));
+    }
+
+    // AI작성: 설정 정보는 JWT 필터가 검증한 회원 ID를 Service에만 전달하고 권한 판단은 Service에서 처리한다.
+    @GetMapping("/{id}/settings")
+    public ApiResponse<SmallGroupSettingsResponse> getSettings(
+            @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(smallGroupService.getSmallGroupSettings(id, memberId));
     }
 
     @PostMapping
