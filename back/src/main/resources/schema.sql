@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `fee_payment` (
 CREATE TABLE IF NOT EXISTS `members` (
 	`member_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`region_id`	BIGINT	NOT NULL,
-	`email`	VARCHAR(40)	NOT NULL,
+	`email`	VARCHAR(40)	NULL,
 	`password_hash`	VARCHAR(255)	NULL,
 	`name`	VARCHAR(50)	NOT NULL,
 	`nickname`	VARCHAR(50)	NOT NULL,

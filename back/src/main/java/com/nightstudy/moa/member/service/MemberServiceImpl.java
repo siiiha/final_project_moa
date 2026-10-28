@@ -70,10 +70,6 @@ public class MemberServiceImpl implements MemberService {
     public Long signupSocial(SocialSignupRequest request) {
         MemberSignupRequest memberRequest = new MemberSignupRequest();
 
-        memberRequest.setEmail(request.getEmail());
-        memberRequest.setEmailVerificationToken(
-                request.getEmailVerificationToken()
-        );
         memberRequest.setName(request.getName());
         memberRequest.setNickname(request.getNickname());
         memberRequest.setPhone(request.getPhone());
@@ -91,10 +87,10 @@ public class MemberServiceImpl implements MemberService {
             MemberSignupRequest request,
             boolean socialSignup
     ) {
-        String email = request.getEmail().trim();
+        String email = socialSignup ? null : request.getEmail().trim();
         String nickname = request.getNickname().trim();
 
-        if (memberMapper.countByEmail(email) > 0) {
+        if (!socialSignup && memberMapper.countByEmail(email) > 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "EMAIL_ALREADY_EXISTS",
@@ -163,11 +159,12 @@ public class MemberServiceImpl implements MemberService {
                     "필수 약관에 모두 동의해주세요."
             );
         }
-
+    if (!socialSignup) {
         emailVerificationService.consumeVerificationToken(
                 email,
                 request.getEmailVerificationToken()
         );
+    }
 
         MemberInsertDto member = new MemberInsertDto();
         member.setRegionId(request.getRegionId());

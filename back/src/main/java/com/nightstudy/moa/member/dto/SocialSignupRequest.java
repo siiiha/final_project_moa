@@ -19,23 +19,6 @@ public class SocialSignupRequest {
     )
     private String signupToken;
 
-    @NotBlank(message = "이메일을 입력해주세요.")
-    @Email(message = "올바른 이메일 형식으로 입력해주세요.")
-    @Size(max = 40, message = "이메일은 40자 이내로 입력해주세요.")
-    @Pattern(
-            regexp = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
-            message = "공백 없이 올바른 이메일 주소를 입력해주세요."
-    )
-    private String email;
-
-    // 기존 이메일 인증 기능에서 발급받은 토큰을 검증
-    @NotBlank(message = "이메일 인증을 완료해주세요.")
-    @Pattern(
-            regexp = "^[A-Za-z0-9_-]{43}$",
-            message = "이메일 인증 정보가 올바르지 않습니다."
-    )
-    private String emailVerificationToken;
-
     @NotBlank(message = "이름을 입력해주세요.")
     @Size(max = 10, message = "이름은 10자 이내로 입력해주세요.")
     private String name;

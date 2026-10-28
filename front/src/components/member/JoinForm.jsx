@@ -384,7 +384,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       return;
     }
 
-    if (!emailVerificationToken) {
+    if (!isSocialSignup && !emailVerificationToken) {
       setSignupError('이메일 인증을 먼저 완료해주세요.');
       return;
     }
@@ -470,8 +470,6 @@ if (!isSocialSignup && password !== confirmPassword) {
     try {
       // AI작성: 일반 가입과 소셜 가입에 공통으로 사용하는 정보다.
 const request = {
-  email: email.trim(),
-  emailVerificationToken,
   name: trimmedName,
   nickname: trimmedNickname,
   phone: trimmedPhone,
@@ -496,9 +494,23 @@ if (isSocialSignup) {
     throw new Error('소셜 가입 결과를 확인할 수 없습니다.');
   }
 
-  // AI작성: 가입 완료 후 임시 정보를 지우고 모아 JWT를 저장한다.
+    // AI작성: 가입 완료 후 임시 정보를 제거한다.
   sessionStorage.removeItem('moa-social-signup');
   setEmailVerificationToken('');
+
+  // AI작성: 기존 인증 창에서 가입했다면 부모 화면에 로그인 결과를 전달한다.
+  if (window.opener && !window.opener.closed) {
+    window.opener.postMessage(
+      {
+        type: 'MOA_SOCIAL_RESULT',
+        result,
+      },
+      window.location.origin,
+    );
+    return;
+  }
+
+  // AI작성: 일반 창에서 가입했다면 현재 화면에 로그인 상태를 반영한다.
   setToken(result.token);
   navigate('/', { replace: true });
   return;
@@ -506,6 +518,8 @@ if (isSocialSignup) {
 
 const memberId = await signupMember({
   ...request,
+  email: email.trim(),
+  emailVerificationToken,
   password,
 });
 
