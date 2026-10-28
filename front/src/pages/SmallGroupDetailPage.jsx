@@ -51,6 +51,7 @@ function toSmallGroupDetailView(data) {
     createdAt: data.createdAt,
     meetDate: data.meetDate,
     location: data.location,
+    notices: data.notices,
   };
 }
 

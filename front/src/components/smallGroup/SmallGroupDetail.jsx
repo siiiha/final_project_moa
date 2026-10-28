@@ -1,5 +1,6 @@
-import { FiUsers } from 'react-icons/fi';
+import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
+import Button from '../common/Button';
 import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
@@ -77,6 +78,13 @@ const Card = styled.section`
   box-shadow: ${({ theme }) => theme.shadow.card};
 `;
 
+const CardHeading = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
 const CardTitle = styled.h2`
   color: ${({ theme }) => theme.colors.text};
   font-size: 15px;
@@ -121,6 +129,117 @@ const ActivityImage = styled.div`
     background: rgba(54, 86, 57, 0.52);
     border-radius: 50% 50% 0 0;
   }
+`;
+
+const PlaceContent = styled.div`
+  margin-top: 13px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+`;
+
+const Place = styled.p`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 12px;
+`;
+
+const MapButton = styled(Button)`
+  min-height: 31px;
+  padding: 6px 10px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 11px;
+`;
+
+const ScheduleRow = styled.div`
+  margin-top: 13px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+`;
+
+const CalendarIcon = styled.div`
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primarySoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
+const ScheduleText = styled.div`
+  min-width: 0;
+
+  strong,
+  span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 12px;
+  }
+
+  span {
+    margin-top: 4px;
+    color: ${({ theme }) => theme.colors.muted};
+    font-size: 11px;
+  }
+`;
+
+const TextButton = styled.button`
+  padding: 0;
+  color: ${({ theme }) => theme.colors.primary};
+  background: transparent;
+  border: 0;
+  font-size: 11px;
+  font-weight: 700;
+`;
+
+const NoticeButton = styled(Button)`
+  min-height: 28px;
+  padding: 5px 8px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 10px;
+`;
+
+const NoticeTable = styled.div`
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
+const NoticeRow = styled.div`
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 66px 72px;
+  gap: 8px;
+  color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
+  background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
+  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
+  font-size: 10px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
+const NoticeEmpty = styled.p`
+  padding: 16px 10px;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 11px;
+  text-align: center;
 `;
 
 const DetailList = styled.dl`
@@ -211,6 +330,8 @@ function SmallGroupDetail({
     ['모임 날짜', formatDate(group.meetDate)],
     ['장소', group.location],
   ].filter(([, value]) => value);
+  const meetDate = formatDate(group.meetDate) || '일정 조율 중';
+  const location = group.location || '모임에서 추후 안내';
 
   return (
     <>
@@ -259,9 +380,56 @@ function SmallGroupDetail({
                 <ActivityImage role="img" aria-label={`${group.name} 활동 이미지 영역`} />
               </IntroBody>
             </Card>
+            <Card>
+              <CardTitle>장소</CardTitle>
+              <PlaceContent>
+                <Place><FiMapPin size={14} aria-hidden="true" /> {location}</Place>
+                {/* AI작성: 길찾기 API가 확정되기 전에는 이동을 발생시키지 않는다. */}
+                <MapButton type="button" $variant="secondary" disabled title="길찾기 기능은 준비 중입니다.">
+                  선택 장소 길찾기 <FiChevronRight size={12} aria-hidden="true" />
+                </MapButton>
+              </PlaceContent>
+            </Card>
           </Column>
 
           <Column>
+            <Card>
+              <CardHeading>
+                <CardTitle>다음 모임 일정</CardTitle>
+                {/* AI작성: 소모임 일정 목록 API가 준비되기 전에는 화면 이동을 연결하지 않는다. */}
+                <TextButton type="button" disabled title="일정 목록 기능은 준비 중입니다.">일정 확인</TextButton>
+              </CardHeading>
+              <ScheduleRow>
+                <CalendarIcon><FiCalendar size={17} aria-hidden="true" /></CalendarIcon>
+                <ScheduleText>
+                  <strong>{meetDate}</strong>
+                  <span>{location}</span>
+                </ScheduleText>
+              </ScheduleRow>
+            </Card>
+            <Card>
+              <CardHeading>
+                <CardTitle>최근 공지</CardTitle>
+                {/* AI작성: 공지 목록·상세 API 구현 전에는 이동을 연결하지 않는다. */}
+                <NoticeButton type="button" $variant="secondary" disabled title="공지 목록 기능은 준비 중입니다.">
+                  공지 전체 보기
+                </NoticeButton>
+              </CardHeading>
+              <NoticeTable aria-label="최근 공지 목록">
+                <NoticeRow $header>
+                  <span>제목</span><span>작성자</span><span>작성일</span>
+                </NoticeRow>
+                {group.notices.length === 0 ? (
+                  <NoticeEmpty>등록된 공지가 없습니다.</NoticeEmpty>
+                ) : group.notices.map((notice, index) => (
+                  <NoticeRow key={notice.noticeId} $last={index === group.notices.length - 1}>
+                    <span>{notice.title}</span>
+                    <span>{notice.writerNickname}</span>
+                    <span>{formatDate(notice.createdAt)}</span>
+                  </NoticeRow>
+                ))}
+              </NoticeTable>
+            </Card>
             {detailItems.length > 0 && (
               <Card>
                 <CardTitle>모임 정보</CardTitle>
