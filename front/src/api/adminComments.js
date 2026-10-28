@@ -1,8 +1,8 @@
 import client from './client.js';
 
-function toAdminCommentError(error) {
+function toAdminCommentError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
-  const failure = new Error(responseError?.message || '댓글 목록을 불러오지 못했습니다.');
+  const failure = new Error(responseError?.message || fallbackMessage);
   failure.name = 'AdminCommentError';
   failure.code = responseError?.code || 'ADMIN_COMMENT_LIST_FAILED';
   return failure;
@@ -55,6 +55,21 @@ export async function getAdminComments({ keyword, regionName, status, page = 1, 
     };
   } catch (error) {
     if (error.code === 'ERR_CANCELED') throw error;
-    throw toAdminCommentError(error);
+    throw toAdminCommentError(error, '댓글 목록을 불러오지 못했습니다.');
+  }
+}
+
+// AI작성: 목록에서 받은 게시글·댓글 번호로 기존 관리자 소프트 삭제 API를 호출한다.
+export async function deleteAdminComment(postId, commentId) {
+  try {
+    const response = await client.delete(
+      `/admin/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`,
+    );
+
+    if (!response.data?.success) {
+      throw new Error('댓글 삭제 응답을 확인할 수 없습니다.');
+    }
+  } catch (error) {
+    throw toAdminCommentError(error, '댓글을 삭제하지 못했습니다.');
   }
 }

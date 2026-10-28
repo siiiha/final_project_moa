@@ -4,8 +4,9 @@ import styled from 'styled-components';
 import AdminCommentFilterBar from '../components/admin/AdminCommentFilterBar';
 import AdminCommentTable from '../components/admin/AdminCommentTable';
 import Badge from '../components/common/Badge';
+import ConfirmModal from '../components/common/ConfirmModal';
 import AdminSidebar from '../components/layout/AdminSidebar';
-import { getAdminComments } from '../api/adminComments';
+import { deleteAdminComment, getAdminComments } from '../api/adminComments';
 import { adminMenuItems } from '../mocks/admin';
 
 const PAGE_SIZE = 10;
@@ -87,6 +88,10 @@ function AdminCommentsPage() {
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,6 +110,10 @@ function AdminCommentsPage() {
         });
         setComments(result.items);
         setPageMeta(result.meta);
+        // AI작성: 마지막 페이지의 마지막 댓글이 삭제된 경우 유효한 이전 페이지를 다시 조회한다.
+        if (result.meta.totalPages > 0 && currentPage > result.meta.totalPages) {
+          setCurrentPage(result.meta.totalPages);
+        }
       } catch (error) {
         if (error.code !== 'ERR_CANCELED') {
           setComments([]);
@@ -118,12 +127,36 @@ function AdminCommentsPage() {
 
     loadComments();
     return () => controller.abort();
-  }, [currentPage, region, status, submittedQuery]);
+  }, [currentPage, region, status, submittedQuery, reloadKey]);
 
   const handleSearch = (event) => {
     event.preventDefault();
     setSubmittedQuery(query);
     setCurrentPage(1);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || deleting) return;
+
+    setDeleting(true);
+    try {
+      await deleteAdminComment(deleteTarget.postId, deleteTarget.id);
+      setDeleteTarget(null);
+      setNotice({
+        title: '댓글 삭제 완료',
+        message: '댓글을 삭제했습니다.',
+      });
+      // AI작성: 서버의 삭제 상태와 페이징 개수를 반영하도록 현재 조건을 다시 조회한다.
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setDeleteTarget(null);
+      setNotice({
+        title: '댓글 삭제 실패',
+        message: error.message,
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleMenuSelect = (menuId) => {
@@ -194,10 +227,36 @@ function AdminCommentsPage() {
             currentPage={currentPage}
             totalPages={pageMeta.totalPages}
             onPageChange={setCurrentPage}
+            onDelete={setDeleteTarget}
             loading={loading}
+            deleting={deleting}
           />
         </Content>
       </Grid>
+      {deleteTarget && (
+        <ConfirmModal
+          title="댓글 삭제"
+          description="이 댓글을 삭제하시겠습니까? 삭제된 댓글은 내용이 숨겨집니다."
+          confirmLabel={deleting ? '삭제 중...' : '댓글 삭제'}
+          confirmVariant="danger"
+          cancelFirst
+          isBusy={deleting}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+        />
+      )}
+      {notice && (
+        <ConfirmModal
+          title={notice.title}
+          description={notice.message}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setNotice(null)}
+          onCancel={() => setNotice(null)}
+        />
+      )}
     </Page>
   );
 }
