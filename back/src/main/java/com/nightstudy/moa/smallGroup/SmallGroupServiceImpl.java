@@ -12,6 +12,9 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
@@ -84,6 +87,95 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임 정보를 찾을 수 없습니다.");
         }
         return settings;
+    }
+
+    // AI작성: 개설자·승인 OWNER·승인 참여 인원을 모두 잠근 뒤 두 테이블의 전달된 필드만 한 트랜잭션으로 수정한다.
+    @Override
+    @Transactional
+    public void updateSmallGroupSettings(
+            Long smallGroupId, Long loginMemberId, SmallGroupSettingsPatchRequest request) {
+        if (loginMemberId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupSettingsAuthorityRow authority =
+                smallGroupMapper.selectSmallGroupSettingsAuthorityForUpdate(smallGroupId);
+        if (authority == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임 정보를 찾을 수 없습니다.");
+        }
+
+        Long ownerMemberId = smallGroupMapper.selectSmallGroupOwnerMemberIdForUpdate(authority.getGroupId());
+        boolean isOwner = Objects.equals(authority.getGroupCreatorMemberId(), loginMemberId)
+                && Objects.equals(ownerMemberId, loginMemberId);
+        if (!isOwner) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_SETTINGS_FORBIDDEN",
+                    "개설자만 설정을 변경할 수 있습니다.");
+        }
+
+        normalizeSettings(request);
+
+        if (hasBasicSettingsUpdate(request)) {
+            SmallGroupSettingsBasicUpdate basicUpdate = createBasicSettingsUpdate(authority.getGroupId(), request);
+            if (basicUpdate.getMaxMembers() != null) {
+                long approvedMemberCount =
+                        smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(authority.getGroupId());
+                if (basicUpdate.getMaxMembers() < approvedMemberCount) {
+                    throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_BELOW_MEMBERS",
+                            "승인된 참여자 수보다 작게 설정할 수 없습니다.");
+                }
+            }
+            smallGroupMapper.updateSmallGroupBasicSettings(basicUpdate);
+        }
+
+        if (hasDetailSettingsUpdate(request)) {
+            smallGroupMapper.updateSmallGroupDetailSettings(
+                    createDetailSettingsUpdate(smallGroupId, request));
+        }
+    }
+
+    private void normalizeSettings(SmallGroupSettingsPatchRequest request) {
+        if (request.isGroupNameProvided()) {
+            request.setGroupName(request.getGroupName().strip());
+        }
+        if (request.isLikeCategoryProvided()) {
+            request.setLikeCategory(request.getLikeCategory().strip());
+        }
+        if (request.isDescriptionProvided()) {
+            request.setDescription(request.getDescription().strip());
+        }
+        if (request.isLocationProvided()) {
+            request.setLocation(request.getLocation().strip());
+        }
+    }
+
+    private boolean hasBasicSettingsUpdate(SmallGroupSettingsPatchRequest request) {
+        return request.isGroupNameProvided()
+                || request.isDescriptionProvided()
+                || request.isMaxMembersProvided();
+    }
+
+    private SmallGroupSettingsBasicUpdate createBasicSettingsUpdate(
+            Long groupId, SmallGroupSettingsPatchRequest request) {
+        return new SmallGroupSettingsBasicUpdate(
+                groupId,
+                request.isGroupNameProvided() ? request.getGroupName() : null,
+                request.isDescriptionProvided() ? request.getDescription() : null,
+                request.isMaxMembersProvided() ? request.getMaxMembers() : null);
+    }
+
+    private boolean hasDetailSettingsUpdate(SmallGroupSettingsPatchRequest request) {
+        return request.isLikeCategoryProvided()
+                || request.isMeetDateProvided()
+                || request.isLocationProvided();
+    }
+
+    private SmallGroupSettingsDetailUpdate createDetailSettingsUpdate(
+            Long smallGroupId, SmallGroupSettingsPatchRequest request) {
+        return new SmallGroupSettingsDetailUpdate(
+                smallGroupId,
+                request.isLikeCategoryProvided() ? request.getLikeCategory() : null,
+                request.isMeetDateProvided() ? request.getMeetDate() : null,
+                request.isLocationProvided() ? request.getLocation() : null);
     }
 
     // AI작성: MANAGER는 상태와 무관한 오류 데이터이며, 중복·미정의 역할은 권한을 임의로 선택하지 않는다.

@@ -12,12 +12,16 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -214,6 +218,111 @@ class SmallGroupServiceImplTest {
         verify(smallGroupMapper, never()).selectSmallGroupCurrentSettings(SMALL_GROUP_ID);
     }
 
+    @Test
+    void updateSmallGroupSettingsUpdatesProvidedCommonAndDetailFieldsForOwner() {
+        SmallGroupSettingsPatchRequest request = new SmallGroupSettingsPatchRequest();
+        request.setGroupName("  주말 걷기  ");
+        request.setDescription("  함께 걸어요.  ");
+        request.setMaxMembers(8);
+        request.setLikeCategory("  운동  ");
+        request.setMeetDate(LocalDate.of(2026, 11, 1));
+        request.setLocation("  한강 공원  ");
+        mockSettingsUpdateOwner();
+        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(2L);
+
+        smallGroupService.updateSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID, request);
+
+        ArgumentCaptor<SmallGroupSettingsBasicUpdate> basicCaptor =
+                ArgumentCaptor.forClass(SmallGroupSettingsBasicUpdate.class);
+        ArgumentCaptor<SmallGroupSettingsDetailUpdate> detailCaptor =
+                ArgumentCaptor.forClass(SmallGroupSettingsDetailUpdate.class);
+        verify(smallGroupMapper).updateSmallGroupBasicSettings(basicCaptor.capture());
+        verify(smallGroupMapper).updateSmallGroupDetailSettings(detailCaptor.capture());
+        assertThat(basicCaptor.getValue().getGroupId()).isEqualTo(GROUP_ID);
+        assertThat(basicCaptor.getValue().getGroupName()).isEqualTo("주말 걷기");
+        assertThat(basicCaptor.getValue().getDescription()).isEqualTo("함께 걸어요.");
+        assertThat(basicCaptor.getValue().getMaxMembers()).isEqualTo(8);
+        assertThat(detailCaptor.getValue().getSmallGroupId()).isEqualTo(SMALL_GROUP_ID);
+        assertThat(detailCaptor.getValue().getLikeCategory()).isEqualTo("운동");
+        assertThat(detailCaptor.getValue().getMeetDate()).isEqualTo(LocalDate.of(2026, 11, 1));
+        assertThat(detailCaptor.getValue().getLocation()).isEqualTo("한강 공원");
+    }
+
+    @Test
+    void updateSmallGroupSettingsRejectsUnauthenticatedUser() {
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.updateSmallGroupSettings(
+                        SMALL_GROUP_ID, null, new SmallGroupSettingsPatchRequest()),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("UNAUTHORIZED");
+        verify(smallGroupMapper, never()).selectSmallGroupSettingsAuthorityForUpdate(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void updateSmallGroupSettingsReturnsNotFoundForMissingOrDeletedSmallGroup() {
+        SmallGroupSettingsPatchRequest request = new SmallGroupSettingsPatchRequest();
+        request.setGroupName("주말 걷기");
+        when(smallGroupMapper.selectSmallGroupSettingsAuthorityForUpdate(SMALL_GROUP_ID)).thenReturn(null);
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.updateSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID, request),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_NOT_FOUND");
+        verify(smallGroupMapper, never()).selectSmallGroupOwnerMemberIdForUpdate(GROUP_ID);
+        verify(smallGroupMapper, never()).updateSmallGroupBasicSettings(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void updateSmallGroupSettingsRejectsUserWhoIsNotCreatorOrApprovedOwner() {
+        SmallGroupSettingsPatchRequest request = new SmallGroupSettingsPatchRequest();
+        request.setGroupName("주말 걷기");
+        when(smallGroupMapper.selectSmallGroupSettingsAuthorityForUpdate(SMALL_GROUP_ID))
+                .thenReturn(settingsAuthority(MEMBER_ID + 1, null));
+        when(smallGroupMapper.selectSmallGroupOwnerMemberIdForUpdate(GROUP_ID)).thenReturn(MEMBER_ID);
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.updateSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID, request),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_SETTINGS_FORBIDDEN");
+        verify(smallGroupMapper, never()).updateSmallGroupBasicSettings(org.mockito.ArgumentMatchers.any());
+        verify(smallGroupMapper, never()).updateSmallGroupDetailSettings(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void updateSmallGroupSettingsRejectsCapacityBelowApprovedOwnerAndMemberCount() {
+        SmallGroupSettingsPatchRequest request = new SmallGroupSettingsPatchRequest();
+        request.setMaxMembers(2);
+        mockSettingsUpdateOwner();
+        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(3L);
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.updateSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID, request),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_CAPACITY_BELOW_MEMBERS");
+        verify(smallGroupMapper, never()).updateSmallGroupBasicSettings(org.mockito.ArgumentMatchers.any());
+        verify(smallGroupMapper, never()).updateSmallGroupDetailSettings(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void updateSmallGroupSettingsUpdatesOnlyDetailFieldsWithoutCapacityCount() {
+        SmallGroupSettingsPatchRequest request = new SmallGroupSettingsPatchRequest();
+        request.setLocation("시민 공원");
+        mockSettingsUpdateOwner();
+
+        smallGroupService.updateSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID, request);
+
+        verify(smallGroupMapper, never()).selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID);
+        verify(smallGroupMapper, never()).updateSmallGroupBasicSettings(org.mockito.ArgumentMatchers.any());
+        ArgumentCaptor<SmallGroupSettingsDetailUpdate> detailCaptor =
+                ArgumentCaptor.forClass(SmallGroupSettingsDetailUpdate.class);
+        verify(smallGroupMapper).updateSmallGroupDetailSettings(detailCaptor.capture());
+        assertThat(detailCaptor.getValue().getLocation()).isEqualTo("시민 공원");
+    }
+
     private void mockExistingDetail() {
         when(smallGroupMapper.selectSmallGroupDetail(SMALL_GROUP_ID)).thenReturn(detailRow());
         when(smallGroupMapper.selectApprovedSmallGroupMemberCount(GROUP_ID)).thenReturn(2L);
@@ -250,6 +359,12 @@ class SmallGroupServiceImplTest {
         row.setGroupCreatorMemberId(creatorMemberId);
         row.setOwnerMemberId(ownerMemberId);
         return row;
+    }
+
+    private void mockSettingsUpdateOwner() {
+        when(smallGroupMapper.selectSmallGroupSettingsAuthorityForUpdate(SMALL_GROUP_ID))
+                .thenReturn(settingsAuthority(MEMBER_ID, null));
+        when(smallGroupMapper.selectSmallGroupOwnerMemberIdForUpdate(GROUP_ID)).thenReturn(MEMBER_ID);
     }
 
     private SmallGroupSettingsResponse settingsResponse() {
