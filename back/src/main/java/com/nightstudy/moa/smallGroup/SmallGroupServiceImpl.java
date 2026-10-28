@@ -11,10 +11,13 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -52,6 +55,35 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 row.getRegionName(), row.getLikeCategory(), row.getMeetDate(), row.getLocation(),
                 row.getMaxMembers(), memberCount, row.getCreatorNickname(), row.getCreatedAt(), myRole,
                 notices);
+    }
+
+    // AI작성: 소모임에는 상태별 설정 제한이 없으므로 삭제 여부와 개설자·승인 OWNER 권한만 확인한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SmallGroupSettingsResponse getSmallGroupSettings(Long smallGroupId, Long loginMemberId) {
+        if (loginMemberId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupSettingsAuthorityRow authority =
+                smallGroupMapper.selectSmallGroupSettingsAuthority(smallGroupId);
+        if (authority == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임 정보를 찾을 수 없습니다.");
+        }
+
+        boolean isOwner = Objects.equals(authority.getGroupCreatorMemberId(), loginMemberId)
+                && Objects.equals(authority.getOwnerMemberId(), loginMemberId);
+        if (!isOwner) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_SETTINGS_FORBIDDEN",
+                    "개설자만 설정을 조회할 수 있습니다.");
+        }
+
+        SmallGroupSettingsResponse settings =
+                smallGroupMapper.selectSmallGroupCurrentSettings(smallGroupId);
+        if (settings == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임 정보를 찾을 수 없습니다.");
+        }
+        return settings;
     }
 
     // AI작성: MANAGER는 상태와 무관한 오류 데이터이며, 중복·미정의 역할은 권한을 임의로 선택하지 않는다.

@@ -11,6 +11,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -149,6 +151,69 @@ class SmallGroupServiceImplTest {
         verify(smallGroupMapper, never()).selectApprovedSmallGroupMemberCount(GROUP_ID);
     }
 
+    @Test
+    void getSmallGroupSettingsReturnsCurrentValuesForCreatorAndApprovedOwner() {
+        SmallGroupSettingsResponse settings = settingsResponse();
+        when(smallGroupMapper.selectSmallGroupSettingsAuthority(SMALL_GROUP_ID))
+                .thenReturn(settingsAuthority(MEMBER_ID, MEMBER_ID));
+        when(smallGroupMapper.selectSmallGroupCurrentSettings(SMALL_GROUP_ID)).thenReturn(settings);
+
+        SmallGroupSettingsResponse response =
+                smallGroupService.getSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID);
+
+        assertThat(response).isSameAs(settings);
+        assertThat(response.getApprovedMemberCount()).isEqualTo(2L);
+        verify(smallGroupMapper).selectSmallGroupCurrentSettings(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void getSmallGroupSettingsRejectsUnauthenticatedUser() {
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupSettings(SMALL_GROUP_ID, null),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("UNAUTHORIZED");
+        verify(smallGroupMapper, never()).selectSmallGroupSettingsAuthority(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void getSmallGroupSettingsReturnsNotFoundForMissingOrDeletedSmallGroup() {
+        when(smallGroupMapper.selectSmallGroupSettingsAuthority(SMALL_GROUP_ID)).thenReturn(null);
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_NOT_FOUND");
+        verify(smallGroupMapper, never()).selectSmallGroupCurrentSettings(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void getSmallGroupSettingsRejectsUserWhoIsNotCreator() {
+        when(smallGroupMapper.selectSmallGroupSettingsAuthority(SMALL_GROUP_ID))
+                .thenReturn(settingsAuthority(MEMBER_ID + 1, MEMBER_ID));
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_SETTINGS_FORBIDDEN");
+        verify(smallGroupMapper, never()).selectSmallGroupCurrentSettings(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void getSmallGroupSettingsRejectsCreatorWithoutApprovedOwnerRelation() {
+        when(smallGroupMapper.selectSmallGroupSettingsAuthority(SMALL_GROUP_ID))
+                .thenReturn(settingsAuthority(MEMBER_ID, MEMBER_ID + 1));
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupSettings(SMALL_GROUP_ID, MEMBER_ID),
+                ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_SETTINGS_FORBIDDEN");
+        verify(smallGroupMapper, never()).selectSmallGroupCurrentSettings(SMALL_GROUP_ID);
+    }
+
     private void mockExistingDetail() {
         when(smallGroupMapper.selectSmallGroupDetail(SMALL_GROUP_ID)).thenReturn(detailRow());
         when(smallGroupMapper.selectApprovedSmallGroupMemberCount(GROUP_ID)).thenReturn(2L);
@@ -176,6 +241,21 @@ class SmallGroupServiceImplTest {
         row.setMemberRole(memberRole);
         row.setMembershipStatus(membershipStatus);
         return row;
+    }
+
+    private SmallGroupSettingsAuthorityRow settingsAuthority(Long creatorMemberId, Long ownerMemberId) {
+        SmallGroupSettingsAuthorityRow row = new SmallGroupSettingsAuthorityRow();
+        row.setSmallGroupId(SMALL_GROUP_ID);
+        row.setGroupId(GROUP_ID);
+        row.setGroupCreatorMemberId(creatorMemberId);
+        row.setOwnerMemberId(ownerMemberId);
+        return row;
+    }
+
+    private SmallGroupSettingsResponse settingsResponse() {
+        return new SmallGroupSettingsResponse(
+                "동네 걷기", "운동", "함께 걷는 소모임입니다.", 10,
+                LocalDate.of(2026, 11, 1), "한강 공원", 2L);
     }
 
     private SmallGroupNoticeSummaryResponse notice(
