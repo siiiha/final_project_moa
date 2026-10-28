@@ -29,11 +29,26 @@ export async function updateMyProfile(token, request) {
     return response.data.data;
 }
 
-// 현재 DB에서 확인한 관심사 번호, 이름
-// 관심사 목록 조회 API 추가 되면 서보 조회로 교체
+// AI작성: DB의 관심사 ID를 유지하고 소모임 대분류 순서로 표시한다.
 export const memberInterestOptions = [
-    { interestId: 1, interestName: '산책' },
-    { interestId: 2, interestName: '독서' },
+  { interestId: 1, interestName: '운동/스포츠' },
+  { interestId: 3, interestName: '사교/인맥' },
+  { interestId: 2, interestName: '인문학/책/글' },
+  { interestId: 4, interestName: '아웃도어/여행' },
+  { interestId: 5, interestName: '음악/악기' },
+  { interestId: 6, interestName: '업종/직무' },
+  { interestId: 7, interestName: '문화/공연/축제' },
+  { interestId: 8, interestName: '외국/언어' },
+  { interestId: 9, interestName: '게임/오락' },
+  { interestId: 10, interestName: '공예/만들기' },
+  { interestId: 11, interestName: '댄스/무용' },
+  { interestId: 12, interestName: '봉사활동' },
+  { interestId: 13, interestName: '사진/영상' },
+  { interestId: 14, interestName: '자기계발' },
+  { interestId: 15, interestName: '스포츠관람' },
+  { interestId: 16, interestName: '반려동물' },
+  { interestId: 17, interestName: '요리/제조' },
+  { interestId: 18, interestName: '자동차/바이크' },
 ];
 
 // 현재 비밀번호 확인하고 새 비밀번호로 수정
