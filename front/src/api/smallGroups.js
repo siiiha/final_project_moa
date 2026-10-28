@@ -191,7 +191,32 @@ export async function getSmallGroups({ keyword, regionCode, likeCategory, page =
   }
 }
 
-// AI작성: 공개 상세 API는 로그인 여부와 관계없이 응답 봉투를 확인한 뒤 원본 상세 데이터를 반환한다.
+// AI작성: 공지 본문 등 목록 화면에 불필요한 데이터는 전달하지 않고 제목·작성자·작성일만 보존한다.
+export function toSmallGroupNoticeSummary(notice) {
+  const hasNoticeId = typeof notice?.noticeId === 'number' || typeof notice?.noticeId === 'string';
+  if (!hasNoticeId || typeof notice.title !== 'string'
+    || typeof notice.writerNickname !== 'string' || typeof notice.createdAt !== 'string') {
+    throw new SmallGroupDetailLoadError('INVALID_RESPONSE', '소모임 최근 공지 응답을 확인하지 못했습니다.');
+  }
+  return {
+    noticeId: notice.noticeId,
+    title: notice.title,
+    writerNickname: notice.writerNickname,
+    createdAt: notice.createdAt,
+  };
+}
+
+// AI작성: 공개 상세 API는 로그인 여부와 관계없이 응답 봉투와 최근 공지 요약 배열을 확인한다.
+export function toSmallGroupDetail(data) {
+  if (!data || !Array.isArray(data.notices)) {
+    throw new SmallGroupDetailLoadError('INVALID_RESPONSE', '소모임 상세 응답을 확인하지 못했습니다.');
+  }
+  return {
+    ...data,
+    notices: data.notices.map(toSmallGroupNoticeSummary),
+  };
+}
+
 export async function getSmallGroupDetail(id, { signal } = {}) {
   try {
     const response = await client.get(`/small-groups/${encodeURIComponent(id)}`, { signal });
@@ -201,7 +226,7 @@ export async function getSmallGroupDetail(id, { signal } = {}) {
         response.data?.error?.message || '소모임 상세 응답을 확인하지 못했습니다.',
       );
     }
-    return response.data.data;
+    return toSmallGroupDetail(response.data.data);
   } catch (error) {
     throw toSmallGroupDetailLoadError(error, '소모임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
