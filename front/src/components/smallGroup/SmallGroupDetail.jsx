@@ -1,8 +1,6 @@
-import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
+import { FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
-import Button from '../common/Button';
-import SmallGroupMenuTabs from './SmallGroupMenuTabs';
+import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
 
@@ -54,13 +52,6 @@ const Meta = styled.p`
   font-size: 11px;
 `;
 
-const StatusBadge = styled(Badge)`
-  min-height: 20px;
-  padding: 2px 7px;
-  color: ${({ theme }) => theme.colors.primary};
-  font-size: 10px;
-`;
-
 const ContentGrid = styled.div`
   margin-top: 16px;
   display: grid;
@@ -84,13 +75,6 @@ const Card = styled.section`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
   box-shadow: ${({ theme }) => theme.shadow.card};
-`;
-
-const CardHeading = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 `;
 
 const CardTitle = styled.h2`
@@ -139,105 +123,34 @@ const ActivityImage = styled.div`
   }
 `;
 
-const PlaceContent = styled.div`
-  margin-top: 13px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-`;
-
-const Place = styled.p`
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
-`;
-
-const MapButton = styled(Button)`
-  min-height: 31px;
-  padding: 6px 10px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 11px;
-`;
-
-const ScheduleRow = styled.div`
-  margin-top: 13px;
+const DetailList = styled.dl`
+  margin-top: 12px;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 11px;
+  gap: 9px;
 `;
 
-const CalendarIcon = styled.div`
-  width: 36px;
-  height: 36px;
+const DetailRow = styled.div`
+  padding-bottom: 9px;
   display: grid;
-  place-items: center;
-  color: ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) => theme.colors.primarySoft};
-  border-radius: ${({ theme }) => theme.radius.sm};
-`;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 
-const ScheduleText = styled.div`
-  min-width: 0;
-
-  strong {
-    display: block;
-    overflow: hidden;
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  &:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 
-  span {
-    margin-top: 4px;
-    display: block;
-    overflow: hidden;
+  dt {
     color: ${({ theme }) => theme.colors.muted};
     font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-`;
 
-const TextButton = styled.button`
-  padding: 0;
-  color: ${({ theme }) => theme.colors.primary};
-  background: transparent;
-  border: 0;
-  font-size: 11px;
-  font-weight: 700;
-`;
-
-const NoticeButton = styled(Button)`
-  min-height: 28px;
-  padding: 5px 8px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 10px;
-`;
-
-const NoticeTable = styled.div`
-  margin-top: 12px;
-  overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-`;
-
-const NoticeRow = styled.div`
-  padding: 9px 10px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 66px 42px;
-  gap: 8px;
-  color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
-  background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
-  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
-  font-size: 10px;
-
-  span {
+  dd {
+    margin: 0;
     overflow: hidden;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -262,9 +175,19 @@ const JoinRequestsContent = styled.div`
   margin-top: 16px;
 `;
 
+function formatDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  }).format(date);
+}
+
 function SmallGroupDetail({
   group,
   detail,
+  myRole = null,
   activeMenu,
   interests,
   onMenuChange,
@@ -272,13 +195,22 @@ function SmallGroupDetail({
   onSettingsCancel,
   onDelete,
 }) {
+  const allowedMenuItems = getSmallGroupMenuItems(myRole);
+  // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
+  const currentMenu = allowedMenuItems.some((item) => item.id === activeMenu) ? activeMenu : 'notice';
   const activeLabel = {
     directions: '길찾기',
     poll: '투표',
     review: '후기',
     settings: '설정',
     joinRequests: '신청 목록',
-  }[activeMenu];
+  }[currentMenu];
+  const detailItems = [
+    ['개설자', group.creatorNickname],
+    ['생성일', formatDate(group.createdAt)],
+    ['모임 날짜', formatDate(group.meetDate)],
+    ['장소', group.location],
+  ].filter(([, value]) => value);
 
   return (
     <>
@@ -294,14 +226,13 @@ function SmallGroupDetail({
               <span>·</span>
               <FiUsers size={12} aria-hidden="true" />
               <span>{group.participants}</span>
-              <StatusBadge>{detail.status}</StatusBadge>
             </Meta>
           </TitleBlock>
         </ProfileTop>
-        <SmallGroupMenuTabs activeMenu={activeMenu} onMenuChange={onMenuChange} />
+        <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>
 
-      {activeMenu === 'settings' ? (
+      {currentMenu === 'settings' ? (
         <SettingsContent>
           <SmallGroupSettingsForm
             group={group}
@@ -312,11 +243,11 @@ function SmallGroupDetail({
             onDelete={onDelete}
           />
         </SettingsContent>
-      ) : activeMenu === 'joinRequests' ? (
+      ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
           <SmallGroupJoinRequestsPanel groupName={group.name} />
         </JoinRequestsContent>
-      ) : activeMenu !== 'notice' ? (
+      ) : currentMenu !== 'notice' ? (
         <Placeholder>{activeLabel} 기능은 준비 중입니다.</Placeholder>
       ) : (
         <ContentGrid>
@@ -328,47 +259,21 @@ function SmallGroupDetail({
                 <ActivityImage role="img" aria-label={`${group.name} 활동 이미지 영역`} />
               </IntroBody>
             </Card>
-            <Card>
-              <CardTitle>장소</CardTitle>
-              <PlaceContent>
-                <Place><FiMapPin size={14} aria-hidden="true" /> {detail.meetingPlace}</Place>
-                <MapButton type="button" $variant="secondary" onClick={() => {}}>
-                  선택 장소 길찾기 <FiChevronRight size={12} aria-hidden="true" />
-                </MapButton>
-              </PlaceContent>
-            </Card>
           </Column>
 
           <Column>
-            <Card>
-              <CardHeading>
-                <CardTitle>다음 모임 일정</CardTitle>
-                <TextButton type="button" onClick={() => {}}>일정 확인</TextButton>
-              </CardHeading>
-              <ScheduleRow>
-                <CalendarIcon><FiCalendar size={17} aria-hidden="true" /></CalendarIcon>
-                <ScheduleText>
-                  <strong>{detail.nextMeeting}</strong>
-                  <span>{detail.meetingPlace}</span>
-                </ScheduleText>
-              </ScheduleRow>
-            </Card>
-            <Card>
-              <CardHeading>
-                <CardTitle>최근 공지</CardTitle>
-                <NoticeButton type="button" $variant="secondary">공지 전체 보기</NoticeButton>
-              </CardHeading>
-              <NoticeTable aria-label="최근 공지 목록">
-                <NoticeRow $header>
-                  <span>제목</span><span>작성자</span><span>작성일</span>
-                </NoticeRow>
-                {detail.notices.map((notice, index) => (
-                  <NoticeRow key={notice.id} $last={index === detail.notices.length - 1}>
-                    <span>{notice.title}</span><span>{notice.author}</span><span>{notice.date}</span>
-                  </NoticeRow>
-                ))}
-              </NoticeTable>
-            </Card>
+            {detailItems.length > 0 && (
+              <Card>
+                <CardTitle>모임 정보</CardTitle>
+                <DetailList>
+                  {detailItems.map(([label, value]) => (
+                    <DetailRow key={label}>
+                      <dt>{label}</dt><dd>{value}</dd>
+                    </DetailRow>
+                  ))}
+                </DetailList>
+              </Card>
+            )}
           </Column>
         </ContentGrid>
       )}
