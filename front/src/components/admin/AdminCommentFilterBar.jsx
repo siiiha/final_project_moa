@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
+import { savingGroupRegionOptions } from '../../api/savingGroups';
 
 const Form = styled.form`
   display: grid;
@@ -89,8 +90,12 @@ function AdminCommentFilterBar({ query, region, status, onQueryChange, onRegionC
         지역
         <Select value={region} onChange={(event) => onRegionChange(event.target.value)} aria-label="댓글 작성자 지역">
           <option value="">전체 지역</option>
-          <option value="서울">서울</option>
-          <option value="경기">경기</option>
+          {/* AI작성: 관리자 댓글 필터도 기존 서비스 지역 목록을 재사용한다. */}
+          {savingGroupRegionOptions.map((item) => (
+            <option key={item.code} value={item.name}>
+              {item.name}
+            </option>
+          ))}
         </Select>
       </Field>
       <Field>
