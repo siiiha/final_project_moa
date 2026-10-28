@@ -207,7 +207,10 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                     <td data-label="게시글">
                       <PostTitle>{comment.postTitle}</PostTitle>
                     </td>
-                    <td data-label="작성일">{comment.date.slice(5)}</td>
+                    <td data-label="작성일">
+                      {/* AI작성: 날짜 확인 실패 안내 문구와 연도가 잘리지 않도록 API 변환값 전체를 표시한다. */}
+                      {comment.date}
+                    </td>
                     <td data-label="상태">
                       <Status $deleted={comment.status === '삭제'}>{comment.status}</Status>
                     </td>
