@@ -7,7 +7,7 @@ import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.Test;
 
-// AI작성: 설정 조회용 MyBatis statement와 constructor resultMap이 애플리케이션 기동 전 파싱되는지 확인한다.
+// AI작성: 설정 조회·수정용 MyBatis statement와 constructor resultMap이 애플리케이션 기동 전 파싱되는지 확인한다.
 class SmallGroupMapperXmlTest {
 
     private static final String NAMESPACE = "com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper.";
@@ -27,6 +27,11 @@ class SmallGroupMapperXmlTest {
 
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupSettingsAuthority")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupCurrentSettings")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupSettingsAuthorityForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupOwnerMemberIdForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectApprovedSmallGroupMemberCountForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "updateSmallGroupBasicSettings")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "updateSmallGroupDetailSettings")).isTrue();
         assertThat(configuration.getResultMapNames()).contains(NAMESPACE + "smallGroupSettings");
     }
 }

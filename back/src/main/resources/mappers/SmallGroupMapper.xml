@@ -250,6 +250,76 @@
           AND g.deleted_at IS NULL
     </select>
 
+    <!-- AI작성: 소모임 수정 전 공통 모임 행을 잠가 삭제와 개설자 변경 사이의 경쟁 상태를 막는다. -->
+    <select id="selectSmallGroupSettingsAuthorityForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow">
+        SELECT sg.small_group_id,
+               sg.group_id,
+               g.member_id AS group_creator_member_id
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 수정 권한 검증에 사용할 승인 OWNER 관계 행을 잠근다. -->
+    <select id="selectSmallGroupOwnerMemberIdForUpdate" resultType="long">
+        SELECT member_id
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND member_role = 'OWNER'
+          AND membership_status = 'APPROVED'
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 정원은 승인된 실제 참여자만 기준으로 하며 관계 행을 잠가 동시에 가입한 인원이 누락되지 않게 한다. -->
+    <select id="selectApprovedSmallGroupMemberCountForUpdate" resultType="long">
+        SELECT COUNT(DISTINCT member_id)
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND membership_status = 'APPROVED'
+          AND member_role IN ('OWNER', 'MEMBER')
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: Service가 수정 필드 존재를 보장하므로 동적 SET에는 전달된 공통 모임 필드만 포함한다. -->
+    <update id="updateSmallGroupBasicSettings">
+        UPDATE `groups`
+        <set>
+            <if test="update.groupName != null">
+                group_name = #{update.groupName},
+            </if>
+            <if test="update.description != null">
+                description = #{update.description},
+            </if>
+            <if test="update.maxMembers != null">
+                max_members = #{update.maxMembers},
+            </if>
+        </set>
+        WHERE group_id = #{update.groupId}
+          AND deleted_at IS NULL
+    </update>
+
+    <!-- AI작성: 삭제되지 않은 공통 모임에 연결된 경우에만 소모임 전용 필드를 동적으로 수정한다. -->
+    <update id="updateSmallGroupDetailSettings">
+        UPDATE small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        <set>
+            <if test="update.likeCategory != null">
+                sg.like_category = #{update.likeCategory},
+            </if>
+            <if test="update.meetDate != null">
+                sg.meet_date = #{update.meetDate},
+            </if>
+            <if test="update.location != null">
+                sg.location = #{update.location},
+            </if>
+        </set>
+        WHERE sg.small_group_id = #{update.smallGroupId}
+          AND g.deleted_at IS NULL
+    </update>
+
     <resultMap id="smallGroupNoticeSummary"
                type="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
         <constructor>

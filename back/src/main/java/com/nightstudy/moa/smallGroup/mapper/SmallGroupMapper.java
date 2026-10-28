@@ -10,6 +10,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
@@ -59,6 +61,22 @@ public interface SmallGroupMapper {
     // AI작성: 설정 화면에 표시할 현재 수정 가능 정보와 승인 OWNER·MEMBER 수를 조회한다.
     SmallGroupSettingsResponse selectSmallGroupCurrentSettings(
             @Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 수정 대상 소모임과 공통 모임 행을 잠가 삭제·개설자 권한을 같은 트랜잭션에서 확인한다.
+    SmallGroupSettingsAuthorityRow selectSmallGroupSettingsAuthorityForUpdate(
+            @Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 승인 OWNER 관계 행을 잠가 개설자와 OWNER 권한이 수정 직전에 모두 유효한지 확인한다.
+    Long selectSmallGroupOwnerMemberIdForUpdate(@Param("groupId") Long groupId);
+
+    // AI작성: 정원 축소 판단 시 승인 OWNER와 MEMBER 관계 행만 잠근 상태로 집계한다.
+    long selectApprovedSmallGroupMemberCountForUpdate(@Param("groupId") Long groupId);
+
+    // AI작성: 요청에 포함된 공통 모임 필드만 groups 테이블에 수정한다.
+    int updateSmallGroupBasicSettings(@Param("update") SmallGroupSettingsBasicUpdate update);
+
+    // AI작성: 요청에 포함된 소모임 전용 필드만 small_group 테이블에 수정한다.
+    int updateSmallGroupDetailSettings(@Param("update") SmallGroupSettingsDetailUpdate update);
 
     // AI작성: 공개 상세 화면의 최근 공지 영역에는 최신 4건의 요약만 전달한다.
     List<SmallGroupNoticeSummaryResponse> selectRecentSmallGroupNotices(@Param("groupId") Long groupId);
