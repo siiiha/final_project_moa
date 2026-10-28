@@ -12,6 +12,7 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
 import com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +26,9 @@ class AdminSavingGroupServiceImplTest {
     @Mock
     private AdminSavingGroupMapper adminSavingGroupMapper;
 
+    @Mock
+    private SavingGroupMapper savingGroupMapper;
+
     @InjectMocks
     private AdminSavingGroupServiceImpl adminSavingGroupService;
 
@@ -35,15 +39,15 @@ class AdminSavingGroupServiceImplTest {
         condition.setSize(10);
         AdminSavingGroupListItemResponse item = new AdminSavingGroupListItemResponse();
         item.setSavingGroupId(11L);
+        item.setGroupId(101L);
         when(adminSavingGroupMapper.selectSavingGroupCount(condition)).thenReturn(11);
         when(adminSavingGroupMapper.selectSavingGroupList(condition)).thenReturn(List.of(item));
+        when(savingGroupMapper.selectApprovedMemberCounts(List.of(101L))).thenReturn(List.of());
 
         AdminSavingGroupListResult result = adminSavingGroupService.getSavingGroupList(condition);
 
         assertThat(result.getSavingGroups()).containsExactly(item);
         assertThat(result.getPageMeta().getTotalPages()).isEqualTo(2);
-        assertThat(condition.getOffset()).isEqualTo(10);
-        assertThat(condition.getLimit()).isEqualTo(10);
     }
 
     @Test

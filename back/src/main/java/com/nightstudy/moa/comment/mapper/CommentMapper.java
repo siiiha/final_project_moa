@@ -32,11 +32,13 @@ public interface CommentMapper {
     int updateComment(
             @Param("postId") Long postId,
             @Param("commentId") Long commentId,
+            @Param("loginMemberId") Long loginMemberId,
             @Param("request") CommentEditRequest request
     );
 
     int deleteComment(
             @Param("postId") Long postId,
-            @Param("commentId") Long commentId
+            @Param("commentId") Long commentId,
+            @Param("loginMemberId") Long loginMemberId
     );
 }

@@ -37,7 +37,7 @@ public class AdminReportController {
     // 조회 결과와 프론트엔드의 페이지 이동에 필요한 페이징 정보를 함께 반환한다.
     @GetMapping
     public ApiResponse<List<AdminReportListItemResponse>> getReportList(
-            @ModelAttribute AdminReportSearchCondition condition){
+            @Valid @ModelAttribute AdminReportSearchCondition condition){
         AdminReportListResult result = adminReportService.getReportList(condition);
 
         return ApiResponse.ok(

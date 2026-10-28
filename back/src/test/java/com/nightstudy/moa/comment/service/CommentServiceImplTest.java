@@ -110,14 +110,13 @@ class CommentServiceImplTest {
         request.setContent("수정 내용");
         when(postMapper.countPostById(1L)).thenReturn(1);
         when(commentMapper.selectCommentById(10L)).thenReturn(before, after);
-        when(commentMapper.updateComment(1L, 10L, request)).thenReturn(1);
-
+        when(commentMapper.updateComment(1L, 10L, 2L, request))
+                .thenReturn(1);
         before.setMemberId(2L);
         CommentDto result = commentService.updateComment(1L, 10L, 2L, request);
 
         assertThat(result.getContent()).isEqualTo("수정 내용");
-        verify(commentMapper).updateComment(1L, 10L, request);
-    }
+        verify(commentMapper).updateComment(1L, 10L, 2L, request);    }
 
     @Test
     // AI작성: 다른 게시글의 댓글 수정 요청은 COMMENT_NOT_FOUND로 처리하는지 확인한다.
@@ -131,21 +130,23 @@ class CommentServiceImplTest {
         assertThatThrownBy(() -> commentService.updateComment(1L, 10L, 2L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("COMMENT_NOT_FOUND"));
-        verify(commentMapper, never()).updateComment(1L, 10L, request);
+        verify(commentMapper, never())
+                .updateComment(1L, 10L, 2L, request);
     }
 
     @Test
     // AI작성: 활성 게시글의 댓글 삭제 결과가 한 건이면 정상 완료되는지 확인한다.
     void deleteCommentCompletesWhenOneCommentIsUpdated() {
         when(postMapper.countPostById(1L)).thenReturn(1);
-        when(commentMapper.deleteComment(1L, 10L)).thenReturn(1);
+        when(commentMapper.deleteComment(1L, 10L, 2L))
+                .thenReturn(1);
 
         CommentDto comment = comment(10L, 1L, null, "댓글");
         comment.setMemberId(2L);
         when(commentMapper.selectCommentById(10L)).thenReturn(comment);
         commentService.deleteComment(1L, 10L, 2L);
 
-        verify(commentMapper).deleteComment(1L, 10L);
+        verify(commentMapper).deleteComment(1L, 10L, 2L);
     }
 
     @Test

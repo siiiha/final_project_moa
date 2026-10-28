@@ -176,7 +176,12 @@ public class CommentServiceImpl implements CommentService {
             return comment;
         }
 
-        int updatedRow = commentMapper.updateComment(postId, commentId, request);
+        int updatedRow = commentMapper.updateComment(
+                postId,
+                commentId,
+                loginMemberId,
+                request
+        );
 
         if (updatedRow != 1) {
             throw new ApiException(
@@ -202,7 +207,11 @@ public class CommentServiceImpl implements CommentService {
             throw new ApiException(HttpStatus.FORBIDDEN, "COMMENT_DELETE_FORBIDDEN", "댓글 삭제 권한이 없습니다.");
         }
 
-        int deleteRows = commentMapper.deleteComment(postId, commentId);
+        int deleteRows = commentMapper.deleteComment(
+                postId,
+                commentId,
+                loginMemberId
+        );
 
         if (deleteRows != 1) {
             throw new ApiException(
