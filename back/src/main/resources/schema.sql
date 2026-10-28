@@ -446,6 +446,24 @@ CREATE TABLE IF NOT EXISTS `post` (
 	PRIMARY KEY (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- AI작성: 게시글에 첨부한 여러 이미지의 경로와 표시 순서를 저장한다.
+CREATE TABLE IF NOT EXISTS `post_image` (
+    `image_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `post_id` BIGINT NOT NULL,
+    `image_url` VARCHAR(500) NOT NULL,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`image_id`),
+    KEY `ix_post_image_post_order` (`post_id`, `sort_order`),
+
+    CONSTRAINT `fk_post_image_post`
+    FOREIGN KEY (`post_id`)
+    REFERENCES `post` (`post_id`)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
 ALTER TABLE `member_interest` ADD CONSTRAINT `FK_interest_TO_member_interest_1` FOREIGN KEY (
 	`interest_id`
 )
