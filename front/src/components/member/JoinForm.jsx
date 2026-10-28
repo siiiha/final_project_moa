@@ -18,6 +18,7 @@ import {
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 import ConfirmModal from '../common/ConfirmModal';
+import { interestIcons } from './interestsIcons';
 
 const Form = styled.form`
   width: 100%;
@@ -86,55 +87,69 @@ const InterestCard = styled(SectionCard)`
   }
 `;
 
+// AI작성: 안내 문구 아래에 관심사 버튼을 격자로 배치한다.
 const InterestContent = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 24px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-  }
+  display: grid;
+  gap: 16px;
 `;
 
 const InterestDescription = styled.div`
-  min-width: 230px;
+  min-width: 0;
 
   h3 {
     color: ${({ theme }) => theme.colors.text};
     font-size: 16px;
-    letter-spacing: -0.75px;
+    letter-spacing: -0.5px;
   }
 
   p {
-    margin-top: 4px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 11px;
+    margin-top: 6px;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 13px;
+    line-height: 1.5;
   }
 `;
 
+// AI작성: PC는 4열, 모바일과 소셜 인증 창은 2열로 표시한다.
 const ChipList = styled.div`
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    justify-content: flex-start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 `;
 
 const Chip = styled.button`
-  min-height: 32px;
-  padding: 6px 14px;
-  color: ${({ $selected, theme }) => ($selected ? theme.colors.white : theme.colors.secondaryText)};
-  background: ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.white)};
-  border: 1px solid ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.border)};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 11px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: ${({ $selected, theme }) =>
+    $selected ? theme.colors.white : theme.colors.secondaryText};
+  background: ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.white};
+  border: 1px solid ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.md};
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 3px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 `;
 
 const AgreementCard = styled(SectionCard)`
@@ -764,24 +779,37 @@ navigate('/member/login', { replace: true });
         </SectionCard>
       </DetailsGrid>
 
-      <InterestCard title="관심사">
+            <InterestCard title="관심사">
         <InterestContent>
           <InterestDescription>
-            <h3>좋아하는 활동을 선택해주세요</h3>
-            <p>최대 2개 선택 · 선택사항</p>
+            <h3>어떤 활동에 관심이 있으신가요?</h3>
+            <p aria-live="polite">
+              최대 2개 선택 · 선택사항 · 선택 {selectedInterests.length}/2
+            </p>
           </InterestDescription>
+
           <ChipList aria-label="관심사 선택">
-            {memberInterestOptions.map((interest) => (
-              <Chip
-                key={interest.interestId}
-                type="button"
-                $selected={selectedInterests.includes(interest.interestId)}
-                onClick={() => handleInterestToggle(interest.interestId)}
-                aria-pressed={selectedInterests.includes(interest.interestId)}
-              >
-                {interest.interestName}
-              </Chip>
-            ))}
+            {memberInterestOptions.map((interest) => {
+              const selected = selectedInterests.includes(
+                interest.interestId,
+              );
+              const InterestIcon = interestIcons[interest.interestId];
+              return (
+                <Chip
+                  key={interest.interestId}
+                  type="button"
+                  $selected={selected}
+                  onClick={() => handleInterestToggle(interest.interestId)}
+                  aria-pressed={selected}
+                  disabled={!selected && selectedInterests.length >= 2}
+                >
+                  {InterestIcon && (
+                    <InterestIcon size={18} aria-hidden="true" />
+                  )}  
+                  <span>{interest.interestName}</span>
+                </Chip>
+              );
+            })}
           </ChipList>
         </InterestContent>
       </InterestCard>
