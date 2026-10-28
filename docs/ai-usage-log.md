@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-28 — 소모임 설정 정보 조회 API
+
+- 목적: 소모임 개설자가 설정 화면을 열기 전에 현재 수정 가능한 모임 정보와 승인 참여 인원을 안전하게 조회할 수 있게 한다.
+- 사용자 확정: 경로는 `GET /api/small-groups/{id}/settings`이며, `id`는 `small_group.small_group_id`를 사용한다. 수정 가능 정보는 모임명·관심사 카테고리·소개글·정원·만남일·장소이고, 소모임에는 상태별 수정·조회 제한을 추가하지 않는다. 설정 조회와 수정 권한은 개설자이면서 `OWNER`·`APPROVED` 관계인 사용자로 한정한다.
+- AI 작성: 설정 조회 응답·권한 DTO, MyBatis 권한·현재값 조회, Service의 개설자/승인 OWNER 이중 권한 검증, GET Controller, Service·Mapper XML·Controller·Security 테스트, API 명세를 추가했다.
+- 응답·권한: 성공 시 기존 `ApiResponse`의 `data`에 6개 수정 가능 필드와 `approvedMemberCount`를 반환한다. 승인 인원은 `APPROVED` 상태의 `OWNER`, `MEMBER`만 중복 없이 집계한다. 없는·삭제 소모임은 `404 SMALL_GROUP_NOT_FOUND`, 개설자 또는 승인 OWNER가 아닌 요청은 `403 SMALL_GROUP_SETTINGS_FORBIDDEN`으로 처리한다. 인증이 없으면 Spring Security 공통 `401 LOGIN_REQUIRED`를 사용한다.
+- DB·의존성·외부 연동: 기존 `small_group`, `groups`, `group_member`와 MyBatis Mapper만 재사용했다. DB 마이그레이션, 상태값, 외부 호출, 의존성·설정 변경은 하지 않았다.
+- 검증: `git diff --check`를 통과했다. Gradle 대상 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 소모임 Mapper XML·Service·Controller·Security 테스트를 실행하고, 실제 JWT로 OWNER·비OWNER·비로그인·삭제 소모임의 200/401/403/404 응답을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 다음 단계에서 프런트 설정 폼이 이 API의 데이터와 승인 인원 수를 사용하도록 연결하기 전 응답 필드를 검토한다.
+
 ## 2026-10-28 — 소모임 공개 상세 조회 API 구현 및 문서화
 
 - 목적: 비로그인 사용자와 비회원도 조회할 수 있는 소모임 상세 API와 상세 화면 연동을 구현하고, 역할별 응답·탭 노출 규칙을 기록했다.

@@ -1,5 +1,5 @@
 <!-- AI작성: 기존 계모임·소모임 구현과 사용자 확정 정책을 기준으로 작성한 소모임 공개 상세 조회 설계 문서입니다. -->
-# 소모임 공개 상세 조회 API 설계
+# 소모임 상세·설정 조회 API 설계
 
 ## 범위
 
@@ -97,3 +97,51 @@ Spring Security에서 숫자 ID의 `GET /api/small-groups/{id}`만 공개한다.
 3. 프론트 상세 화면에서 역할별 탭, 모임 날짜·장소, 최근 공지 0·1·4건 표시를 확인한다.
 4. 공지 전체 보기·일정 확인·길찾기는 후속 API가 구현되기 전까지 이동하지 않는지 확인한다.
 5. Java 17 환경에서 백엔드 소모임 테스트를 실행한다.
+
+---
+
+## 소모임 설정 정보 조회 API
+
+### 범위
+
+- 엔드포인트: `GET /api/small-groups/{id}/settings`
+- `{id}`는 `small_group.small_group_id`이며 양수여야 한다.
+- 설정 조회는 공개 API가 아니다. JWT 인증을 통과한 뒤, 소모임의 개설자이면서 `OWNER`·`APPROVED` 관계인 사용자만 조회할 수 있다.
+- 소모임에는 모집·진행·완료 상태 정책이 없으므로 상태에 따른 조회 제한은 두지 않는다.
+
+### 성공 응답
+
+```json
+{
+  "success": true,
+  "data": {
+    "groupName": "주말 걷기 모임",
+    "likeCategory": "운동",
+    "description": "함께 걷고 이야기하는 소모임입니다.",
+    "maxMembers": 10,
+    "meetDate": "2026-11-01",
+    "location": "한강공원",
+    "approvedMemberCount": 4
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+`approvedMemberCount`는 `APPROVED` 상태인 `OWNER`, `MEMBER`만 중복 없이 집계한다. 이후 정원 축소 요청의 프런트 1차 검증과 서버 최종 검증 기준으로 사용한다.
+
+### 권한·오류
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증 정보 없음 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 소모임이 없거나 `groups.deleted_at`이 설정됨 | `404 SMALL_GROUP_NOT_FOUND` |
+| 로그인 회원이 개설자가 아니거나 승인 OWNER가 아님 | `403 SMALL_GROUP_SETTINGS_FORBIDDEN` |
+| `id`가 0 이하 또는 숫자가 아님 | `400 BAD_REQUEST` |
+
+### 데이터와 테스트
+
+- 기존 `small_group`, `groups`, `group_member`와 `SmallGroupMapper`를 재사용하며 DB 마이그레이션은 추가하지 않는다.
+- Service 단위 테스트는 정상 조회, 비로그인, 없는·삭제된 소모임, 비개설자, 승인 OWNER 관계가 없는 개설자를 검증한다.
+- Controller 테스트는 JWT 요청 속성 전달, 공통 성공·업무 오류 응답, 양수가 아닌 경로 ID를 검증한다.
+- Security 통합 테스트는 설정 조회 API가 인증 없이는 접근할 수 없음을 검증한다.
