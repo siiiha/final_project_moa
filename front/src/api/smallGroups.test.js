@@ -23,7 +23,7 @@ test('소모임 생성은 입력값만 API 본문에 전달하고 생성 결과�
 
   try {
     client.post = async (path, payload) => {
-      assert.equal(path, '/smallgroups');
+      assert.equal(path, '/small-groups');
       assert.deepEqual(payload, request);
       return { data: { success: true, data: created, meta: null, error: null } };
     };
@@ -71,7 +71,7 @@ test('활동 지역 목록을 조회해 DB 응답 데이터를 반환한다', as
 
   try {
     client.get = async (path) => {
-      assert.equal(path, '/smallgroups/regions');
+      assert.equal(path, '/small-groups/regions');
       return { data: { success: true, data: regions, meta: null, error: null } };
     };
 

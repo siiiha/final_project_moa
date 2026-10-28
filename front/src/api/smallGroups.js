@@ -89,7 +89,7 @@ function toSmallGroupCategoryLoadError(error, fallbackMessage) {
 // AI작성: 로그인한 사용자가 소모임 개설 전 DB에 등록된 활동 지역을 조회한다.
 export async function fetchSmallGroupRegions() {
   try {
-    const response = await client.get('/smallgroups/regions');
+    const response = await client.get('/small-groups/regions');
     if (!response.data?.success || !Array.isArray(response.data.data)) {
       throw new SmallGroupRegionLoadError(
         response.data?.error?.code || 'SMALL_GROUP_REGION_LOAD_FAILED',
@@ -105,7 +105,7 @@ export async function fetchSmallGroupRegions() {
 // AI작성: 목록 필터는 interest 기준 데이터만 사용하며, 소모임의 현재 목록에서 임의로 만들지 않는다.
 export async function fetchSmallGroupCategories({ signal } = {}) {
   try {
-    const response = await client.get('/smallgroups/categories', { signal });
+    const response = await client.get('/small-groups/categories', { signal });
     if (!response.data?.success || !Array.isArray(response.data.data)) {
       throw new SmallGroupCategoryLoadError(
         response.data?.error?.code || 'SMALL_GROUP_CATEGORY_LOAD_FAILED',
@@ -143,7 +143,7 @@ export function getSmallGroupPages(currentPage, totalPages) {
 // AI작성: 서버가 검색·필터·페이징을 처리하므로 프론트는 요청 조건과 응답 유효성만 관리한다.
 export async function getSmallGroups({ keyword, regionCode, likeCategory, page = 1, signal } = {}) {
   try {
-    const response = await client.get('/smallgroups', {
+    const response = await client.get('/small-groups', {
       params: {
         keyword: keyword || undefined,
         regionCode: regionCode || undefined,
@@ -175,7 +175,7 @@ export async function getSmallGroups({ keyword, regionCode, likeCategory, page =
 // AI작성: 생성자 정보는 JWT에서 서버가 결정하므로, 입력값만 본문에 담아 생성 결과를 반환한다.
 export async function createSmallGroup(request) {
   try {
-    const response = await client.post('/smallgroups', request);
+    const response = await client.post('/small-groups', request);
     if (!response.data?.success || !response.data.data) {
       throw new SmallGroupCreationError(
         response.data?.error?.code || 'SMALL_GROUP_CREATION_FAILED',
