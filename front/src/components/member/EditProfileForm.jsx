@@ -14,6 +14,7 @@ import {
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 import ProfileImage from './ProfileImage';
+import { interestIcons } from './interestsIcons';
 
 const Card = styled.section`
   padding: 28px 34px 16px;
@@ -156,21 +157,51 @@ const Label = styled.h2`
   font-weight: 700;
 `;
 
+// AI작성: 관심사를 동일한 크기의 버튼으로 표시한다.
 const ChipList = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 `;
 
 const Chip = styled.button`
-  min-height: 31px;
-  padding: 5px 12px;
-  color: ${({ $selected, theme }) => ($selected ? theme.colors.white : theme.colors.secondaryText)};
-  background: ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.white)};
-  border: 1px solid ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.border)};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 11px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: ${({ $selected, theme }) =>
+    $selected ? theme.colors.white : theme.colors.secondaryText};
+  background: ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.white};
+  border: 1px solid ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.md};
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+
+  > svg {
+    flex-shrink: 0;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 3px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 `;
 
 const Hint = styled.p`
@@ -620,19 +651,26 @@ function EditProfileForm() {
         <InterestField>
           <Label>관심사</Label>
           <ChipList aria-label="관심사 선택">
-            {memberInterestOptions.map((interest) => (
-              <Chip
-                key={interest.interestId}
-                type="button"
-                disabled={isSaving}
-                $selected={selectedInterests.includes(interest.interestId)}
-                aria-pressed={selectedInterests.includes(interest.interestId)}
-                onClick={() => toggleInterest(interest.interestId)}
-              >
-                {selectedInterests.includes(interest.interestId) ? '✓ ' : ''}
-                {interest.interestName}
-              </Chip>
-            ))}
+            {memberInterestOptions.map((interest) => {
+  const selected = selectedInterests.includes(interest.interestId);
+  const InterestIcon = interestIcons[interest.interestId];
+
+  return (
+    <Chip
+      key={interest.interestId}
+      type="button"
+      disabled={isSaving}
+      $selected={selected}
+      aria-pressed={selected}
+      onClick={() => toggleInterest(interest.interestId)}
+    >
+      {InterestIcon && (
+        <InterestIcon size={18} aria-hidden="true" />
+      )}
+      <span>{interest.interestName}</span>
+    </Chip>
+  );
+})}
           </ChipList>
           <Hint>모두 해제하면 관심사를 선택하지 않은 상태로 저장됩니다.</Hint>
         </InterestField>
