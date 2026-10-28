@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS `groups` (
 CREATE TABLE IF NOT EXISTS `saving_group` (
 	`saving_group_id` BIGINT NOT NULL AUTO_INCREMENT,
     `group_id` BIGINT NOT NULL,
+    `interest_id` BIGINT NULL,
     `saving_group_type` VARCHAR(50) NULL,
     `dues_amount` DECIMAL(12,2) NULL,
     `dues_day` TINYINT NULL,
@@ -618,6 +619,11 @@ ALTER TABLE `saving_group`
 ADD CONSTRAINT `FK_groups_TO_saving_group_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);
+
+ALTER TABLE `saving_group`
+ADD CONSTRAINT `FK_interest_TO_saving_group_1`
+FOREIGN KEY (`interest_id`)
+REFERENCES `interest` (`interest_id`);
 
 ALTER TABLE `small_group`
 ADD CONSTRAINT `FK_groups_TO_small_group_1`
