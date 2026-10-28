@@ -259,7 +259,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const handleInterestToggle = (interest) => {
     setSelectedInterests((current) => {
       if (current.includes(interest)) return current.filter((item) => item !== interest);
-      if (current.length === 2) return current;
+      if (current.length >= 3) return current;
       return [...current, interest];
     });
   };
@@ -800,7 +800,7 @@ navigate('/member/login', { replace: true });
           <InterestDescription>
             <h3>어떤 활동에 관심이 있으신가요?</h3>
             <p aria-live="polite">
-              최대 2개 선택 · 선택사항 · 선택 {selectedInterests.length}/2
+              최대 3개 선택 · 선택사항 · 선택 {selectedInterests.length}/3
             </p>
           </InterestDescription>
 
@@ -817,7 +817,7 @@ navigate('/member/login', { replace: true });
                   $selected={selected}
                   onClick={() => handleInterestToggle(interest.interestId)}
                   aria-pressed={selected}
-                  disabled={!selected && selectedInterests.length >= 2}
+                  disabled={!selected && selectedInterests.length >= 3}
                 >
                   {InterestIcon && (
                     <InterestIcon size={18} aria-hidden="true" />
