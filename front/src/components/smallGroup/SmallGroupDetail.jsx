@@ -272,13 +272,16 @@ function formatDate(value) {
 
 function SmallGroupDetail({
   group,
-  detail,
   myRole = null,
   activeMenu,
-  interests,
+  settings,
+  settingsCategories,
+  isSettingsLoading,
+  settingsErrorMessage,
   onMenuChange,
   onSettingsSubmit,
   onSettingsCancel,
+  onRetrySettings,
   onDelete,
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
@@ -320,14 +323,22 @@ function SmallGroupDetail({
 
       {currentMenu === 'settings' ? (
         <SettingsContent>
-          <SmallGroupSettingsForm
-            group={group}
-            detail={detail}
-            interests={interests}
-            onSubmit={onSettingsSubmit}
-            onCancel={onSettingsCancel}
-            onDelete={onDelete}
-          />
+          {isSettingsLoading ? (
+            <Placeholder role="status">소모임 설정 정보를 불러오는 중입니다.</Placeholder>
+          ) : settingsErrorMessage ? (
+            <Placeholder role="alert">
+              <p>{settingsErrorMessage}</p>
+              <Button type="button" onClick={onRetrySettings}>다시 시도</Button>
+            </Placeholder>
+          ) : settings ? (
+            <SmallGroupSettingsForm
+              settings={settings}
+              categories={settingsCategories}
+              onSubmit={onSettingsSubmit}
+              onCancel={onSettingsCancel}
+              onDelete={onDelete}
+            />
+          ) : null}
         </SettingsContent>
       ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>

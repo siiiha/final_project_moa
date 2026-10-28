@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
@@ -116,6 +116,12 @@ const ActionButton = styled(Button)`
   font-size: 13px;
 `;
 
+const Hint = styled.span`
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 11px;
+  font-weight: 400;
+`;
+
 const DeleteCard = styled.section`
   margin-top: 12px;
   padding: 16px;
@@ -155,15 +161,33 @@ const DeleteButton = styled(Button)`
   }
 `;
 
-const getCapacity = (participants) => participants.split('/')[1]?.replace('명', '') || '';
+function getTomorrowIsoDate() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const day = String(tomorrow.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
-function SmallGroupSettingsForm({ group, detail, interests, onSubmit, onCancel, onDelete }) {
-  const [name, setName] = useState(group.name);
-  const [interest, setInterest] = useState(group.interest);
-  const [description, setDescription] = useState(group.description);
-  const [capacity, setCapacity] = useState(getCapacity(group.participants));
-  const [schedule, setSchedule] = useState(detail.nextMeeting);
-  const [place, setPlace] = useState(detail.meetingPlace);
+function SmallGroupSettingsForm({ settings, categories, onSubmit, onCancel, onDelete }) {
+  const [name, setName] = useState(settings.groupName);
+  const [interest, setInterest] = useState(settings.likeCategory);
+  const [description, setDescription] = useState(settings.description);
+  const [capacity, setCapacity] = useState(String(settings.maxMembers));
+  const [schedule, setSchedule] = useState(settings.meetDate);
+  const [place, setPlace] = useState(settings.location);
+  const minimumCapacity = Math.max(2, settings.approvedMemberCount);
+
+  // AI작성: 탭을 닫았다가 다시 열거나 재조회하면 서버의 최신 설정값으로 폼 초깃값을 복원한다.
+  useEffect(() => {
+    setName(settings.groupName);
+    setInterest(settings.likeCategory);
+    setDescription(settings.description);
+    setCapacity(String(settings.maxMembers));
+    setSchedule(settings.meetDate);
+    setPlace(settings.location);
+  }, [settings]);
 
   return (
     <>
@@ -174,37 +198,38 @@ function SmallGroupSettingsForm({ group, detail, interests, onSubmit, onCancel, 
           <FieldGrid>
             <Field>
               소모임 이름
-              <Input name="name" required value={name} onChange={(event) => setName(event.target.value)} />
+              <Input name="groupName" required minLength="2" maxLength="20" value={name} onChange={(event) => setName(event.target.value)} />
             </Field>
             <Field>
               관심 카테고리
-              <Select name="interest" required value={interest} onChange={(event) => setInterest(event.target.value)}>
-                {interests.filter((item) => item !== '전체').map((item) => (
-                  <option key={item} value={item}>{item}</option>
+              <Select name="likeCategory" required value={interest} onChange={(event) => setInterest(event.target.value)}>
+                {categories.map((category) => (
+                  <option key={category.interestId} value={category.interestName}>{category.interestName}</option>
                 ))}
               </Select>
             </Field>
             <Field>
               정원
-              <Input name="capacity" type="number" min="2" required value={capacity} onChange={(event) => setCapacity(event.target.value)} />
+              <Input name="maxMembers" type="number" min={minimumCapacity} max="20" required value={capacity} onChange={(event) => setCapacity(event.target.value)} />
+              <Hint>현재 승인 인원은 {settings.approvedMemberCount}명입니다.</Hint>
             </Field>
             <Field>
               일정
-              <Input name="schedule" required value={schedule} onChange={(event) => setSchedule(event.target.value)} />
+              <Input name="meetDate" type="date" min={getTomorrowIsoDate()} required value={schedule} onChange={(event) => setSchedule(event.target.value)} />
             </Field>
             <Field>
               장소
-              <Input name="place" required value={place} onChange={(event) => setPlace(event.target.value)} />
+              <Input name="location" required maxLength="40" value={place} onChange={(event) => setPlace(event.target.value)} />
             </Field>
           </FieldGrid>
 
           <FullField>
             소개글
-            <Introduction name="description" required value={description} onChange={(event) => setDescription(event.target.value)} />
+            <Introduction name="description" required maxLength="40" value={description} onChange={(event) => setDescription(event.target.value)} />
           </FullField>
 
           <Actions>
-            <ActionButton type="submit">설정 저장</ActionButton>
+            <ActionButton type="submit" disabled title="소모임 수정 API 구현 후 저장할 수 있습니다.">설정 저장</ActionButton>
             <ActionButton type="button" $variant="secondary" onClick={onCancel}>취소</ActionButton>
           </Actions>
         </Form>
