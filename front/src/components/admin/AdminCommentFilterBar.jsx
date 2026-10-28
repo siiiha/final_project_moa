@@ -81,14 +81,14 @@ function AdminCommentFilterBar({ query, region, status, onQueryChange, onRegionC
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="댓글 내용 또는 작성자를 입력하세요"
+          placeholder="댓글, 작성자, 게시글 제목을 입력하세요"
           aria-label="댓글 검색어"
         />
       </Field>
       <Field>
         지역
         <Select value={region} onChange={(event) => onRegionChange(event.target.value)} aria-label="댓글 작성자 지역">
-          <option value="전체">전체 지역</option>
+          <option value="">전체 지역</option>
           <option value="서울">서울</option>
           <option value="경기">경기</option>
         </Select>
@@ -96,9 +96,9 @@ function AdminCommentFilterBar({ query, region, status, onQueryChange, onRegionC
       <Field>
         상태
         <Select value={status} onChange={(event) => onStatusChange(event.target.value)} aria-label="댓글 상태">
-          <option value="전체">전체</option>
-          <option value="공개">공개</option>
-          <option value="숨김">숨김</option>
+          <option value="">전체</option>
+          <option value="VISIBLE">공개</option>
+          <option value="DELETED">삭제</option>
         </Select>
       </Field>
       <SearchButton type="submit">검색</SearchButton>

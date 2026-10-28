@@ -1,5 +1,4 @@
 import styled from 'styled-components';
-import Button from '../common/Button';
 
 const Card = styled.section`
   margin-top: 24px;
@@ -66,7 +65,6 @@ const Table = styled.table`
   }
   th:nth-child(5) {
     width: 17%;
-    text-align: right;
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -127,16 +125,14 @@ const PostTitle = styled(EllipsisText)`
   color: ${({ theme }) => theme.colors.secondaryText};
 `;
 
-const ActionArea = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 5px;
-`;
-
-const ActionButton = styled(Button)`
-  min-height: 30px;
-  padding: 6px 8px;
+const Status = styled.span`
+  display: inline-flex;
+  padding: 4px 8px;
+  color: ${({ $deleted, theme }) => ($deleted ? theme.colors.muted : theme.colors.primary)};
+  background: ${({ $deleted, theme }) => ($deleted ? theme.colors.background : theme.colors.primarySoft)};
+  border-radius: ${({ theme }) => theme.radius.pill};
   font-size: 10px;
+  font-weight: 700;
 `;
 
 const Pagination = styled.nav`
@@ -165,11 +161,13 @@ const Empty = styled.p`
   text-align: center;
 `;
 
-function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPageChange, onToggleHidden, onDelete }) {
+function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPageChange, loading }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
-      {comments.length ? (
+      {loading ? (
+        <Empty role="status">댓글 목록을 불러오는 중입니다.</Empty>
+      ) : comments.length ? (
         <>
           <TableWrap>
             <Table>
@@ -179,7 +177,7 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                   <th scope="col">작성자</th>
                   <th scope="col">게시글</th>
                   <th scope="col">작성일</th>
-                  <th scope="col">관리</th>
+                  <th scope="col">상태</th>
                 </tr>
               </thead>
               <tbody>
@@ -193,15 +191,8 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                       <PostTitle>{comment.postTitle}</PostTitle>
                     </td>
                     <td data-label="작성일">{comment.date.slice(5)}</td>
-                    <td data-label="관리">
-                      <ActionArea>
-                        <ActionButton type="button" $variant="secondary" onClick={() => onToggleHidden(comment.id)}>
-                          {comment.status === '공개' ? '숨김' : '공개'}
-                        </ActionButton>
-                        <ActionButton type="button" $variant="danger" onClick={() => onDelete(comment.id)}>
-                          삭제
-                        </ActionButton>
-                      </ActionArea>
+                    <td data-label="상태">
+                      <Status $deleted={comment.status === '삭제'}>{comment.status}</Status>
                     </td>
                   </tr>
                 ))}

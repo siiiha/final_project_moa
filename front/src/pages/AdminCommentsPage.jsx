@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import AdminCommentFilterBar from '../components/admin/AdminCommentFilterBar';
 import AdminCommentTable from '../components/admin/AdminCommentTable';
 import Badge from '../components/common/Badge';
 import AdminSidebar from '../components/layout/AdminSidebar';
+import { getAdminComments } from '../api/adminComments';
 import { adminMenuItems } from '../mocks/admin';
-import { adminComments } from '../mocks/adminComments';
 
 const PAGE_SIZE = 10;
 
@@ -67,52 +67,62 @@ const Content = styled.main`
   padding-top: 4px;
 `;
 
+const ErrorMessage = styled.p`
+  margin-top: 16px;
+  padding: 14px 16px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 13px;
+`;
+
 function AdminCommentsPage() {
   const navigate = useNavigate();
-  const [comments, setComments] = useState(adminComments);
+  const [comments, setComments] = useState([]);
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
-  const [region, setRegion] = useState('전체');
-  const [status, setStatus] = useState('전체');
+  const [region, setRegion] = useState('');
+  const [status, setStatus] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const filteredComments = useMemo(() => {
-    const normalizedQuery = submittedQuery.trim().toLowerCase();
+  useEffect(() => {
+    const controller = new AbortController();
 
-    return comments.filter((comment) => {
-      const matchesQuery =
-        !normalizedQuery ||
-        comment.content.toLowerCase().includes(normalizedQuery) ||
-        comment.author.toLowerCase().includes(normalizedQuery) ||
-        comment.postTitle.toLowerCase().includes(normalizedQuery);
-      const matchesRegion = region === '전체' || comment.region.startsWith(region);
-      const matchesStatus = status === '전체' || comment.status === status;
+    async function loadComments() {
+      setLoading(true);
+      setErrorMessage('');
+      try {
+        const result = await getAdminComments({
+          keyword: submittedQuery,
+          regionName: region,
+          status,
+          page: currentPage,
+          size: PAGE_SIZE,
+          signal: controller.signal,
+        });
+        setComments(result.items);
+        setPageMeta(result.meta);
+      } catch (error) {
+        if (error.code !== 'ERR_CANCELED') {
+          setComments([]);
+          setPageMeta({ total: 0, totalPages: 0 });
+          setErrorMessage(error.message);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
 
-      return matchesQuery && matchesRegion && matchesStatus;
-    });
-  }, [comments, region, status, submittedQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredComments.length / PAGE_SIZE));
-  const pageComments = filteredComments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    loadComments();
+    return () => controller.abort();
+  }, [currentPage, region, status, submittedQuery]);
 
   const handleSearch = (event) => {
     event.preventDefault();
     setSubmittedQuery(query);
-    setCurrentPage(1);
-  };
-
-  const handleToggleHidden = (commentId) => {
-    // TODO: Spring Boot 관리자 댓글 숨김·공개 API 요청 후 댓글 목록을 갱신합니다.
-    setComments((currentComments) =>
-      currentComments.map((comment) =>
-        comment.id === commentId ? { ...comment, status: comment.status === '공개' ? '숨김' : '공개' } : comment
-      )
-    );
-  };
-
-  const handleDelete = (commentId) => {
-    // TODO: Spring Boot 관리자 댓글 삭제 API 요청 후 댓글 목록을 갱신합니다.
-    setComments((currentComments) => currentComments.filter((comment) => comment.id !== commentId));
     setCurrentPage(1);
   };
 
@@ -177,14 +187,14 @@ function AdminCommentsPage() {
             }}
             onSearch={handleSearch}
           />
+          {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
           <AdminCommentTable
-            comments={pageComments}
-            totalCount={filteredComments.length}
+            comments={comments}
+            totalCount={pageMeta.total}
             currentPage={currentPage}
-            totalPages={totalPages}
+            totalPages={pageMeta.totalPages}
             onPageChange={setCurrentPage}
-            onToggleHidden={handleToggleHidden}
-            onDelete={handleDelete}
+            loading={loading}
           />
         </Content>
       </Grid>
