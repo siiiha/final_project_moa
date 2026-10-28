@@ -177,6 +177,13 @@ const Empty = styled.p`
   text-align: center;
 `;
 
+function getPageNumbers(currentPage, totalPages) {
+  // AI작성: 많은 페이지를 한꺼번에 렌더링하지 않도록 현재 구간의 다섯 페이지만 반환한다.
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const length = Math.min(5, totalPages - start + 1);
+  return Array.from({ length }, (_, index) => start + index);
+}
+
 function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPageChange, onDelete, loading, deleting }) {
   return (
     <Card>
@@ -237,7 +244,15 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
           </TableWrap>
           {totalPages > 1 && (
             <Pagination aria-label="관리자 댓글 목록 페이지">
-              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <PageButton
+                type="button"
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                aria-label="이전 페이지"
+              >
+                이전
+              </PageButton>
+              {getPageNumbers(currentPage, totalPages).map((page) => (
                 <PageButton
                   key={page}
                   type="button"
@@ -248,6 +263,14 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                   {page}
                 </PageButton>
               ))}
+              <PageButton
+                type="button"
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                aria-label="다음 페이지"
+              >
+                다음
+              </PageButton>
             </Pagination>
           )}
         </>
