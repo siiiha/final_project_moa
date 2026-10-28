@@ -25,7 +25,8 @@ const Form = styled.form`
 
 const DetailsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: ${({ $isSocialSignup }) =>
+  $isSocialSignup ? '1fr' : 'repeat(2, minmax(0, 1fr))'};
   gap: 16px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -543,7 +544,8 @@ navigate('/member/login', { replace: true });
         disabled={isSubmitting || isCheckingNickname}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
       >
-        <DetailsGrid>
+        <DetailsGrid $isSocialSignup={isSocialSignup}>
+          {!isSocialSignup && (
           <SectionCard title="계정 정보">
             <FieldList>
               <TextInput
@@ -649,7 +651,7 @@ navigate('/member/login', { replace: true });
            
           </FieldList>
         </SectionCard>
-
+          )}
         <SectionCard title="기본 정보">
           <FieldList>
             <TextInput
