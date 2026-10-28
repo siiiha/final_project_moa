@@ -192,4 +192,27 @@
           AND membership_status = 'APPROVED'
           AND member_role IN ('OWNER', 'MEMBER')
     </select>
+
+    <resultMap id="smallGroupNoticeSummary"
+               type="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
+        <constructor>
+            <idArg column="notice_id" javaType="java.lang.Long"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="writer_nickname" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- AI작성: 공지 본문은 제외하고 작성 시각·ID 내림차순의 최근 4건만 공개 상세에 제공한다. -->
+    <select id="selectRecentSmallGroupNotices" resultMap="smallGroupNoticeSummary">
+        SELECT gn.notice_id,
+               gn.title,
+               writer.nickname AS writer_nickname,
+               gn.created_at
+        FROM group_notice gn
+        JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId}
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
+        LIMIT 4
+    </select>
 </mapper>
