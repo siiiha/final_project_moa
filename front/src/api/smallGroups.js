@@ -36,6 +36,15 @@ export class SmallGroupDetailLoadError extends Error {
   }
 }
 
+// AI작성: 소모임 설정 조회 실패 코드와 메시지를 설정 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupSettingsLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupSettingsLoadError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -91,6 +100,15 @@ function toSmallGroupDetailLoadError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupDetailLoadError(
     responseError?.code || 'SMALL_GROUP_DETAIL_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupSettingsLoadError(error, fallbackMessage) {
+  if (error instanceof SmallGroupSettingsLoadError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupSettingsLoadError(
+    responseError?.code || 'SMALL_GROUP_SETTINGS_LOAD_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -229,6 +247,37 @@ export async function getSmallGroupDetail(id, { signal } = {}) {
     return toSmallGroupDetail(response.data.data);
   } catch (error) {
     throw toSmallGroupDetailLoadError(error, '소모임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: OWNER 설정 화면은 수정 가능 필드와 승인 참여 인원 수가 모두 있어야만 폼을 초기화한다.
+export function toSmallGroupSettings(data) {
+  const hasValidCapacity = Number.isInteger(data?.maxMembers)
+    && data.maxMembers >= 2 && data.maxMembers <= 20;
+  const hasValidApprovedMemberCount = Number.isInteger(data?.approvedMemberCount)
+    && data.approvedMemberCount >= 0;
+  if (typeof data?.groupName !== 'string' || typeof data.likeCategory !== 'string'
+    || typeof data.description !== 'string' || !hasValidCapacity
+    || typeof data.meetDate !== 'string' || typeof data.location !== 'string'
+    || !hasValidApprovedMemberCount) {
+    throw new SmallGroupSettingsLoadError('INVALID_RESPONSE', '소모임 설정 응답을 확인하지 못했습니다.');
+  }
+  return data;
+}
+
+// AI작성: 설정 조회는 공개 상세와 달리 인증이 필요한 OWNER 전용 API를 호출한다.
+export async function getSmallGroupSettings(id, { signal } = {}) {
+  try {
+    const response = await client.get(`/small-groups/${encodeURIComponent(id)}/settings`, { signal });
+    if (!response.data?.success || !response.data.data) {
+      throw new SmallGroupSettingsLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '소모임 설정 응답을 확인하지 못했습니다.',
+      );
+    }
+    return toSmallGroupSettings(response.data.data);
+  } catch (error) {
+    throw toSmallGroupSettingsLoadError(error, '소모임 설정 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 

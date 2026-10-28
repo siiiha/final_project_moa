@@ -7,8 +7,11 @@ import {
   SmallGroupCreationError,
   getSmallGroupDetail,
   SmallGroupDetailLoadError,
+  getSmallGroupSettings,
+  SmallGroupSettingsLoadError,
   toSmallGroupCard,
   toSmallGroupDetail,
+  toSmallGroupSettings,
 } from './smallGroups.js';
 
 // AI작성: 화면 연결 전 실제 네트워크 없이 요청 본문·성공 데이터·서버 오류 보존을 검증한다.
@@ -160,6 +163,65 @@ test('소모임 상세 조회는 403 오류 코드와 메시지를 보존한다'
 
 test('소모임 상세 조회는 404 오류 코드와 메시지를 보존한다', async () => {
   await assertDetailLoadError('NOT_FOUND', '조회할 수 있는 소모임이 없습니다.');
+});
+
+test('소모임 설정 조회는 OWNER 전용 경로와 서버 응답을 그대로 사용한다', async () => {
+  const originalGet = client.get;
+  const settings = {
+    groupName: '동네 걷기',
+    likeCategory: '운동',
+    description: '함께 걷는 소모임입니다.',
+    maxMembers: 10,
+    meetDate: '2026-11-01',
+    location: '한강 공원',
+    approvedMemberCount: 2,
+  };
+
+  try {
+    client.get = async (path) => {
+      assert.equal(path, '/small-groups/7/settings');
+      return { data: { success: true, data: settings, meta: null, error: null } };
+    };
+
+    assert.deepEqual(await getSmallGroupSettings(7), settings);
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 설정 조회는 필수 응답 필드가 없으면 INVALID_RESPONSE로 실패한다', () => {
+  assert.throws(
+    () => toSmallGroupSettings({ groupName: '동네 걷기', maxMembers: 10 }),
+    (error) => error instanceof SmallGroupSettingsLoadError && error.code === 'INVALID_RESPONSE',
+  );
+});
+
+test('소모임 설정 조회는 서버 권한 오류 코드와 메시지를 보존한다', async () => {
+  const originalGet = client.get;
+  try {
+    client.get = async () => {
+      const error = new Error('개설자만 설정을 조회할 수 있습니다.');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_SETTINGS_FORBIDDEN',
+            message: '개설자만 설정을 조회할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      getSmallGroupSettings(7),
+      (error) => error instanceof SmallGroupSettingsLoadError
+        && error.code === 'SMALL_GROUP_SETTINGS_FORBIDDEN'
+        && error.message === '개설자만 설정을 조회할 수 있습니다.',
+    );
+  } finally {
+    client.get = originalGet;
+  }
 });
 
 async function assertDetailLoadError(code, message) {
