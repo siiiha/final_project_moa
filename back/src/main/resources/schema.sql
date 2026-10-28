@@ -446,7 +446,6 @@ CREATE TABLE IF NOT EXISTS `post` (
 	PRIMARY KEY (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- AI작성: 게시글에 첨부한 여러 이미지의 경로와 표시 순서를 저장한다.
 CREATE TABLE IF NOT EXISTS `post_image` (
     `image_id` BIGINT NOT NULL AUTO_INCREMENT,
     `post_id` BIGINT NOT NULL,
