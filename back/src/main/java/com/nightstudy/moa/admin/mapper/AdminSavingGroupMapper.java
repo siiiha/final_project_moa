@@ -13,8 +13,7 @@ public interface AdminSavingGroupMapper {
     int selectSavingGroupCount(AdminSavingGroupSearchCondition condition);
 
     List<AdminSavingGroupListItemResponse> selectSavingGroupList(
-            AdminSavingGroupSearchCondition condition
-    );
+            AdminSavingGroupSearchCondition condition);
 
     AdminSavingGroupDetailResponse selectSavingGroupDetail(
             @Param("savingGroupId") Long savingGroupId

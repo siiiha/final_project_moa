@@ -6,22 +6,35 @@ import lombok.Setter;
 @Getter
 @Setter
 public class PostSearchCondition {
-    // AI작성: DB 카테고리 기본 키 타입과 맞춰 숫자로 받는다.
-    private Long categoryId;
 
+    private static final int DEFAULT_PAGE = 1;
+    private static final int DEFAULT_SIZE = 10;
+    private static final int MAX_PAGE = 10_000;
+    private static final int MAX_SIZE = 100;
+
+    private Long categoryId;
     private String keyword;
     private String searchType;
 
-    //사용자가 보고자하는 페이지 (기본1)
-    private int page = 1;
-    //페이징
-    private int size = 10;
+    private int page = DEFAULT_PAGE;
+    private int size = DEFAULT_SIZE;
 
-    // AI작성: 허용되지 않은 값은 Mapper에서 기본 최신순(desc)으로 처리한다.
     private String order = "desc";
 
-    // service에서 Page정보로 직접 계산을 해서 사용하는 값
-    // offset = (page - 1) * size;
     private int offset;
     private int limit;
+
+    // AI작성: 과도한 페이지 번호와 offset 정수 오버플로를 방지한다.
+    public void setPage(int page) {
+        this.page = page > 0
+                ? Math.min(page, MAX_PAGE)
+                : DEFAULT_PAGE;
+    }
+
+    // AI작성: 한 번에 지나치게 많은 게시글을 조회하지 않도록 크기를 제한한다.
+    public void setSize(int size) {
+        this.size = size > 0
+                ? Math.min(size, MAX_SIZE)
+                : DEFAULT_SIZE;
+    }
 }

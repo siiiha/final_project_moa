@@ -215,14 +215,32 @@ public class AdminReportServiceImpl implements AdminReportService {
             return null;
         }
 
-        // 새로운 정지 종료 시점 계산 (지금 시간 + 정지일)
-        LocalDateTime requestedUntil = LocalDateTime.now().plusDays(
-                "7_DAYS".equals(restrictionType) ? 7 : 30
-        );
-        // 기존 종료 시점과 비교
-        if (currentSuspendedUntil != null && currentSuspendedUntil.isAfter(requestedUntil)) {
+        // 정지 기간
+        long restrictionDays;
+
+        // AI작성: 알 수 없는 제한 유형이 기본 30일로 처리되지 않도록 허용값을 명시적으로 구분한다.
+        if ("7_DAYS".equals(restrictionType)) {
+            restrictionDays = 7;
+        } else if ("30_DAYS".equals(restrictionType)) {
+            restrictionDays = 30;
+        } else {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_RESTRICTION_TYPE",
+                    "올바른 이용 제한 기간을 선택해 주세요."
+            );
+        }
+
+        // 새로운 정지 종료 시점 계산
+        LocalDateTime requestedUntil =
+                LocalDateTime.now().plusDays(restrictionDays);
+
+        // 기존 정지 종료 시점이 더 늦으면 기존 기간을 유지
+        if (currentSuspendedUntil != null
+                && currentSuspendedUntil.isAfter(requestedUntil)) {
             return currentSuspendedUntil;
         }
+
         return requestedUntil;
-    }
+        }
 }

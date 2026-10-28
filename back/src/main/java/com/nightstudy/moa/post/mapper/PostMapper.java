@@ -19,8 +19,9 @@ public interface PostMapper {
 
     int selectPostListCount(PostSearchCondition condition);
 
-    Long editPost(
+    int editPost(
             @Param("postId") Long postId,
+            @Param("loginMemberId") Long loginMemberId,
             @Param("request") PostEditRequest request
     );
 
