@@ -6,7 +6,7 @@
 - 엔드포인트: `GET /api/small-groups/{id}`
 - `{id}`는 `small_group.small_group_id`이며 양수여야 한다.
 - 소모임 상세 자체는 비로그인 사용자와 비회원도 조회할 수 있다.
-- 게시글, 일정 목록, 가입 신청 내역은 이 응답에 포함하지 않는다.
+- 최근 공지 요약은 포함하지만, 공지 본문·공지 목록·공지 상세·일정 목록·가입 신청 내역은 포함하지 않는다.
 
 ## 요청과 응답
 
@@ -28,12 +28,22 @@
     "memberCount": 4,
     "creatorNickname": "모아회원",
     "createdAt": "2026-10-28T10:00:00",
-    "myRole": "MEMBER"
+    "myRole": "MEMBER",
+    "notices": [
+      {
+        "noticeId": 21,
+        "title": "첫 모임 안내",
+        "writerNickname": "운영진",
+        "createdAt": "2026-10-28T10:00:00"
+      }
+    ]
   }
 }
 ```
 
 `myRole`은 로그인한 요청자의 승인된 소모임 역할만 반환한다. 비로그인 사용자, 비회원, `PENDING` 또는 `REJECTED` 상태는 `null`이다.
+
+`notices`는 작성일 내림차순, 같은 작성 시각에서는 공지 ID 내림차순으로 정렬된 최신 4건 이하의 목록이다. 비회원도 공지 ID·제목·작성자 닉네임·작성일은 볼 수 있지만, 공지 본문과 공지 상세 이동은 이 API 범위에 포함하지 않는다.
 
 ## 권한과 관계 데이터 검증
 
@@ -74,14 +84,16 @@ Spring Security에서 숫자 ID의 `GET /api/small-groups/{id}`만 공개한다.
 
 ## 데이터와 검증
 
-- 기존 `small_group`, `groups`, `group_member`, `members`, `region` 및 SmallGroup MyBatis Mapper를 재사용한다.
+- 기존 `small_group`, `groups`, `group_member`, `members`, `region`, `group_notice` 및 SmallGroup MyBatis Mapper를 재사용한다.
 - 상세 조회만을 위해 DB 마이그레이션, 컬럼, 상태값은 추가하지 않는다.
-- 서비스 단위 테스트는 정상 조회, 비회원, 승인 회원, 대기 회원, MANAGER 403, 중복 관계 500, 없는 소모임 404를 다룬다.
+- 서비스 단위 테스트는 정상 조회, 비회원, 승인 회원, 대기 회원, MANAGER 403, 중복 관계 500, 없는 소모임 404, 최근 공지 요약과 빈 공지 목록을 다룬다.
 - 보안 통합 테스트는 비로그인 상세 조회 허용과 보호 경로의 인증 요구를 확인한다.
+- 프론트 API는 최근 공지에서 공지 ID·제목·작성자 닉네임·작성일만 화면으로 전달하며, 필수 필드가 없으면 `INVALID_RESPONSE`로 처리한다.
 
 ## 수동 확인
 
 1. 비로그인 상태에서 `GET /api/small-groups/{id}`가 200이고 `myRole`이 `null`인지 확인한다.
 2. OWNER, MEMBER, 비회원, PENDING/REJECTED, MANAGER 계정으로 각각 조회해 응답과 오류 코드를 확인한다.
-3. 프론트 상세 화면에서 역할별 탭과 모임 날짜·장소 표시를 확인한다.
-4. Java 17 환경에서 백엔드 소모임 테스트를 실행한다.
+3. 프론트 상세 화면에서 역할별 탭, 모임 날짜·장소, 최근 공지 0·1·4건 표시를 확인한다.
+4. 공지 전체 보기·일정 확인·길찾기는 후속 API가 구현되기 전까지 이동하지 않는지 확인한다.
+5. Java 17 환경에서 백엔드 소모임 테스트를 실행한다.
