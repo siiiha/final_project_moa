@@ -322,13 +322,18 @@ function EditProfileForm() {
     };
   }, [token, clearToken, navigate]);
 
-  const toggleInterest = (interestId) => {
-    setSelectedInterests((current) =>
-      current.includes(interestId)
-        ? current.filter((id) => id !== interestId)
-        : [...current, interestId],
-    );
-  };
+  // AI작성: 기존 선택은 해제할 수 있고, 새 선택은 최대 3개로 제한한다.
+const toggleInterest = (interestId) => {
+  setSelectedInterests((current) => {
+    if (current.includes(interestId)) {
+      return current.filter((id) => id !== interestId);
+    }
+
+    if (current.length >= 3) return current;
+
+    return [...current, interestId];
+  });
+};
 
   // 비밀번호는 저장소에 보관하지 않고 수정 요청에만 사용
   const handleUpdateRequest = async (event) => {
@@ -659,7 +664,9 @@ function EditProfileForm() {
     <Chip
       key={interest.interestId}
       type="button"
-      disabled={isSaving}
+      disabled={
+        isSaving || (!selected && selectedInterests.length >= 3)
+      }
       $selected={selected}
       aria-pressed={selected}
       onClick={() => toggleInterest(interest.interestId)}
@@ -672,7 +679,9 @@ function EditProfileForm() {
   );
 })}
           </ChipList>
-          <Hint>모두 해제하면 관심사를 선택하지 않은 상태로 저장됩니다.</Hint>
+          <Hint aria-live="polite">
+            최대 3개 선택 · 선택 {selectedInterests.length}/3 · 모두 해제하면 관심사 없이 저장됩니다.
+          </Hint>
         </InterestField>
 
         {errorMessage && (
