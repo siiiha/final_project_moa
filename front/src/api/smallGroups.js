@@ -27,6 +27,15 @@ export class SmallGroupListError extends Error {
   }
 }
 
+// AI작성: 소모임 상세 조회 실패 코드와 메시지를 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupDetailLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupDetailLoadError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -77,6 +86,15 @@ function toSmallGroupListError(error, fallbackMessage) {
   );
 }
 
+function toSmallGroupDetailLoadError(error, fallbackMessage) {
+  if (error instanceof SmallGroupDetailLoadError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupDetailLoadError(
+    responseError?.code || 'SMALL_GROUP_DETAIL_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
 function toSmallGroupCategoryLoadError(error, fallbackMessage) {
   if (error instanceof SmallGroupCategoryLoadError || error.code === 'ERR_CANCELED') return error;
   const responseError = error.response?.data?.error;
@@ -89,7 +107,7 @@ function toSmallGroupCategoryLoadError(error, fallbackMessage) {
 // AI작성: 로그인한 사용자가 소모임 개설 전 DB에 등록된 활동 지역을 조회한다.
 export async function fetchSmallGroupRegions() {
   try {
-    const response = await client.get('/smallgroups/regions');
+    const response = await client.get('/small-groups/regions');
     if (!response.data?.success || !Array.isArray(response.data.data)) {
       throw new SmallGroupRegionLoadError(
         response.data?.error?.code || 'SMALL_GROUP_REGION_LOAD_FAILED',
@@ -105,7 +123,7 @@ export async function fetchSmallGroupRegions() {
 // AI작성: 목록 필터는 interest 기준 데이터만 사용하며, 소모임의 현재 목록에서 임의로 만들지 않는다.
 export async function fetchSmallGroupCategories({ signal } = {}) {
   try {
-    const response = await client.get('/smallgroups/categories', { signal });
+    const response = await client.get('/small-groups/categories', { signal });
     if (!response.data?.success || !Array.isArray(response.data.data)) {
       throw new SmallGroupCategoryLoadError(
         response.data?.error?.code || 'SMALL_GROUP_CATEGORY_LOAD_FAILED',
@@ -122,7 +140,8 @@ export async function fetchSmallGroupCategories({ signal } = {}) {
 export function toSmallGroupCard(item) {
   const memberCount = Number.isFinite(Number(item.memberCount)) ? Number(item.memberCount) : 0;
   return {
-    id: item.groupId,
+    // AI작성: 상세 API의 경로 변수는 groups.group_id가 아닌 small_group.small_group_id를 사용한다.
+    id: item.smallGroupId,
     name: item.groupName,
     region: item.regionName,
     interest: item.likeCategory?.trim() || '관심사 미정',
@@ -143,7 +162,7 @@ export function getSmallGroupPages(currentPage, totalPages) {
 // AI작성: 서버가 검색·필터·페이징을 처리하므로 프론트는 요청 조건과 응답 유효성만 관리한다.
 export async function getSmallGroups({ keyword, regionCode, likeCategory, page = 1, signal } = {}) {
   try {
-    const response = await client.get('/smallgroups', {
+    const response = await client.get('/small-groups', {
       params: {
         keyword: keyword || undefined,
         regionCode: regionCode || undefined,
@@ -172,10 +191,26 @@ export async function getSmallGroups({ keyword, regionCode, likeCategory, page =
   }
 }
 
+// AI작성: 공개 상세 API는 로그인 여부와 관계없이 응답 봉투를 확인한 뒤 원본 상세 데이터를 반환한다.
+export async function getSmallGroupDetail(id, { signal } = {}) {
+  try {
+    const response = await client.get(`/small-groups/${encodeURIComponent(id)}`, { signal });
+    if (!response.data?.success || !response.data.data) {
+      throw new SmallGroupDetailLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '소모임 상세 응답을 확인하지 못했습니다.',
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    throw toSmallGroupDetailLoadError(error, '소모임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
 // AI작성: 생성자 정보는 JWT에서 서버가 결정하므로, 입력값만 본문에 담아 생성 결과를 반환한다.
 export async function createSmallGroup(request) {
   try {
-    const response = await client.post('/smallgroups', request);
+    const response = await client.post('/small-groups', request);
     if (!response.data?.success || !response.data.data) {
       throw new SmallGroupCreationError(
         response.data?.error?.code || 'SMALL_GROUP_CREATION_FAILED',

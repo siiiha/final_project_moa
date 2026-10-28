@@ -139,15 +139,57 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
-    <!-- AI작성: 모임장을 포함한 승인 회원을 중복 없이 집계한다. -->
+    <!-- AI작성: 소모임에서 허용한 OWNER와 MEMBER의 승인 관계만 중복 없이 집계한다. -->
     <select id="selectApprovedMemberCounts" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount">
         SELECT group_id, COUNT(DISTINCT member_id) AS member_count
         FROM group_member
         WHERE membership_status = 'APPROVED'
+        AND member_role IN ('OWNER', 'MEMBER')
         AND group_id IN
         <foreach collection="groupIds" item="groupId" open="(" separator="," close=")">
             #{groupId}
         </foreach>
         GROUP BY group_id
+    </select>
+
+    <!-- AI작성: 공개 상세는 삭제된 소모임 또는 삭제된 개설자 데이터를 404 대상으로 처리한다. -->
+    <select id="selectSmallGroupDetail" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow">
+        SELECT sg.small_group_id,
+               g.group_id,
+               g.group_name,
+               g.description,
+               r.region_name,
+               sg.like_category,
+               sg.meet_date,
+               sg.location,
+               g.max_members,
+               creator.nickname AS creator_nickname,
+               g.created_at
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN region r ON r.region_id = g.region_id
+        JOIN members creator ON creator.member_id = g.member_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+    </select>
+
+    <!-- AI작성: MANAGER와 중복 관계는 상태로 걸러내지 않고 Service에서 오류로 판단한다. -->
+    <select id="selectSmallGroupMemberRelations"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow">
+        SELECT member_role,
+               membership_status
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND member_id = #{memberId}
+    </select>
+
+    <!-- AI작성: MANAGER와 미승인 관계는 공개 상세의 참여자 수에 포함하지 않는다. -->
+    <select id="selectApprovedSmallGroupMemberCount" resultType="long">
+        SELECT COUNT(DISTINCT member_id)
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND membership_status = 'APPROVED'
+          AND member_role IN ('OWNER', 'MEMBER')
     </select>
 </mapper>

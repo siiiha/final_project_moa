@@ -13,6 +13,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import com.nightstudy.moa.member.service.AuthSessionService;
 
@@ -110,6 +111,11 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/saving-groups"
+                        ).permitAll()
+
+                        // AI작성: 숫자 ID 상세만 공개하고 지역·카테고리 등 다른 소모임 API는 기존 인증 정책을 유지한다.
+                        .requestMatchers(
+                                new RegexRequestMatcher("^/api/small-groups/\\d+$", HttpMethod.GET.name())
                         ).permitAll()
 
                         .requestMatchers(

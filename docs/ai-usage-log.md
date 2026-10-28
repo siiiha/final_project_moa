@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-28 — 소모임 공개 상세 조회 API 구현 및 문서화
+
+- 목적: 비로그인 사용자와 비회원도 조회할 수 있는 소모임 상세 API와 상세 화면 연동을 구현하고, 역할별 응답·탭 노출 규칙을 기록했다.
+- 사용자 확정: 경로는 `GET /api/small-groups/{id}`로 통일했다. `MANAGER` 관계는 `membership_status`와 무관하게 403 처리하며, 중복 관계는 500 처리한다. 모집 상태는 상세 응답에 포함하지 않는다. 모임 날짜·장소와 개설자 닉네임은 기본 상세에 포함한다. 게시글·일정·가입 신청 내역은 응답에 포함하지 않는다.
+- AI 제안·작성: 상세 응답 DTO, Service 계약·구현, MyBatis 조회·관계 검증, 공개 보안 경로, Controller 응답, 백엔드 테스트, 프론트 API 모듈·테스트, 역할별 상세 탭과 상세 페이지 API 연동을 작성했다. API 설계 문서는 `codex/small-group-public-detail-api.md`에 작성했다.
+- 권한·데이터: 비로그인·비회원은 `myRole: null`로 상세를 조회한다. 승인된 OWNER/MEMBER만 역할을 받으며, PENDING/REJECTED는 공개 상세만 조회한다. 참여자 수는 승인된 OWNER/MEMBER만 중복 없이 계산한다.
+- DB·의존성: 기존 테이블과 MyBatis Mapper를 재사용했고 DB 마이그레이션, 새 상태값, 외부 연동, 패키지 추가는 하지 않았다.
+- 검증: 프론트 `node --test src/api/smallGroups.test.js` 8개 테스트 통과, `npm run build` 통과, `git diff --check` 통과를 확인했다. 백엔드 Gradle 테스트는 로컬에 Java 17 toolchain이 없어 컴파일 전 단계에서 실행되지 못했다.
+- 직접 확인 필요: Java 17 환경에서 `back\\gradlew.bat test --tests "com.nightstudy.moa.smallGroup.*" --no-daemon`을 실행하고, 실제 DB 데이터로 비로그인·비회원·OWNER·MEMBER·MANAGER·중복 관계 조회를 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 특히 실제 `group_member` 생성 로직이 개설자 OWNER/APPROVED 행을 생성하는지와 운영 환경의 JWT 오류 응답을 확인한다.
+
 ## 2026-10-27 — 커뮤니티 화면 상태 유지 및 작성 임시저장
 
 - 목적: 게시글·댓글 화면에서 새로고침이나 화면 이동이 발생해도 작성 중인 내용과 적용된 검색 조건을 잃지 않도록 한다.

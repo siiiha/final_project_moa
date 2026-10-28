@@ -2,7 +2,9 @@ package com.nightstudy.moa.smallGroup.mapper;
 
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
@@ -36,4 +38,14 @@ public interface SmallGroupMapper {
     List<SmallGroupRow> selectSmallGroupList(SmallGroupListCondition condition);
 
     List<SmallGroupMemberCount> selectApprovedMemberCounts(@Param("groupIds") List<Long> groupIds);
+
+    // AI작성: 삭제된 소모임 또는 삭제된 개설자 소모임은 상세 조회 대상에서 제외한다.
+    SmallGroupDetailRow selectSmallGroupDetail(@Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: membership_status와 관계없이 모든 관계 행을 반환해 MANAGER·중복 데이터를 숨기지 않는다.
+    List<SmallGroupMemberRelationRow> selectSmallGroupMemberRelations(
+            @Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    // AI작성: 소모임 참여 인원은 승인된 OWNER와 MEMBER만 중복 없이 집계한다.
+    long selectApprovedSmallGroupMemberCount(@Param("groupId") Long groupId);
 }
