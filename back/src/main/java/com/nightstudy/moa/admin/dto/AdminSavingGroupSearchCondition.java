@@ -20,6 +20,7 @@ public class AdminSavingGroupSearchCondition {
 
     @Size(max = 20, message = "검색어는 20자 이내로 입력해 주세요.")
     private String keyword;
+    private String keywordPattern;
 
     @Pattern(regexp = "0[1-9]|10", message = "지역을 다시 선택해 주세요.")
     private String regionCode;
@@ -41,6 +42,9 @@ public class AdminSavingGroupSearchCondition {
 
     public void setKeyword(String keyword) {
         this.keyword = keyword == null || keyword.strip().isEmpty() ? null : keyword.strip();
+        // AI작성: 관리자 검색도 %, _, !를 문자 그대로 찾도록 일반 목록의 LIKE 규칙과 맞춘다.
+        this.keywordPattern = this.keyword == null ? null
+                : "%" + this.keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
     }
 
     // AI작성: DB에 지역 코드가 없으므로 기존 계모임 목록과 같은 순서로 지역명으로 변환한다.

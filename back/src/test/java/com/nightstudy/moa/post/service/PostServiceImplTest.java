@@ -97,12 +97,12 @@ class PostServiceImplTest {
         PostEditRequest request = editRequest(2L);
         when(postMapper.selectPostDetail(1L)).thenReturn(post(1L, 10L));
         when(postMapper.countCategoryById(2L)).thenReturn(1);
-        when(postMapper.editPost(1L, request)).thenReturn(1L);
+        when(postMapper.editPost(1L, 10L, request)).thenReturn(1);
 
         Long postId = postService.editPost(1L, 10L, request);
 
         assertThat(postId).isEqualTo(1L);
-        verify(postMapper).editPost(1L, request);
+        verify(postMapper).editPost(1L, 10L, request);
     }
 
     @Test
