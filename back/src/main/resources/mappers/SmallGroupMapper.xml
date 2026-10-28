@@ -193,6 +193,63 @@
           AND member_role IN ('OWNER', 'MEMBER')
     </select>
 
+    <!-- AI작성: 설정 조회 권한은 삭제되지 않은 소모임의 개설자와 승인 OWNER가 같은 로그인 회원인지 Service에서 함께 확인한다. -->
+    <select id="selectSmallGroupSettingsAuthority"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow">
+        SELECT sg.small_group_id,
+               sg.group_id,
+               g.member_id AS group_creator_member_id,
+               owner.owner_member_id
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        LEFT JOIN (
+            SELECT group_id,
+                   MAX(member_id) AS owner_member_id
+            FROM group_member
+            WHERE member_role = 'OWNER'
+              AND membership_status = 'APPROVED'
+            GROUP BY group_id
+        ) owner ON owner.group_id = g.group_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+    </select>
+
+    <resultMap id="smallGroupSettings"
+            type="com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse">
+        <constructor>
+            <arg column="group_name" javaType="java.lang.String"/>
+            <arg column="like_category" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="max_members" javaType="java.lang.Integer"/>
+            <arg column="meet_date" javaType="java.time.LocalDate"/>
+            <arg column="location" javaType="java.lang.String"/>
+            <arg column="approved_member_count" javaType="long"/>
+        </constructor>
+    </resultMap>
+
+    <!-- AI작성: 승인된 OWNER와 MEMBER만 정원 축소 기준 및 설정 화면의 현재 참여 인원으로 반환한다. -->
+    <select id="selectSmallGroupCurrentSettings" resultMap="smallGroupSettings">
+        SELECT g.group_name,
+               sg.like_category,
+               g.description,
+               g.max_members,
+               sg.meet_date,
+               sg.location,
+               COALESCE(approved.approved_member_count, 0) AS approved_member_count
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        LEFT JOIN (
+            SELECT group_id,
+                   COUNT(DISTINCT member_id) AS approved_member_count
+            FROM group_member
+            WHERE membership_status = 'APPROVED'
+              AND member_role IN ('OWNER', 'MEMBER')
+            GROUP BY group_id
+        ) approved ON approved.group_id = g.group_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+    </select>
+
     <resultMap id="smallGroupNoticeSummary"
                type="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
         <constructor>

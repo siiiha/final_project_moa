@@ -9,6 +9,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -49,6 +51,14 @@ public interface SmallGroupMapper {
 
     // AI작성: 소모임 참여 인원은 승인된 OWNER와 MEMBER만 중복 없이 집계한다.
     long selectApprovedSmallGroupMemberCount(@Param("groupId") Long groupId);
+
+    // AI작성: 삭제되지 않은 소모임의 개설자와 승인 OWNER를 함께 조회해 설정 접근 권한 검증에 사용한다.
+    SmallGroupSettingsAuthorityRow selectSmallGroupSettingsAuthority(
+            @Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 설정 화면에 표시할 현재 수정 가능 정보와 승인 OWNER·MEMBER 수를 조회한다.
+    SmallGroupSettingsResponse selectSmallGroupCurrentSettings(
+            @Param("smallGroupId") Long smallGroupId);
 
     // AI작성: 공개 상세 화면의 최근 공지 영역에는 최신 4건의 요약만 전달한다.
     List<SmallGroupNoticeSummaryResponse> selectRecentSmallGroupNotices(@Param("groupId") Long groupId);
