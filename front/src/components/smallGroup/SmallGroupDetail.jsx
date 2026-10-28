@@ -242,39 +242,6 @@ const NoticeEmpty = styled.p`
   text-align: center;
 `;
 
-const DetailList = styled.dl`
-  margin-top: 12px;
-  display: grid;
-  gap: 9px;
-`;
-
-const DetailRow = styled.div`
-  padding-bottom: 9px;
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 8px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-
-  &:last-child {
-    padding-bottom: 0;
-    border-bottom: 0;
-  }
-
-  dt {
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 11px;
-  }
-
-  dd {
-    margin: 0;
-    overflow: hidden;
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`;
-
 const Placeholder = styled.section`
   margin-top: 16px;
   padding: 46px 20px;
@@ -324,14 +291,9 @@ function SmallGroupDetail({
     settings: '설정',
     joinRequests: '신청 목록',
   }[currentMenu];
-  const detailItems = [
-    ['개설자', group.creatorNickname],
-    ['생성일', formatDate(group.createdAt)],
-    ['모임 날짜', formatDate(group.meetDate)],
-    ['장소', group.location],
-  ].filter(([, value]) => value);
   const meetDate = formatDate(group.meetDate) || '일정 조율 중';
   const location = group.location || '모임에서 추후 안내';
+  const createdAt = formatDate(group.createdAt);
 
   return (
     <>
@@ -347,6 +309,9 @@ function SmallGroupDetail({
               <span>·</span>
               <FiUsers size={12} aria-hidden="true" />
               <span>{group.participants}</span>
+              {/* AI작성: 상세 카드와 중복되는 개설자·생성일은 모임 기본 정보 옆에서만 표시한다. */}
+              {group.creatorNickname && <><span>·</span><span>개설자 {group.creatorNickname}</span></>}
+              {createdAt && <><span>·</span><span>생성일 {createdAt}</span></>}
             </Meta>
           </TitleBlock>
         </ProfileTop>
@@ -430,18 +395,6 @@ function SmallGroupDetail({
                 ))}
               </NoticeTable>
             </Card>
-            {detailItems.length > 0 && (
-              <Card>
-                <CardTitle>모임 정보</CardTitle>
-                <DetailList>
-                  {detailItems.map(([label, value]) => (
-                    <DetailRow key={label}>
-                      <dt>{label}</dt><dd>{value}</dd>
-                    </DetailRow>
-                  ))}
-                </DetailList>
-              </Card>
-            )}
           </Column>
         </ContentGrid>
       )}

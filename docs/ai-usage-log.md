@@ -5,7 +5,7 @@
 
 - 목적: 비로그인 사용자와 비회원도 조회할 수 있는 소모임 상세 API와 상세 화면 연동을 구현하고, 역할별 응답·탭 노출 규칙을 기록했다.
 - 사용자 확정: 경로는 `GET /api/small-groups/{id}`로 통일했다. `MANAGER` 관계는 `membership_status`와 무관하게 403 처리하며, 중복 관계는 500 처리한다. 모집 상태는 상세 응답에 포함하지 않는다. 모임 날짜·장소와 개설자 닉네임은 기본 상세에 포함한다. 비회원도 최근 공지 4건의 제목·작성자·작성일은 볼 수 있지만, 공지 본문·공지 목록·공지 상세 이동은 후속 작업으로 남긴다.
-- AI 제안·작성: 상세 응답 DTO, Service 계약·구현, MyBatis 조회·관계 검증, 공개 보안 경로, Controller 응답, 백엔드 테스트, 프론트 API 모듈·테스트, 역할별 상세 탭과 상세 페이지 API 연동을 작성했다. 이후 `group_notice` 기반 최근 공지 요약을 상세 응답에 추가하고, 공지 탭에 장소·다음 모임 일정·최근 공지·별도 모임 정보 카드를 구성했다. API 설계 문서는 `docs/small-group-public-detail-api.md`에 작성했다.
+- AI 제안·작성: 상세 응답 DTO, Service 계약·구현, MyBatis 조회·관계 검증, 공개 보안 경로, Controller 응답, 백엔드 테스트, 프론트 API 모듈·테스트, 역할별 상세 탭과 상세 페이지 API 연동을 작성했다. 이후 `group_notice` 기반 최근 공지 요약을 상세 응답에 추가하고, 공지 탭에 장소·다음 모임 일정·최근 공지를 구성했다. 중복되는 모임 정보 카드 대신 개설자·생성일을 상단 기본 정보 옆에 표시하도록 정리했다. API 설계 문서는 `docs/small-group-public-detail-api.md`에 작성했다.
 - 권한·데이터: 비로그인·비회원은 `myRole: null`로 상세를 조회한다. 승인된 OWNER/MEMBER만 역할을 받으며, PENDING/REJECTED는 공개 상세만 조회한다. 참여자 수는 승인된 OWNER/MEMBER만 중복 없이 계산한다.
 - DB·의존성: 기존 테이블과 MyBatis Mapper를 재사용했고 DB 마이그레이션, 새 상태값, 외부 연동, 패키지 추가는 하지 않았다.
 - 검증: 프론트 `node --test src/api/smallGroups.test.js` 10개 테스트 통과, `npm run build` 통과, `git diff --check` 통과를 확인했다. 백엔드 Gradle 테스트는 로컬에 Java 17 toolchain이 없어 테스트 컴파일 전 실행되지 못했다.
