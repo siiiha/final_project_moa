@@ -212,7 +212,7 @@ const PageButton = styled(Button)`
 
 const filters = ['전체', '대기', '승인', '거절'];
 
-function RequestActions({ request, onApprove, isApproving }) {
+function RequestActions({ request, onApprove, onReject, isProcessing, isApproving, isRejecting }) {
   if (request.status !== '대기') {
     return <ActionButton type="button" $variant="secondary" disabled>처리 완료</ActionButton>;
   }
@@ -221,14 +221,21 @@ function RequestActions({ request, onApprove, isApproving }) {
     <ActionGroup>
       <ActionButton
         type="button"
-        disabled={isApproving}
+        disabled={isProcessing}
         aria-busy={isApproving}
         onClick={() => onApprove(request.id)}
       >
         {isApproving ? '승인 중...' : '승인'}
       </ActionButton>
-      {/* AI작성: 거절 API 정책은 이번 범위에 없으므로 오작동하는 로컬 상태 변경 대신 비활성화한다. */}
-      <ActionButton type="button" $variant="secondary" disabled title="가입 신청 거절 기능 준비 중">거절</ActionButton>
+      <ActionButton
+        type="button"
+        $variant="secondary"
+        disabled={isProcessing}
+        aria-busy={isRejecting}
+        onClick={() => onReject(request.id)}
+      >
+        {isRejecting ? '거절 중...' : '거절'}
+      </ActionButton>
     </ActionGroup>
   );
 }
@@ -245,8 +252,11 @@ function SmallGroupJoinRequestList({
   errorMessage,
   onRetry,
   onApprove,
+  onReject,
   approvingRequestId,
-  approvalError,
+  rejectingRequestId,
+  isProcessing,
+  actionError,
 }) {
   return (
     <>
@@ -273,7 +283,7 @@ function SmallGroupJoinRequestList({
           </BulkApproveButton>
         </CardHeader>
 
-        {approvalError && <ApprovalError role="alert">{approvalError}</ApprovalError>}
+        {actionError && <ApprovalError role="alert">{actionError}</ApprovalError>}
 
         {isLoading ? <Empty role="status">가입 신청 목록을 불러오고 있습니다.</Empty> : errorMessage ? (
           <Empty role="alert">
@@ -311,7 +321,10 @@ function SmallGroupJoinRequestList({
                         <RequestActions
                           request={request}
                           onApprove={onApprove}
+                          onReject={onReject}
+                          isProcessing={isProcessing}
                           isApproving={approvingRequestId === request.id}
+                          isRejecting={rejectingRequestId === request.id}
                         />
                       </td>
                     </tr>
@@ -332,7 +345,10 @@ function SmallGroupJoinRequestList({
                     <RequestActions
                       request={request}
                       onApprove={onApprove}
+                      onReject={onReject}
+                      isProcessing={isProcessing}
                       isApproving={approvingRequestId === request.id}
+                      isRejecting={rejectingRequestId === request.id}
                     />
                   </MobileActions>
                 </MobileItem>

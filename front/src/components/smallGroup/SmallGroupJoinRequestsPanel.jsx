@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import {
   approveSmallGroupJoinRequest,
   getSmallGroupJoinRequests,
+  rejectSmallGroupJoinRequest,
 } from '../../api/smallGroups';
 import SmallGroupJoinRequestList from './SmallGroupJoinRequestList';
 
@@ -35,7 +36,8 @@ function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState(null);
   const [approvingRequestId, setApprovingRequestId] = useState(null);
-  const [approvalError, setApprovalError] = useState('');
+  const [rejectingRequestId, setRejectingRequestId] = useState(null);
+  const [actionError, setActionError] = useState('');
   const status = REQUEST_STATUS[activeFilter];
   const queryKey = `${smallGroupId}:${status || 'ALL'}:${currentPage}:${retry}`;
   const currentResult = result?.key === queryKey ? result : null;
@@ -44,6 +46,7 @@ function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
   const totalPages = currentResult?.meta?.totalPages || 0;
   const totalCount = currentResult?.meta?.total || 0;
   const errorMessage = currentResult?.error || '';
+  const isProcessing = approvingRequestId !== null || rejectingRequestId !== null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,28 +64,43 @@ function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
   }, [smallGroupId, status, currentPage, queryKey]);
 
   const changeFilter = (filter) => {
-    if (isLoading) return;
+    if (isLoading || isProcessing) return;
     setActiveFilter(filter);
     setCurrentPage(1);
   };
 
   const changePage = (page) => {
-    if (isLoading || errorMessage) return;
+    if (isLoading || isProcessing || errorMessage) return;
     setCurrentPage(Math.min(Math.max(page, 1), Math.max(totalPages, 1)));
   };
 
   const approveRequest = async (crewMemberId) => {
-    if (isLoading || approvingRequestId !== null) return;
-    setApprovalError('');
+    if (isLoading || isProcessing) return;
+    setActionError('');
     setApprovingRequestId(crewMemberId);
     try {
       await approveSmallGroupJoinRequest(smallGroupId, crewMemberId);
       // AI작성: 승인 직후 서버 목록을 다시 조회해 정원·상태 변경 결과를 임의로 화면에서 만들지 않는다.
       setRetry((value) => value + 1);
     } catch (error) {
-      setApprovalError(error.message || '가입 신청을 승인하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      setActionError(error.message || '가입 신청을 승인하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setApprovingRequestId(null);
+    }
+  };
+
+  const rejectRequest = async (crewMemberId) => {
+    if (isLoading || isProcessing) return;
+    setActionError('');
+    setRejectingRequestId(crewMemberId);
+    try {
+      await rejectSmallGroupJoinRequest(smallGroupId, crewMemberId);
+      // AI작성: 거절 직후 서버 목록을 다시 조회해 상태 변경 결과를 로컬에서 임의로 만들지 않는다.
+      setRetry((value) => value + 1);
+    } catch (error) {
+      setActionError(error.message || '가입 신청을 거절하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setRejectingRequestId(null);
     }
   };
 
@@ -106,8 +124,11 @@ function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
         errorMessage={errorMessage}
         onRetry={() => setRetry((value) => value + 1)}
         onApprove={approveRequest}
+        onReject={rejectRequest}
         approvingRequestId={approvingRequestId}
-        approvalError={approvalError}
+        rejectingRequestId={rejectingRequestId}
+        isProcessing={isProcessing}
+        actionError={actionError}
       />
     </section>
   );
