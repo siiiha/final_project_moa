@@ -100,4 +100,13 @@ class AdminSavingGroupCreationControllerTest {
                 .andExpect(jsonPath("$.meta.page").value(1))
                 .andExpect(jsonPath("$.meta.size").value(8));
     }
+
+    @Test
+    // AI작성: CREATE와 DELETE 외의 심사 유형은 관리자 목록 조회 전에 요청 검증으로 차단한다.
+    void getApplicationListRejectsInvalidType() throws Exception {
+        mockMvc.perform(get("/api/admin/saving-group-applications")
+                        .param("type", "UNKNOWN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+    }
 }
