@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import AdminPostFilterBar from '../components/admin/AdminPostFilterBar';
 import AdminPostTable from '../components/admin/AdminPostTable';
@@ -69,7 +68,6 @@ const Content = styled.main`
 `;
 
 function AdminPostsPage() {
-  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [posts, setPosts] = useState([]);
@@ -142,40 +140,6 @@ function AdminPostsPage() {
     }
   };
 
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'members') {
-      navigate('/admin/members');
-      return;
-    }
-
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
-    }
-
-    if (menuId === 'gathering-review') {
-      navigate('/admin/saving-groups/applications');
-      return;
-    }
-
-    if (menuId === 'groups') {
-      navigate('/admin/small-groups');
-      return;
-    }
-
-    if (menuId === 'comments') {
-      navigate('/admin/comments');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
-  };
-
   return (
     <Page>
       <Heading>
@@ -186,7 +150,7 @@ function AdminPostsPage() {
         <AdminBadge>관리자 전용</AdminBadge>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="posts" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="posts" />
         <Content>
           <AdminPostFilterBar
             query={query}
