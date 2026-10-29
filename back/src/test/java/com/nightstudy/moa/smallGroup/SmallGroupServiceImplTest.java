@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
@@ -22,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -34,6 +37,7 @@ class SmallGroupServiceImplTest {
     private static final long SMALL_GROUP_ID = 10L;
     private static final long GROUP_ID = 20L;
     private static final long MEMBER_ID = 30L;
+    private static final long CREATOR_MEMBER_ID = 40L;
 
     @Mock
     private SmallGroupMapper smallGroupMapper;
@@ -323,6 +327,169 @@ class SmallGroupServiceImplTest {
         assertThat(detailCaptor.getValue().getLocation()).isEqualTo("시민 공원");
     }
 
+    @Test
+    void requestSmallGroupJoinCreatesPendingMembershipForEligibleUser() {
+        mockJoinApplicant();
+        when(smallGroupMapper.insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID)).thenReturn(1);
+
+        smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID);
+
+        verify(smallGroupMapper).insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID);
+        verify(smallGroupMapper, never()).reactivateLeftSmallGroupMembership(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void requestSmallGroupJoinRejectsUnavailableOrUnverifiedMember() {
+        when(smallGroupMapper.selectSmallGroupJoinMemberForUpdate(MEMBER_ID))
+                .thenReturn(joinMember("SUSPENDED", true, "USER"));
+
+        ApiException unavailableException = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(unavailableException.getCode()).isEqualTo("MEMBER_ACCOUNT_UNAVAILABLE");
+        verify(smallGroupMapper, never()).selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID);
+
+        when(smallGroupMapper.selectSmallGroupJoinMemberForUpdate(MEMBER_ID))
+                .thenReturn(joinMember("ACTIVE", false, "USER"));
+
+        ApiException unverifiedException = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(unverifiedException.getCode()).isEqualTo("IDENTITY_VERIFICATION_REQUIRED");
+    }
+
+    @Test
+    void requestSmallGroupJoinRejectsAdminAccount() {
+        when(smallGroupMapper.selectSmallGroupJoinMemberForUpdate(MEMBER_ID))
+                .thenReturn(joinMember("ACTIVE", true, "ADMIN"));
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_JOIN_ADMIN_NOT_ALLOWED");
+        verify(smallGroupMapper, never()).selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void requestSmallGroupJoinRejectsMissingSmallGroup() {
+        when(smallGroupMapper.selectSmallGroupJoinMemberForUpdate(MEMBER_ID))
+                .thenReturn(joinMember("ACTIVE", true, "USER"));
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID)).thenReturn(null);
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_NOT_FOUND");
+        verify(smallGroupMapper, never()).selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void requestSmallGroupJoinRejectsCreatorOwnerAndManager() {
+        mockJoinApplicant();
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID))
+                .thenReturn(joinTarget(MEMBER_ID, 10));
+
+        ApiException creatorException = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(creatorException.getCode()).isEqualTo("SMALL_GROUP_OPERATOR_JOIN_NOT_ALLOWED");
+
+        for (String role : List.of("OWNER", "MANAGER")) {
+            mockJoinApplicant();
+            when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
+                    .thenReturn(relation(role, "APPROVED"));
+
+            ApiException relationException = catchThrowableOfType(
+                    () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+            assertThat(relationException.getCode()).isEqualTo("SMALL_GROUP_OPERATOR_JOIN_NOT_ALLOWED");
+        }
+        verify(smallGroupMapper, never()).insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void requestSmallGroupJoinRejectsApprovedAndPendingMembership() {
+        mockJoinApplicant();
+        when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
+                .thenReturn(relation("MEMBER", "APPROVED"));
+
+        ApiException approvedException = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(approvedException.getCode()).isEqualTo("ALREADY_JOINED_SMALL_GROUP");
+
+        mockJoinApplicant();
+        when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
+                .thenReturn(relation("MEMBER", "PENDING"));
+
+        ApiException pendingException = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(pendingException.getCode()).isEqualTo("JOIN_REQUEST_ALREADY_PENDING");
+    }
+
+    @Test
+    void requestSmallGroupJoinRejectsRejectedAndExpelledMembership() {
+        for (String status : List.of("REJECTED", "EXPELLED")) {
+            mockJoinApplicant();
+            when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
+                    .thenReturn(relation("MEMBER", status));
+
+            ApiException exception = catchThrowableOfType(
+                    () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+            assertThat(exception.getCode()).isEqualTo("JOIN_REAPPLICATION_FORBIDDEN");
+        }
+        verify(smallGroupMapper, never()).insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void requestSmallGroupJoinReactivatesLeftMembership() {
+        mockJoinApplicant();
+        when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
+                .thenReturn(relation("MEMBER", "LEFT"));
+        when(smallGroupMapper.reactivateLeftSmallGroupMembership(GROUP_ID, MEMBER_ID)).thenReturn(1);
+
+        smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID);
+
+        verify(smallGroupMapper).reactivateLeftSmallGroupMembership(GROUP_ID, MEMBER_ID);
+        verify(smallGroupMapper, never()).insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void requestSmallGroupJoinRejectsMissingOrFullCapacity() {
+        when(smallGroupMapper.selectSmallGroupJoinMemberForUpdate(MEMBER_ID))
+                .thenReturn(joinMember("ACTIVE", true, "USER"));
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID))
+                .thenReturn(joinTarget(CREATOR_MEMBER_ID, null));
+
+        ApiException missingCapacityException = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(missingCapacityException.getCode()).isEqualTo("SMALL_GROUP_CAPACITY_NOT_CONFIGURED");
+
+        mockJoinApplicant();
+        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(10L);
+
+        ApiException fullCapacityException = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(fullCapacityException.getCode()).isEqualTo("SMALL_GROUP_CAPACITY_FULL");
+        verify(smallGroupMapper, never()).insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void requestSmallGroupJoinConvertsDuplicateKeyException() {
+        mockJoinApplicant();
+        when(smallGroupMapper.insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID))
+                .thenThrow(new DuplicateKeyException("duplicate group membership"));
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("JOIN_REQUEST_DUPLICATED");
+    }
+
     private void mockExistingDetail() {
         when(smallGroupMapper.selectSmallGroupDetail(SMALL_GROUP_ID)).thenReturn(detailRow());
         when(smallGroupMapper.selectApprovedSmallGroupMemberCount(GROUP_ID)).thenReturn(2L);
@@ -349,6 +516,34 @@ class SmallGroupServiceImplTest {
         SmallGroupMemberRelationRow row = new SmallGroupMemberRelationRow();
         row.setMemberRole(memberRole);
         row.setMembershipStatus(membershipStatus);
+        return row;
+    }
+
+    private void mockJoinApplicant() {
+        when(smallGroupMapper.selectSmallGroupJoinMemberForUpdate(MEMBER_ID))
+                .thenReturn(joinMember("ACTIVE", true, "USER"));
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID))
+                .thenReturn(joinTarget(CREATOR_MEMBER_ID, 10));
+        when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID)).thenReturn(null);
+        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(1L);
+    }
+
+    private SmallGroupJoinMemberRow joinMember(
+            String accountStatus, boolean identityVerified, String systemRole) {
+        SmallGroupJoinMemberRow row = new SmallGroupJoinMemberRow();
+        row.setMemberId(MEMBER_ID);
+        row.setAccountStatus(accountStatus);
+        row.setIdentityVerifiedAt(identityVerified ? LocalDateTime.of(2026, 10, 1, 10, 0) : null);
+        row.setSystemRole(systemRole);
+        return row;
+    }
+
+    private SmallGroupJoinTargetRow joinTarget(Long creatorMemberId, Integer maxMembers) {
+        SmallGroupJoinTargetRow row = new SmallGroupJoinTargetRow();
+        row.setSmallGroupId(SMALL_GROUP_ID);
+        row.setGroupId(GROUP_ID);
+        row.setCreatorMemberId(creatorMemberId);
+        row.setMaxMembers(maxMembers);
         return row;
     }
 
