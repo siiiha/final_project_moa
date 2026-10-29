@@ -8,6 +8,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
@@ -17,6 +18,7 @@ import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -72,6 +74,16 @@ public class SmallGroupController {
             @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(smallGroupService.getSmallGroupSettings(id, memberId));
+    }
+
+    // AI작성: 수정 권한과 정원 축소 정책은 Service가 JWT 인증 회원 ID를 기준으로 검증한다.
+    @PatchMapping("/{id}")
+    public ApiResponse<Void> updateSettings(
+            @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
+            @Valid @RequestBody SmallGroupSettingsPatchRequest request,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.updateSmallGroupSettings(id, memberId, request);
+        return ApiResponse.ok(null);
     }
 
     @PostMapping
