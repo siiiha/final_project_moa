@@ -27,7 +27,15 @@
 
     <select id="selectSavingGroupList" resultType="com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse">
         SELECT sg.saving_group_id, g.group_id, g.group_name, g.description, r.region_name,
-        g.max_members, sg.dues_amount, sg.dues_day, sg.status, g.created_at
+        g.max_members, sg.dues_amount, sg.dues_day, sg.status,
+        COALESCE((
+            SELECT rh.action = 'RESTRICT'
+            FROM restriction_history rh
+            WHERE rh.saving_group_id = sg.saving_group_id
+            ORDER BY rh.restriction_history_id DESC
+            LIMIT 1
+        ), FALSE) AS admin_restricted,
+        g.created_at
         <include refid="adminSavingGroupFromWhere"/>
         ORDER BY g.created_at DESC, sg.saving_group_id DESC
         LIMIT #{limit} OFFSET #{offset}
@@ -52,6 +60,13 @@
             sg.start_date,
             sg.end_date,
             sg.status,
+            COALESCE((
+                SELECT rh.action = 'RESTRICT'
+                FROM restriction_history rh
+                WHERE rh.saving_group_id = sg.saving_group_id
+                ORDER BY rh.restriction_history_id DESC
+                LIMIT 1
+            ), FALSE) AS admin_restricted,
             sg.group_image,
             g.member_id AS owner_member_id,
             m.nickname AS owner_nickname,
@@ -63,5 +78,43 @@
         WHERE sg.saving_group_id = #{savingGroupId}
           AND g.deleted_at IS NULL
     </select>
+
+    <!-- AI작성: saving_group_id 기준으로 삭제되지 않은 계모임을 잠가 제한 상태 전환을 직렬화한다. -->
+    <select id="selectRestrictionTargetForUpdate"
+            resultType="com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionTarget">
+        SELECT sg.saving_group_id, sg.group_id, sg.status
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId}
+          AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <select id="selectLatestRestrictionAction" resultType="string">
+        SELECT action
+        FROM restriction_history
+        WHERE saving_group_id = #{savingGroupId}
+        ORDER BY restriction_history_id DESC
+        LIMIT 1
+    </select>
+
+    <!-- AI작성: 계모임은 기간제가 아니므로 제한 유형과 종료 시각을 NULL로 저장한다. -->
+    <insert id="insertRestrictionHistory">
+        INSERT INTO restriction_history (
+            member_id,
+            saving_group_id,
+            action,
+            restriction_type,
+            reason,
+            restricted_until
+        ) VALUES (
+            NULL,
+            #{savingGroupId},
+            #{action},
+            NULL,
+            #{reason},
+            NULL
+        )
+    </insert>
 
 </mapper>

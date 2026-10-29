@@ -68,8 +68,11 @@ function SavingGroupFilterBar({ status, region, query, onStatusChange, onRegionC
     <Form onSubmit={onSearch}>
       <Control aria-label="계모임 상태" value={status} onChange={(event) => onStatusChange(event.target.value)}>
         <option value="전체">전체 상태</option>
+        <option value="심사중">심사중</option>
+        <option value="모집중">모집중</option>
         <option value="활동중">활동중</option>
         <option value="정지">정지</option>
+        <option value="종료">종료</option>
       </Control>
       <Control aria-label="계모임 지역" value={region} onChange={(event) => onRegionChange(event.target.value)}>
         <option value="전체">전체 지역</option>
