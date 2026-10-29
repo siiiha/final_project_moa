@@ -265,6 +265,42 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <!-- AI작성: 식별 조회와 잠금 재조회에서 같은 신청 식별자·회원·소속·상태 필드를 사용한다. -->
+    <sql id="smallGroupJoinApprovalTargetSelect">
+        SELECT crew_member_id,
+               member_id,
+               group_id,
+               membership_status
+        FROM group_member
+        WHERE crew_member_id = #{crewMemberId}
+    </sql>
+
+    <!-- AI작성: 신청 회원 잠금 전에 회원 ID만 확인하며 이 결과는 승인 근거로 사용하지 않는다. -->
+    <select id="selectSmallGroupJoinApprovalTarget"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinApprovalTargetRow">
+        <include refid="smallGroupJoinApprovalTargetSelect"/>
+    </select>
+
+    <!-- AI작성: 신청 회원과 소모임을 잠근 뒤 신청 행을 다시 잠가 소속·상태 변경을 감지한다. -->
+    <select id="selectSmallGroupJoinApprovalTargetForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinApprovalTargetRow">
+        <include refid="smallGroupJoinApprovalTargetSelect"/>
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 같은 UPDATE 시각으로 가입·승인 시각을 저장하고 대기 중인 기존 신청 행만 승인한다. -->
+    <update id="approveSmallGroupJoinRequest">
+        UPDATE group_member
+        SET membership_status = 'APPROVED',
+            member_role = 'MEMBER',
+            joined_at = CURRENT_TIMESTAMP(),
+            approved_at = CURRENT_TIMESTAMP(),
+            approved_by = #{approvedBy}
+        WHERE crew_member_id = #{crewMemberId}
+          AND group_id = #{groupId}
+          AND membership_status = 'PENDING'
+    </update>
+
     <!-- AI작성: 가입 메시지 없이 인증 회원의 신규 신청을 MEMBER·PENDING 관계 한 건으로 저장한다. -->
     <insert id="insertSmallGroupJoinRequest">
         INSERT INTO group_member (
