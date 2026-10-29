@@ -192,6 +192,23 @@ class SavingGroupCreationServiceImplTest {
         verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
     }
 
+    @Test
+    // AI작성: 소프트 삭제가 실패하면 트랜잭션 롤백을 유발할 처리 실패 예외가 발생하는지 검증한다.
+    void approveDeletionFailsWhenSoftDeleteFails() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+        when(savingGroupMapper.selectSavingGroupBalance(100L)).thenReturn(BigDecimal.ZERO);
+        when(savingGroupMapper.approveSavingGroupDeletionApplication(1L)).thenReturn(1);
+        when(savingGroupMapper.softDeleteSavingGroup(100L)).thenReturn(0);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.approveCreationApplication(1L, 20L), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_APPLICATION_PROCESS_FAILED");
+        verify(savingGroupMapper).approveSavingGroupDeletionApplication(1L);
+        verify(savingGroupMapper).softDeleteSavingGroup(100L);
+    }
+
     private SavingGroupCreationRequest creationRequest() {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
