@@ -195,19 +195,19 @@ function getPageNumbers(currentPage, totalPages) {
   return Array.from({ length }, (_, index) => start + index);
 }
 
-function AdminReportTable({ reports, totalCount, currentPage, totalPages, onPageChange, onViewReport }) {
+function AdminReportTable({ reports, totalCount, currentPage, totalPages, onPageChange, onViewReport, loading }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
-      {reports.length ? (
+      {loading ? <Empty role="status">신고 목록을 불러오는 중입니다.</Empty> : reports.length ? (
         <>
           <TableWrap>
             <Table>
               <thead>
                 <tr>
-                  <th scope="col">신고 사유</th>
+                  <th scope="col">신고 유형</th>
                   <th scope="col">신고 대상</th>
-                  <th scope="col">신고자</th>
+                  <th scope="col">신고 수</th>
                   <th scope="col">신고일</th>
                   <th scope="col">처리 상태</th>
                 </tr>
@@ -215,23 +215,23 @@ function AdminReportTable({ reports, totalCount, currentPage, totalPages, onPage
               <tbody>
                 {reports.map((report) => (
                   <tr key={report.id}>
-                    <td data-label="신고 사유">
-                      <Reason>{report.reason}</Reason>
+                    <td data-label="신고 유형">
+                      <Reason>{report.type}</Reason>
                     </td>
                     <td data-label="신고 대상">
                       <Target>
                         <TargetButton type="button" onClick={() => onViewReport(report.id)}>
-                          {report.target}
+                          {report.targetMember}
                         </TargetButton>
                       </Target>
                     </td>
-                    <td data-label="신고자">{report.reporter}</td>
+                    <td data-label="신고 수">{report.reporterCount}건</td>
                     <td data-label="신고일">
                       {/* AI작성: 신고 시점의 연도와 날짜 안내 문구가 잘리지 않도록 전체 값을 표시한다. */}
-                      {report.reportedAt}
+                      {report.createdAt}
                     </td>
                     <td data-label="처리 상태">
-                      <StatusBadge $pending={report.status === '대기'}>{report.status}</StatusBadge>
+                      <StatusBadge $pending={report.statusCode === 'PENDING'}>{report.status}</StatusBadge>
                     </td>
                   </tr>
                 ))}
