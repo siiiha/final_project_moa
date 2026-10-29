@@ -86,7 +86,11 @@ export async function getAdminMember(memberId, signal) {
 
 export async function restrictAdminMember(memberId, restrictionType, reason) {
   try {
-    await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction`, { restrictionType, reason });
+    const response = await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction`, { restrictionType, reason });
+    // AI작성: HTTP 성공 상태만으로 처리 완료를 판단하지 않고 공통 성공 응답을 확인한다.
+    if (!response.data?.success) {
+      throw new Error('회원 이용 제한 응답을 확인할 수 없습니다.');
+    }
   } catch (error) {
     throw toAdminMemberError(error, '회원 이용 제한을 적용하지 못했습니다.');
   }
@@ -94,7 +98,11 @@ export async function restrictAdminMember(memberId, restrictionType, reason) {
 
 export async function releaseAdminMemberRestriction(memberId, reason) {
   try {
-    await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction/release`, { reason });
+    const response = await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction/release`, { reason });
+    // AI작성: HTTP 성공 상태만으로 처리 완료를 판단하지 않고 공통 성공 응답을 확인한다.
+    if (!response.data?.success) {
+      throw new Error('회원 이용 제한 해제 응답을 확인할 수 없습니다.');
+    }
   } catch (error) {
     throw toAdminMemberError(error, '회원 이용 제한을 해제하지 못했습니다.');
   }
