@@ -6,6 +6,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
 
 // AI작성: 소모임 공개 목록의 검색·필터 조회 계약이다.
 public interface SmallGroupService {
@@ -33,4 +35,8 @@ public interface SmallGroupService {
     // AI작성: 개설자이면서 승인된 OWNER인 회원만 전달한 소모임 설정 필드를 수정한다.
     void updateSmallGroupSettings(
             Long smallGroupId, Long loginMemberId, SmallGroupSettingsPatchRequest request);
+
+    // AI작성: 삭제되지 않은 소모임의 개설자이면서 승인 OWNER인 회원만 투표와 보기를 함께 생성한다.
+    SmallGroupVoteCreateResponse createSmallGroupVote(
+            Long smallGroupId, Long memberId, SmallGroupVoteCreateRequest request);
 }

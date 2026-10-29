@@ -17,6 +17,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateCommand;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -122,6 +123,14 @@ public interface SmallGroupMapper {
 
     // AI작성: 요청에 포함된 소모임 전용 필드만 small_group 테이블에 수정한다.
     int updateSmallGroupDetailSettings(@Param("update") SmallGroupSettingsDetailUpdate update);
+
+    // AI작성: Service가 검증한 투표 기본 정보를 저장하고 생성 키를 command에 설정한다.
+    int insertSmallGroupVote(@Param("command") SmallGroupVoteCreateCommand command);
+
+    // AI작성: 같은 투표의 정리된 보기 목록을 입력 순서대로 일괄 저장한다.
+    int insertSmallGroupVoteOptions(
+            @Param("smallGroupVoteId") Long smallGroupVoteId,
+            @Param("options") List<String> options);
 
     // AI작성: 공개 상세 화면의 최근 공지 영역에는 최신 4건의 요약만 전달한다.
     List<SmallGroupNoticeSummaryResponse> selectRecentSmallGroupNotices(@Param("groupId") Long groupId);
