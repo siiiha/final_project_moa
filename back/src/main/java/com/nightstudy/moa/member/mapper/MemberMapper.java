@@ -4,8 +4,9 @@ import com.nightstudy.moa.member.dto.MemberInsertDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import com.nightstudy.moa.member.dto.MemberLoginDto;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.MemberTermDto;
 import java.util.List;
+import com.nightstudy.moa.member.dto.MemberProfileResponse;
 
 @Mapper
 public interface MemberMapper {
@@ -19,6 +20,7 @@ public interface MemberMapper {
     int countVerifiedEmail(@Param("email") String email);
 
     int countRequiredTerms();
+    List<MemberTermDto> findTerms();
 
     int countRequiredAgreedTerms(
             @Param("termIds") java.util.List<Long> termIds

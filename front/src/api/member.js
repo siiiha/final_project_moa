@@ -29,11 +29,23 @@ export async function updateMyProfile(token, request) {
     return response.data.data;
 }
 
-// 현재 DB에서 확인한 관심사 번호, 이름
-// 관심사 목록 조회 API 추가 되면 서보 조회로 교체
+// AI작성: DB에서 재정렬한 관심사 ID 1~15를 화면 순서에 맞춰 사용한다.
 export const memberInterestOptions = [
-    { interestId: 1, interestName: '산책' },
-    { interestId: 2, interestName: '독서' },
+  { interestId: 1, interestName: '운동/스포츠' },
+  { interestId: 2, interestName: '사교/인맥' },
+  { interestId: 3, interestName: '인문학/책/글' },
+  { interestId: 4, interestName: '아웃도어/여행' },
+  { interestId: 5, interestName: '음악/악기' },
+  { interestId: 6, interestName: '문화/공연/축제' },
+  { interestId: 7, interestName: '외국/언어' },
+  { interestId: 8, interestName: '게임/오락' },
+  { interestId: 9, interestName: '공예/만들기' },
+  { interestId: 10, interestName: '댄스/무용' },
+  { interestId: 11, interestName: '사진/영상' },
+  { interestId: 12, interestName: '자기계발' },
+  { interestId: 13, interestName: '스포츠관람' },
+  { interestId: 14, interestName: '요리/제조' },
+  { interestId: 15, interestName: '자동차/바이크' },
 ];
 
 // 현재 비밀번호 확인하고 새 비밀번호로 수정
@@ -152,19 +164,11 @@ export const memberRegionOptions = [
     { regionId: 8, regionName: '서울특별시 마포구' },
 ];
 
-// 현재 DB의 테스트용 약관과 연결
-export const memberTermOptions = [
-    {
-        termId: 1,
-        title: '[테스트] 서비스 이용약관',
-        required: true,
-    },
-    {
-        termId: 2,
-        title: '[테스트] 개인정보 수집·이용 동의',
-        required: true,
-    },
-];
+// AI작성: 일반·소셜 회원가입에서 사용할 약관을 서버에서 조회한다.
+export async function getMemberTerms() {
+  const response = await client.get('/auth/terms');
+  return response.data.data;
+}
 
 export async function withdrawMyAccount(token, request) {
     const response = await client.delete('/members/me', {

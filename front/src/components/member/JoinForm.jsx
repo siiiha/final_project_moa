@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -13,10 +13,12 @@ import {
   signupMember,
   signupSocialMember,
   memberRegionOptions,
-  memberTermOptions,
+  getMemberTerms,
   memberInterestOptions,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
+import ConfirmModal from '../common/ConfirmModal';
+import { interestIcons } from './interestsIcons';
 
 const Form = styled.form`
   width: 100%;
@@ -85,55 +87,69 @@ const InterestCard = styled(SectionCard)`
   }
 `;
 
+// AI작성: 안내 문구 아래에 관심사 버튼을 격자로 배치한다.
 const InterestContent = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 24px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-  }
+  display: grid;
+  gap: 16px;
 `;
 
 const InterestDescription = styled.div`
-  min-width: 230px;
+  min-width: 0;
 
   h3 {
     color: ${({ theme }) => theme.colors.text};
     font-size: 16px;
-    letter-spacing: -0.75px;
+    letter-spacing: -0.5px;
   }
 
   p {
-    margin-top: 4px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 11px;
+    margin-top: 6px;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 13px;
+    line-height: 1.5;
   }
 `;
 
+// AI작성: PC는 4열, 모바일과 소셜 인증 창은 2열로 표시한다.
 const ChipList = styled.div`
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    justify-content: flex-start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 `;
 
 const Chip = styled.button`
-  min-height: 32px;
-  padding: 6px 14px;
-  color: ${({ $selected, theme }) => ($selected ? theme.colors.white : theme.colors.secondaryText)};
-  background: ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.white)};
-  border: 1px solid ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.border)};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 11px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: ${({ $selected, theme }) =>
+    $selected ? theme.colors.white : theme.colors.secondaryText};
+  background: ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.white};
+  border: 1px solid ${({ $selected, theme }) =>
+    $selected ? theme.colors.primary : theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.md};
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.5;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 3px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 `;
 
 const AgreementCard = styled(SectionCard)`
@@ -200,10 +216,49 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [isCheckingNickname, setIsCheckingNickname] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupError, setSignupError] = useState('');
+    // AI작성: 서버에서 조회한 약관과 조회 상태를 관리한다.
+  const [memberTermOptions, setMemberTermOptions] = useState([]);
+  const [isTermsLoading, setIsTermsLoading] = useState(true);
+  const [termsError, setTermsError] = useState('');
+    // AI작성: 사용자가 선택한 약관을 내용 보기 모달에 표시한다.
+  const [selectedTerm, setSelectedTerm] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadTerms() {
+      try {
+        const terms = await getMemberTerms();
+
+        if (!Array.isArray(terms) || terms.length === 0) {
+          throw new Error('약관 목록이 없습니다.');
+        }
+
+        if (active) {
+          setMemberTermOptions(terms);
+        }
+      } catch {
+        if (active) {
+          setTermsError('약관을 불러오지 못했습니다. 새로고침해주세요.');
+        }
+      } finally {
+        if (active) {
+          setIsTermsLoading(false);
+        }
+      }
+    }
+
+    loadTerms();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleInterestToggle = (interest) => {
     setSelectedInterests((current) => {
       if (current.includes(interest)) return current.filter((item) => item !== interest);
-      if (current.length === 2) return current;
+      if (current.length >= 3) return current;
       return [...current, interest];
     });
   };
@@ -334,6 +389,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     if (isSubmitting || isEmailBusy || isCheckingNickname) return;
 
     setSignupError('');
+
+    // AI작성: 약관을 정상적으로 조회한 경우에만 가입을 진행한다.
+    if (isTermsLoading || termsError || memberTermOptions.length === 0) {
+      setSignupError(
+        termsError || '약관을 불러오는 중입니다. 잠시 후 다시 시도해주세요.',
+      );
+      return;
+    }
 
     if (!emailVerificationToken) {
       setSignupError('이메일 인증을 먼저 완료해주세요.');
@@ -716,29 +779,47 @@ navigate('/member/login', { replace: true });
         </SectionCard>
       </DetailsGrid>
 
-      <InterestCard title="관심사">
+            <InterestCard title="관심사">
         <InterestContent>
           <InterestDescription>
-            <h3>좋아하는 활동을 선택해주세요</h3>
-            <p>최대 2개 선택 · 선택사항</p>
+            <h3>어떤 활동에 관심이 있으신가요?</h3>
+            <p aria-live="polite">
+              최대 3개 선택 · 선택사항 · 선택 {selectedInterests.length}/3
+            </p>
           </InterestDescription>
+
           <ChipList aria-label="관심사 선택">
-            {memberInterestOptions.map((interest) => (
-              <Chip
-                key={interest.interestId}
-                type="button"
-                $selected={selectedInterests.includes(interest.interestId)}
-                onClick={() => handleInterestToggle(interest.interestId)}
-                aria-pressed={selectedInterests.includes(interest.interestId)}
-              >
-                {interest.interestName}
-              </Chip>
-            ))}
+            {memberInterestOptions.map((interest) => {
+              const selected = selectedInterests.includes(
+                interest.interestId,
+              );
+              const InterestIcon = interestIcons[interest.interestId];
+              return (
+                <Chip
+                  key={interest.interestId}
+                  type="button"
+                  $selected={selected}
+                  onClick={() => handleInterestToggle(interest.interestId)}
+                  aria-pressed={selected}
+                  disabled={!selected && selectedInterests.length >= 3}
+                >
+                  {InterestIcon && (
+                    <InterestIcon size={18} aria-hidden="true" />
+                  )}  
+                  <span>{interest.interestName}</span>
+                </Chip>
+              );
+            })}
           </ChipList>
         </InterestContent>
       </InterestCard>
 
-      <AgreementCard title="약관 동의">
+            <AgreementCard title="약관 동의">
+        {isTermsLoading && (
+          <p role="status">약관을 불러오고 있습니다.</p>
+        )}
+        {termsError && <p role="alert">{termsError}</p>}
+
         <AgreementList>
           {memberTermOptions.map((term) => (
             <AgreementRow key={term.termId}>
@@ -749,8 +830,11 @@ navigate('/member/login', { replace: true });
                 onChange={() => handleAgreementChange(term.termId)}
                 required={term.required}
               />
-              <DetailButton type="button" disabled>
-                테스트 약관
+              <DetailButton
+                type="button"
+                onClick={() => setSelectedTerm(term)}
+              >
+                내용 보기
               </DetailButton>
             </AgreementRow>
           ))}
@@ -761,11 +845,42 @@ navigate('/member/login', { replace: true });
 
       <SubmitButton
         type="submit"
-        disabled={isSubmitting || isEmailBusy || isCheckingNickname}
+          disabled={
+          isSubmitting ||
+          isEmailBusy ||
+          isCheckingNickname ||
+          isTermsLoading ||
+          Boolean(termsError) ||
+          memberTermOptions.length === 0
+        }
       >
         {isSubmitting ? '가입 처리 중…' : '회원가입'}
         </SubmitButton>
       </fieldset>
+            {/* AI작성: 약관 본문을 확인하고 닫아도 동의 여부는 직접 선택한다. */}
+      {selectedTerm && (
+        <ConfirmModal
+          title={selectedTerm.title}
+          description={`버전: ${selectedTerm.version}`}
+          size="wide"
+          confirmLabel="닫기"
+          showCancel={false}
+          onConfirm={() => setSelectedTerm(null)}
+          onCancel={() => setSelectedTerm(null)}
+        >
+          <div
+            style={{
+              maxHeight: '50vh',
+              overflowY: 'auto',
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              lineHeight: 1.7,
+            }}
+          >
+            {selectedTerm.content}
+          </div>
+        </ConfirmModal>
+      )}
     </Form>
   );
 }

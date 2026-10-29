@@ -3,7 +3,7 @@ import { FiBell } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
-import { logout } from '../../api/authApi';
+import { logoutMember } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 
 const Shell = styled.header`
@@ -148,7 +148,8 @@ const LogoutButton = styled.button`
 
 function Header() {
   const { pathname } = useLocation();
-  const clearAuth = useAuthStore((state) => state.clearAuth);
+  const token = useAuthStore((state) => state.token);
+  const clearToken = useAuthStore((state) => state.clearToken);
   // AI작성: 로그아웃 요청 중에는 중복 요청을 막고 처리 상태를 화면에 표시한다.
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -157,14 +158,21 @@ function Header() {
 
     setIsLoggingOut(true);
     try {
-      await logout();
+      await logoutMember(token);
+    } catch (error) {
+      // AI작성: 서버 폐기를 확인하지 못한 경우에도 현재 브라우저에서는 로그아웃한다.
+      if (error.response?.status !== 401) {
+        window.alert('서버 로그아웃을 확인하지 못했습니다. 현재 브라우저의 로그인 정보는 삭제합니다.');
+      }
     } finally {
-      // AI작성: 네트워크 실패에도 브라우저의 로그인 정보는 반드시 제거한다.
-      clearAuth();
+      // AI작성: 기존 스토어의 로그인 초기화 함수를 재사용한다.
+      clearToken();
+      sessionStorage.removeItem('moa-social-signup');
+      setIsLoggingOut(false);
       window.location.assign('/');
     }
   };
-  const isLoggedIn = Boolean(useAuthStore((state) => state.token));
+  const isLoggedIn = Boolean(token);
 
   return (
     <Shell>

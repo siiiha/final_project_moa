@@ -22,6 +22,7 @@ public class MemberProfileUpdateRequest {
     @Size(min = 2, max = 12, message = "닉네임은 2~12자로 입력해주세요.")
     private String nickname;
 
+    @Size(max = 3, message = "관심사는 최대 3개까지 선택할 수 있습니다.")
     private List<
             @NotNull(message = "관심사 번호는 비어 있을 수 없습니다.")
             @Positive(message = "관심사 번호는 양수여야 합니다.")
