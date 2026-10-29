@@ -9,9 +9,9 @@ import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
-import java.util.List;
-import java.time.LocalDateTime;
 import com.nightstudy.moa.member.service.AuthSessionService;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +23,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
     private final MemberRestrictionPolicy memberRestrictionPolicy;
     private final AuthSessionService authSessionService;
 
+    // AI작성: 조회·상태 변경 Mapper와 공통 제한 정책, 기존 세션 폐기 기능을 재사용한다.
     public AdminMemberServiceImpl(
             AdminMemberMapper adminMemberMapper,
             MemberRestrictionPolicy memberRestrictionPolicy,
@@ -35,6 +36,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
 
     @Override
     @Transactional(readOnly = true)
+    // AI작성: 전체 건수로 페이지 정보를 계산하고 유효한 페이지일 때만 회원 목록을 조회한다.
     public AdminMemberListResult getMemberList(AdminMemberSearchCondition condition) {
         int total = adminMemberMapper.selectMemberCount(condition);
         PageMeta pageMeta = PageMeta.of(condition.getPage(), condition.getSize(), total);
@@ -49,6 +51,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
 
     @Override
     @Transactional(readOnly = true)
+    // AI작성: 회원 상세가 없으면 공통 404 예외로 변환해 Controller에 전달한다.
     public AdminMemberDetailResponse getMemberDetail(Long memberId) {
         AdminMemberDetailResponse detail = adminMemberMapper.selectMemberDetail(memberId);
         if (detail == null) {
@@ -63,6 +66,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
 
     @Override
     @Transactional
+    // AI작성: 대상 잠금, 제한 상태 변경, 이력 저장, 세션 폐기를 하나의 트랜잭션으로 처리한다.
     public void restrictMember(
             Long administratorId,
             Long memberId,
@@ -105,6 +109,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
 
     @Override
     @Transactional
+    // AI작성: 현재 제한 상태를 확인한 뒤 상태 복구와 해제 이력을 하나의 트랜잭션으로 저장한다.
     public void releaseMemberRestriction(
             Long administratorId,
             Long memberId,
@@ -133,6 +138,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         }
     }
 
+    // AI작성: 동시 요청에 사용될 잠긴 회원 정보를 조회하고 존재하지 않으면 404로 처리한다.
     private AdminMemberRestrictionTarget getRestrictionTarget(Long memberId) {
         AdminMemberRestrictionTarget target = adminMemberMapper.selectRestrictionTargetForUpdate(memberId);
         if (target == null) {
@@ -152,6 +158,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         }
     }
 
+    // AI작성: 상태 변경 또는 이력 저장 건수가 예상과 다를 때 사용할 공통 충돌 예외를 생성한다.
     private ApiException restrictionConflict() {
         return new ApiException(
                 HttpStatus.CONFLICT,

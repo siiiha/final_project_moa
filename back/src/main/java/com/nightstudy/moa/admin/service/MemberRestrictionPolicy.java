@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 // AI작성: 신고 처리와 관리자 직접 처리에서 동일한 회원 제한 기간 계산 규칙을 제공한다.
 public class MemberRestrictionPolicy {
 
+    // AI작성: 기존 제한보다 짧아지지 않고 영구 제한이 기간제로 바뀌지 않도록 실제 종료 시각을 계산한다.
     public LocalDateTime calculateSuspendedUntil(
             String accountStatus,
             LocalDateTime currentSuspendedUntil,
