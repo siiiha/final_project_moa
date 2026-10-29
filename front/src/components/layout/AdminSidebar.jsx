@@ -1,5 +1,7 @@
 import { FiClipboard, FiFileText, FiFlag, FiGrid, FiHeart, FiMessageSquare, FiUsers } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { adminRoutes } from '../../adminRoutes';
 
 const Aside = styled.aside`
   padding-right: 18px;
@@ -60,7 +62,8 @@ const iconMap = {
   reports: FiFlag,
 };
 
-function AdminSidebar({ items, activeItem, onSelect }) {
+function AdminSidebar({ items, activeItem }) {
+  const navigate = useNavigate();
   return (
     <Aside>
       <MenuList aria-label="관리자 메뉴">
@@ -73,7 +76,7 @@ function AdminSidebar({ items, activeItem, onSelect }) {
               type="button"
               $active={activeItem === item.id}
               aria-current={activeItem === item.id ? 'page' : undefined}
-              onClick={() => onSelect(item.id)}
+              onClick={() => adminRoutes[item.id] && navigate(adminRoutes[item.id])}
             >
               <Icon size={16} aria-hidden="true" />
               {item.label}
