@@ -189,6 +189,16 @@ const Empty = styled.p`
   text-align: center;
 `;
 
+const ApprovalError = styled.p`
+  margin-top: 12px;
+  padding: 10px 12px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12px;
+  line-height: 1.5;
+`;
+
 const Pagination = styled.nav`
   margin-top: 18px;
   display: flex;
@@ -202,9 +212,25 @@ const PageButton = styled(Button)`
 
 const filters = ['전체', '대기', '승인', '거절'];
 
-function RequestActions() {
-  // AI작성: 승인·거절 API가 없는 범위에서는 화면 상태만 변경하는 버튼을 제공하지 않는다.
-  return <ActionButton type="button" $variant="secondary" disabled title="가입 신청 처리 기능 준비 중">처리 준비 중</ActionButton>;
+function RequestActions({ request, onApprove, isApproving }) {
+  if (request.status !== '대기') {
+    return <ActionButton type="button" $variant="secondary" disabled>처리 완료</ActionButton>;
+  }
+
+  return (
+    <ActionGroup>
+      <ActionButton
+        type="button"
+        disabled={isApproving}
+        aria-busy={isApproving}
+        onClick={() => onApprove(request.id)}
+      >
+        {isApproving ? '승인 중...' : '승인'}
+      </ActionButton>
+      {/* AI작성: 거절 API 정책은 이번 범위에 없으므로 오작동하는 로컬 상태 변경 대신 비활성화한다. */}
+      <ActionButton type="button" $variant="secondary" disabled title="가입 신청 거절 기능 준비 중">거절</ActionButton>
+    </ActionGroup>
+  );
 }
 
 function SmallGroupJoinRequestList({
@@ -218,6 +244,9 @@ function SmallGroupJoinRequestList({
   isLoading,
   errorMessage,
   onRetry,
+  onApprove,
+  approvingRequestId,
+  approvalError,
 }) {
   return (
     <>
@@ -243,6 +272,8 @@ function SmallGroupJoinRequestList({
             선택 승인
           </BulkApproveButton>
         </CardHeader>
+
+        {approvalError && <ApprovalError role="alert">{approvalError}</ApprovalError>}
 
         {isLoading ? <Empty role="status">가입 신청 목록을 불러오고 있습니다.</Empty> : errorMessage ? (
           <Empty role="alert">
@@ -276,7 +307,13 @@ function SmallGroupJoinRequestList({
                       <td>{request.regionInterest}</td>
                       <td>{request.message}</td>
                       <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
-                      <td><RequestActions /></td>
+                      <td>
+                        <RequestActions
+                          request={request}
+                          onApprove={onApprove}
+                          isApproving={approvingRequestId === request.id}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -291,7 +328,13 @@ function SmallGroupJoinRequestList({
                     <StatusBadge $status={request.status}>{request.status}</StatusBadge>
                   </MobileTop>
                   <MobileInfo>{request.regionInterest}<br />{request.message}</MobileInfo>
-                  <MobileActions><RequestActions /></MobileActions>
+                  <MobileActions>
+                    <RequestActions
+                      request={request}
+                      onApprove={onApprove}
+                      isApproving={approvingRequestId === request.id}
+                    />
+                  </MobileActions>
                 </MobileItem>
               ))}
             </MobileList>

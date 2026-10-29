@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { getSmallGroupJoinRequests } from '../../api/smallGroups';
+import {
+  approveSmallGroupJoinRequest,
+  getSmallGroupJoinRequests,
+} from '../../api/smallGroups';
 import SmallGroupJoinRequestList from './SmallGroupJoinRequestList';
 
 const Heading = styled.div`
@@ -31,6 +34,8 @@ function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState(null);
+  const [approvingRequestId, setApprovingRequestId] = useState(null);
+  const [approvalError, setApprovalError] = useState('');
   const status = REQUEST_STATUS[activeFilter];
   const queryKey = `${smallGroupId}:${status || 'ALL'}:${currentPage}:${retry}`;
   const currentResult = result?.key === queryKey ? result : null;
@@ -66,6 +71,21 @@ function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
     setCurrentPage(Math.min(Math.max(page, 1), Math.max(totalPages, 1)));
   };
 
+  const approveRequest = async (crewMemberId) => {
+    if (isLoading || approvingRequestId !== null) return;
+    setApprovalError('');
+    setApprovingRequestId(crewMemberId);
+    try {
+      await approveSmallGroupJoinRequest(smallGroupId, crewMemberId);
+      // AI작성: 승인 직후 서버 목록을 다시 조회해 정원·상태 변경 결과를 임의로 화면에서 만들지 않는다.
+      setRetry((value) => value + 1);
+    } catch (error) {
+      setApprovalError(error.message || '가입 신청을 승인하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setApprovingRequestId(null);
+    }
+  };
+
   return (
     <section>
       <Heading>
@@ -85,6 +105,9 @@ function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
         isLoading={isLoading}
         errorMessage={errorMessage}
         onRetry={() => setRetry((value) => value + 1)}
+        onApprove={approveRequest}
+        approvingRequestId={approvingRequestId}
+        approvalError={approvalError}
       />
     </section>
   );
