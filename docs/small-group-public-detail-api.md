@@ -1,5 +1,5 @@
-<!-- AI작성: 기존 계모임·소모임 구현과 사용자 확정 정책을 기준으로 작성한 소모임 공개 상세 조회 설계 문서입니다. -->
-# 소모임 상세·설정 조회 API 설계
+<!-- AI작성: 기존 계모임·소모임 구현과 사용자 확정 정책을 기준으로 작성한 소모임 상세·설정·가입 신청 API 설계 문서입니다. -->
+# 소모임 상세·설정·가입 신청 API 설계
 
 ## 범위
 
@@ -97,6 +97,85 @@ Spring Security에서 숫자 ID의 `GET /api/small-groups/{id}`만 공개한다.
 3. 프론트 상세 화면에서 역할별 탭, 모임 날짜·장소, 최근 공지 0·1·4건 표시를 확인한다.
 4. 공지 전체 보기·일정 확인·길찾기는 후속 API가 구현되기 전까지 이동하지 않는지 확인한다.
 5. Java 17 환경에서 백엔드 소모임 테스트를 실행한다.
+
+---
+
+## 소모임 가입 신청 API
+
+### 범위
+
+- 엔드포인트: `POST /api/small-groups/{smallGroupId}/join-requests`
+- `{smallGroupId}`는 `small_group.small_group_id`이며, 요청 본문은 없다.
+- Spring Security와 JWT 필터가 인증한 회원 ID만 사용하며, 클라이언트는 회원 ID·신청 메시지·추가 입력값을 전달하지 않는다.
+- 신청 성공은 가입 완료가 아닌 `group_member`의 `MEMBER`·`PENDING` 관계 생성 또는 재신청 갱신이다.
+- 소모임 가입 신청 승인·거절과 OWNER의 신청 목록 조회는 이 API 범위에 포함하지 않는다.
+
+### 성공 응답
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 가입 가능 검증과 저장
+
+Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인 인원을 순서대로 잠가 조회한다.
+
+1. 회원이 활성 상태이고 본인 인증을 완료했는지 확인한다.
+2. `system_role`이 `ADMIN`이면 신청을 차단한다.
+3. 삭제되지 않은 소모임인지와 정원 설정 여부를 확인한다.
+4. 개설자, `OWNER`, `MANAGER` 관계면 본인 소모임 신청을 차단한다.
+5. 기존 관계 상태를 확인한다.
+   - `APPROVED`, `PENDING`, `REJECTED`, `EXPELLED`은 신청을 차단한다.
+   - `LEFT`만 기존 행을 `PENDING`으로 되돌려 재신청을 허용한다.
+6. 승인된 `OWNER`, `MEMBER` 수가 정원보다 적은지 확인한다.
+7. 신규 신청은 `group_member`에 `MEMBER`, `PENDING`, `requested_at`을 저장한다.
+
+`LEFT` 재신청 시에는 이전 `approved_by`, `approved_at`, `joined_at`, `left_at`, `application_message`를 초기화한다. 유니크 제약 충돌은 서버 오류가 아닌 중복 신청으로 처리한다.
+
+### 오류 응답
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증 정보 없음 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 소모임 ID가 0 이하 | `400 BAD_REQUEST` |
+| 비활성·정지·탈퇴 회원 | `403 MEMBER_ACCOUNT_UNAVAILABLE` |
+| 본인 인증 미완료 | `403 IDENTITY_VERIFICATION_REQUIRED` |
+| 관리자 계정 | `403 SMALL_GROUP_JOIN_ADMIN_NOT_ALLOWED` |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 개설자, OWNER, MANAGER 신청 | `403 SMALL_GROUP_OPERATOR_JOIN_NOT_ALLOWED` |
+| 이미 가입한 MEMBER | `409 ALREADY_JOINED_SMALL_GROUP` |
+| 대기 신청이 이미 있음 | `409 JOIN_REQUEST_ALREADY_PENDING` |
+| REJECTED·EXPELLED 재신청 | `409 JOIN_REAPPLICATION_FORBIDDEN` |
+| 정원 미설정 | `409 SMALL_GROUP_CAPACITY_NOT_CONFIGURED` |
+| 정원 도달 | `409 SMALL_GROUP_CAPACITY_FULL` |
+| 저장 행 수 불일치 | `500 JOIN_REQUEST_CREATE_FAILED` |
+| 유니크 제약 충돌 | `409 JOIN_REQUEST_DUPLICATED` |
+
+### 프론트 연결
+
+- `requestSmallGroupJoin(smallGroupId)`는 요청 본문 없이 API를 호출하고 서버 오류 코드·메시지를 그대로 보존한다.
+- 소모임 상세에서는 승인된 `OWNER`, `MEMBER`에게 가입 신청 버튼을 노출하지 않는다.
+- 그 외 역할·비회원에게는 버튼을 표시하되, 실제 권한·중복·정원 판단은 서버 응답을 기준으로 한다.
+- 성공 시 완료 모달을 표시하고, 본인 인증 미완료는 인증 화면 이동 모달로 안내하며, 나머지 실패는 서버 메시지로 표시한다.
+
+### 데이터·후속 TODO
+
+- 기존 `members`, `groups`, `small_group`, `group_member`와 SmallGroup MyBatis Mapper를 재사용하며 DB 마이그레이션을 추가하지 않는다.
+- 소모임에는 모집 상태, 공개 범위, 자동 승인 여부 데이터가 없으므로 해당 가입 제한을 임의로 추가하지 않는다.
+- 신청 메시지는 `group_member.application_message` 컬럼이 있어도 이번 API에서 입력·저장하지 않는다.
+- 후속 OWNER 전용 기능에서 신청 목록 조회와 승인·거절 API를 추가할 때, 현재 Mock 신청 목록을 실제 서버 API로 교체한다.
+
+### 테스트와 수동 확인
+
+- Service 단위 테스트는 정상 신청, 계정·본인 인증·관리자·개설자·OWNER·MANAGER·기존 상태·정원·중복 키 예외를 검증한다.
+- Security 통합 테스트는 비로그인 `POST` 요청의 `401`을 검증한다.
+- 프론트 API 테스트는 본문 없는 POST 요청과 서버 오류 보존을 검증한다.
+- 브라우저에서 비회원, 일반 회원, OWNER, 이미 신청한 회원, 본인 인증 미완료 회원, 관리자 계정으로 버튼·모달·오류를 확인한다.
 
 ---
 

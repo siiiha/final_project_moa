@@ -1,6 +1,18 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-29 — 소모임 가입 신청 API와 상세 화면 연결
+
+- 목적: 일반 회원이 소모임 상세에서 가입 신청을 제출하고, 서버가 기존 관계·정원·권한을 검증해 대기 상태로 저장하도록 한다.
+- 사용자 확정: 소모임은 삭제되지 않았고 정원이 남으면 신청 가능하다. ADMIN은 신청할 수 없고 개설자·OWNER·MANAGER도 자신의 소모임에 신청할 수 없다. 재신청은 `LEFT`만 허용하며, `REJECTED`, `EXPELLED`은 재신청할 수 없다. 가입 메시지는 처리하지 않으며, 승인·거절은 후속 OWNER 전용 기능으로 분리한다.
+- AI 작성: 가입 신청 내부 DTO·MyBatis 잠금 조회 및 INSERT/UPDATE 계약·SQL, Service 트랜잭션과 예외 처리, POST Controller, Service·Mapper XML·Security 테스트, 프론트 API 모듈·테스트, 상세 가입 신청 버튼과 완료·본인 인증·실패 모달을 작성했다.
+- 권한·데이터: 인증 회원 ID는 JWT 필터 request attribute만 사용한다. 활성·본인 인증 완료 USER만 신청할 수 있고, 기존 `group_member`에 `MEMBER`·`PENDING`으로 저장한다. `LEFT` 재신청은 승인·가입·탈퇴 이력을 초기화한다. DB 마이그레이션, 새 상태값, 외부 연동, 의존성·설정 변경은 하지 않았다.
+- API·오류: `POST /api/small-groups/{smallGroupId}/join-requests`는 성공 시 `ApiResponse.ok()`을 반환한다. 인증 없음은 Security 공통 401, 없는 소모임은 `404 SMALL_GROUP_NOT_FOUND`, 관리자·운영 관계는 403, 중복·정원 문제는 409로 처리한다. 구체적 오류 코드는 `docs/small-group-public-detail-api.md`에 기록했다.
+- 프론트: 승인된 OWNER·MEMBER에게 가입 신청 버튼을 노출하지 않는다. 나머지 사용자는 요청할 수 있고, 성공·본인 인증 필요·일반 실패를 모달로 구분한다. OWNER 신청 목록 화면의 Mock 데이터는 승인·거절 API가 후속 범위이므로 유지한다.
+- 검증: Java 17 경로를 지정한 `gradlew.bat test --tests "com.nightstudy.moa.smallGroup.SmallGroupServiceImplTest" --tests "com.nightstudy.moa.smallGroup.SmallGroupSecurityIntegrationTest" --no-daemon`에서 35개 테스트가 통과했다. 프론트 `node --test src/api/smallGroups.test.js` 18개 통과, `npm run build` 통과, `git diff --check` 통과를 확인했다.
+- 직접 확인 필요: 실제 MySQL에서 `FOR UPDATE`, 유니크 제약, `LEFT` 재신청 초기화와 동시 요청을 확인한다. 실제 JWT로 일반 회원·ADMIN·개설자·OWNER·MANAGER·대기 신청·정원 초과의 HTTP 응답과 브라우저 버튼·모달을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 모집 상태·공개 범위·자동 승인 정책 및 OWNER의 신청 목록·승인·거절 요구사항이 확정되면 후속 API와 화면을 설계한다.
+
 ## 2026-10-28 — 소모임 설정 수정 API
 
 - 목적: 소모임 개설자가 설정 화면에서 모임명·관심사·소개글·정원·만남일·장소를 부분 수정할 수 있게 한다.
