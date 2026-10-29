@@ -8,6 +8,7 @@ import {
   getSmallGroupDetail,
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
+  approveSmallGroupJoinRequest,
   getSmallGroupJoinRequests,
   getSmallGroupSettings,
   requestSmallGroupJoin,
@@ -111,6 +112,42 @@ test('소모임 가입 신청 목록은 잘못된 ID와 잘못된 성공 응답�
     );
   } finally {
     client.get = originalGet;
+  }
+});
+
+test('소모임 가입 신청 승인은 두 ID 경로만 사용하고 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalPatch = client.patch;
+
+  try {
+    client.patch = async (...args) => {
+      assert.deepEqual(args, ['/small-groups/7/join-requests/9007199254740993/approve']);
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+
+    await assert.doesNotReject(approveSmallGroupJoinRequest(7, '9007199254740993'));
+
+    client.patch = async () => {
+      const error = new Error('Forbidden');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_OWNER_REQUIRED',
+            message: '소모임 개설자만 가입 신청을 승인할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      approveSmallGroupJoinRequest(7, '9007199254740993'),
+      (error) => error instanceof SmallGroupJoinRequestError
+        && error.code === 'SMALL_GROUP_OWNER_REQUIRED'
+        && error.message === '소모임 개설자만 가입 신청을 승인할 수 있습니다.',
+    );
+  } finally {
+    client.patch = originalPatch;
   }
 });
 

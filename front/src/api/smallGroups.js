@@ -344,6 +344,26 @@ export async function getSmallGroupJoinRequests(smallGroupId, { status, page = 1
   }
 }
 
+// AI작성: 개설자 승인 요청은 소모임·신청 ID를 경로로만 전달하고 요청 본문이나 처리자 ID를 보내지 않는다.
+export async function approveSmallGroupJoinRequest(smallGroupId, crewMemberId) {
+  const groupId = smallGroupJoinRequestPathId(smallGroupId);
+  const requestId = smallGroupJoinRequestPathId(crewMemberId);
+  try {
+    const response = await client.patch(
+      `/small-groups/${groupId}/join-requests/${requestId}/approve`,
+    );
+    if (!response.data?.success) {
+      throw new SmallGroupJoinRequestError(
+        response.data?.error?.code || 'JOIN_REQUEST_APPROVAL_FAILED',
+        response.data?.error?.message || '가입 신청을 승인하지 못했습니다.',
+      );
+    }
+    return response.data;
+  } catch (error) {
+    throw toSmallGroupJoinRequestError(error, '가입 신청을 승인하지 못했습니다.');
+  }
+}
+
 // AI작성: OWNER 설정 화면은 수정 가능 필드와 승인 참여 인원 수가 모두 있어야만 폼을 초기화한다.
 export function toSmallGroupSettings(data) {
   const hasValidCapacity = Number.isInteger(data?.maxMembers)
