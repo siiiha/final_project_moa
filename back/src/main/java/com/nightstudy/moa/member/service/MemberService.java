@@ -17,7 +17,11 @@ public interface MemberService {
     Long signupSocial(SocialSignupRequest request);
 
     MemberProfileResponse getMyProfile(Long memberId);
-
+    MemberProfileResponse verifyRegion(
+            Long memberId,
+            RegionVerificationRequest request
+    );
+    
     MemberProfileResponse updateMyProfile(
             Long memberId,
             MemberProfileUpdateRequest request

@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import VerificationStatusList from '../components/member/VerificationStatusList';
-
+import { memberMenuItems } from '../mocks/mypage';
 import RegionMap from '../components/member/RegionMap';
 import SectionCard from '../components/common/SectionCard';
 import Button from '../components/common/Button';
-import { getMyProfile } from '../api/member';
+import { getMyProfile, verifyMyRegion } from '../api/member';
 import useAuthStore from '../store/authStore';
 const MAX_LOCATION_ACCURACY_M = 500;
 const Page = styled.div`
@@ -60,6 +60,9 @@ function VerificationPage() {
   const [profile, setProfile] = useState(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [verificationError, setVerificationError] = useState('');
 
   // AI작성: 기존 회원 조회 API로 실제 인증 상태와 활동 지역을 가져온다.
   useEffect(() => {
@@ -136,13 +139,61 @@ function VerificationPage() {
       setShowRegionMap(true);
     }
   };
+  // AI작성: 서버가 인증 성공을 반환한 경우에만 실제 인증 상태를 갱신한다.
+  const handleRegionVerification = async () => {
+    if (isVerifying || isLocating) return;
+
+    setVerificationError('');
+    setVerificationMessage('');
+
+    if (!token) {
+      navigate('/member/login', { replace: true });
+      return;
+    }
+
+    if (!position
+      || !Number.isFinite(position.accuracy)
+      || position.accuracy <= 0
+      || position.accuracy > MAX_LOCATION_ACCURACY_M) {
+      setVerificationError('먼저 정확한 현재 위치를 확인해주세요.');
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      const data = await verifyMyRegion(token, position);
+
+      if (!data?.regionVerified) {
+        throw new Error('인증 결과를 확인하지 못했습니다.');
+      }
+
+      setProfile(data);
+      setVerificationMessage('지역 인증이 완료됐습니다.');
+    } catch (error) {
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      setVerificationError(
+        error.response?.data?.error?.message ||
+        '지역 인증을 완료하지 못했습니다. 다시 시도해주세요.',
+      );
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   // AI작성: 사용자가 요청했을 때 현재 위치를 조회한다.
   const handleCurrentLocation = () => {
-    if (isLocating) return;
+    if (isLocating || isVerifying) return;
 
     setLocationError('');
     setPosition(null);
+    setVerificationError('');
+    setVerificationMessage('');
 
     if (!navigator.geolocation) {
       setLocationError('현재 브라우저에서는 위치 확인을 지원하지 않습니다.');
@@ -232,7 +283,7 @@ function VerificationPage() {
               <Button
                 type="button"
                 onClick={handleCurrentLocation}
-                disabled={isLocating}
+                disabled={isLocating || isVerifying}
               >
                 {isLocating ? '위치 확인 중…' : '현재 위치 확인'}
               </Button>
@@ -247,6 +298,33 @@ function VerificationPage() {
                   {Math.ceil(position.accuracy).toLocaleString()}m
                 </p>
               )}
+              <Button
+                type="button"
+                onClick={handleRegionVerification}
+                disabled={
+                  !position ||
+                  !Number.isFinite(position.accuracy) ||
+                  position.accuracy <= 0 ||
+                  position.accuracy > MAX_LOCATION_ACCURACY_M ||
+                  isLocating ||
+                  isVerifying ||
+                  profile?.regionVerified
+                }
+              >
+                {isVerifying
+                  ? '지역 확인 중…'
+                  : profile?.regionVerified
+                    ? '지역 인증 완료'
+                    : '이 위치로 인증하기'}
+              </Button>
+
+              {verificationError && (
+                <p role="alert">{verificationError}</p>
+              )}
+              {verificationMessage && (
+                <p role="status">{verificationMessage}</p>
+              )}
+
               <Button
                 type="button"
                 $variant="secondary"

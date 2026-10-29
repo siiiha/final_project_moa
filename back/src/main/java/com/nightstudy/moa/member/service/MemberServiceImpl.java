@@ -26,19 +26,22 @@ public class MemberServiceImpl implements MemberService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
     private final AuthSessionService authSessionService;
+    private final KakaoApiClient kakaoApiClient;
 
     public MemberServiceImpl(
             MemberMapper memberMapper,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             EmailVerificationService emailVerificationService,
-            AuthSessionService authSessionService
+            AuthSessionService authSessionService,
+            KakaoApiClient kakaoApiClient
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
         this.authSessionService = authSessionService;
+        this.kakaoApiClient = kakaoApiClient;
     }
 
     // 기존 회원 Mapper를 재사용해 약관 목록 조회
@@ -313,6 +316,92 @@ public class MemberServiceImpl implements MemberService {
         );
 
         return profile;
+    }
+    // 위치 정확도와 가입 활동 지역을 확인한 뒤 인증 시각 저장
+    @Override
+    @Transactional
+    public MemberProfileResponse verifyRegion(
+            Long memberId,
+            RegionVerificationRequest request
+    ) {
+        if (request == null
+                || request.getLatitude() == null
+                || request.getLongitude() == null
+                || request.getAccuracy() == null
+                || !Double.isFinite(request.getLatitude())
+                || !Double.isFinite(request.getLongitude())
+                || !Double.isFinite(request.getAccuracy())
+                || Math.abs(request.getLatitude()) > 90
+                || Math.abs(request.getLongitude()) > 180
+                || request.getAccuracy() <= 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_LOCATION",
+                    "현재 위치 정보를 다시 확인해주세요."
+            );
+        }
+
+        if (request.getAccuracy() > 500) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "LOCATION_ACCURACY_LOW",
+                    "위치가 정확하지 않습니다. 예상 오차 반경 500m 이하에서 다시 시도해주세요."
+            );
+        }
+
+        // 외부 조회를 마친 후 회원 행을 잠궈 DB 잠금 시간 줄임
+        KakaoRegionResponse.Region actualRegion = kakaoApiClient.getRegion(
+                request.getLatitude(),
+                request.getLongitude()
+        );
+
+        MemberLoginDto member = memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null || !"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "MEMBER_UNAVAILABLE",
+                    "현재 계정 상태에서는 지역 인증을 진행할 수 없습니다."
+            );
+        }
+
+        MemberProfileResponse profile = getMyProfile(memberId);
+
+        if (profile.getProvinceName() == null
+                || profile.getProvinceName().isBlank()
+                || profile.getDistrictName() == null
+                || profile.getDistrictName().isBlank()) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "ACTIVITY_REGION_INCOMPLETE",
+                    "가입한 활동 지역의 시·군·구 정보가 없어 인증할 수 없습니다."
+            );
+        }
+
+        if (!profile.getProvinceName().equals(actualRegion.getProvinceName())
+                || !profile.getDistrictName().equals(actualRegion.getDistrictName())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "REGION_MISMATCH",
+                    "현재 위치가 가입한 활동 지역과 다릅니다. 해당 지역에서 다시 시도해주세요."
+            );
+        }
+
+        int updated = memberMapper.markRegionVerified(
+                memberId,
+                profile.getRegionId()
+        );
+
+        // 이미 인증된 회원이 같은 시각에 재요청한 경우도 정상 처리
+        if (updated != 1 && !profile.isRegionVerified()) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "REGION_VERIFICATION_NOT_SAVED",
+                    "인증 결과를 저장하지 못했습니다. 다시 시도해주세요."
+            );
+        }
+
+        return getMyProfile(memberId);
     }
 
     // 비밀번호와 입력값 검증 후 회원정보 수정
