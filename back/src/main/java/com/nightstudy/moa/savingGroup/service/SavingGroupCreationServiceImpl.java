@@ -176,7 +176,7 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
     private void requirePending(SavingGroupCreationApplicationDetailResponse application) {
         if (!"PENDING".equals(application.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_ALREADY_PROCESSED",
-                    "대기 중인 개설 신청만 처리할 수 있습니다.");
+                    "대기 중인 심사 신청만 처리할 수 있습니다.");
         }
     }
 
