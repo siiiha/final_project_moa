@@ -1,6 +1,7 @@
 package com.nightstudy.moa.smallGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
@@ -16,6 +17,7 @@ import com.nightstudy.moa.smallGroup.SmallGroupService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -58,6 +60,18 @@ public class SmallGroupController {
             @Valid @ModelAttribute SmallGroupSearchCondition condition) {
         SmallGroupListResponse result = smallGroupService.getSmallGroupList(condition);
         return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+
+    // AI작성: 가입 신청자는 요청값이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
+    @PostMapping("/{smallGroupId}/join-requests")
+    public ApiResponse<Void> requestJoin(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        smallGroupService.requestSmallGroupJoin(smallGroupId, memberId);
+        return ApiResponse.ok();
     }
 
     // AI작성: 공개 상세는 비로그인 요청도 허용하므로 memberId를 선택적으로 Service에 전달한다.

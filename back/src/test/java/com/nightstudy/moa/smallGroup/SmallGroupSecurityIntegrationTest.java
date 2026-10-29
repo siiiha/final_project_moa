@@ -4,6 +4,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
@@ -15,6 +16,7 @@ import com.nightstudy.moa.smallGroup.controller.SmallGroupController;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -61,7 +63,7 @@ class SmallGroupSecurityIntegrationTest {
         SmallGroupDetailResponse response = new SmallGroupDetailResponse(
                 1L, 2L, "동네 걷기", "함께 걷는 소모임입니다.", "서울", "운동",
                 LocalDate.of(2026, 11, 1), "한강 공원", 10, 2L,
-                "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0), null);
+                "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0), null, List.of());
         when(smallGroupService.getSmallGroupDetail(1L, null)).thenReturn(response);
 
         mockMvc.perform(get("/api/small-groups/1"))
@@ -87,6 +89,12 @@ class SmallGroupSecurityIntegrationTest {
         mockMvc.perform(patch("/api/small-groups/1")
                         .contentType("application/json")
                         .content("{\"groupName\":\"주말 걷기\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void smallGroupJoinRequestApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/small-groups/1/join-requests"))
                 .andExpect(status().isUnauthorized());
     }
 }

@@ -118,7 +118,7 @@ class SmallGroupServiceImplTest {
 
     @Test
     void getSmallGroupDetailRejectsManagerRegardlessOfMembershipStatus() {
-        mockExistingDetail();
+        mockExistingDetailForRoleResolution();
 
         for (String status : List.of("PENDING", "APPROVED", "REJECTED")) {
             when(smallGroupMapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID))
@@ -135,7 +135,7 @@ class SmallGroupServiceImplTest {
 
     @Test
     void getSmallGroupDetailRejectsDuplicatedMemberRelations() {
-        mockExistingDetail();
+        mockExistingDetailForRoleResolution();
         when(smallGroupMapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID))
                 .thenReturn(List.of(relation("OWNER", "APPROVED"), relation("MEMBER", "APPROVED")));
 
@@ -330,6 +330,7 @@ class SmallGroupServiceImplTest {
     @Test
     void requestSmallGroupJoinCreatesPendingMembershipForEligibleUser() {
         mockJoinApplicant();
+        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(1L);
         when(smallGroupMapper.insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID)).thenReturn(1);
 
         smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID);
@@ -448,6 +449,7 @@ class SmallGroupServiceImplTest {
         mockJoinApplicant();
         when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
                 .thenReturn(relation("MEMBER", "LEFT"));
+        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(1L);
         when(smallGroupMapper.reactivateLeftSmallGroupMembership(GROUP_ID, MEMBER_ID)).thenReturn(1);
 
         smallGroupService.requestSmallGroupJoin(SMALL_GROUP_ID, MEMBER_ID);
@@ -481,6 +483,7 @@ class SmallGroupServiceImplTest {
     @Test
     void requestSmallGroupJoinConvertsDuplicateKeyException() {
         mockJoinApplicant();
+        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(1L);
         when(smallGroupMapper.insertSmallGroupJoinRequest(GROUP_ID, MEMBER_ID))
                 .thenThrow(new DuplicateKeyException("duplicate group membership"));
 
@@ -494,6 +497,10 @@ class SmallGroupServiceImplTest {
         when(smallGroupMapper.selectSmallGroupDetail(SMALL_GROUP_ID)).thenReturn(detailRow());
         when(smallGroupMapper.selectApprovedSmallGroupMemberCount(GROUP_ID)).thenReturn(2L);
         when(smallGroupMapper.selectRecentSmallGroupNotices(GROUP_ID)).thenReturn(List.of());
+    }
+
+    private void mockExistingDetailForRoleResolution() {
+        when(smallGroupMapper.selectSmallGroupDetail(SMALL_GROUP_ID)).thenReturn(detailRow());
     }
 
     private SmallGroupDetailRow detailRow() {
@@ -525,7 +532,6 @@ class SmallGroupServiceImplTest {
         when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID))
                 .thenReturn(joinTarget(CREATOR_MEMBER_ID, 10));
         when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID)).thenReturn(null);
-        when(smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(GROUP_ID)).thenReturn(1L);
     }
 
     private SmallGroupJoinMemberRow joinMember(
