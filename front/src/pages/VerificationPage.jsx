@@ -375,7 +375,12 @@ function VerificationPage() {
                   </div>
                   <div>
                     <dt>시·군·구</dt>
-                    <dd>{profile.districtName || '세부 지역 확인 필요'}</dd>
+                    <dd>
+                      {profile.districtName ||
+                        (profile.provinceName === '세종특별자치시'
+                          ? '세종특별자치시 전체'
+                          : '세부 지역 확인 필요')}
+                    </dd>
                   </div>
                 </RegionSummary>
 

@@ -176,8 +176,9 @@ public class KakaoApiClient {
                         && "B".equals(region.getRegionType())
                         && region.getProvinceName() != null
                         && !region.getProvinceName().isBlank()
-                        && region.getDistrictName() != null
-                        && !region.getDistrictName().isBlank())
+                        && ("세종특별자치시".equals(region.getProvinceName())
+                        || (region.getDistrictName() != null
+                        && !region.getDistrictName().isBlank())))
                 .findFirst()
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.BAD_REQUEST,

@@ -160,12 +160,12 @@ public class MemberServiceImpl implements MemberService {
                     "필수 약관에 모두 동의해주세요."
             );
         }
-    if (!socialSignup) {
-        emailVerificationService.consumeVerificationToken(
-                email,
-                request.getEmailVerificationToken()
-        );
-    }
+        if (!socialSignup) {
+            emailVerificationService.consumeVerificationToken(
+                    email,
+                    request.getEmailVerificationToken()
+            );
+        }
 
         MemberInsertDto member = new MemberInsertDto();
         member.setRegionId(request.getRegionId());
@@ -317,6 +317,7 @@ public class MemberServiceImpl implements MemberService {
 
         return profile;
     }
+
     // 위치 정확도와 가입 활동 지역을 확인한 뒤 인증 시각 저장
     @Override
     @Transactional
@@ -367,10 +368,15 @@ public class MemberServiceImpl implements MemberService {
 
         MemberProfileResponse profile = getMyProfile(memberId);
 
+        // AI작성: 세종시는 하위 시·군·구 없이 시·도 일치 여부로 인증합니다.
+        boolean isSejong =
+                "세종특별자치시".equals(profile.getProvinceName());
+
         if (profile.getProvinceName() == null
                 || profile.getProvinceName().isBlank()
-                || profile.getDistrictName() == null
-                || profile.getDistrictName().isBlank()) {
+                || (!isSejong && (
+                profile.getDistrictName() == null
+                        || profile.getDistrictName().isBlank()))) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "ACTIVITY_REGION_INCOMPLETE",
@@ -379,7 +385,8 @@ public class MemberServiceImpl implements MemberService {
         }
 
         if (!profile.getProvinceName().equals(actualRegion.getProvinceName())
-                || !profile.getDistrictName().equals(actualRegion.getDistrictName())) {
+                || (!isSejong && !profile.getDistrictName()
+                .equals(actualRegion.getDistrictName()))) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "REGION_MISMATCH",
@@ -664,18 +671,18 @@ public class MemberServiceImpl implements MemberService {
         String currentPassword = request.getCurrentPassword();
 
         if (currentPassword == null
-            || currentPassword.isBlank()
-            || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
-            || member.getPasswordHash() == null
-            || !passwordEncoder.matches(
-                    currentPassword,
-                    member.getPasswordHash()
+                || currentPassword.isBlank()
+                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || member.getPasswordHash() == null
+                || !passwordEncoder.matches(
+                currentPassword,
+                member.getPasswordHash()
         )) {
-        throw new ApiException(
-            HttpStatus.BAD_REQUEST,
-                "INVALID_CURRENT_PASSWORD",
-                "현재 비밀번호가 올바르지 않습니다."
-    );
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CURRENT_PASSWORD",
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
         }
 
         int blockingGroupCount =
