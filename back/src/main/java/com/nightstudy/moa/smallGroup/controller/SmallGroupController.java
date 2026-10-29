@@ -105,6 +105,19 @@ public class SmallGroupController {
         return ApiResponse.ok();
     }
 
+    // AI작성: 거절 처리자도 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
+    @PatchMapping("/{smallGroupId}/join-requests/{crewMemberId}/reject")
+    public ApiResponse<Void> rejectJoinRequest(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @PathVariable("crewMemberId") Long crewMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        smallGroupService.rejectSmallGroupJoin(smallGroupId, crewMemberId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 공개 상세는 비로그인 요청도 허용하므로 memberId를 선택적으로 Service에 전달한다.
     @GetMapping("/{id}")
     public ApiResponse<SmallGroupDetailResponse> detail(
