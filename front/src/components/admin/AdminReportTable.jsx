@@ -226,7 +226,10 @@ function AdminReportTable({ reports, totalCount, currentPage, totalPages, onPage
                       </Target>
                     </td>
                     <td data-label="신고자">{report.reporter}</td>
-                    <td data-label="신고일">{report.reportedAt.slice(5)}</td>
+                    <td data-label="신고일">
+                      {/* AI작성: 신고 시점의 연도와 날짜 안내 문구가 잘리지 않도록 전체 값을 표시한다. */}
+                      {report.reportedAt}
+                    </td>
                     <td data-label="처리 상태">
                       <StatusBadge $pending={report.status === '대기'}>{report.status}</StatusBadge>
                     </td>
