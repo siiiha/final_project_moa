@@ -301,6 +301,15 @@
           AND membership_status = 'PENDING'
     </update>
 
+    <!-- AI작성: 거절 사유·처리자 정보가 없는 기존 구조를 유지하고 대기 신청 한 건만 REJECTED로 변경한다. -->
+    <update id="rejectSmallGroupJoinRequest">
+        UPDATE group_member
+        SET membership_status = 'REJECTED'
+        WHERE crew_member_id = #{crewMemberId}
+          AND group_id = #{groupId}
+          AND membership_status = 'PENDING'
+    </update>
+
     <!-- AI작성: 가입 메시지 없이 인증 회원의 신규 신청을 MEMBER·PENDING 관계 한 건으로 저장한다. -->
     <insert id="insertSmallGroupJoinRequest">
         INSERT INTO group_member (
