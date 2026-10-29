@@ -9,6 +9,8 @@ import {
   SmallGroupDetailLoadError,
   getSmallGroupSettings,
   SmallGroupSettingsLoadError,
+  updateSmallGroupSettings,
+  SmallGroupSettingsUpdateError,
   toSmallGroupCard,
   toSmallGroupDetail,
   toSmallGroupSettings,
@@ -221,6 +223,68 @@ test('소모임 설정 조회는 서버 권한 오류 코드와 메시지를 보
     );
   } finally {
     client.get = originalGet;
+  }
+});
+
+test('소모임 설정 수정은 변경된 필드만 OWNER 전용 PATCH 본문으로 전달한다', async () => {
+  const originalPatch = client.patch;
+  const changes = {
+    groupName: '주말 걷기',
+    maxMembers: 8,
+  };
+
+  try {
+    client.patch = async (path, payload) => {
+      assert.equal(path, '/small-groups/7');
+      assert.deepEqual(payload, changes);
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+
+    await assert.doesNotReject(updateSmallGroupSettings(7, changes));
+  } finally {
+    client.patch = originalPatch;
+  }
+});
+
+test('소모임 설정 수정은 성공 봉투가 아니면 INVALID_RESPONSE로 실패한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    client.patch = async () => ({ data: { success: false, data: null, meta: null, error: null } });
+
+    await assert.rejects(
+      updateSmallGroupSettings(7, { groupName: '주말 걷기' }),
+      (error) => error instanceof SmallGroupSettingsUpdateError && error.code === 'INVALID_RESPONSE',
+    );
+  } finally {
+    client.patch = originalPatch;
+  }
+});
+
+test('소모임 설정 수정은 서버 정원 축소 오류 코드와 메시지를 보존한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    client.patch = async () => {
+      const error = new Error('승인된 참여자 수보다 작게 설정할 수 없습니다.');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_CAPACITY_BELOW_MEMBERS',
+            message: '승인된 참여자 수보다 작게 설정할 수 없습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      updateSmallGroupSettings(7, { maxMembers: 2 }),
+      (error) => error instanceof SmallGroupSettingsUpdateError
+        && error.code === 'SMALL_GROUP_CAPACITY_BELOW_MEMBERS'
+        && error.message === '승인된 참여자 수보다 작게 설정할 수 없습니다.',
+    );
+  } finally {
+    client.patch = originalPatch;
   }
 });
 

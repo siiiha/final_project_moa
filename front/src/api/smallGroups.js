@@ -45,6 +45,15 @@ export class SmallGroupSettingsLoadError extends Error {
   }
 }
 
+// AI작성: 소모임 설정 수정 실패 코드와 메시지를 설정 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupSettingsUpdateError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupSettingsUpdateError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -109,6 +118,15 @@ function toSmallGroupSettingsLoadError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupSettingsLoadError(
     responseError?.code || 'SMALL_GROUP_SETTINGS_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupSettingsUpdateError(error, fallbackMessage) {
+  if (error instanceof SmallGroupSettingsUpdateError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupSettingsUpdateError(
+    responseError?.code || 'SMALL_GROUP_SETTINGS_UPDATE_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -278,6 +296,21 @@ export async function getSmallGroupSettings(id, { signal } = {}) {
     return toSmallGroupSettings(response.data.data);
   } catch (error) {
     throw toSmallGroupSettingsLoadError(error, '소모임 설정 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 화면이 비교해 만든 변경 필드만 OWNER 전용 PATCH 본문으로 전달하고 성공 봉투만 확인한다.
+export async function updateSmallGroupSettings(id, changes) {
+  try {
+    const response = await client.patch(`/small-groups/${encodeURIComponent(id)}`, changes);
+    if (!response.data?.success) {
+      throw new SmallGroupSettingsUpdateError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '소모임 설정 수정 응답을 확인하지 못했습니다.',
+      );
+    }
+  } catch (error) {
+    throw toSmallGroupSettingsUpdateError(error, '소모임 설정을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 
