@@ -84,7 +84,7 @@ function SmallGroupCreatePage() {
     setSubmissionError('');
 
     try {
-      await createSmallGroup({
+      const created = await createSmallGroup({
         groupName: formData.get('name'),
         regionName: formData.get('region'),
         likeCategory: formData.get('interest'),
@@ -93,8 +93,12 @@ function SmallGroupCreatePage() {
         meetDate: formData.get('meetingDate'),
         location: formData.get('place'),
       });
-      // AI작성: 저장이 완료된 뒤 목록 화면으로 이동해 중복 생성 페이지에 머무르지 않게 한다.
-      navigate('/small-groups');
+      // AI작성: 상세 API가 small_group.small_group_id를 경로 변수로 사용하므로 생성 응답의 식별값만 사용한다.
+      if (created?.smallGroupId == null) {
+        throw new Error('생성된 소모임 정보를 확인하지 못했습니다. 다시 시도해 주세요.');
+      }
+      // AI작성: 뒤로 가기로 빈 생성 폼을 다시 제출하지 않도록 상세 화면으로 현재 기록을 교체한다.
+      navigate(`/small-groups/${encodeURIComponent(created.smallGroupId)}`, { replace: true });
     } catch (error) {
       setSubmissionError(error.message || '소모임 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     }
