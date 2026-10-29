@@ -9,7 +9,6 @@ import {
   approveSavingGroupCreationApplication,
   getSavingGroupCreationApplication,
   rejectSavingGroupCreationApplication,
-  savingGroupReviewStatus,
 } from '../api/savingGroups';
 
 const Page = styled.div`
@@ -81,13 +80,15 @@ function AdminSavingGroupApplicationDetailPage() {
     try {
       if (type === 'approve') await approveSavingGroupCreationApplication(id);
       else await rejectSavingGroupCreationApplication(id, rejectReason);
-      setApplication((current) => ({
-        ...current,
-        // AI작성: 처리 후 화면 상태도 API 공통 코드를 사용해 서버 상태값과 일치시킨다.
-        status:
-          type === 'approve' ? savingGroupReviewStatus.APPROVED : savingGroupReviewStatus.REJECTED,
-        rejectReason: rejectReason || null,
-      }));
+      // AI작성: 처리 결과를 프론트에서 추정하지 않고 상세 API를 다시 호출해 DB의 최종 상태를 표시한다.
+      try {
+        const refreshedApplication = await getSavingGroupCreationApplication(id);
+        setApplication(refreshedApplication);
+      } catch {
+        // AI작성: 처리는 성공했지만 재조회가 실패하면 이전 PENDING 화면에서 중복 처리하지 못하도록 숨긴다.
+        setApplication(null);
+        throw new Error('심사 처리는 완료되었지만 최신 정보를 불러오지 못했습니다. 목록에서 다시 확인해 주세요.');
+      }
     } catch (failure) {
       setError(failure.message);
     } finally {
