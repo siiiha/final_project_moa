@@ -394,6 +394,7 @@
 - 목적: 계주가 사유와 함께 삭제 심사를 신청하고, 관리자가 목록·상세에서 승인 또는 반려하도록 연결한다.
 - 사용자 확정: 새 테이블·컬럼 없이 기존 `meeting_approval(type='DELETE')`, `saving_group.status`, 거래·출금 원장, `groups.deleted_at`을 재사용한다.
 - AI 제안·작성: 계주 권한 및 중복 신청 검증, 관리자 유형 필터, 승인 시 진행 상태·공동자금·미처리 출금 재검사, 트랜잭션 기반 심사 갱신·소프트 삭제, 프론트 신청 모달과 관리자 심사 화면을 구현했다.
+- AI 제안·작성: 계주 탈퇴 후에도 DELETE 심사를 유지하되 신청자 이름을 `탈퇴한 회원`으로 마스킹하고, 중복 승인·반려 및 상태 변경·소프트 삭제 실패 경로를 관리자 서비스 테스트로 보강했다.
 - DB·의존성·외부 서비스 변경: 없음.
-- 검증: 백엔드 `compileJava` 통과, 프론트 `npm run build` 및 `npm run lint` 통과. 백엔드 테스트는 기존 `SmallGroupSecurityIntegrationTest` 생성자 인자 불일치로 테스트 소스 컴파일 단계에서 중단된다.
+- 검증: 백엔드 `compileJava`, `processResources`, `git diff --check` 통과, 프론트 `npm run build` 및 `npm run lint` 통과. 백엔드 테스트는 기존 `SmallGroupSecurityIntegrationTest` 생성자 인자 불일치로 테스트 소스 컴파일 단계에서 중단된다.
 - 개발자 검토: 실제 DB에서 0원/잔액 존재, 상태 01/02/03/04, PENDING·APPROVED 출금 요청, 승인 후 일반 조회 제외를 확인해야 한다.
