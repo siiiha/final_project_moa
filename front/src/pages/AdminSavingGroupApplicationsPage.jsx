@@ -93,38 +93,6 @@ function AdminSavingGroupApplicationsPage() {
     navigate(`/admin/saving-groups/applications/${applicationId}`);
   };
 
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'members') {
-      navigate('/admin/members');
-      return;
-    }
-
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
-    }
-
-    if (menuId === 'groups') {
-      navigate('/admin/small-groups');
-      return;
-    }
-
-    if (menuId === 'posts') {
-      navigate('/admin/posts');
-      return;
-    }
-
-    if (menuId === 'comments') {
-      navigate('/admin/comments');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-  };
-
   return (
     <Page>
       <Heading>
@@ -132,7 +100,7 @@ function AdminSavingGroupApplicationsPage() {
         <p>계모임 개설·삭제 신청 내역을 확인하고 심사 상태를 관리하세요.</p>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="gathering-review" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="gathering-review" />
         <main>
           {loading ? (
             <p role="status">심사 목록을 불러오는 중입니다.</p>

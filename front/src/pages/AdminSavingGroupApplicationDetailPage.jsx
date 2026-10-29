@@ -111,19 +111,6 @@ function AdminSavingGroupApplicationDetailPage() {
     }
   };
 
-  const handleMenuSelect = (menuId) => {
-    const paths = {
-      members: '/admin/members',
-      gatherings: '/admin/saving-groups',
-      'gathering-review': '/admin/saving-groups/applications',
-      groups: '/admin/small-groups',
-      posts: '/admin/posts',
-      comments: '/admin/comments',
-      reports: '/admin/reposts',
-    };
-    if (paths[menuId]) navigate(paths[menuId]);
-  };
-
   return (
     <Page>
       <Heading>
@@ -131,7 +118,7 @@ function AdminSavingGroupApplicationDetailPage() {
         <p>개설 또는 삭제 신청 내용을 확인하고 심사 처리하세요.</p>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="gathering-review" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="gathering-review" />
         <main>
           {loading ? (
             <p role="status">심사 상세를 불러오는 중입니다.</p>

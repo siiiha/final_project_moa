@@ -101,40 +101,6 @@ function AdminMemberDetailPage() {
     return () => controller.abort();
   }, [id, reloadKey]);
 
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
-    }
-
-    if (menuId === 'gathering-review') {
-      navigate('/admin/saving-groups/applications');
-      return;
-    }
-
-    if (menuId === 'groups') {
-      navigate('/admin/small-groups');
-      return;
-    }
-
-    if (menuId === 'posts') {
-      navigate('/admin/posts');
-      return;
-    }
-
-    if (menuId === 'comments') {
-      navigate('/admin/comments');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
-  };
-
   const handleStatusSubmit = async (event) => {
     event.preventDefault();
     if (submitting) return;
@@ -199,7 +165,7 @@ function AdminMemberDetailPage() {
         <p>{member.name} 회원의 정보와 이용 상태를 관리하세요.</p>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="members" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="members" />
         <main>
           <AdminMemberDetail
             member={member}
