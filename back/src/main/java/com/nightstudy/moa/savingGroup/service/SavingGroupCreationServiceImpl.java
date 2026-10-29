@@ -19,6 +19,9 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class SavingGroupCreationServiceImpl implements SavingGroupCreationService {
     private static final int APPLICATION_PAGE_SIZE = 8;
+    // AI작성: 관리자 심사 분기와 상태 검증에서 같은 문자열을 반복하지 않도록 공통 상수로 관리한다.
+    private static final String APPLICATION_TYPE_DELETE = "DELETE";
+    private static final String APPLICATION_STATUS_PENDING = "PENDING";
 
     private final SavingGroupMapper savingGroupMapper;
     private final FileStorageService fileStorageService;
@@ -91,7 +94,7 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                 .selectSavingGroupCreationApplication(approvalId);
         if (application == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_APPLICATION_NOT_FOUND",
-                    "계모임 개설 신청을 찾을 수 없습니다.");
+                    "계모임 심사 신청을 찾을 수 없습니다.");
         }
         return application;
     }
@@ -105,7 +108,7 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
         }
         SavingGroupCreationApplicationDetailResponse application = getCreationApplicationForUpdate(approvalId);
         requirePending(application);
-        if ("DELETE".equals(application.getType())) {
+        if (APPLICATION_TYPE_DELETE.equals(application.getType())) {
             approveDeletionApplication(application);
             return;
         }
@@ -123,7 +126,7 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
     public void rejectCreationApplication(Long approvalId, String rejectReason) {
         SavingGroupCreationApplicationDetailResponse application = getCreationApplicationForUpdate(approvalId);
         requirePending(application);
-        if ("DELETE".equals(application.getType())) {
+        if (APPLICATION_TYPE_DELETE.equals(application.getType())) {
             if (savingGroupMapper.rejectSavingGroupDeletionApplication(approvalId, rejectReason.strip()) != 1) {
                 throw applicationProcessFailed();
             }
@@ -168,13 +171,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                 .selectSavingGroupCreationApplicationForUpdate(approvalId);
         if (application == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_APPLICATION_NOT_FOUND",
-                    "계모임 개설 신청을 찾을 수 없습니다.");
+                    "계모임 심사 신청을 찾을 수 없습니다.");
         }
         return application;
     }
 
     private void requirePending(SavingGroupCreationApplicationDetailResponse application) {
-        if (!"PENDING".equals(application.getStatus())) {
+        if (!APPLICATION_STATUS_PENDING.equals(application.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_ALREADY_PROCESSED",
                     "대기 중인 심사 신청만 처리할 수 있습니다.");
         }
