@@ -54,6 +54,15 @@ export class SmallGroupSettingsUpdateError extends Error {
   }
 }
 
+// AI작성: 소모임 가입 신청 실패 코드와 메시지를 상세 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupJoinRequestError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupJoinRequestError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -127,6 +136,15 @@ function toSmallGroupSettingsUpdateError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupSettingsUpdateError(
     responseError?.code || 'SMALL_GROUP_SETTINGS_UPDATE_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupJoinRequestError(error, fallbackMessage) {
+  if (error instanceof SmallGroupJoinRequestError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupJoinRequestError(
+    responseError?.code || 'JOIN_REQUEST_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -265,6 +283,22 @@ export async function getSmallGroupDetail(id, { signal } = {}) {
     return toSmallGroupDetail(response.data.data);
   } catch (error) {
     throw toSmallGroupDetailLoadError(error, '소모임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 가입 신청은 별도 입력값 없이 소모임 ID만 경로에 담아 요청하고 서버 오류 코드를 화면에 전달한다.
+export async function requestSmallGroupJoin(smallGroupId) {
+  try {
+    const response = await client.post(`/small-groups/${encodeURIComponent(smallGroupId)}/join-requests`);
+    if (!response.data?.success) {
+      throw new SmallGroupJoinRequestError(
+        response.data?.error?.code || 'JOIN_REQUEST_FAILED',
+        response.data?.error?.message || '가입 신청 처리에 실패했습니다.',
+      );
+    }
+    return response.data;
+  } catch (error) {
+    throw toSmallGroupJoinRequestError(error, '가입 신청 처리에 실패했습니다.');
   }
 }
 

@@ -7,7 +7,9 @@ import {
   SmallGroupCreationError,
   getSmallGroupDetail,
   SmallGroupDetailLoadError,
+  SmallGroupJoinRequestError,
   getSmallGroupSettings,
+  requestSmallGroupJoin,
   SmallGroupSettingsLoadError,
   updateSmallGroupSettings,
   SmallGroupSettingsUpdateError,
@@ -165,6 +167,48 @@ test('소모임 상세 조회는 403 오류 코드와 메시지를 보존한다'
 
 test('소모임 상세 조회는 404 오류 코드와 메시지를 보존한다', async () => {
   await assertDetailLoadError('NOT_FOUND', '조회할 수 있는 소모임이 없습니다.');
+});
+
+test('소모임 가입 신청은 ID 경로만 사용해 본문 없이 POST 요청한다', async () => {
+  const originalPost = client.post;
+  try {
+    client.post = async (...args) => {
+      assert.deepEqual(args, ['/small-groups/7/join-requests']);
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+
+    await assert.doesNotReject(requestSmallGroupJoin(7));
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+test('소모임 가입 신청은 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalPost = client.post;
+  try {
+    client.post = async () => {
+      const error = new Error('소모임 정원이 모두 찼습니다.');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_CAPACITY_FULL',
+            message: '소모임 정원이 모두 찼습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      requestSmallGroupJoin(7),
+      (error) => error instanceof SmallGroupJoinRequestError
+        && error.code === 'SMALL_GROUP_CAPACITY_FULL'
+        && error.message === '소모임 정원이 모두 찼습니다.',
+    );
+  } finally {
+    client.post = originalPost;
+  }
 });
 
 test('소모임 설정 조회는 OWNER 전용 경로와 서버 응답을 그대로 사용한다', async () => {
