@@ -41,4 +41,7 @@ public interface SavingGroupService {
     void changeSavingGroupStatus(Long groupId, String nextStatus);
     // AI작성: 인증된 회원 본인 명의로 계모임 가입 신청을 대기 상태로 등록한다.
     void requestSavingGroupJoin(Long savingGroupId, Long memberId);
+
+    // AI작성: 계주 권한과 중복 신청을 확인한 뒤 삭제 심사를 대기 상태로 등록한다.
+    void requestSavingGroupDeletion(Long savingGroupId, Long memberId, String reason);
 }

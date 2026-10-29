@@ -48,12 +48,13 @@ const Grid = styled.div`
 function AdminSavingGroupApplicationsPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('전체');
+  const [type, setType] = useState('전체');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [result, setResult] = useState({ items: [], meta: null, requestKey: null, error: '' });
   const [retry, setRetry] = useState(0);
-  const requestKey = JSON.stringify([status, submittedQuery, currentPage, retry]);
+  const requestKey = JSON.stringify([type, status, submittedQuery, currentPage, retry]);
   const loading = result.requestKey !== requestKey;
 
   // AI작성: 필터·페이지별 요청을 취소해 늦게 도착한 이전 응답이 화면을 덮어쓰지 않게 한다.
@@ -62,6 +63,7 @@ function AdminSavingGroupApplicationsPage() {
     let active = true;
     getSavingGroupCreationApplications({
       status: { 전체: undefined, 대기: 'PENDING', 승인: 'APPROVED', 반려: 'REJECTED' }[status],
+      type: { 전체: undefined, 개설: 'CREATE', 삭제: 'DELETE' }[type],
       keyword: submittedQuery,
       page: currentPage,
       signal: controller.signal,
@@ -78,7 +80,7 @@ function AdminSavingGroupApplicationsPage() {
       active = false;
       controller.abort();
     };
-  }, [status, submittedQuery, currentPage, retry, requestKey]);
+  }, [type, status, submittedQuery, currentPage, retry, requestKey]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -87,7 +89,6 @@ function AdminSavingGroupApplicationsPage() {
   };
 
   const handleReview = (applicationId) => {
-    // TODO: Spring Boot 계모임 개설 신청 상세 조회 API를 연결합니다.
     navigate(`/admin/saving-groups/applications/${applicationId}`);
   };
 
@@ -129,7 +130,7 @@ function AdminSavingGroupApplicationsPage() {
     <Page>
       <Heading>
         <h1>계모임 심사 목록</h1>
-        <p>계모임 개설 신청 내역을 확인하고 심사 상태를 관리하세요.</p>
+        <p>계모임 개설·삭제 신청 내역을 확인하고 심사 상태를 관리하세요.</p>
       </Heading>
       <Grid>
         <AdminSidebar items={adminMenuItems} activeItem="gathering-review" onSelect={handleMenuSelect} />
@@ -153,9 +154,14 @@ function AdminSavingGroupApplicationsPage() {
               filter={
                 <SavingGroupApplicationFilterBar
                   status={status}
+                  type={type}
                   query={query}
                   onStatusChange={(value) => {
                     setStatus(value);
+                    setCurrentPage(1);
+                  }}
+                  onTypeChange={(value) => {
+                    setType(value);
                     setCurrentPage(1);
                   }}
                   onQueryChange={setQuery}

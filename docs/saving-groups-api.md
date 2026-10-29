@@ -298,16 +298,27 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 
 `memberId`는 로그인 인증이 병합되기 전 시연을 위한 임시 계약이다. 현재 프론트는 `1`을 전송하며, 실제 테스트 DB에는 삭제되지 않은 회원 ID 1이 필요하다. JWT 도입 시 이 필드는 제거하고 서버 인증 회원 ID로 대체해야 한다.
 
-### 관리자 개설 심사
+### 관리자 개설·삭제 심사
 
 | API | 설명 |
 |---|---|
-| `GET /api/admin/saving-group-applications?status=&keyword=&page=` | CREATE 유형 신청 목록. status는 PENDING/APPROVED/REJECTED, 페이지 크기는 8 |
+| `GET /api/admin/saving-group-applications?type=&status=&keyword=&page=` | CREATE/DELETE 유형 신청 목록. type은 CREATE/DELETE, status는 PENDING/APPROVED/REJECTED, 페이지 크기는 8 |
 | `GET /api/admin/saving-group-applications/{approvalId}` | 신청 상세 |
 | `PATCH /api/admin/saving-group-applications/{approvalId}/approve` | 대기 신청을 승인하고 `saving_group.status`를 공개 모집 상태 `01`로 변경 |
 | `PATCH /api/admin/saving-group-applications/{approvalId}/reject` | `{ "rejectReason": "..." }`를 받아 대기 신청을 반려 |
 
 목록의 신청 ID는 JavaScript 정밀도 손실을 피하기 위해 문자열로 반환한다. 승인·반려는 `meeting_approval` 행을 잠근 뒤 PENDING 상태인지 재확인하므로 이미 처리된 신청은 HTTP 409으로 거절한다. 반려된 계모임은 비공개 심사 상태 `00`으로 남아 공개 목록에 노출되지 않는다.
+
+<!-- AI작성: 별도 삭제 심사 테이블 없이 기존 meeting_approval과 groups.deleted_at을 재사용한 계약이다. -->
+#### 계모임 삭제 심사
+
+| API | 설명 |
+|---|---|
+| `POST /api/saving-groups/{savingGroupId}/deletion-applications` | 인증된 계주가 `{ "reason": "..." }`으로 삭제 심사를 신청. 사유는 필수, 최대 500자 |
+| `PATCH /api/admin/saving-group-applications/{approvalId}/approve` | DELETE 신청이면 삭제 가능 조건을 재검사하고 `groups.deleted_at`을 기록 |
+| `PATCH /api/admin/saving-group-applications/{approvalId}/reject` | DELETE 신청이면 반려 사유를 저장하고 계모임은 유지 |
+
+삭제 신청은 `meeting_approval(type='DELETE')`에 저장한다. 같은 계모임에 PENDING 삭제 신청을 중복 등록할 수 없다. 승인 시 `saving_group.status`가 `02` 또는 `03`이거나, 거래 원장 합계로 계산한 공동자금이 0원이 아니거나, `PENDING`/`APPROVED` 출금 요청이 남아 있으면 HTTP 409로 차단한다. 심사 상태 변경과 소프트 삭제는 같은 트랜잭션에서 처리한다.
 
 현재는 관리자 권한 인증이 아직 없으므로 `/api/admin/**` 경로 자체는 접근 제어하지 않는다. JWT/Spring Security 병합 시 반드시 ADMIN 권한 검증을 추가해야 한다.
    Java 17로 컴파일·대상 테스트를 검증하며 버전 업그레이드는 하지 않는다.

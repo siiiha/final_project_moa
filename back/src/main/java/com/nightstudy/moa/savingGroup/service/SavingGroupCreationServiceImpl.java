@@ -105,6 +105,10 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
         }
         SavingGroupCreationApplicationDetailResponse application = getCreationApplicationForUpdate(approvalId);
         requirePending(application);
+        if ("DELETE".equals(application.getType())) {
+            approveDeletionApplication(application);
+            return;
+        }
         if (savingGroupMapper.approveSavingGroupCreationApplication(approvalId) != 1
                 || savingGroupMapper.publishApprovedSavingGroup(application.getGroupId()) != 1
                 || savingGroupMapper.approveSavingGroupCreationOwnerMembership(
@@ -119,11 +123,44 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
     public void rejectCreationApplication(Long approvalId, String rejectReason) {
         SavingGroupCreationApplicationDetailResponse application = getCreationApplicationForUpdate(approvalId);
         requirePending(application);
+        if ("DELETE".equals(application.getType())) {
+            if (savingGroupMapper.rejectSavingGroupDeletionApplication(approvalId, rejectReason.strip()) != 1) {
+                throw applicationProcessFailed();
+            }
+            return;
+        }
         if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, rejectReason.strip()) != 1
                 || savingGroupMapper.rejectSavingGroupCreationOwnerMembership(application.getGroupId()) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 반려할 수 없는 신청입니다.");
         }
+    }
+
+    // AI작성: 승인 시점에 상태·공동자금·출금을 다시 확인해 신청 이후 변경으로 인한 잘못된 삭제를 막는다.
+    private void approveDeletionApplication(SavingGroupCreationApplicationDetailResponse application) {
+        Long groupId = application.getGroupId();
+        if (savingGroupMapper.existsActiveSavingGroup(groupId)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_ACTIVE_ROUND",
+                    "진행 중이거나 정지된 계모임은 삭제할 수 없습니다.");
+        }
+        java.math.BigDecimal balance = savingGroupMapper.selectSavingGroupBalance(groupId);
+        if (balance != null && balance.compareTo(java.math.BigDecimal.ZERO) != 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_BALANCE_REMAINS",
+                    "공동자금이 남아 있어 삭제할 수 없습니다.");
+        }
+        if (savingGroupMapper.existsPendingPayout(groupId)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_PAYOUT_PENDING",
+                    "처리되지 않은 출금 요청이 있어 삭제할 수 없습니다.");
+        }
+        if (savingGroupMapper.approveSavingGroupDeletionApplication(application.getApprovalId()) != 1
+                || savingGroupMapper.softDeleteSavingGroup(groupId) != 1) {
+            throw applicationProcessFailed();
+        }
+    }
+
+    private ApiException applicationProcessFailed() {
+        return new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
+                "이미 처리되었거나 처리할 수 없는 신청입니다.");
     }
 
     private SavingGroupCreationApplicationDetailResponse getCreationApplicationForUpdate(Long approvalId) {
@@ -149,6 +186,6 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
         String keywordPattern = keyword == null ? null : "%" + keyword.replace("!", "!!")
                 .replace("%", "!%").replace("_", "!_") + "%";
         return new SavingGroupCreationApplicationListCondition(
-                keywordPattern, condition.getStatus(), offset, APPLICATION_PAGE_SIZE);
+                keywordPattern, condition.getStatus(), condition.getType(), offset, APPLICATION_PAGE_SIZE);
     }
 }

@@ -603,6 +603,65 @@
         AND deleted_at IS NULL
     </update>
 
+    <select id="countPendingSavingGroupDeletionApplication" resultType="int">
+        SELECT COUNT(*)
+        FROM meeting_approval
+        WHERE group_id = #{groupId}
+          AND type = 'DELETE'
+          AND status = 'PENDING'
+    </select>
+
+    <insert id="insertSavingGroupDeletionApplication">
+        INSERT INTO meeting_approval (group_id, type, status, request_reason)
+        VALUES (#{groupId}, 'DELETE', 'PENDING', #{reason})
+    </insert>
+
+    <!-- AI작성: 별도 잔액 컬럼을 만들지 않고 보존된 거래 원장의 입·출금 합계를 사용한다. -->
+    <select id="selectSavingGroupBalance" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(CASE
+            WHEN gt.transaction_type = 'DEPOSIT' THEN gt.amount
+            WHEN gt.transaction_type = 'WITHDRAWAL' THEN -gt.amount
+            ELSE 0
+        END), 0)
+        FROM group_account ga
+        LEFT JOIN group_transaction gt ON gt.account_id = ga.account_id
+        WHERE ga.group_id = #{groupId}
+    </select>
+
+    <select id="existsActiveSavingGroup" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM saving_group
+            WHERE group_id = #{groupId}
+              AND status IN ('02', '03')
+        )
+    </select>
+
+    <select id="existsPendingPayout" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1
+            FROM payout_request pr
+            JOIN meeting_round mr ON mr.round_id = pr.round_id
+            WHERE mr.group_id = #{groupId}
+              AND pr.status IN ('PENDING', 'APPROVED')
+        )
+    </select>
+
+    <update id="approveSavingGroupDeletionApplication">
+        UPDATE meeting_approval
+        SET status = 'APPROVED', reject_reason = NULL, processed_at = CURRENT_TIMESTAMP
+        WHERE approval_id = #{approvalId}
+          AND type = 'DELETE'
+          AND status = 'PENDING'
+    </update>
+
+    <update id="rejectSavingGroupDeletionApplication">
+        UPDATE meeting_approval
+        SET status = 'REJECTED', reject_reason = #{rejectReason}, processed_at = CURRENT_TIMESTAMP
+        WHERE approval_id = #{approvalId}
+          AND type = 'DELETE'
+          AND status = 'PENDING'
+    </update>
+
     <insert id="insertSavingGroupCreationApproval">
         INSERT INTO meeting_approval (group_id, type, status)
         VALUES (#{groupId}, 'CREATE', 'PENDING')
@@ -614,11 +673,14 @@
         JOIN saving_group sg ON sg.group_id = g.group_id
         JOIN members m ON m.member_id = g.member_id
         JOIN region r ON r.region_id = g.region_id
-        WHERE ma.type = 'CREATE'
-        AND g.deleted_at IS NULL
+        WHERE 1 = 1
+        AND (g.deleted_at IS NULL OR ma.type = 'DELETE')
         AND m.deleted_at IS NULL
         <if test="status != null">
             AND ma.status = #{status}
+        </if>
+        <if test="type != null">
+            AND ma.type = #{type}
         </if>
         <if test="keywordPattern != null">
             AND g.group_name LIKE #{keywordPattern} ESCAPE '!'
@@ -637,10 +699,12 @@
         g.group_name,
         m.name AS applicant_name,
         r.region_name,
-        g.created_at AS applied_at,
-        ma.status
+        CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
+        ma.status,
+        ma.type
         <include refid="creationApplicationFromWhere"/>
-        ORDER BY g.created_at DESC, ma.approval_id DESC
+        <!-- AI작성: 심사 신청 시각 컬럼이 없으므로 단조 증가하는 승인 번호로 최신 신청을 우선한다. -->
+        ORDER BY ma.approval_id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -650,8 +714,9 @@
         g.group_name,
         m.name AS applicant_name,
         r.region_name,
-        g.created_at AS applied_at,
+        CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
         ma.status,
+        ma.type,
         sg.saving_group_type AS group_type,
         g.max_members,
         sg.dues_amount,
@@ -659,6 +724,21 @@
         g.description,
         sg.group_image AS group_image_path,
         ma.reject_reason,
+        ma.request_reason,
+        (SELECT COALESCE(SUM(CASE
+            WHEN gt.transaction_type = 'DEPOSIT' THEN gt.amount
+            WHEN gt.transaction_type = 'WITHDRAWAL' THEN -gt.amount
+            ELSE 0
+        END), 0)
+         FROM group_account ga
+         LEFT JOIN group_transaction gt ON gt.account_id = ga.account_id
+         WHERE ga.group_id = g.group_id) AS current_balance,
+        EXISTS(SELECT 1 FROM saving_group sg2
+               WHERE sg2.group_id = g.group_id AND sg2.status IN ('02', '03')) AS active_round,
+        EXISTS(SELECT 1 FROM payout_request pr
+               JOIN meeting_round mr ON mr.round_id = pr.round_id
+               WHERE mr.group_id = g.group_id
+                 AND pr.status IN ('PENDING', 'APPROVED')) AS pending_payout,
         ma.processed_at
         FROM meeting_approval ma
         JOIN `groups` g ON g.group_id = ma.group_id
@@ -666,8 +746,7 @@
         JOIN members m ON m.member_id = g.member_id
         JOIN region r ON r.region_id = g.region_id
         WHERE ma.approval_id = #{approvalId}
-        AND ma.type = 'CREATE'
-        AND g.deleted_at IS NULL
+        AND (g.deleted_at IS NULL OR ma.type = 'DELETE')
         AND m.deleted_at IS NULL
     </sql>
 

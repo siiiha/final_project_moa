@@ -108,8 +108,8 @@ function AdminSavingGroupApplicationDetailPage() {
   return (
     <Page>
       <Heading>
-        <h1>계모임 개설 심사 상세</h1>
-        <p>개설 신청 내용을 확인하고 심사 처리하세요.</p>
+        <h1>계모임 심사 상세</h1>
+        <p>개설 또는 삭제 신청 내용을 확인하고 심사 처리하세요.</p>
       </Heading>
       <Grid>
         <AdminSidebar items={adminMenuItems} activeItem="gathering-review" onSelect={handleMenuSelect} />

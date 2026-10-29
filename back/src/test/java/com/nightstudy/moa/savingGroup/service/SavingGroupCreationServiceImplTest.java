@@ -1,12 +1,15 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.service.FileStorageService;
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationDetailResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
@@ -73,6 +76,64 @@ class SavingGroupCreationServiceImplTest {
         verify(savingGroupMapper).rejectSavingGroupCreationOwnerMembership(100L);
     }
 
+    @Test
+    // AI작성: 삭제 승인은 심사 이력을 먼저 처리하고 같은 트랜잭션에서 계모임을 소프트 삭제한다.
+    void approveDeletionSoftDeletesSavingGroup() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+        when(savingGroupMapper.selectSavingGroupBalance(100L)).thenReturn(BigDecimal.ZERO);
+        when(savingGroupMapper.approveSavingGroupDeletionApplication(1L)).thenReturn(1);
+        when(savingGroupMapper.softDeleteSavingGroup(100L)).thenReturn(1);
+
+        savingGroupCreationService.approveCreationApplication(1L, 20L);
+
+        verify(savingGroupMapper).approveSavingGroupDeletionApplication(1L);
+        verify(savingGroupMapper).softDeleteSavingGroup(100L);
+    }
+
+    @Test
+    // AI작성: 진행 중인 회차가 있으면 삭제 이력과 원본 계모임을 모두 변경하지 않는다.
+    void approveDeletionRejectsActiveSavingGroup() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+        when(savingGroupMapper.existsActiveSavingGroup(100L)).thenReturn(true);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.approveCreationApplication(1L, 20L), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_DELETE_ACTIVE_ROUND");
+        verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+    }
+
+    @Test
+    // AI작성: 공동자금이 남아 있으면 삭제 승인을 차단한다.
+    void approveDeletionRejectsRemainingBalance() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+        when(savingGroupMapper.selectSavingGroupBalance(100L)).thenReturn(BigDecimal.ONE);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.approveCreationApplication(1L, 20L), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_DELETE_BALANCE_REMAINS");
+        verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+    }
+
+    @Test
+    // AI작성: 승인 또는 대기 중인 출금 요청은 삭제 전에 먼저 처리해야 한다.
+    void approveDeletionRejectsPendingPayout() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+        when(savingGroupMapper.selectSavingGroupBalance(100L)).thenReturn(BigDecimal.ZERO);
+        when(savingGroupMapper.existsPendingPayout(100L)).thenReturn(true);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.approveCreationApplication(1L, 20L), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_DELETE_PAYOUT_PENDING");
+        verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+    }
+
     private SavingGroupCreationRequest creationRequest() {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
@@ -90,6 +151,13 @@ class SavingGroupCreationServiceImplTest {
         SavingGroupCreationApplicationDetailResponse application = new SavingGroupCreationApplicationDetailResponse();
         application.setGroupId(groupId);
         application.setStatus("PENDING");
+        return application;
+    }
+
+    private SavingGroupCreationApplicationDetailResponse pendingDeletionApplication(Long approvalId, Long groupId) {
+        SavingGroupCreationApplicationDetailResponse application = pendingApplication(groupId);
+        application.setApprovalId(approvalId);
+        application.setType("DELETE");
         return application;
     }
 }
