@@ -11,11 +11,14 @@ import static org.mockito.Mockito.when;
 import com.nightstudy.moa.common.service.FileStorageService;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationDetailResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListCondition;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -207,6 +210,21 @@ class SavingGroupCreationServiceImplTest {
         assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_APPLICATION_PROCESS_FAILED");
         verify(savingGroupMapper).approveSavingGroupDeletionApplication(1L);
         verify(savingGroupMapper).softDeleteSavingGroup(100L);
+    }
+
+    @Test
+    // AI작성: 관리자 목록의 삭제 유형 필터가 MyBatis 조회 조건까지 전달되는지 검증한다.
+    void getApplicationsPassesDeleteTypeFilter() {
+        SavingGroupCreationApplicationSearchCondition condition = new SavingGroupCreationApplicationSearchCondition();
+        condition.setType("DELETE");
+        when(savingGroupMapper.selectSavingGroupCreationApplicationCount(any())).thenReturn(0);
+
+        savingGroupCreationService.getCreationApplicationPageMeta(condition);
+
+        ArgumentCaptor<SavingGroupCreationApplicationListCondition> captor =
+                ArgumentCaptor.forClass(SavingGroupCreationApplicationListCondition.class);
+        verify(savingGroupMapper).selectSavingGroupCreationApplicationCount(captor.capture());
+        assertThat(captor.getValue().getType()).isEqualTo("DELETE");
     }
 
     private SavingGroupCreationRequest creationRequest() {
