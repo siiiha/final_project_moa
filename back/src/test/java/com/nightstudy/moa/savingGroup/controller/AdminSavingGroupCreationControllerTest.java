@@ -185,4 +185,14 @@ class AdminSavingGroupCreationControllerTest {
 
         verify(savingGroupCreationService, never()).rejectCreationApplication(any(), any());
     }
+
+    @Test
+    // AI작성: 관리자 심사 번호는 양수만 허용하고 잘못된 번호는 상세 Service 호출 전에 차단한다.
+    void getApplicationDetailRejectsInvalidApprovalId() throws Exception {
+        mockMvc.perform(get("/api/admin/saving-group-applications/0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+
+        verify(savingGroupCreationService, never()).getCreationApplication(any());
+    }
 }
