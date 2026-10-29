@@ -11,6 +11,7 @@ import {
   releaseAdminSavingGroupRestriction,
   restrictAdminSavingGroup,
 } from '../api/adminSavingGroups';
+import { savingGroupRegionOptions } from '../api/savingGroups';
 
 const PAGE_SIZE = 8;
 
@@ -133,10 +134,11 @@ function AdminSavingGroupsPage() {
       setErrorMessage('');
       try {
         const statusMap = { 심사중: '00', 모집중: '01', 활동중: '02', 정지: '03', 종료: '04' };
-        const regionMap = { 서울: '01', 경기: '02' };
+        // AI작성: 필터의 지역명과 API가 요구하는 지역 코드를 공통 지역 목록으로 연결한다.
+        const regionCode = savingGroupRegionOptions.find((item) => item.name === region)?.code || '';
         const result = await getAdminSavingGroups({
           keyword: submittedQuery,
-          regionCode: regionMap[region] || '',
+          regionCode,
           status: statusMap[status] || '',
           page: currentPage,
           size: PAGE_SIZE,
