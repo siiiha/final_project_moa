@@ -1,6 +1,16 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-29 — 소모임 개설자 전용 가입 신청 목록 조회 API
+
+- 목적: 소모임 개설자가 본인이 개설한 소모임의 가입 신청 현황을 계모임과 동일한 상태 필터·정렬·페이징·마스킹 규칙으로 조회하게 한다.
+- 사용자 확정: `status`, `page`, 고정 크기 10을 사용하며 `PENDING`·`APPROVED`·`REJECTED`만 조회한다. 개설자이면서 `OWNER`·`APPROVED` 관계인 회원만 신청 목록 탭과 API를 사용할 수 있고, `MANAGER`를 포함한 운영진은 권한이 없다. 승인·거절·취소·일괄 처리는 범위에서 제외한다.
+- AI 작성: 가입 신청 목록 DTO·Mapper 계약과 SQL, Service 권한·조건·페이징 조합, GET Controller와 Service·Controller·Security 테스트, 프론트 API 모듈·테스트, 실제 API를 쓰는 OWNER 목록 패널을 작성했다. 기존 Mock 목록 파일과 로컬 승인·거절 상태 변경은 제거했다.
+- API·데이터: `GET /api/small-groups/{smallGroupId}/join-requests`는 `ApiResponse`의 data 배열과 meta를 반환한다. 기존 `small_group`, `groups`, `group_member`, `members`, `region`만 재사용하고 DB 마이그레이션, 상태값, 외부 연동, 의존성·보안 설정 변경은 하지 않았다. 신청자 이름은 SQL에서 마스킹하고 BIGINT 신청 ID는 문자열로 반환한다.
+- 검증: 프론트 `node --test src/api/smallGroups.test.js` 21개 통과, `npm run build` 통과, `npm run lint` 완료(기존 경고 유지), `git diff --check` 통과를 확인했다. 백엔드 Gradle 대상 테스트는 실행을 시도했으나 현재 환경에서 Java 17 toolchain을 찾지 못해 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 `SmallGroupServiceImplTest`, `SmallGroupJoinRequestControllerTest`, `SmallGroupSecurityIntegrationTest`를 실행한다. 실제 MySQL·JWT에서 개설자·비개설자·MANAGER·비로그인·삭제 소모임, 상태 필터·페이지·빈 결과·마스킹·정렬을 확인한다. 브라우저에서 OWNER 탭의 로딩·오류 재시도·필터·페이지 및 비OWNER 탭 미노출을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 승인·거절·일괄 처리 정책과 API가 확정되면 현재 비활성 UI를 실제 서버 요청으로 교체한다.
+
 ## 2026-10-29 — 소모임 가입 신청 API와 상세 화면 연결
 
 - 목적: 일반 회원이 소모임 상세에서 가입 신청을 제출하고, 서버가 기존 관계·정원·권한을 검증해 대기 상태로 저장하도록 한다.

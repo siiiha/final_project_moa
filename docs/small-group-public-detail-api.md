@@ -168,7 +168,7 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 - 기존 `members`, `groups`, `small_group`, `group_member`와 SmallGroup MyBatis Mapper를 재사용하며 DB 마이그레이션을 추가하지 않는다.
 - 소모임에는 모집 상태, 공개 범위, 자동 승인 여부 데이터가 없으므로 해당 가입 제한을 임의로 추가하지 않는다.
 - 신청 메시지는 `group_member.application_message` 컬럼이 있어도 이번 API에서 입력·저장하지 않는다.
-- 후속 OWNER 전용 기능에서 신청 목록 조회와 승인·거절 API를 추가할 때, 현재 Mock 신청 목록을 실제 서버 API로 교체한다.
+- OWNER 전용 가입 신청 목록 조회는 `GET /api/small-groups/{smallGroupId}/join-requests`로 제공한다. 승인·거절 API 정책은 아직 확정되지 않았으므로 별도 범위에서 결정한다.
 
 ### 테스트와 수동 확인
 
@@ -176,6 +176,81 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 - Security 통합 테스트는 비로그인 `POST` 요청의 `401`을 검증한다.
 - 프론트 API 테스트는 본문 없는 POST 요청과 서버 오류 보존을 검증한다.
 - 브라우저에서 비회원, 일반 회원, OWNER, 이미 신청한 회원, 본인 인증 미완료 회원, 관리자 계정으로 버튼·모달·오류를 확인한다.
+
+---
+
+## 소모임 개설자 전용 가입 신청 목록 API
+
+### 범위
+
+- 엔드포인트: `GET /api/small-groups/{smallGroupId}/join-requests`
+- `{smallGroupId}`는 `small_group.small_group_id`이며 양수여야 한다.
+- JWT 필터가 인증해 request attribute에 저장한 회원 ID만 사용한다. 클라이언트는 회원 ID를 전달하지 않는다.
+- 소모임의 `groups.member_id`와 일치하고, `group_member`에서 `OWNER`·`APPROVED` 관계인 개설자만 조회할 수 있다.
+- `MANAGER`를 포함한 운영진은 조회 권한이 없다. 상세 화면의 신청 목록 탭도 `OWNER`에게만 노출한다.
+- 가입 신청 승인·거절·취소·일괄 처리는 이번 범위에 포함하지 않는다.
+
+### 요청
+
+| 파라미터 | 타입 | 규칙 |
+| --- | --- | --- |
+| `smallGroupId` | Long 경로 변수 | 양수, `small_group.small_group_id` |
+| `status` | String 쿼리 | 생략하면 전체, `PENDING` / `APPROVED` / `REJECTED`만 허용 |
+| `page` | int 쿼리 | 기본 1, 1 이상, 고정 페이지 크기 10 |
+
+기존 계모임 가입 신청 목록과 동일하게 검색어와 페이지 크기 쿼리 파라미터는 제공하지 않는다.
+
+### 성공 응답
+
+기존 `ApiResponse`의 `data` 배열과 `meta` 페이징 구조를 사용한다.
+
+```json
+{
+  "success": true,
+  "data": [{
+    "crewMemberId": "9007199254740993",
+    "applicant": "가**",
+    "regionName": "서울",
+    "identityVerified": true,
+    "regionVerified": false,
+    "applicationMessage": "함께하고 싶습니다.",
+    "membershipStatus": "PENDING"
+  }],
+  "meta": {
+    "page": 1,
+    "size": 10,
+    "total": 1,
+    "totalPages": 1,
+    "offset": 0
+  },
+  "error": null
+}
+```
+
+- `crewMemberId`는 BIGINT 정밀도 손실 방지를 위해 문자열이다.
+- `applicant`는 SQL에서 첫 글자를 제외한 나머지를 `*`로 마스킹한다. 회원 ID·연락처·생년월일·계좌 정보·인증 시각 원문은 반환하지 않는다.
+- `applicationMessage`는 기존 `group_member.application_message`만 반환한다. 관심사 정보는 데이터 구조에 없으므로 목록에 추가하지 않는다.
+
+### 조회 기준·정렬·오류
+
+- 기존 `small_group`, `groups`, `group_member`, `members`, `region`과 `SmallGroupMapper`만 재사용하며 DB 마이그레이션·컬럼·상태값은 추가하지 않는다.
+- `PENDING`, `APPROVED`, `REJECTED` 관계만 포함하고 `OWNER`, `LEFT`, `EXPELLED`, 삭제 회원은 제외한다.
+- 목록과 전체 수에 같은 조건을 적용하며 `requested_at DESC, crew_member_id DESC`로 정렬한다.
+- 결과가 없거나 범위 초과 페이지면 성공 응답의 빈 배열을 반환한다.
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증 정보 없음 | `401 UNAUTHORIZED` |
+| 소모임 ID·신청 상태·페이지가 올바르지 않음 | `400 BAD_REQUEST` |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 개설자가 아니거나 승인 OWNER 관계가 아님 | `403 SMALL_GROUP_OWNER_REQUIRED` |
+
+### 프론트 연결·검증
+
+- `getSmallGroupJoinRequests(smallGroupId, { status, page, signal })`는 서버 필터·정렬·페이징을 그대로 사용하고 Mock 데이터나 클라이언트 재정렬을 하지 않는다.
+- OWNER 신청 목록 탭은 로딩·오류·재시도·빈 결과·페이지 이동을 표시한다. 승인·거절 API가 없으므로 관련 화면 버튼은 비활성으로만 표시하며 화면 상태를 임의로 변경하지 않는다.
+- Service 테스트는 정상·빈 결과·페이지·상태 필터·비개설자·없는 소모임·비로그인·잘못된 상태·페이지를 검증한다. Controller와 Security 테스트는 JWT request attribute 전달, 공통 응답, 인증 누락을 검증한다.
+- 실제 MySQL과 JWT 환경에서 개설자·비개설자·MANAGER·삭제 소모임, 이름 마스킹·정렬·범위 초과 페이지를 확인해야 한다.
 
 ---
 
