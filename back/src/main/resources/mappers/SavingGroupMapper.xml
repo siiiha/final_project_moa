@@ -693,16 +693,20 @@
         <include refid="creationApplicationFromWhere"/>
     </select>
 
+    <!-- AI작성: 관리자 목록·상세에서 탈퇴한 삭제 신청자의 이름을 동일한 기준으로 마스킹한다. -->
+    <sql id="savingGroupApplicationApplicantName">
+        CASE
+        WHEN m.deleted_at IS NULL THEN m.name
+        ELSE '탈퇴한 회원'
+        END AS applicant_name
+    </sql>
+
     <!-- AI작성: JS 정밀도 손실을 막기 위해 목록의 approval_id는 문자열로 반환한다. -->
     <select id="selectSavingGroupCreationApplications"
             resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListItemResponse">
         SELECT CAST(ma.approval_id AS CHAR) AS approval_id,
         g.group_name,
-        <!-- AI작성: 탈퇴한 삭제 신청자의 이름은 고정 안내 문구로 마스킹한다. -->
-        CASE
-        WHEN m.deleted_at IS NULL THEN m.name
-        ELSE '탈퇴한 회원'
-        END AS applicant_name,
+        <include refid="savingGroupApplicationApplicantName"/>,
         r.region_name,
         CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
         ma.status,
@@ -717,11 +721,7 @@
         SELECT ma.approval_id,
         g.group_id,
         g.group_name,
-        <!-- AI작성: 탈퇴한 삭제 신청자의 이름은 고정 안내 문구로 마스킹한다. -->
-        CASE
-        WHEN m.deleted_at IS NULL THEN m.name
-        ELSE '탈퇴한 회원'
-        END AS applicant_name,
+        <include refid="savingGroupApplicationApplicantName"/>,
         r.region_name,
         CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
         ma.status,
