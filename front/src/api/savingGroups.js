@@ -1,5 +1,17 @@
 import client from './client.js';
 
+// AI작성: 관리자 계모임 심사 화면들이 같은 상태·유형 문구를 사용하도록 공통 매핑을 제공한다.
+export const savingGroupReviewStatusLabel = {
+  PENDING: '대기',
+  APPROVED: '승인',
+  REJECTED: '반려',
+};
+
+export const savingGroupReviewTypeLabel = {
+  CREATE: '개설 심사',
+  DELETE: '삭제 심사',
+};
+
 class SavingGroupCreationApplicationError extends Error {
   constructor(code, message) {
     super(message);
@@ -69,9 +81,9 @@ export async function getSavingGroupCreationApplications({ status, type, keyword
         applicant: item.applicantName,
         region: item.regionName,
         appliedAt: formatApplicationDate(item.appliedAt),
-        status: { PENDING: '대기', APPROVED: '승인', REJECTED: '반려' }[item.status] || '상태 확인 필요',
+        status: savingGroupReviewStatusLabel[item.status] || '상태 확인 필요',
         type: item.type,
-        reviewType: item.type === 'DELETE' ? '삭제 심사' : '개설 심사',
+        reviewType: savingGroupReviewTypeLabel[item.type] || '유형 확인 필요',
       })),
       meta: response.data.meta,
     };
