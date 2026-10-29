@@ -10,6 +10,8 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
@@ -44,6 +46,86 @@ class SmallGroupServiceImplTest {
 
     @InjectMocks
     private SmallGroupServiceImpl smallGroupService;
+
+    @Test
+    void getSmallGroupJoinRequestsReturnsPagedRowsForApprovedCreator() {
+        mockJoinRequestOwner();
+        SmallGroupJoinRequestRow row = joinRequestRow("PENDING");
+        when(smallGroupMapper.selectSmallGroupJoinRequestCount(GROUP_ID, "PENDING")).thenReturn(11);
+        when(smallGroupMapper.selectSmallGroupJoinRequests(GROUP_ID, "PENDING", 0, 10))
+                .thenReturn(List.of(row));
+
+        SmallGroupJoinRequestListResponse response =
+                smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, MEMBER_ID, "PENDING", 1);
+
+        assertThat(response.getItems()).containsExactly(row);
+        assertThat(response.getPageMeta().getPage()).isEqualTo(1);
+        assertThat(response.getPageMeta().getSize()).isEqualTo(10);
+        assertThat(response.getPageMeta().getTotal()).isEqualTo(11);
+        assertThat(response.getPageMeta().getTotalPages()).isEqualTo(2);
+    }
+
+    @Test
+    void getSmallGroupJoinRequestsReturnsEmptyWithoutListQueryWhenNoResultsExist() {
+        mockJoinRequestOwner();
+        when(smallGroupMapper.selectSmallGroupJoinRequestCount(GROUP_ID, null)).thenReturn(0);
+
+        SmallGroupJoinRequestListResponse response =
+                smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, MEMBER_ID, null, 1);
+
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getPageMeta().getTotal()).isZero();
+        verify(smallGroupMapper, never()).selectSmallGroupJoinRequests(GROUP_ID, null, 0, 10);
+    }
+
+    @Test
+    void getSmallGroupJoinRequestsUsesRequestedPageOffsetAndStatusFilter() {
+        mockJoinRequestOwner();
+        when(smallGroupMapper.selectSmallGroupJoinRequestCount(GROUP_ID, "REJECTED")).thenReturn(11);
+        when(smallGroupMapper.selectSmallGroupJoinRequests(GROUP_ID, "REJECTED", 10, 10))
+                .thenReturn(List.of(joinRequestRow("REJECTED")));
+
+        SmallGroupJoinRequestListResponse response =
+                smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, MEMBER_ID, "REJECTED", 2);
+
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getPageMeta().getPage()).isEqualTo(2);
+        verify(smallGroupMapper).selectSmallGroupJoinRequests(GROUP_ID, "REJECTED", 10, 10);
+    }
+
+    @Test
+    void getSmallGroupJoinRequestsRejectsNonCreatorAndMissingGroup() {
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID))
+                .thenReturn(joinTarget(CREATOR_MEMBER_ID, 10));
+        ApiException nonCreator = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, MEMBER_ID, null, 1),
+                ApiException.class);
+
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID)).thenReturn(null);
+        ApiException missingGroup = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, MEMBER_ID, null, 1),
+                ApiException.class);
+        assertThat(nonCreator.getCode()).isEqualTo("SMALL_GROUP_OWNER_REQUIRED");
+        assertThat(missingGroup.getCode()).isEqualTo("SMALL_GROUP_NOT_FOUND");
+    }
+
+    @Test
+    void getSmallGroupJoinRequestsRejectsUnauthenticatedAndInvalidStatusOrPageBeforeLookup() {
+        ApiException anonymous = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, null, null, 1),
+                ApiException.class);
+        ApiException invalidStatus = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, MEMBER_ID, "WAITING", 1),
+                ApiException.class);
+        ApiException invalidPage = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupJoinRequests(SMALL_GROUP_ID, MEMBER_ID, null, 0),
+                ApiException.class);
+
+        assertThat(anonymous.getCode()).isEqualTo("UNAUTHORIZED");
+        assertThat(invalidStatus.getCode()).isEqualTo("BAD_REQUEST");
+        assertThat(invalidPage.getCode()).isEqualTo("BAD_REQUEST");
+        verify(smallGroupMapper, never()).selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID);
+    }
 
     @Test
     void getSmallGroupDetailReturnsPublicDetailForAnonymousUser() {
@@ -532,6 +614,25 @@ class SmallGroupServiceImplTest {
         when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID))
                 .thenReturn(joinTarget(CREATOR_MEMBER_ID, 10));
         when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID)).thenReturn(null);
+    }
+
+    private void mockJoinRequestOwner() {
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID))
+                .thenReturn(joinTarget(MEMBER_ID, 10));
+        when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
+                .thenReturn(relation("OWNER", "APPROVED"));
+    }
+
+    private SmallGroupJoinRequestRow joinRequestRow(String membershipStatus) {
+        SmallGroupJoinRequestRow row = new SmallGroupJoinRequestRow();
+        row.setCrewMemberId("9007199254740993");
+        row.setApplicant("가**");
+        row.setRegionName("서울");
+        row.setIdentityVerified(true);
+        row.setRegionVerified(true);
+        row.setApplicationMessage("함께하고 싶습니다.");
+        row.setMembershipStatus(membershipStatus);
+        return row;
     }
 
     private SmallGroupJoinMemberRow joinMember(

@@ -5,6 +5,8 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
@@ -33,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
     private static final int PAGE_SIZE = 6;
+    private static final int JOIN_REQUEST_PAGE_SIZE = 10;
     private static final String ACTIVE_ACCOUNT_STATUS = "ACTIVE";
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
@@ -40,6 +43,47 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    // AI작성: 목록 조회와 권한 검증을 같은 트랜잭션에서 처리해 개설자·OWNER 관계가 바뀐 뒤 목록을 반환하지 않는다.
+    @Override
+    @Transactional
+    public SmallGroupJoinRequestListResponse getSmallGroupJoinRequests(
+            Long smallGroupId, Long memberId, String status, int page) {
+        if (smallGroupId == null || smallGroupId <= 0 || page < 1
+                || (status != null && !List.of("PENDING", "APPROVED", "REJECTED").contains(status))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
+                    "소모임 번호, 신청 상태 또는 페이지가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        if (!Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_OWNER_REQUIRED",
+                    "소모임 개설자만 가입 신청을 조회할 수 있습니다.");
+        }
+
+        SmallGroupMemberRelationRow owner =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (owner == null || !"OWNER".equals(owner.getMemberRole())
+                || !"APPROVED".equals(owner.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_OWNER_REQUIRED",
+                    "승인된 소모임 개설자만 가입 신청을 조회할 수 있습니다.");
+        }
+
+        int total = smallGroupMapper.selectSmallGroupJoinRequestCount(target.getGroupId(), status);
+        PageMeta pageMeta = PageMeta.of(page, JOIN_REQUEST_PAGE_SIZE, total);
+        // AI작성: 빈 결과와 범위 초과는 목록 SQL을 실행하지 않고 요청한 페이지 메타를 그대로 반환한다.
+        List<SmallGroupJoinRequestRow> items = page > pageMeta.getTotalPages()
+                ? List.of()
+                : smallGroupMapper.selectSmallGroupJoinRequests(
+                        target.getGroupId(), status, pageMeta.getOffset(), JOIN_REQUEST_PAGE_SIZE);
+        return new SmallGroupJoinRequestListResponse(items, pageMeta);
     }
 
     // AI작성: 공개 상세는 비회원도 반환하고, 관계 데이터가 있는 로그인 사용자만 역할을 판단한다.
