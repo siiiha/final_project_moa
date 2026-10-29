@@ -10,6 +10,27 @@ import Button from '../components/common/Button';
 import { getMyProfile, verifyMyRegion } from '../api/member';
 import useAuthStore from '../store/authStore';
 const MAX_LOCATION_ACCURACY_M = 500;
+// AI작성: UTC 인증 시각을 사용자 기기의 시간대와 관계없이 한국 시간으로 표시한다.
+const koreanDateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
+function formatKoreanDateTime(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '시각 확인 필요';
+  }
+
+  return koreanDateTimeFormatter.format(date);
+}
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
   margin: 0 auto;
@@ -359,9 +380,23 @@ function VerificationPage() {
                 </RegionSummary>
 
                 <RegionNotice>
-                  {profile.regionVerified
-                    ? '가입한 활동 지역의 인증이 완료되어 있습니다.'
-                    : '가입한 활동 지역에서 현재 위치를 확인해주세요. 예상 오차 반경이 500m 이하일 때 인증할 수 있습니다.'}
+                  {profile.regionVerified ? (
+                    <>
+                      가입한 활동 지역의 인증이 완료되어 있습니다.
+                      {profile.regionVerifiedAt && (
+                        <>
+                          <br />
+                          인증 완료 시각:{' '}
+                          <time dateTime={profile.regionVerifiedAt}>
+                            {formatKoreanDateTime(profile.regionVerifiedAt)}
+                          </time>
+                          {' '}(한국 시간)
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    '가입한 활동 지역에서 현재 위치를 확인해주세요. 예상 오차 반경이 500m 이하일 때 인증할 수 있습니다.'
+                  )}
                 </RegionNotice>
 
                 <RegionMap

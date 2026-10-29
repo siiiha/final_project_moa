@@ -180,7 +180,8 @@
         r.province_name AS provinceName,
         r.district_name AS districtName,
         (m.identity_verified_at IS NOT NULL) AS identityVerified,
-        (m.region_verified_at IS NOT NULL) AS regionVerified
+        (m.region_verified_at IS NOT NULL) AS regionVerified,
+        m.region_verified_at AS regionVerifiedAt
         FROM members m
         LEFT JOIN region r
         ON r.region_id = m.region_id
@@ -191,7 +192,7 @@
     <!-- 활성 회원의 활동 지역이 유지된 경우 인증 완료 시각을 저장 -->
     <update id="markRegionVerified">
         UPDATE members
-        SET region_verified_at = CURRENT_TIMESTAMP
+        SET region_verified_at = UTC_TIMESTAMP()
         WHERE member_id = #{memberId}
             AND region_id = #{regionId}
             AND account_status = 'ACTIVE'

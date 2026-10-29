@@ -1,7 +1,9 @@
 package com.nightstudy.moa.member.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 import lombok.Setter;
+import java.time.LocalDateTime;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +26,8 @@ public class MemberProfileResponse {
     private String districtName;
     private boolean identityVerified;
     private boolean regionVerified;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
+    private LocalDateTime regionVerifiedAt;
 
     private List<Interest> interests = new ArrayList<>();
 
