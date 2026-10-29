@@ -4,6 +4,7 @@ import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinApprovalTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow;
@@ -63,18 +64,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
         }
-        if (!Objects.equals(memberId, target.getCreatorMemberId())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_OWNER_REQUIRED",
-                    "소모임 개설자만 가입 신청을 조회할 수 있습니다.");
-        }
-
-        SmallGroupMemberRelationRow owner =
-                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
-        if (owner == null || !"OWNER".equals(owner.getMemberRole())
-                || !"APPROVED".equals(owner.getMembershipStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_OWNER_REQUIRED",
-                    "승인된 소모임 개설자만 가입 신청을 조회할 수 있습니다.");
-        }
+        validateSmallGroupOwner(target, memberId, "조회");
 
         int total = smallGroupMapper.selectSmallGroupJoinRequestCount(target.getGroupId(), status);
         PageMeta pageMeta = PageMeta.of(page, JOIN_REQUEST_PAGE_SIZE, total);
@@ -84,6 +74,82 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 : smallGroupMapper.selectSmallGroupJoinRequests(
                         target.getGroupId(), status, pageMeta.getOffset(), JOIN_REQUEST_PAGE_SIZE);
         return new SmallGroupJoinRequestListResponse(items, pageMeta);
+    }
+
+    // AI작성: 신청 회원 → 소모임 → 신청 행 순서로 잠가 신청 소속·개설자 권한·대기 상태·정원을 재검증한다.
+    @Override
+    @Transactional
+    public void approveSmallGroupJoin(Long smallGroupId, Long crewMemberId, Long memberId) {
+        if (smallGroupId == null || smallGroupId <= 0 || crewMemberId == null || crewMemberId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 가입 신청 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupJoinApprovalTargetRow identified =
+                smallGroupMapper.selectSmallGroupJoinApprovalTarget(crewMemberId);
+        if (identified == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "가입 신청을 찾을 수 없습니다.");
+        }
+        SmallGroupJoinMemberRow applicant =
+                smallGroupMapper.selectSmallGroupJoinMemberForUpdate(identified.getMemberId());
+        if (applicant == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_MEMBER_NOT_FOUND", "신청 회원을 찾을 수 없습니다.");
+        }
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        SmallGroupJoinApprovalTargetRow request =
+                smallGroupMapper.selectSmallGroupJoinApprovalTargetForUpdate(crewMemberId);
+        if (request == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "가입 신청을 찾을 수 없습니다.");
+        }
+        if (!Objects.equals(request.getMemberId(), identified.getMemberId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_CHANGED",
+                    "가입 신청이 변경되었습니다. 다시 확인해주세요.");
+        }
+        if (!Objects.equals(request.getGroupId(), target.getGroupId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND",
+                    "해당 소모임의 가입 신청을 찾을 수 없습니다.");
+        }
+        validateSmallGroupOwner(target, memberId, "승인");
+        if (!"PENDING".equals(request.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_NOT_PENDING",
+                    "대기 중인 가입 신청만 승인할 수 있습니다.");
+        }
+        if (target.getMaxMembers() == null || target.getMaxMembers() <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_NOT_CONFIGURED",
+                    "소모임 정원이 설정되지 않았습니다.");
+        }
+        if (smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(target.getGroupId())
+                >= target.getMaxMembers()) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_FULL", "소모임 정원이 모두 찼습니다.");
+        }
+
+        int affectedRows = smallGroupMapper.approveSmallGroupJoinRequest(
+                request.getCrewMemberId(), request.getGroupId(), memberId);
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
+                    "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
+        }
+    }
+
+    // AI작성: 목록 조회와 승인에서 groups 생성자와 승인된 OWNER 관계를 함께 확인한다.
+    private void validateSmallGroupOwner(
+            SmallGroupJoinTargetRow target, Long memberId, String actionName) {
+        if (!Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_OWNER_REQUIRED",
+                    "소모임 개설자만 가입 신청을 " + actionName + "할 수 있습니다.");
+        }
+        SmallGroupMemberRelationRow owner =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (owner == null || !"OWNER".equals(owner.getMemberRole())
+                || !"APPROVED".equals(owner.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_OWNER_REQUIRED",
+                    "승인된 소모임 개설자만 가입 신청을 " + actionName + "할 수 있습니다.");
+        }
     }
 
     // AI작성: 공개 상세는 비회원도 반환하고, 관계 데이터가 있는 로그인 사용자만 역할을 판단한다.
