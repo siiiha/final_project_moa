@@ -24,6 +24,9 @@ public interface SmallGroupService {
     // AI작성: 개설자이면서 승인된 OWNER인 회원만 대기 중인 소모임 가입 신청을 승인한다.
     void approveSmallGroupJoin(Long smallGroupId, Long crewMemberId, Long memberId);
 
+    // AI작성: 개설자이면서 승인된 OWNER인 회원만 대기 중인 소모임 가입 신청을 거절한다.
+    void rejectSmallGroupJoin(Long smallGroupId, Long crewMemberId, Long memberId);
+
     // AI작성: 개설자이면서 승인된 OWNER인 회원만 소모임 설정의 현재 수정 가능 정보를 조회한다.
     SmallGroupSettingsResponse getSmallGroupSettings(Long smallGroupId, Long loginMemberId);
 

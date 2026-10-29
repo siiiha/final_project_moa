@@ -42,6 +42,11 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SmallGroupMapper smallGroupMapper;
 
+    // AI작성: 승인과 거절이 공유하는 잠금 검증 결과를 묶어 처리별 후속 검증을 분리한다.
+    private record SmallGroupJoinDecisionTarget(
+            SmallGroupJoinApprovalTargetRow request, SmallGroupJoinTargetRow target) {
+    }
+
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
     }
@@ -80,6 +85,45 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     @Override
     @Transactional
     public void approveSmallGroupJoin(Long smallGroupId, Long crewMemberId, Long memberId) {
+        SmallGroupJoinDecisionTarget decision = validatePendingSmallGroupJoinRequest(
+                smallGroupId, crewMemberId, memberId, "승인");
+        SmallGroupJoinApprovalTargetRow request = decision.request();
+        SmallGroupJoinTargetRow target = decision.target();
+        if (target.getMaxMembers() == null || target.getMaxMembers() <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_NOT_CONFIGURED",
+                    "소모임 정원이 설정되지 않았습니다.");
+        }
+        if (smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(target.getGroupId())
+                >= target.getMaxMembers()) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_FULL", "소모임 정원이 모두 찼습니다.");
+        }
+
+        int affectedRows = smallGroupMapper.approveSmallGroupJoinRequest(
+                request.getCrewMemberId(), request.getGroupId(), memberId);
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
+                    "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
+        }
+    }
+
+    // AI작성: 거절은 승인과 달리 정원·회원 관계를 변경하지 않고 대기 신청 상태만 REJECTED로 전환한다.
+    @Override
+    @Transactional
+    public void rejectSmallGroupJoin(Long smallGroupId, Long crewMemberId, Long memberId) {
+        SmallGroupJoinDecisionTarget decision = validatePendingSmallGroupJoinRequest(
+                smallGroupId, crewMemberId, memberId, "거절");
+        SmallGroupJoinApprovalTargetRow request = decision.request();
+        int affectedRows = smallGroupMapper.rejectSmallGroupJoinRequest(
+                request.getCrewMemberId(), request.getGroupId());
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_REJECTION_FAILED",
+                    "가입 신청 상태가 변경되어 거절할 수 없습니다. 다시 확인해주세요.");
+        }
+    }
+
+    // AI작성: 신청 회원 → 소모임 → 신청 행 순서로 잠가 승인·거절의 공통 권한·소속·대기 상태를 재검증한다.
+    private SmallGroupJoinDecisionTarget validatePendingSmallGroupJoinRequest(
+            Long smallGroupId, Long crewMemberId, Long memberId, String actionName) {
         if (smallGroupId == null || smallGroupId <= 0 || crewMemberId == null || crewMemberId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 가입 신청 번호가 올바르지 않습니다.");
         }
@@ -114,26 +158,12 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND",
                     "해당 소모임의 가입 신청을 찾을 수 없습니다.");
         }
-        validateSmallGroupOwner(target, memberId, "승인");
+        validateSmallGroupOwner(target, memberId, actionName);
         if (!"PENDING".equals(request.getMembershipStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_NOT_PENDING",
-                    "대기 중인 가입 신청만 승인할 수 있습니다.");
+                    "대기 중인 가입 신청만 " + actionName + "할 수 있습니다.");
         }
-        if (target.getMaxMembers() == null || target.getMaxMembers() <= 0) {
-            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_NOT_CONFIGURED",
-                    "소모임 정원이 설정되지 않았습니다.");
-        }
-        if (smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(target.getGroupId())
-                >= target.getMaxMembers()) {
-            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_FULL", "소모임 정원이 모두 찼습니다.");
-        }
-
-        int affectedRows = smallGroupMapper.approveSmallGroupJoinRequest(
-                request.getCrewMemberId(), request.getGroupId(), memberId);
-        if (affectedRows != 1) {
-            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
-                    "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
-        }
+        return new SmallGroupJoinDecisionTarget(request, target);
     }
 
     // AI작성: 목록 조회와 승인에서 groups 생성자와 승인된 OWNER 관계를 함께 확인한다.
