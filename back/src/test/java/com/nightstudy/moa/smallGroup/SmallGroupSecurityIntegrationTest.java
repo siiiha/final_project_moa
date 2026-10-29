@@ -3,6 +3,7 @@ package com.nightstudy.moa.smallGroup;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
@@ -78,6 +79,14 @@ class SmallGroupSecurityIntegrationTest {
     @Test
     void smallGroupSettingsApiRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/small-groups/1/settings"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void smallGroupSettingsUpdateApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(patch("/api/small-groups/1")
+                        .contentType("application/json")
+                        .content("{\"groupName\":\"주말 걷기\"}"))
                 .andExpect(status().isUnauthorized());
     }
 }
