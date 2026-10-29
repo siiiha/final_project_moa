@@ -8,6 +8,7 @@ import {
   getSmallGroupDetail,
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
+  getSmallGroupJoinRequests,
   getSmallGroupSettings,
   requestSmallGroupJoin,
   SmallGroupSettingsLoadError,
@@ -17,6 +18,101 @@ import {
   toSmallGroupDetail,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+test('소모임 가입 신청 목록은 상태·페이지·취소 신호를 API에 전달하고 화면 필드로 변환한다', async () => {
+  const originalGet = client.get;
+  const signal = new AbortController().signal;
+
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/small-groups/7/join-requests');
+      assert.deepEqual(options.params, { status: 'PENDING', page: 2 });
+      assert.equal(options.signal, signal);
+      return {
+        data: {
+          success: true,
+          data: [{
+            crewMemberId: '9007199254740993',
+            applicant: '가**',
+            regionName: '서울',
+            applicationMessage: '함께하고 싶습니다.',
+            membershipStatus: 'PENDING',
+          }],
+          meta: { page: 2, size: 10, total: 11, totalPages: 2 },
+          error: null,
+        },
+      };
+    };
+
+    assert.deepEqual(await getSmallGroupJoinRequests(7, { status: 'PENDING', page: 2, signal }), {
+      items: [{
+        id: '9007199254740993',
+        applicant: '가**',
+        regionInterest: '서울',
+        message: '함께하고 싶습니다.',
+        status: '대기',
+      }],
+      meta: { page: 2, size: 10, total: 11, totalPages: 2 },
+    });
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 가입 신청 목록의 빈 결과는 정상 응답으로 유지하고 서버 오류는 보존한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => ({
+      data: { success: true, data: [], meta: { page: 1, size: 10, total: 0, totalPages: 0 }, error: null },
+    });
+    assert.deepEqual((await getSmallGroupJoinRequests(7)).items, []);
+
+    client.get = async () => {
+      const error = new Error('Forbidden');
+      error.response = {
+        data: {
+          success: false,
+          error: { code: 'SMALL_GROUP_OWNER_REQUIRED', message: '소모임 개설자만 가입 신청을 조회할 수 있습니다.' },
+        },
+      };
+      throw error;
+    };
+    await assert.rejects(
+      getSmallGroupJoinRequests(7),
+      (error) => error instanceof SmallGroupJoinRequestError
+        && error.code === 'SMALL_GROUP_OWNER_REQUIRED'
+        && error.message === '소모임 개설자만 가입 신청을 조회할 수 있습니다.',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 가입 신청 목록은 잘못된 ID와 잘못된 성공 응답을 사용자용 오류로 처리한다', async () => {
+  const originalGet = client.get;
+  let called = false;
+
+  try {
+    client.get = async () => {
+      called = true;
+      return { data: { success: true, data: {}, meta: null, error: null } };
+    };
+
+    await assert.rejects(
+      getSmallGroupJoinRequests('잘못된-ID'),
+      (error) => error instanceof SmallGroupJoinRequestError && error.code === 'BAD_REQUEST',
+    );
+    assert.equal(called, false);
+
+    await assert.rejects(
+      getSmallGroupJoinRequests(7),
+      (error) => error instanceof SmallGroupJoinRequestError && error.code === 'INVALID_RESPONSE',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
 
 // AI작성: 화면 연결 전 실제 네트워크 없이 요청 본문·성공 데이터·서버 오류 보존을 검증한다.
 test('소모임 생성은 입력값만 API 본문에 전달하고 생성 결과를 반환한다', async () => {

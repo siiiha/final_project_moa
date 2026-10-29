@@ -149,6 +149,18 @@ function toSmallGroupJoinRequestError(error, fallbackMessage) {
   );
 }
 
+// AI작성: BIGINT 소모임·신청 식별자는 Number로 변환하지 않고 DB 양수 범위 문자열만 API 경로·화면 키로 사용한다.
+function smallGroupJoinRequestPathId(value) {
+  if (
+    (typeof value === 'number' && !Number.isSafeInteger(value))
+    || !/^[1-9]\d*$/.test(String(value))
+    || BigInt(value) > 9223372036854775807n
+  ) {
+    throw new SmallGroupJoinRequestError('BAD_REQUEST', '소모임 또는 신청 번호가 올바르지 않습니다.');
+  }
+  return String(value);
+}
+
 function toSmallGroupCategoryLoadError(error, fallbackMessage) {
   if (error instanceof SmallGroupCategoryLoadError || error.code === 'ERR_CANCELED') return error;
   const responseError = error.response?.data?.error;
@@ -299,6 +311,36 @@ export async function requestSmallGroupJoin(smallGroupId) {
     return response.data;
   } catch (error) {
     throw toSmallGroupJoinRequestError(error, '가입 신청 처리에 실패했습니다.');
+  }
+}
+
+// AI작성: 개설자 전용 목록은 서버의 상태·페이지 결과를 그대로 사용하며 Mock 데이터나 클라이언트 재정렬을 적용하지 않는다.
+export async function getSmallGroupJoinRequests(smallGroupId, { status, page = 1, signal } = {}) {
+  const groupId = smallGroupJoinRequestPathId(smallGroupId);
+  try {
+    const response = await client.get(`/small-groups/${groupId}/join-requests`, {
+      params: { status: status || undefined, page },
+      signal,
+    });
+    const { data, meta } = response.data || {};
+    if (!response.data?.success || !Array.isArray(data) || !meta || !Number.isInteger(meta.totalPages)) {
+      throw new SmallGroupJoinRequestError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '가입 신청 목록 응답을 확인하지 못했습니다. 다시 시도해주세요.',
+      );
+    }
+    return {
+      items: data.map((item) => ({
+        id: smallGroupJoinRequestPathId(item.crewMemberId),
+        applicant: item.applicant || '이름 미등록',
+        regionInterest: item.regionName || '지역 미등록',
+        message: item.applicationMessage || '신청 메시지가 없습니다.',
+        status: { PENDING: '대기', APPROVED: '승인', REJECTED: '거절' }[item.membershipStatus] || '상태 확인 필요',
+      })),
+      meta,
+    };
+  } catch (error) {
+    throw toSmallGroupJoinRequestError(error, '가입 신청 목록을 불러오지 못했습니다.');
   }
 }
 
