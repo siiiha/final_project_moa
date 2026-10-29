@@ -108,7 +108,7 @@ Spring Security에서 숫자 ID의 `GET /api/small-groups/{id}`만 공개한다.
 - `{smallGroupId}`는 `small_group.small_group_id`이며, 요청 본문은 없다.
 - Spring Security와 JWT 필터가 인증한 회원 ID만 사용하며, 클라이언트는 회원 ID·신청 메시지·추가 입력값을 전달하지 않는다.
 - 신청 성공은 가입 완료가 아닌 `group_member`의 `MEMBER`·`PENDING` 관계 생성 또는 재신청 갱신이다.
-- 소모임 가입 신청 승인·거절과 OWNER의 신청 목록 조회는 이 API 범위에 포함하지 않는다.
+- 소모임 가입 신청 승인과 OWNER의 신청 목록 조회는 아래 별도 API 범위에서 처리한다. 거절·취소·일괄 처리는 포함하지 않는다.
 
 ### 성공 응답
 
@@ -168,7 +168,7 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 - 기존 `members`, `groups`, `small_group`, `group_member`와 SmallGroup MyBatis Mapper를 재사용하며 DB 마이그레이션을 추가하지 않는다.
 - 소모임에는 모집 상태, 공개 범위, 자동 승인 여부 데이터가 없으므로 해당 가입 제한을 임의로 추가하지 않는다.
 - 신청 메시지는 `group_member.application_message` 컬럼이 있어도 이번 API에서 입력·저장하지 않는다.
-- OWNER 전용 가입 신청 목록 조회는 `GET /api/small-groups/{smallGroupId}/join-requests`로 제공한다. 승인·거절 API 정책은 아직 확정되지 않았으므로 별도 범위에서 결정한다.
+- OWNER 전용 가입 신청 목록 조회와 개별 승인은 각각 `GET /api/small-groups/{smallGroupId}/join-requests`, `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/approve`로 제공한다. 거절·취소·일괄 처리 정책은 별도 범위에서 결정한다.
 
 ### 테스트와 수동 확인
 
@@ -188,7 +188,7 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 - JWT 필터가 인증해 request attribute에 저장한 회원 ID만 사용한다. 클라이언트는 회원 ID를 전달하지 않는다.
 - 소모임의 `groups.member_id`와 일치하고, `group_member`에서 `OWNER`·`APPROVED` 관계인 개설자만 조회할 수 있다.
 - `MANAGER`를 포함한 운영진은 조회 권한이 없다. 상세 화면의 신청 목록 탭도 `OWNER`에게만 노출한다.
-- 가입 신청 승인·거절·취소·일괄 처리는 이번 범위에 포함하지 않는다.
+- 목록 조회는 읽기 전용이다. 개별 승인 API는 아래 별도 범위에서 제공하며, 거절·취소·일괄 처리는 포함하지 않는다.
 
 ### 요청
 
@@ -248,9 +248,71 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 ### 프론트 연결·검증
 
 - `getSmallGroupJoinRequests(smallGroupId, { status, page, signal })`는 서버 필터·정렬·페이징을 그대로 사용하고 Mock 데이터나 클라이언트 재정렬을 하지 않는다.
-- OWNER 신청 목록 탭은 로딩·오류·재시도·빈 결과·페이지 이동을 표시한다. 승인·거절 API가 없으므로 관련 화면 버튼은 비활성으로만 표시하며 화면 상태를 임의로 변경하지 않는다.
+- OWNER 신청 목록 탭은 로딩·오류·재시도·빈 결과·페이지 이동을 표시한다. 개별 승인 성공 뒤에는 서버 목록을 다시 조회하며, 거절·선택 승인은 비활성으로 표시한다.
 - Service 테스트는 정상·빈 결과·페이지·상태 필터·비개설자·없는 소모임·비로그인·잘못된 상태·페이지를 검증한다. Controller와 Security 테스트는 JWT request attribute 전달, 공통 응답, 인증 누락을 검증한다.
 - 실제 MySQL과 JWT 환경에서 개설자·비개설자·MANAGER·삭제 소모임, 이름 마스킹·정렬·범위 초과 페이지를 확인해야 한다.
+
+---
+
+## 소모임 개설자 전용 가입 신청 승인 API
+
+### 범위
+
+- 엔드포인트: `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/approve`
+- 요청 본문·쿼리 파라미터는 없으며, `{smallGroupId}`는 `small_group.small_group_id`, `{crewMemberId}`는 `group_member.crew_member_id`다.
+- JWT 필터가 request attribute에 저장한 인증 회원 ID만 승인자로 사용한다. 클라이언트가 회원 ID·처리자·역할을 전달할 수 없다.
+- `groups.member_id`가 로그인 회원과 일치하고 `group_member`에 `OWNER`·`APPROVED` 관계가 있는 개설자만 승인할 수 있다. `MANAGER` 등 운영진에게는 승인 권한을 부여하지 않는다.
+
+### 성공 응답
+
+성공 시 기존 계모임 승인 API와 같이 본문 없이 공통 성공 봉투를 반환한다.
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 승인 검증과 저장
+
+Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소모임 → 신청 행 재조회 순서로 잠가 최신 상태를 검증한다.
+
+1. 가입 신청, 신청 회원, 삭제되지 않은 소모임이 존재하는지 확인한다.
+2. 잠금 재조회한 신청의 회원이 최초 식별한 회원과 같고, 해당 소모임에 속하는지 확인한다.
+3. 개설자와 승인된 `OWNER` 관계를 함께 확인한다.
+4. 신청 상태가 `PENDING`이고, 소모임 정원이 양수이며 승인된 `OWNER`·`MEMBER` 수가 정원보다 적은지 확인한다.
+5. `crew_member_id`, `group_id`, `PENDING` 조건이 모두 일치하는 기존 `group_member` 행 하나만 `APPROVED`, `MEMBER`로 갱신한다. `joined_at`, `approved_at`, `approved_by`도 함께 저장한다.
+
+소모임에는 모집 상태와 가입 모임 수 제한 정책이 없으므로 승인 조건에 추가하지 않는다. 기존 신청 행을 갱신하므로 별도 회원 행을 INSERT하지 않는다.
+
+### 오류
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증되지 않은 HTTP 요청 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 소모임·신청 번호가 올바르지 않음 | `400 BAD_REQUEST` |
+| 신청 회원이 없거나 삭제됨 | `404 JOIN_REQUEST_MEMBER_NOT_FOUND` |
+| 소모임이 없거나 삭제됨 | `404 SMALL_GROUP_NOT_FOUND` |
+| 신청이 없거나 다른 소모임 소속 | `404 JOIN_REQUEST_NOT_FOUND` |
+| 개설자가 아니거나 승인 OWNER 관계가 아님 | `403 SMALL_GROUP_OWNER_REQUIRED` |
+| 신청이 이미 처리됨 | `409 JOIN_REQUEST_NOT_PENDING` |
+| 정원이 없거나 가득 참 | `409 SMALL_GROUP_CAPACITY_NOT_CONFIGURED` 또는 `409 SMALL_GROUP_CAPACITY_FULL` |
+| 동시 변경으로 조건부 갱신이 실패함 | `409 JOIN_REQUEST_APPROVAL_FAILED` |
+
+### 프론트 연결·후속 TODO
+
+- `approveSmallGroupJoinRequest(smallGroupId, crewMemberId)`는 두 식별자만 경로로 보내고 서버 오류 코드·메시지를 그대로 보존한다.
+- OWNER 신청 목록은 실제 GET API 데이터만 렌더링하며 승인 성공 후 서버 목록을 재조회한다. 로컬 Mock 상태를 승인 결과로 바꾸지 않는다.
+- 거절, 취소, 선택 승인, 알림 생성, 역할 추가 부여, 회비 설정은 이번 범위에 포함하지 않는다.
+
+### 테스트와 수동 확인
+
+- Service 테스트는 정상 승인, 비개설자, 소모임·신청 없음, 다른 소모임 신청, 처리 완료 신청, 정원 초과, 조건부 갱신 실패를 검증한다.
+- Controller·Security 테스트는 인증 ID 전달, 공통 성공·업무 오류 응답, 잘못된 경로 ID, 비로그인 401을 검증한다.
+- 실제 MySQL에서는 승인 후 `group_member`의 상태·역할·승인 처리자·시각, 정원 경합과 트랜잭션 롤백을 확인한다.
 
 ---
 

@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-29 — 소모임 개설자 가입 신청 승인 API 및 화면 연동
+
+- 목적: 소모임 개설자가 본인이 개설한 소모임의 대기 가입 신청을 승인하고, 신청 목록 화면에서 실제 승인 결과를 확인하게 한다.
+- 사용자 확정: 소모임에는 모집 상태가 없으므로 삭제 여부·정원·승인 참여자 수만 검증한다. 승인자는 `groups.member_id`가 일치하고 `OWNER`·`APPROVED` 관계인 개설자로 제한하며, `MANAGER`에게 권한을 부여하지 않는다. 승인 식별자는 기존 계모임과 같이 `crewMemberId`를 사용한다.
+- AI 작성: 기존 소모임 가입 신청·목록 흐름을 재사용해 승인 대상 DTO, Mapper 계약·조건부 승인 SQL, Service 트랜잭션과 권한·소속·상태·정원 검증, PATCH Controller, Service·Controller·Security 테스트, 프론트 승인 API와 승인 후 목록 재조회 UI를 작성했다.
+- API·데이터: `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/approve`는 요청 본문 없이 공통 성공 응답을 반환한다. 기존 `group_member` PENDING 행을 APPROVED·MEMBER로 갱신하고 `joined_at`, `approved_at`, `approved_by`를 저장한다. DB 마이그레이션, 새 상태값, 외부 연동, 의존성·Security 설정 변경은 하지 않았다.
+- 범위와 TODO: 거절·취소·선택 승인·알림·회비·추가 역할 부여는 구현하지 않았다. 소모임 모집 상태와 가입 모임 수 제한 정책이 없으므로 승인 조건에 추가하지 않았다.
+- 검증: Mapper XML statement 확인과 `git diff --check`를 통과했다. 프론트 `node --test src/api/smallGroups.test.js` 22개와 `npm run build`를 통과했다. 백엔드 Gradle 테스트는 실행을 시도했으나 로컬 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 `SmallGroupJoinApprovalServiceTest`, `SmallGroupJoinApprovalControllerTest`, `SmallGroupSecurityIntegrationTest`, `SmallGroupMapperXmlTest`를 실행한다. 실제 MySQL·JWT에서 개설자·비개설자·MANAGER·비로그인·없는/삭제 소모임·다른 소모임 신청·처리 완료 신청·정원 초과 및 동시 승인을 확인한다. 브라우저에서는 OWNER 신청 목록의 승인 중 상태, 성공 후 목록 재조회, 오류 표시와 거절·선택 승인 비활성을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 실제 운영 DB의 `approved_by`, `approved_at`, 유니크 제약과 잠금 경합은 별도 테스트 DB에서 검토해야 한다.
+
 ## 2026-10-29 — 소모임 개설자 전용 가입 신청 목록 조회 API
 
 - 목적: 소모임 개설자가 본인이 개설한 소모임의 가입 신청 현황을 계모임과 동일한 상태 필터·정렬·페이징·마스킹 규칙으로 조회하게 한다.
