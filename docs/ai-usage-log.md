@@ -1,6 +1,16 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-29 — 소모임 개설자 가입 신청 거절 API 및 화면 연동
+
+- 목적: 소모임 개설자가 본인이 개설한 소모임의 대기 가입 신청만 거절하고, OWNER 신청 목록 화면에서 실제 처리 결과를 확인하게 한다.
+- 사용자 확정: 기존 계모임 가입 신청 거절의 인증·권한·예외·응답·상태 전이를 따른다. 처리자는 JWT request attribute `memberId`만 사용하며, 개설자이면서 `OWNER`·`APPROVED` 관계인 회원으로 제한한다. `MANAGER`에게 권한을 부여하지 않고, 거절 사유·처리자·처리일·알림·재신청 정책 변경은 추가하지 않는다.
+- AI 작성: 기존 소모임 가입 신청·목록·승인 DTO와 잠금 조회 계약을 재사용해 거절 Mapper 계약·조건부 UPDATE SQL, Service 트랜잭션 검증, PATCH Controller, Service·Controller 테스트, 프론트 거절 API 함수·테스트, OWNER 신청 목록의 거절 버튼과 성공 후 목록 재조회 처리를 작성했다. 기존 실제 목록 API와 화면 연결은 이미 구현되어 있어 중복 구현하지 않았다.
+- API·데이터: `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/reject`는 요청 본문 없이 공통 성공 응답을 반환한다. `group_member`의 같은 `crew_member_id`, `group_id`, `PENDING` 행 한 건만 `REJECTED`로 갱신하며 회원 관계 INSERT·승인 이력 변경은 하지 않는다. DB 마이그레이션, 새 DTO·상태값, 외부 연동, 의존성·Security 설정 변경은 하지 않았다.
+- 검증: Java 17 경로를 지정한 `compileJava`를 통과했다. `SmallGroupJoinRejectionServiceTest` 7개, `SmallGroupJoinRejectionControllerTest` 4개, 기존 가입 신청 목록 Controller·Service 대상 테스트를 통과했다. 프론트 `node --test src/api/smallGroups.test.js` 23개, `npm run lint`, `npm run build`, `git diff --check`를 통과했다. lint의 경고와 번들 크기 경고는 이번 변경 파일과 무관한 기존 경고로 유지했다.
+- 직접 확인 필요: 실제 MySQL에서 `FOR UPDATE`와 조건부 UPDATE 영향 행, 동시 승인·거절 경합과 트랜잭션 롤백을 확인한다. 실제 JWT로 개설자·비개설자·MANAGER·비로그인·없는/삭제 소모임·다른 소모임 신청·처리 완료 신청의 HTTP 응답을 확인한다. 브라우저에서 OWNER 신청 목록의 거절 중 상태, 성공 후 재조회, 서버 오류 표시, 승인·거절 중복 클릭 차단을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 실제 git commit은 수행하지 않았으며, 취소·선택 승인·알림·거절 사유/처리자/처리일 저장과 재신청 정책 변경은 별도 요구사항 확정 후 진행한다.
+
 ## 2026-10-29 — 소모임 개설자 가입 신청 승인 API 및 화면 연동
 
 - 목적: 소모임 개설자가 본인이 개설한 소모임의 대기 가입 신청을 승인하고, 신청 목록 화면에서 실제 승인 결과를 확인하게 한다.
