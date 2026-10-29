@@ -126,13 +126,15 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
     public void rejectCreationApplication(Long approvalId, String rejectReason) {
         SavingGroupCreationApplicationDetailResponse application = getCreationApplicationForUpdate(approvalId);
         requirePending(application);
+        // AI작성: 검증된 반려 사유의 앞뒤 공백을 한 번만 제거해 CREATE·DELETE 처리에서 동일하게 사용한다.
+        String normalizedRejectReason = rejectReason.strip();
         if (APPLICATION_TYPE_DELETE.equals(application.getType())) {
-            if (savingGroupMapper.rejectSavingGroupDeletionApplication(approvalId, rejectReason.strip()) != 1) {
+            if (savingGroupMapper.rejectSavingGroupDeletionApplication(approvalId, normalizedRejectReason) != 1) {
                 throw applicationProcessFailed();
             }
             return;
         }
-        if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, rejectReason.strip()) != 1
+        if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, normalizedRejectReason) != 1
                 || savingGroupMapper.rejectSavingGroupCreationOwnerMembership(application.getGroupId()) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 반려할 수 없는 신청입니다.");
