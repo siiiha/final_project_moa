@@ -2,7 +2,9 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -126,5 +128,16 @@ class AdminSavingGroupCreationControllerTest {
                         .param("page", "0"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    // AI작성: 삭제 심사 승인자가 요청값이 아닌 인증 필터의 관리자 회원 번호로 전달되는지 검증한다.
+    void approveApplicationUsesAuthenticatedAdminMemberId() throws Exception {
+        mockMvc.perform(patch("/api/admin/saving-group-applications/1/approve")
+                        .requestAttr("memberId", 10L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(savingGroupCreationService).approveCreationApplication(1L, 10L);
     }
 }
