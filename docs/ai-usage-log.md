@@ -369,3 +369,12 @@
 - DB·의존성·외부 서비스 변경: 없음.
 - 검증: 기존 관리자 댓글 Controller·Service 삭제 테스트 통과, `npm run build` 통과, `npm run lint` 통과. 린트의 기존 경고 7건은 이번 작업과 관계없다.
 - 개발자 검토: 브라우저에서 삭제 확인·취소·성공·이미 삭제된 댓글 재요청 흐름을 확인해야 한다.
+
+## 2026-10-29 — 관리자 회원 이용 제한·해제 및 실제 API 연결
+
+- 목적: 관리자가 회원 상세에서 7일·30일·영구 제한과 제한 해제를 처리하고 회원 목록·상세 Mock을 실제 API로 교체한다.
+- AI 제안·작성: 기존 신고 제재의 기간 계산을 `MemberRestrictionPolicy`로 공통화하고, 직접 제한·해제 상태 변경과 `restriction_history` 이력 저장을 하나의 트랜잭션으로 처리했다. 인증된 관리자 번호로 본인 제한을 막고 기존 `AuthSessionService`로 대상 회원의 로그인 세션을 폐기한다.
+- AI 제안·작성: 프론트 회원 목록·상세 API 모듈, 검색·상태·지역·페이징, 제한 기간 선택, 필수 사유, 중복 제출 방지, 성공 후 상세 재조회, 로딩·오류·빈 상태를 연결했다.
+- DB·의존성·외부 서비스 변경: 없음. 기존 `members.account_status`, `members.suspended_until`, `restriction_history`를 재사용했다.
+- 검증: 백엔드 `compileJava`, 프론트 `npm run build`, `npm run lint` 통과. 전체 백엔드 테스트는 기존 `SmallGroupSecurityIntegrationTest` 생성자 인자 불일치로 테스트 소스 컴파일 단계에서 중단된다.
+- 개발자 검토: MySQL 연결 환경에서 직접 제한·해제 이력과 기존 JWT·재발급 차단을 Postman 및 브라우저로 최종 확인해야 한다.

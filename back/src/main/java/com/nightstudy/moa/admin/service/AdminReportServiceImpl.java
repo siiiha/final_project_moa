@@ -23,11 +23,16 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 관리자 신고 조회, 신고 상태 변경, 대상 회원 이용 제한 규칙을 처리한다.
 public class AdminReportServiceImpl implements AdminReportService {
     private final AdminReportMapper adminReportMapper;
+    private final MemberRestrictionPolicy memberRestrictionPolicy;
 
     // AI작성: 신고 조회와 상태 변경에 사용할 Mapper를 생성자 주입으로 전달받는다.
     @Autowired
-    public AdminReportServiceImpl(AdminReportMapper adminReportMapper){
+    public AdminReportServiceImpl(
+            AdminReportMapper adminReportMapper,
+            MemberRestrictionPolicy memberRestrictionPolicy
+    ){
         this.adminReportMapper = adminReportMapper;
+        this.memberRestrictionPolicy = memberRestrictionPolicy;
     }
 
     @Override
@@ -133,8 +138,7 @@ public class AdminReportServiceImpl implements AdminReportService {
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
     private void validateProcessRequest(AdminReportProcessRequest request) {
         boolean confirmed = "CONFIRMED".equals(request.getStatus());
-        boolean hasRestriction = request.getRestrictionType() != null
-                && !request.getRestrictionType().isBlank();
+        boolean hasRestriction = request.getRestrictionType() != null;
 
         if (confirmed && !hasRestriction) {
             throw new ApiException(
@@ -154,7 +158,10 @@ public class AdminReportServiceImpl implements AdminReportService {
     }
 
     // AI작성: 신고 사건에 기록된 제재 대상 회원에게 이용 제한을 적용한다.
-    private LocalDateTime applyMemberRestriction(Long reportId, String restrictionType) {
+    private LocalDateTime applyMemberRestriction(
+            Long reportId,
+            String restrictionType
+    ) {
         Long memberId = adminReportMapper.selectReportedMemberId(reportId);
         if (memberId == null) {
             throw new ApiException(
@@ -182,10 +189,11 @@ public class AdminReportServiceImpl implements AdminReportService {
         }
 
         //새로운 정지 종료 시점을 계산
-        LocalDateTime suspendedUntil = calculateSuspendedUntil(
+        LocalDateTime suspendedUntil = memberRestrictionPolicy.calculateSuspendedUntil(
                 accountStatus, //현재 회원 계정 상태
                 adminReportMapper.selectMemberSuspendedUntil(memberId), //현재 정지 종료 시점
-                restrictionType //새로 적용할 이용 제한 유형
+                restrictionType, //새로 적용할 이용 제한 유형
+                LocalDateTime.now()
         );
 
         if (adminReportMapper.updateMemberRestriction(memberId, suspendedUntil) != 1) {
@@ -198,49 +206,4 @@ public class AdminReportServiceImpl implements AdminReportService {
         return suspendedUntil;
     }
 
-    // AI작성: 기존 제재보다 짧아지지 않도록 새 종료 시각과 기존 종료 시각을 비교한다.
-    private LocalDateTime calculateSuspendedUntil(
-            String accountStatus,
-            LocalDateTime currentSuspendedUntil,
-            String restrictionType
-    ) {
-        // AI작성: SUSPENDED 상태에서 종료 시각 NULL은 영구 제한을 뜻한다.
-        // 영구 정지 요청인가?
-        if ("PERMANENT".equals(restrictionType)) {
-            return null;
-        }
-
-        // 이미 영구 정지된 회원인가?
-        if ("SUSPENDED".equals(accountStatus) && currentSuspendedUntil == null) {
-            return null;
-        }
-
-        // 정지 기간
-        long restrictionDays;
-
-        // AI작성: 알 수 없는 제한 유형이 기본 30일로 처리되지 않도록 허용값을 명시적으로 구분한다.
-        if ("7_DAYS".equals(restrictionType)) {
-            restrictionDays = 7;
-        } else if ("30_DAYS".equals(restrictionType)) {
-            restrictionDays = 30;
-        } else {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_RESTRICTION_TYPE",
-                    "올바른 이용 제한 기간을 선택해 주세요."
-            );
-        }
-
-        // 새로운 정지 종료 시점 계산
-        LocalDateTime requestedUntil =
-                LocalDateTime.now().plusDays(restrictionDays);
-
-        // 기존 정지 종료 시점이 더 늦으면 기존 기간을 유지
-        if (currentSuspendedUntil != null
-                && currentSuspendedUntil.isAfter(requestedUntil)) {
-            return currentSuspendedUntil;
-        }
-
-        return requestedUntil;
-        }
 }

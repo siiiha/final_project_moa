@@ -3,6 +3,7 @@ package com.nightstudy.moa.admin.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -78,5 +80,41 @@ class AdminMemberControllerTest {
         mockMvc.perform(get("/api/admin/members/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("MEMBER_NOT_FOUND"));
+    }
+
+    @Test
+    void restrictMemberAcceptsAuthenticatedAdministratorId() throws Exception {
+        mockMvc.perform(patch("/api/admin/members/2/restriction")
+                        .requestAttr("memberId", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"restrictionType":"7_DAYS","reason":"운영정책 위반"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void restrictMemberRejectsMissingReasonAndInvalidType() throws Exception {
+        mockMvc.perform(patch("/api/admin/members/2/restriction")
+                        .requestAttr("memberId", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"restrictionType":"ONE_DAY","reason":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void releaseMemberRestrictionRejectsMissingReason() throws Exception {
+        mockMvc.perform(patch("/api/admin/members/2/restriction/release")
+                        .requestAttr("memberId", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
     }
 }

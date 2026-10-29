@@ -4,6 +4,8 @@ import com.nightstudy.moa.admin.dto.AdminMemberDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberListResult;
 import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionReleaseRequest;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
 import com.nightstudy.moa.admin.service.AdminMemberService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -14,7 +16,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -38,6 +43,26 @@ public class AdminMemberController {
     @GetMapping("/{memberId}")
     public ApiResponse<AdminMemberDetailResponse> getMemberDetail(@PathVariable Long memberId) {
         return ApiResponse.ok(adminMemberService.getMemberDetail(memberId));
+    }
+
+    @PatchMapping("/{memberId}/restriction")
+    public ApiResponse<Void> restrictMember(
+            @RequestAttribute("memberId") Long administratorId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody AdminMemberRestrictionRequest request
+    ) {
+        adminMemberService.restrictMember(administratorId, memberId, request);
+        return ApiResponse.ok(null);
+    }
+
+    @PatchMapping("/{memberId}/restriction/release")
+    public ApiResponse<Void> releaseMemberRestriction(
+            @RequestAttribute("memberId") Long administratorId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody AdminMemberRestrictionReleaseRequest request
+    ) {
+        adminMemberService.releaseMemberRestriction(administratorId, memberId, request);
+        return ApiResponse.ok(null);
     }
 
     @InitBinder

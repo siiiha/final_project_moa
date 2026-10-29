@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminFilterBar from '../components/admin/AdminFilterBar';
 import AdminMemberTable from '../components/admin/AdminMemberTable';
 import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMembers, adminMenuItems, adminSummaryStats } from '../mocks/admin';
+import { adminMenuItems, adminSummaryStats } from '../mocks/admin';
+import { getAdminMembers } from '../api/adminMembers';
+
+const PAGE_SIZE = 10;
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -52,25 +55,47 @@ function AdminMembersPage() {
   const [region, setRegion] = useState('전체');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
 
-  const filteredMembers = useMemo(() => {
-    const normalizedQuery = submittedQuery.trim().toLowerCase();
-
-    return adminMembers.filter((member) => {
-      const matchesStatus = status === '전체' || member.status === status;
-      const matchesRegion = region === '전체' || member.region.startsWith(region);
-      const matchesQuery =
-        !normalizedQuery ||
-        member.name.toLowerCase().includes(normalizedQuery) ||
-        member.email.toLowerCase().includes(normalizedQuery);
-
-      return matchesStatus && matchesRegion && matchesQuery;
-    });
-  }, [region, status, submittedQuery]);
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadMembers() {
+      setLoading(true);
+      setErrorMessage('');
+      try {
+        const statusMap = { 정상: 'ACTIVE', 제재: 'SUSPENDED', 탈퇴: 'INACTIVE' };
+        const result = await getAdminMembers({
+          keyword: submittedQuery,
+          regionName: region === '전체' ? '' : region,
+          accountStatus: statusMap[status] || '',
+          page: currentPage,
+          size: PAGE_SIZE,
+          signal: controller.signal,
+        });
+        setMembers(result.items);
+        setPageMeta(result.meta);
+      } catch (error) {
+        if (error.code !== 'ERR_CANCELED') {
+          setMembers([]);
+          setErrorMessage(error.message);
+          setPageMeta({ total: 0, totalPages: 0 });
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    loadMembers();
+    return () => controller.abort();
+  }, [currentPage, region, status, submittedQuery]);
 
   const handleSearch = (event) => {
     event.preventDefault();
     setSubmittedQuery(query);
+    setCurrentPage(1);
   };
 
   const handleMenuSelect = (menuId) => {
@@ -123,14 +148,25 @@ function AdminMembersPage() {
         <main>
           <AdminDashboard stats={adminSummaryStats} />
           <AdminMemberTable
-            members={filteredMembers}
+            members={members}
+            loading={loading}
+            errorMessage={errorMessage}
+            currentPage={currentPage}
+            totalPages={pageMeta.totalPages}
+            onPageChange={setCurrentPage}
             filter={
               <AdminFilterBar
                 status={status}
                 region={region}
                 query={query}
-                onStatusChange={setStatus}
-                onRegionChange={setRegion}
+                onStatusChange={(value) => {
+                  setStatus(value);
+                  setCurrentPage(1);
+                }}
+                onRegionChange={(value) => {
+                  setRegion(value);
+                  setCurrentPage(1);
+                }}
                 onQueryChange={setQuery}
                 onSearch={handleSearch}
               />

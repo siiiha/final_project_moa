@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import AdminMemberDetail from '../components/admin/AdminMemberDetail';
 import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMemberDetails, adminMembers, adminMenuItems } from '../mocks/admin';
+import { adminMenuItems } from '../mocks/admin';
+import {
+  getAdminMember,
+  releaseAdminMemberRestriction,
+  restrictAdminMember,
+} from '../api/adminMembers';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -61,10 +66,38 @@ const EmptyCard = styled.section`
 function AdminMemberDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const member = adminMembers.find((item) => item.id === Number(id));
-  const detail = adminMemberDetails[id];
-  const [action, setAction] = useState(member?.status === '제재' ? '제한 해제' : '이용 제한');
+  const [member, setMember] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [action, setAction] = useState('이용 제한');
+  const [restrictionType, setRestrictionType] = useState('7_DAYS');
   const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadMember() {
+      try {
+        const result = await getAdminMember(id, controller.signal);
+        setMember(result.member);
+        setDetail(result.detail);
+        setAction(result.member.accountStatus === 'SUSPENDED' ? '제한 해제' : '이용 제한');
+      } catch (error) {
+        if (error.code !== 'ERR_CANCELED') {
+          setMember(null);
+          setDetail(null);
+          setErrorMessage(error.message);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    loadMember();
+    return () => controller.abort();
+  }, [id, reloadKey]);
 
   const handleMenuSelect = (menuId) => {
     if (menuId === 'gatherings') {
@@ -100,16 +133,40 @@ function AdminMemberDetailPage() {
     // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
   };
 
-  const handleStatusSubmit = (event) => {
+  const handleStatusSubmit = async (event) => {
     event.preventDefault();
-    // TODO: Spring Boot 회원 이용 제한·제한 해제 API 요청 후 회원 상세 정보를 갱신합니다.
+    if (submitting) return;
+    if (!reason.trim()) {
+      setErrorMessage('처리 사유를 입력해주세요.');
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+    setErrorMessage('');
+    try {
+      if (action === '이용 제한') {
+        await restrictAdminMember(id, restrictionType, reason.trim());
+      } else {
+        await releaseAdminMemberRestriction(id, reason.trim());
+      }
+      setReason('');
+      setMessage(action === '이용 제한' ? '회원 이용을 제한했습니다.' : '회원 이용 제한을 해제했습니다.');
+      // AI작성: 처리된 서버 상태와 제한 종료 시각을 화면에 반영하도록 상세 정보를 다시 조회한다.
+      setLoading(true);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (!member || !detail) {
+  if (loading || !member || !detail) {
     return (
       <Page>
         <EmptyCard>
-          <p>존재하지 않는 회원입니다.</p>
+          <p>{loading ? '회원 정보를 불러오는 중입니다.' : errorMessage || '존재하지 않는 회원입니다.'}</p>
           <Button type="button" $variant="secondary" onClick={() => navigate('/admin/members')}>
             회원 목록으로
           </Button>
@@ -132,8 +189,13 @@ function AdminMemberDetailPage() {
             detail={detail}
             action={action}
             reason={reason}
+            restrictionType={restrictionType}
+            submitting={submitting}
+            message={message}
+            errorMessage={errorMessage}
             onActionChange={setAction}
             onReasonChange={setReason}
+            onRestrictionTypeChange={setRestrictionType}
             onSubmit={handleStatusSubmit}
             onBack={() => navigate('/admin/members')}
           />
