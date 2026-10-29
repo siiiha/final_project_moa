@@ -1,10 +1,14 @@
 package com.nightstudy.moa.admin.service;
 
+import com.nightstudy.moa.admin.dto.AdminCommentListResult;
+import com.nightstudy.moa.admin.dto.AdminCommentSearchCondition;
 import com.nightstudy.moa.admin.mapper.AdminCommentMapper;
 import com.nightstudy.moa.comment.dto.CommentListResult;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
 import com.nightstudy.moa.comment.service.CommentService;
+import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,6 +26,30 @@ public class AdminCommentServiceImpl implements AdminCommentService {
     ) {
         this.commentService = commentService;
         this.adminCommentMapper = adminCommentMapper;
+    }
+
+    @Override
+    public AdminCommentListResult getAdminCommentList(
+            AdminCommentSearchCondition condition
+    ) {
+        int total = adminCommentMapper.selectAdminCommentCount(condition);
+        PageMeta pageMeta = PageMeta.of(
+                condition.getPage(),
+                condition.getSize(),
+                total
+        );
+
+        if (total == 0 || pageMeta.getPage() > pageMeta.getTotalPages()) {
+            return new AdminCommentListResult(List.of(), pageMeta);
+        }
+
+        // AI작성: 개수 조회와 동일한 조건에 계산된 범위만 목록 SQL에 전달한다.
+        condition.setOffset(pageMeta.getOffset());
+        condition.setLimit(pageMeta.getSize());
+        return new AdminCommentListResult(
+                adminCommentMapper.selectAdminCommentList(condition),
+                pageMeta
+        );
     }
 
     @Override
