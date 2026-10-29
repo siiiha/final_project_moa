@@ -53,19 +53,19 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 16%;
+    width: 18%;
   }
   th:nth-child(2) {
-    width: 43%;
+    width: 47%;
   }
   th:nth-child(3) {
-    width: 13%;
+    width: 15%;
   }
   th:nth-child(4) {
-    width: 11%;
+    width: 12%;
   }
   th:nth-child(5) {
-    width: 17%;
+    width: 8%;
     text-align: right;
   }
 
@@ -180,11 +180,13 @@ function getPageNumbers(currentPage, totalPages) {
   return Array.from({ length }, (_, index) => start + index);
 }
 
-function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onToggleHidden, onDelete }) {
+function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onDelete, loading }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
-      {posts.length ? (
+      {loading ? (
+        <Empty role="status">게시글 목록을 불러오는 중입니다.</Empty>
+      ) : posts.length ? (
         <>
           <TableWrap>
             <Table>
@@ -213,9 +215,6 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                     </td>
                     <td data-label="관리">
                       <ActionArea>
-                        <ActionButton type="button" $variant="secondary" onClick={() => onToggleHidden(post.id)}>
-                          {post.status === '공개' ? '숨김' : '공개'}
-                        </ActionButton>
                         <ActionButton type="button" $variant="danger" onClick={() => onDelete(post.id)}>
                           삭제
                         </ActionButton>
