@@ -299,3 +299,12 @@
 - 개발자 검토·수정: 최종 검토 대기. API URL과 DB 스키마는 변경하지 않았다.
 - 데이터·외부 서비스·의존성·설정 변경: 없음.
 - 검증: `git diff --check`, Gradle 컴파일 및 테스트 실행 결과를 확인해야 한다.
+
+## 2026-10-27 — 로그아웃 정지 및 네이버 재인증 수정
+
+- 목적: 로그인 후 로그아웃 중 표시가 유지되는 오류와 네이버 계정의 자동 인증 흐름을 수정한다.
+- AI작성: Header의 존재하지 않는 clearAuth 호출을 기존 clearToken으로 교체하고, 기존 logoutMember API로 access token과 refresh 쿠키를 함께 전달한다. 성공·인증 실패·네트워크 실패 시 현재 브라우저 인증 상태를 정리하고 이동하며, 서버 폐기를 확인하지 못한 오류는 사용자에게 안내한다.
+- AI작성: NaverOAuthServiceImpl의 인증 URL에 auth_type=reauthenticate를 추가한다. 카카오는 현재 서버의 리다이렉트에 prompt=login이 포함되어 있음을 확인했다.
+- 검증: 프론트 빌드와 백엔드 compileJava 통과. 현재 Header 핸들러의 성공·401·네트워크 실패·중복 클릭 분기 실행 검사 통과. 실제 브라우저의 로그아웃 및 제공사 인증 화면은 서버 재시작 후 사용자 확인이 필요하다.
+- 참고: https://developers.naver.com/docs/login/devguide/devguide.md 의 사용자 재인증 절, https://developers.kakao.com/docs/ko/kakaologin/rest-api 의 prompt 설명.
+- 개발자 검토: 최종 확인 대기. DB·외부 앱 설정·의존성 변경 없음.

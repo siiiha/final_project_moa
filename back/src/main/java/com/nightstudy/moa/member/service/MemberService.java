@@ -9,6 +9,8 @@ import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
 import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
 
 import com.nightstudy.moa.member.dto.PasswordResetRequest;
+import com.nightstudy.moa.member.dto.MemberTermDto;
+import java.util.List;
 
 public interface MemberService {
 
@@ -40,4 +42,6 @@ public interface MemberService {
     );
 
     void resetPassword(PasswordResetRequest request);
+
+    List<MemberTermDto> getTerms();
 }

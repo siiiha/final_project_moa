@@ -13,6 +13,8 @@ import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.common.auth.LoginSessionManager;
 import jakarta.servlet.http.HttpServletResponse;
 import com.nightstudy.moa.member.dto.PasswordResetRequest;
+import com.nightstudy.moa.member.dto.MemberTermDto;
+import java.util.List;
 
 
 @RestController
@@ -28,6 +30,14 @@ public class MemberController {
     ) {
         this.memberService = memberService;
         this.loginSessionManager = loginSessionManager;
+    }
+
+    // 일반·소셜 회원가입 화면에 약관 목록을 제공
+    @GetMapping("/terms")
+    public ResponseEntity<ApiResponse<List<MemberTermDto>>> getTerms() {
+        return ResponseEntity.ok(
+                ApiResponse.ok(memberService.getTerms())
+        );
     }
 
     @PostMapping("/signup")
