@@ -1,15 +1,26 @@
 import client from './client.js';
 
-// AI작성: 관리자 계모임 심사 화면들이 같은 상태·유형 문구를 사용하도록 공통 매핑을 제공한다.
+// AI작성: 관리자 계모임 심사의 API 코드와 화면 문구를 한곳에서 관리해 직접 문자열 비교를 줄인다.
+export const savingGroupReviewStatus = Object.freeze({
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+});
+
+export const savingGroupReviewType = Object.freeze({
+  CREATE: 'CREATE',
+  DELETE: 'DELETE',
+});
+
 export const savingGroupReviewStatusLabel = {
-  PENDING: '대기',
-  APPROVED: '승인',
-  REJECTED: '반려',
+  [savingGroupReviewStatus.PENDING]: '대기',
+  [savingGroupReviewStatus.APPROVED]: '승인',
+  [savingGroupReviewStatus.REJECTED]: '반려',
 };
 
 export const savingGroupReviewTypeLabel = {
-  CREATE: '개설 심사',
-  DELETE: '삭제 심사',
+  [savingGroupReviewType.CREATE]: '개설 심사',
+  [savingGroupReviewType.DELETE]: '삭제 심사',
 };
 
 class SavingGroupCreationApplicationError extends Error {
