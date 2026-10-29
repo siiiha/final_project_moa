@@ -56,7 +56,11 @@ export async function getAdminSavingGroups({ keyword, regionCode, status, page =
 
 export async function restrictAdminSavingGroup(savingGroupId, reason) {
   try {
-    await client.patch(`/admin/saving-groups/${encodeURIComponent(savingGroupId)}/restriction`, { reason });
+    const response = await client.patch(`/admin/saving-groups/${encodeURIComponent(savingGroupId)}/restriction`, { reason });
+    // AI작성: HTTP 성공 상태만으로 처리 완료를 판단하지 않고 공통 성공 응답을 확인한다.
+    if (!response.data?.success) {
+      throw new Error('계모임 이용 제한 응답을 확인할 수 없습니다.');
+    }
   } catch (error) {
     throw toAdminSavingGroupError(error, '계모임 이용 제한을 적용하지 못했습니다.');
   }
@@ -64,7 +68,11 @@ export async function restrictAdminSavingGroup(savingGroupId, reason) {
 
 export async function releaseAdminSavingGroupRestriction(savingGroupId, reason) {
   try {
-    await client.patch(`/admin/saving-groups/${encodeURIComponent(savingGroupId)}/restriction/release`, { reason });
+    const response = await client.patch(`/admin/saving-groups/${encodeURIComponent(savingGroupId)}/restriction/release`, { reason });
+    // AI작성: HTTP 성공 상태만으로 처리 완료를 판단하지 않고 공통 성공 응답을 확인한다.
+    if (!response.data?.success) {
+      throw new Error('계모임 이용 제한 해제 응답을 확인할 수 없습니다.');
+    }
   } catch (error) {
     throw toAdminSavingGroupError(error, '계모임 이용 제한을 해제하지 못했습니다.');
   }
