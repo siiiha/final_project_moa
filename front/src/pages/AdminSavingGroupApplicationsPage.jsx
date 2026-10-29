@@ -47,8 +47,9 @@ const Grid = styled.div`
 
 function AdminSavingGroupApplicationsPage() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState('전체');
-  const [type, setType] = useState('전체');
+  // AI작성: 빈 문자열은 전체 조회, 나머지는 백엔드 검증 코드로 유지해 별도 변환 없이 API에 전달한다.
+  const [status, setStatus] = useState('');
+  const [type, setType] = useState('');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,8 +63,8 @@ function AdminSavingGroupApplicationsPage() {
     const controller = new AbortController();
     let active = true;
     getSavingGroupCreationApplications({
-      status: { 전체: undefined, 대기: 'PENDING', 승인: 'APPROVED', 반려: 'REJECTED' }[status],
-      type: { 전체: undefined, 개설: 'CREATE', 삭제: 'DELETE' }[type],
+      status: status || undefined,
+      type: type || undefined,
       keyword: submittedQuery,
       page: currentPage,
       signal: controller.signal,
