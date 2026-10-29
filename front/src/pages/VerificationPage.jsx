@@ -50,6 +50,28 @@ const Grid = styled.div`
   }
 `;
 
+// AI작성: 인증 진행 결과를 구분된 안내 박스로 표시합니다.
+const VerificationNotice = styled.div`
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-left: 4px solid ${({ $warning, theme }) =>
+    $warning ? theme.colors.warning : theme.colors.primary};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ $warning, theme }) =>
+    $warning ? theme.colors.warningSoft : theme.colors.primarySoft};
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: keep-all;
+
+  strong {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 700;
+  }
+`;
+
 function VerificationPage() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState('verify');
@@ -225,18 +247,31 @@ function VerificationPage() {
           onWithdraw={() => navigate('/member/mypage/delete')}
         />
         <main>
-          {isVerifying && (
-            <p role="status">
-              본인인증을 진행하고 있습니다. 인증창에서 완료해주세요.
-            </p>
+                    {isVerifying && (
+            <VerificationNotice role="status">
+              <strong>본인인증을 진행하고 있어요</strong>
+              인증창에서 인증을 완료해주세요.
+            </VerificationNotice>
           )}
 
           {verificationError && (
-            <p role="alert">{verificationError}</p>
+            <VerificationNotice $warning role="alert">
+              <strong>본인인증이 완료되지 않았어요</strong>
+              {verificationError.includes('취소')
+                ? '인증을 취소하셨습니다. 원하실 때 다시 시작해주세요.'
+                : verificationError}
+            </VerificationNotice>
           )}
 
           {verificationMessage && (
-            <p role="status">{verificationMessage}</p>
+            <VerificationNotice role="status">
+              <strong>
+                {profile?.identityVerified
+                  ? '본인인증이 완료됐어요'
+                  : '본인인증 안내'}
+              </strong>
+              {verificationMessage}
+            </VerificationNotice>
           )}
           {isProfileLoading ? (
             <p role="status">인증 정보를 불러오고 있습니다.</p>
