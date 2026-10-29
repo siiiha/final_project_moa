@@ -675,7 +675,8 @@
         JOIN region r ON r.region_id = g.region_id
         WHERE 1 = 1
         AND (g.deleted_at IS NULL OR ma.type = 'DELETE')
-        AND m.deleted_at IS NULL
+        <!-- AI작성: 삭제 심사는 신청자 탈퇴 후에도 관리자가 처리할 수 있도록 조회한다. -->
+        AND (ma.type = 'DELETE' OR m.deleted_at IS NULL)
         <if test="status != null">
             AND ma.status = #{status}
         </if>
@@ -697,7 +698,11 @@
             resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListItemResponse">
         SELECT CAST(ma.approval_id AS CHAR) AS approval_id,
         g.group_name,
-        m.name AS applicant_name,
+        <!-- AI작성: 탈퇴한 삭제 신청자의 이름은 고정 안내 문구로 마스킹한다. -->
+        CASE
+        WHEN m.deleted_at IS NULL THEN m.name
+        ELSE '탈퇴한 회원'
+        END AS applicant_name,
         r.region_name,
         CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
         ma.status,
@@ -712,7 +717,11 @@
         SELECT ma.approval_id,
         g.group_id,
         g.group_name,
-        m.name AS applicant_name,
+        <!-- AI작성: 탈퇴한 삭제 신청자의 이름은 고정 안내 문구로 마스킹한다. -->
+        CASE
+        WHEN m.deleted_at IS NULL THEN m.name
+        ELSE '탈퇴한 회원'
+        END AS applicant_name,
         r.region_name,
         CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
         ma.status,
@@ -747,7 +756,8 @@
         JOIN region r ON r.region_id = g.region_id
         WHERE ma.approval_id = #{approvalId}
         AND (g.deleted_at IS NULL OR ma.type = 'DELETE')
-        AND m.deleted_at IS NULL
+        <!-- AI작성: DELETE 심사는 신청자 탈퇴 후에도 관리자 상세 조회를 허용한다. -->
+        AND (ma.type = 'DELETE' OR m.deleted_at IS NULL)
     </sql>
 
     <select id="selectSavingGroupCreationApplication"
