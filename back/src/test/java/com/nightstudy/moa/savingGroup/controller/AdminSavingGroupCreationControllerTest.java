@@ -109,4 +109,13 @@ class AdminSavingGroupCreationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
     }
+
+    @Test
+    // AI작성: 대기·승인·반려 외의 심사 상태는 관리자 목록 조회 전에 요청 검증으로 차단한다.
+    void getApplicationListRejectsInvalidStatus() throws Exception {
+        mockMvc.perform(get("/api/admin/saving-group-applications")
+                        .param("status", "COMPLETED"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+    }
 }
