@@ -177,6 +177,21 @@ class SavingGroupCreationServiceImplTest {
         verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
     }
 
+    @Test
+    // AI작성: 심사 승인 상태 변경이 실패하면 계모임 소프트 삭제를 이어서 실행하지 않는지 검증한다.
+    void approveDeletionDoesNotDeleteWhenApprovalUpdateFails() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+        when(savingGroupMapper.selectSavingGroupBalance(100L)).thenReturn(BigDecimal.ZERO);
+        when(savingGroupMapper.approveSavingGroupDeletionApplication(1L)).thenReturn(0);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.approveCreationApplication(1L, 20L), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_APPLICATION_PROCESS_FAILED");
+        verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+    }
+
     private SavingGroupCreationRequest creationRequest() {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
