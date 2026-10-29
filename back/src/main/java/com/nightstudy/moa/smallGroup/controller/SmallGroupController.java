@@ -3,6 +3,8 @@ package com.nightstudy.moa.smallGroup.controller;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 // AI작성: 소모임 생성·목록·상세 API를 같은 기본 경로에서 제공한다.
@@ -59,6 +62,21 @@ public class SmallGroupController {
     public ApiResponse<List<SmallGroupSummaryResponse>> list(
             @Valid @ModelAttribute SmallGroupSearchCondition condition) {
         SmallGroupListResponse result = smallGroupService.getSmallGroupList(condition);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+
+    // AI작성: 가입 신청 목록은 JWT 필터가 저장한 회원 ID만 Service에 전달하고 목록·메타 형식은 공통 응답을 사용한다.
+    @GetMapping("/{smallGroupId}/join-requests")
+    public ApiResponse<List<SmallGroupJoinRequestRow>> getJoinRequests(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", defaultValue = "1") int page) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        SmallGroupJoinRequestListResponse result =
+                smallGroupService.getSmallGroupJoinRequests(smallGroupId, memberId, status, page);
         return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
 

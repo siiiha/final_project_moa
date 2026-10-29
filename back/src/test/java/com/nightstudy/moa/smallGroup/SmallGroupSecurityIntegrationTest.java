@@ -97,4 +97,10 @@ class SmallGroupSecurityIntegrationTest {
         mockMvc.perform(post("/api/small-groups/1/join-requests"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void smallGroupJoinRequestListApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/small-groups/1/join-requests"))
+                .andExpect(status().isUnauthorized());
+    }
 }
