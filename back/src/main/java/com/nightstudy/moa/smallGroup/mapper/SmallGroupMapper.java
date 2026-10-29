@@ -92,6 +92,10 @@ public interface SmallGroupMapper {
     int approveSmallGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
             @Param("groupId") Long groupId, @Param("approvedBy") Long approvedBy);
 
+    // AI작성: 신청 ID·소속·PENDING 상태가 모두 일치하는 한 건만 REJECTED로 변경한다.
+    int rejectSmallGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
+            @Param("groupId") Long groupId);
+
     // AI작성: 자진 탈퇴한 LEFT 관계만 기존 승인 정보를 초기화하고 PENDING 신청으로 되돌린다.
     int reactivateLeftSmallGroupMembership(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 
