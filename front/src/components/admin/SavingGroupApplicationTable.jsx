@@ -59,21 +59,24 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 27%;
+    width: 23%;
   }
   th:nth-child(2) {
-    width: 14%;
-  }
-  th:nth-child(3) {
-    width: 17%;
-  }
-  th:nth-child(4) {
-    width: 16%;
-  }
-  th:nth-child(5) {
     width: 12%;
   }
+  th:nth-child(3) {
+    width: 13%;
+  }
+  th:nth-child(4) {
+    width: 15%;
+  }
+  th:nth-child(5) {
+    width: 14%;
+  }
   th:nth-child(6) {
+    width: 10%;
+  }
+  th:nth-child(7) {
     width: 14%;
     text-align: right;
   }
@@ -191,6 +194,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
           <thead>
             <tr>
               <th scope="col">계모임명</th>
+              <th scope="col">유형</th>
               <th scope="col">신청자</th>
               <th scope="col">희망 지역</th>
               <th scope="col">신청일</th>
@@ -201,7 +205,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
           <tbody>
             {applications.length === 0 ? (
               <tr>
-                <Empty colSpan="6">검색 조건에 맞는 신청 내역이 없습니다.</Empty>
+                <Empty colSpan="7">검색 조건에 맞는 신청 내역이 없습니다.</Empty>
               </tr>
             ) : (
               applications.map((application) => (
@@ -209,6 +213,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
                   <td data-label="계모임명">
                     <GroupName>{application.name}</GroupName>
                   </td>
+                  <td data-label="유형">{application.reviewType}</td>
                   <td data-label="신청자">{application.applicant}</td>
                   <td data-label="희망 지역">{application.region}</td>
                   <td data-label="신청일">{application.appliedAt}</td>

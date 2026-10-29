@@ -175,6 +175,36 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         }
     }
 
+    @Override
+    @Transactional
+    // AI작성: 계모임과 계주 관계를 잠가 권한·중복 신청을 확인한 뒤 삭제 심사만 등록한다.
+    public void requestSavingGroupDeletion(Long savingGroupId, Long memberId, String reason) {
+        if (savingGroupId == null || savingGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupDeleteTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        validateSavingGroupDeleteOwner(target, memberId);
+        if ("00".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETION_APPLICATION_UNAVAILABLE",
+                    "개설 심사 중인 계모임은 삭제 심사를 신청할 수 없습니다.");
+        }
+        if (savingGroupMapper.countPendingSavingGroupDeletionApplication(target.getGroupId()) > 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETION_ALREADY_PENDING",
+                    "이미 처리 대기 중인 삭제 신청이 있습니다.");
+        }
+        if (savingGroupMapper.insertSavingGroupDeletionApplication(target.getGroupId(), reason.strip()) != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETION_APPLICATION_FAILED",
+                    "계모임 삭제 신청을 등록하지 못했습니다.");
+        }
+    }
+
     // AI작성: 생성 계주와 승인된 OWNER 관계가 모두 일치해야만 삭제 권한을 부여한다.
     private void validateSavingGroupDeleteOwner(SavingGroupJoinTargetRow target, Long memberId) {
         if (!Objects.equals(memberId, target.getOwnerMemberId())) {
