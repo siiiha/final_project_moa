@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiCalendar, FiCheckCircle, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
+import { savingGroupReviewStatusLabel, savingGroupReviewTypeLabel } from '../../api/savingGroups';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
 
@@ -141,9 +142,9 @@ function SavingGroupApplicationDetail({ application, isProcessing, onApprove, on
             <FiCheckCircle size={14} aria-hidden="true" /> 신청 상태
           </SummaryLabel>
           <SummaryValue $status={application.status}>
-            {{ PENDING: '대기', APPROVED: '승인', REJECTED: '반려' }[application.status]}
+            {savingGroupReviewStatusLabel[application.status] || '상태 확인 필요'}
           </SummaryValue>
-          <SummaryDescription>{deletion ? '삭제 심사' : '개설 심사'}</SummaryDescription>
+          <SummaryDescription>{savingGroupReviewTypeLabel[application.type] || '유형 확인 필요'}</SummaryDescription>
         </SummaryCard>
         <SummaryCard>
           <SummaryLabel>
