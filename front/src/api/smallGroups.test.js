@@ -9,6 +9,7 @@ import {
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
   approveSmallGroupJoinRequest,
+  rejectSmallGroupJoinRequest,
   getSmallGroupJoinRequests,
   getSmallGroupSettings,
   requestSmallGroupJoin,
@@ -145,6 +146,42 @@ test('소모임 가입 신청 승인은 두 ID 경로만 사용하고 서버 오
       (error) => error instanceof SmallGroupJoinRequestError
         && error.code === 'SMALL_GROUP_OWNER_REQUIRED'
         && error.message === '소모임 개설자만 가입 신청을 승인할 수 있습니다.',
+    );
+  } finally {
+    client.patch = originalPatch;
+  }
+});
+
+test('소모임 가입 신청 거절은 두 ID 경로만 사용하고 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalPatch = client.patch;
+
+  try {
+    client.patch = async (...args) => {
+      assert.deepEqual(args, ['/small-groups/7/join-requests/9007199254740993/reject']);
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+
+    await assert.doesNotReject(rejectSmallGroupJoinRequest(7, '9007199254740993'));
+
+    client.patch = async () => {
+      const error = new Error('Conflict');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'JOIN_REQUEST_NOT_PENDING',
+            message: '대기 중인 가입 신청만 거절할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      rejectSmallGroupJoinRequest(7, '9007199254740993'),
+      (error) => error instanceof SmallGroupJoinRequestError
+        && error.code === 'JOIN_REQUEST_NOT_PENDING'
+        && error.message === '대기 중인 가입 신청만 거절할 수 있습니다.',
     );
   } finally {
     client.patch = originalPatch;
