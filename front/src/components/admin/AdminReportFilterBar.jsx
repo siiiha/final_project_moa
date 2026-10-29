@@ -72,7 +72,7 @@ const SearchButton = styled(Button)`
   }
 `;
 
-function AdminReportFilterBar({ query, reason, status, onQueryChange, onReasonChange, onStatusChange, onSearch }) {
+function AdminReportFilterBar({ query, searchType, reportType, status, onQueryChange, onSearchTypeChange, onReportTypeChange, onStatusChange, onSearch }) {
   return (
     <Form onSubmit={onSearch}>
       <Field>
@@ -81,27 +81,26 @@ function AdminReportFilterBar({ query, reason, status, onQueryChange, onReasonCh
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="신고 대상 또는 신고자를 입력하세요"
+          placeholder="검색어를 입력하세요"
           aria-label="회원 신고 검색어"
         />
       </Field>
       <Field>
-        신고 사유
-        <Select value={reason} onChange={(event) => onReasonChange(event.target.value)} aria-label="신고 사유">
-          <option value="전체">전체 사유</option>
-          <option value="욕설·비방">욕설·비방</option>
-          <option value="광고·홍보">광고·홍보</option>
-          <option value="부적절한 콘텐츠">부적절한 콘텐츠</option>
-          <option value="개인정보 노출">개인정보 노출</option>
-          <option value="기타">기타</option>
+        검색 대상
+        <Select value={searchType} onChange={(event) => onSearchTypeChange(event.target.value)} aria-label="신고 검색 대상">
+          <option value="reportedMember">신고 대상 회원</option><option value="reporter">신고자</option><option value="processReason">처리 사유</option>
+        </Select>
+      </Field>
+      <Field>
+        신고 유형
+        <Select value={reportType} onChange={(event) => onReportTypeChange(event.target.value)} aria-label="신고 유형">
+          <option value="">전체 유형</option><option value="BOARD_POST">게시글</option><option value="BOARD_COMMENT">댓글</option><option value="BOARD_MEMBER">회원</option><option value="MEETING">모임</option><option value="MEETING_MEMBER">모임 회원</option>
         </Select>
       </Field>
       <Field>
         처리 상태
         <Select value={status} onChange={(event) => onStatusChange(event.target.value)} aria-label="신고 처리 상태">
-          <option value="전체">전체</option>
-          <option value="대기">대기</option>
-          <option value="처리 완료">처리 완료</option>
+          <option value="">전체</option><option value="PENDING">대기</option><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option>
         </Select>
       </Field>
       <SearchButton type="submit">검색</SearchButton>
