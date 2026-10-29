@@ -125,6 +125,8 @@ function SmallGroupDetailPage() {
       await updateSmallGroupSettings(id, changes);
       setRetry((value) => value + 1);
       setSettingsRetry((value) => value + 1);
+      // AI작성: 저장 성공한 경우에만 최신 상세 정보를 보여줄 수 있도록 공지 탭으로 돌아간다.
+      setMenu({ id, value: 'notice' });
     } finally {
       setIsSettingsSaving(false);
     }
