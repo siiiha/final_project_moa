@@ -231,6 +231,40 @@
         FOR UPDATE
     </select>
 
+    <!-- AI작성: 계모임 목록과 같은 대상 조건을 count·페이지 조회에 재사용해 OWNER·탈퇴·추방·삭제 회원을 제외한다. -->
+    <sql id="smallGroupJoinRequestFromWhere">
+        FROM group_member gm
+        JOIN members m ON m.member_id = gm.member_id
+        LEFT JOIN region r ON r.region_id = m.region_id
+        WHERE gm.group_id = #{groupId}
+          AND gm.member_role != 'OWNER'
+          AND m.deleted_at IS NULL
+          AND gm.membership_status IN ('PENDING', 'APPROVED', 'REJECTED')
+        <if test="status != null">
+            AND gm.membership_status = #{status}
+        </if>
+    </sql>
+
+    <select id="selectSmallGroupJoinRequestCount" resultType="int">
+        SELECT COUNT(*)
+        <include refid="smallGroupJoinRequestFromWhere"/>
+    </select>
+
+    <!-- AI작성: 신청자 이름 원문·회원 ID·연락처를 조회하지 않으며 crew_member_id는 JavaScript 정밀도 손실 방지를 위해 문자열로 반환한다. -->
+    <select id="selectSmallGroupJoinRequests"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow">
+        SELECT CAST(gm.crew_member_id AS CHAR) AS crew_member_id,
+               CONCAT(LEFT(m.name, 1), REPEAT('*', GREATEST(CHAR_LENGTH(m.name) - 1, 1))) AS applicant,
+               r.region_name,
+               (m.identity_verified_at IS NOT NULL) AS identity_verified,
+               (m.region_verified_at IS NOT NULL) AS region_verified,
+               gm.application_message,
+               gm.membership_status
+        <include refid="smallGroupJoinRequestFromWhere"/>
+        ORDER BY gm.requested_at DESC, gm.crew_member_id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <!-- AI작성: 가입 메시지 없이 인증 회원의 신규 신청을 MEMBER·PENDING 관계 한 건으로 저장한다. -->
     <insert id="insertSmallGroupJoinRequest">
         INSERT INTO group_member (
