@@ -6,9 +6,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 // AI작성: 소모임 투표 생성 요청의 원본 입력값을 받고, 공백·중복 보기 정리는 Service에서 처리한다.
 @Getter
+@Setter
 @NoArgsConstructor
 public class SmallGroupVoteCreateRequest {
     @NotNull(message = "투표 제목을 입력해 주세요.")
