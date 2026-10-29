@@ -158,7 +158,7 @@
             email,
             phone,
             nickname,
-            TIMESTAMP_DIFF(YEAR, birth_date, CURRENT_DATE()) AS age,
+            TIMESTAMPDIFF(YEAR, birth_date, CURRENT_DATE()) AS age,
             gender,
             profile_img_url AS profileImageUrl,
             (identity_verified_at IS NOT NULL) AS
