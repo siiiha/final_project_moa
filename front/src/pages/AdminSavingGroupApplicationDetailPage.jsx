@@ -9,6 +9,7 @@ import {
   approveSavingGroupCreationApplication,
   getSavingGroupCreationApplication,
   rejectSavingGroupCreationApplication,
+  savingGroupReviewStatus,
 } from '../api/savingGroups';
 
 const Page = styled.div`
@@ -82,7 +83,9 @@ function AdminSavingGroupApplicationDetailPage() {
       else await rejectSavingGroupCreationApplication(id, rejectReason);
       setApplication((current) => ({
         ...current,
-        status: type === 'approve' ? 'APPROVED' : 'REJECTED',
+        // AI작성: 처리 후 화면 상태도 API 공통 코드를 사용해 서버 상태값과 일치시킨다.
+        status:
+          type === 'approve' ? savingGroupReviewStatus.APPROVED : savingGroupReviewStatus.REJECTED,
         rejectReason: rejectReason || null,
       }));
     } catch (failure) {
