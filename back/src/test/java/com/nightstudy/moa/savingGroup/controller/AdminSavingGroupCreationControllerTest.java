@@ -118,4 +118,13 @@ class AdminSavingGroupCreationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
     }
+
+    @Test
+    // AI작성: 관리자 심사 목록의 페이지 번호는 1부터 시작하며 0 이하는 요청 검증으로 차단한다.
+    void getApplicationListRejectsInvalidPage() throws Exception {
+        mockMvc.perform(get("/api/admin/saving-group-applications")
+                        .param("page", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+    }
 }
