@@ -23,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -139,5 +140,20 @@ class AdminSavingGroupCreationControllerTest {
                 .andExpect(jsonPath("$.success").value(true));
 
         verify(savingGroupCreationService).approveCreationApplication(1L, 10L);
+    }
+
+    @Test
+    // AI작성: 관리자 삭제 심사 반려 API가 검증된 반려 사유를 Service에 전달하는지 확인한다.
+    void rejectApplicationPassesRequiredReason() throws Exception {
+        mockMvc.perform(patch("/api/admin/saving-group-applications/1/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rejectReason":"공동자금 정리 후 다시 신청해 주세요."}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(savingGroupCreationService).rejectCreationApplication(
+                1L, "공동자금 정리 후 다시 신청해 주세요.");
     }
 }
