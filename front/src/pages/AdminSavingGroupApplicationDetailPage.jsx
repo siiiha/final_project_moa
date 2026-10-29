@@ -60,6 +60,7 @@ function AdminSavingGroupApplicationDetailPage() {
   const { id } = useParams();
   const [application, setApplication] = useState(null);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -76,6 +77,7 @@ function AdminSavingGroupApplicationDetailPage() {
 
   const handleProcess = async (type, rejectReason) => {
     setError('');
+    setSuccessMessage('');
     setIsProcessing(true);
     try {
       if (type === 'approve') await approveSavingGroupCreationApplication(id);
@@ -84,6 +86,8 @@ function AdminSavingGroupApplicationDetailPage() {
       try {
         const refreshedApplication = await getSavingGroupCreationApplication(id);
         setApplication(refreshedApplication);
+        // AI작성: 서버 최종 상태 재조회까지 성공한 경우에만 관리자에게 처리 완료를 안내한다.
+        setSuccessMessage(type === 'approve' ? '심사 신청을 승인했습니다.' : '심사 신청을 반려했습니다.');
       } catch {
         // AI작성: 처리는 성공했지만 재조회가 실패하면 이전 PENDING 화면에서 중복 처리하지 못하도록 숨긴다.
         setApplication(null);
@@ -130,6 +134,7 @@ function AdminSavingGroupApplicationDetailPage() {
           ) : application ? (
             <>
               {error && <p role="alert">{error}</p>}
+              {successMessage && <p role="status">{successMessage}</p>}
               <SavingGroupApplicationDetail
                 application={application}
                 isProcessing={isProcessing}
