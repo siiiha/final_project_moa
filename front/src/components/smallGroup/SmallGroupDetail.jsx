@@ -12,6 +12,7 @@ const Profile = styled.section`
 const ProfileTop = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
 `;
 
@@ -30,7 +31,21 @@ const ProfileImage = styled.div`
 `;
 
 const TitleBlock = styled.div`
+  flex: 1 1 auto;
   min-width: 0;
+`;
+
+const JoinButton = styled(Button)`
+  min-height: 38px;
+  padding: 8px 14px;
+  flex: 0 0 auto;
+  font-size: 13px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
 `;
 
 const Title = styled.h1`
@@ -284,8 +299,12 @@ function SmallGroupDetail({
   onSettingsCancel,
   onRetrySettings,
   onDelete,
+  onJoinRequest,
+  isJoinSubmitting,
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
+  // AI작성: 이미 승인된 OWNER·MEMBER는 재신청할 수 없으므로 상세 화면에서 버튼을 노출하지 않는다.
+  const canRequestJoin = !['OWNER', 'MEMBER'].includes(myRole);
   // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
   const currentMenu = allowedMenuItems.some((item) => item.id === activeMenu) ? activeMenu : 'notice';
   const activeLabel = {
@@ -318,6 +337,16 @@ function SmallGroupDetail({
               {createdAt && <><span>·</span><span>생성일 {createdAt}</span></>}
             </Meta>
           </TitleBlock>
+          {canRequestJoin && (
+            <JoinButton
+              type="button"
+              onClick={onJoinRequest}
+              disabled={isJoinSubmitting}
+              aria-busy={isJoinSubmitting}
+            >
+              {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
+            </JoinButton>
+          )}
         </ProfileTop>
         <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>

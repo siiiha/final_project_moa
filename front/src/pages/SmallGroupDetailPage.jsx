@@ -8,6 +8,7 @@ import {
   fetchSmallGroupCategories,
   getSmallGroupDetail,
   getSmallGroupSettings,
+  requestSmallGroupJoin,
   updateSmallGroupSettings,
 } from '../api/smallGroups';
 
@@ -69,6 +70,10 @@ function SmallGroupDetailPage() {
   const [settingsRetry, setSettingsRetry] = useState(0);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isJoinSubmitting, setIsJoinSubmitting] = useState(false);
+  const [joinErrorMessage, setJoinErrorMessage] = useState(null);
+  const [isIdentityVerificationModalOpen, setIsIdentityVerificationModalOpen] = useState(false);
 
   // AI작성: URL 변경·화면 이탈 시 이전 요청을 취소해 다른 소모임의 결과가 표시되지 않게 한다.
   useEffect(() => {
@@ -137,6 +142,25 @@ function SmallGroupDetailPage() {
     setIsDeleteModalOpen(false);
   };
 
+  // AI작성: 가입 신청은 상세 조회 ID를 그대로 사용하며, 본인 인증 오류만 별도 안내 모달로 구분한다.
+  const handleJoinRequest = async () => {
+    if (isJoinSubmitting) return;
+
+    setIsJoinSubmitting(true);
+    try {
+      await requestSmallGroupJoin(id);
+      setIsJoinModalOpen(true);
+    } catch (error) {
+      if (error.code === 'IDENTITY_VERIFICATION_REQUIRED') {
+        setIsIdentityVerificationModalOpen(true);
+      } else {
+        setJoinErrorMessage(error.message || '가입 신청 처리에 실패했습니다.');
+      }
+    } finally {
+      setIsJoinSubmitting(false);
+    }
+  };
+
   const errorCode = current?.error?.code;
   const errorMessage = errorCode === 'NOT_FOUND' ? '조회할 수 있는 소모임이 없습니다.'
     : errorCode === 'ACCESS_DENIED' ? '이 소모임에 접근할 수 없습니다.'
@@ -185,6 +209,8 @@ function SmallGroupDetailPage() {
               onSettingsCancel={() => setMenu({ id, value: 'notice' })}
               onRetrySettings={() => setSettingsRetry((value) => value + 1)}
               onDelete={() => setIsDeleteModalOpen(true)}
+              onJoinRequest={handleJoinRequest}
+              isJoinSubmitting={isJoinSubmitting}
             />
           )}
       </Content>
@@ -197,6 +223,37 @@ function SmallGroupDetailPage() {
           cancelFirst
           onConfirm={handleDeleteConfirm}
           onCancel={() => setIsDeleteModalOpen(false)}
+        />
+      )}
+      {isJoinModalOpen && (
+        <ConfirmModal
+          title="가입 신청 완료"
+          description="가입 신청이 완료되었습니다."
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setIsJoinModalOpen(false)}
+          onCancel={() => setIsJoinModalOpen(false)}
+        />
+      )}
+      {isIdentityVerificationModalOpen && (
+        <ConfirmModal
+          title="본인 인증 필요"
+          description="본인 인증 완료 후 신청이 가능합니다."
+          confirmLabel="인증하러 가기"
+          cancelLabel="닫기"
+          cancelFirst
+          onConfirm={() => navigate('/member/verify')}
+          onCancel={() => setIsIdentityVerificationModalOpen(false)}
+        />
+      )}
+      {joinErrorMessage && (
+        <ConfirmModal
+          title="가입 신청 실패"
+          description={joinErrorMessage}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setJoinErrorMessage(null)}
+          onCancel={() => setJoinErrorMessage(null)}
         />
       )}
     </Page>
