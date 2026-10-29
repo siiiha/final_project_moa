@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { FiCalendar, FiCheckCircle, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
-import { savingGroupReviewStatusLabel, savingGroupReviewTypeLabel } from '../../api/savingGroups';
+import {
+  savingGroupReviewStatus,
+  savingGroupReviewStatusLabel,
+  savingGroupReviewType,
+  savingGroupReviewTypeLabel,
+} from '../../api/savingGroups';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
 
@@ -32,7 +37,12 @@ const SummaryLabel = styled.p`
 const SummaryValue = styled.strong`
   display: block;
   margin-top: 13px;
-  color: ${({ $status, theme }) => ($status === 'REJECTED' ? theme.colors.danger : $status === 'PENDING' ? theme.colors.warning : theme.colors.text)};
+  color: ${({ $status, theme }) =>
+    $status === savingGroupReviewStatus.REJECTED
+      ? theme.colors.danger
+      : $status === savingGroupReviewStatus.PENDING
+        ? theme.colors.warning
+        : theme.colors.text};
   font-size: 22px;
   letter-spacing: -1px;
 `;
@@ -131,8 +141,9 @@ function formatAmount(amount) {
 
 function SavingGroupApplicationDetail({ application, isProcessing, onApprove, onReject, onBack }) {
   const [rejectReason, setRejectReason] = useState('');
-  const pending = application.status === 'PENDING';
-  const deletion = application.type === 'DELETE';
+  // AI작성: 심사 상태와 유형 비교는 API 공통 코드를 재사용해 화면별 문자열 불일치를 막는다.
+  const pending = application.status === savingGroupReviewStatus.PENDING;
+  const deletion = application.type === savingGroupReviewType.DELETE;
 
   return (
     <>
