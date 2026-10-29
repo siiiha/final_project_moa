@@ -193,6 +193,77 @@
           AND member_role IN ('OWNER', 'MEMBER')
     </select>
 
+    <!-- AI작성: 가입 신청 중 회원 계정·본인 인증·시스템 권한 변경과 경합하지 않도록 회원 행을 잠가 조회한다. -->
+    <select id="selectSmallGroupJoinMemberForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow">
+        SELECT member_id,
+               account_status,
+               identity_verified_at,
+               system_role
+        FROM members
+        WHERE member_id = #{memberId}
+          AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 소모임과 공통 모임 행을 잠가 삭제·개설자·정원 변경 사이에서 가입 대상을 일관되게 검증한다. -->
+    <select id="selectSmallGroupJoinTargetForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow">
+        SELECT sg.small_group_id,
+               sg.group_id,
+               g.member_id AS creator_member_id,
+               g.max_members
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 같은 회원의 기존 관계를 잠가 역할 제한·중복 신청·LEFT 재신청 분기를 안전하게 판단한다. -->
+    <select id="selectSmallGroupMembershipForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow">
+        SELECT member_role,
+               membership_status
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND member_id = #{memberId}
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 가입 메시지 없이 인증 회원의 신규 신청을 MEMBER·PENDING 관계 한 건으로 저장한다. -->
+    <insert id="insertSmallGroupJoinRequest">
+        INSERT INTO group_member (
+            member_id,
+            group_id,
+            member_role,
+            membership_status,
+            requested_at
+        ) VALUES (
+            #{memberId},
+            #{groupId},
+            'MEMBER',
+            'PENDING',
+            CURRENT_TIMESTAMP()
+        )
+    </insert>
+
+    <!-- AI작성: LEFT 상태만 재신청으로 되돌려 거절·추방 이력은 변경하지 않는다. -->
+    <update id="reactivateLeftSmallGroupMembership">
+        UPDATE group_member
+        SET member_role = 'MEMBER',
+            membership_status = 'PENDING',
+            approved_by = NULL,
+            approved_at = NULL,
+            joined_at = NULL,
+            left_at = NULL,
+            application_message = NULL,
+            requested_at = CURRENT_TIMESTAMP()
+        WHERE group_id = #{groupId}
+          AND member_id = #{memberId}
+          AND membership_status = 'LEFT'
+    </update>
+
     <!-- AI작성: 설정 조회 권한은 삭제되지 않은 소모임의 개설자와 승인 OWNER가 같은 로그인 회원인지 Service에서 함께 확인한다. -->
     <select id="selectSmallGroupSettingsAuthority"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow">
