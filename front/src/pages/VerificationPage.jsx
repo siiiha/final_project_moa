@@ -48,6 +48,84 @@ const Grid = styled.div`
   }
 `;
 
+// AI작성: 지역 정보, 지도, 안내와 버튼을 일정한 간격으로 배치한다.
+const RegionContent = styled.div`
+  display: grid;
+  gap: 16px;
+`;
+
+const RegionSummary = styled.dl`
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+
+  dt {
+    margin-bottom: 8px;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  dd {
+    margin: 0;
+    padding: 14px;
+    color: ${({ theme }) => theme.colors.text};
+    background: ${({ theme }) => theme.colors.background};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+// AI작성: 안내·주의·오류 상태를 문구와 색상으로 함께 구분한다.
+const RegionNotice = styled.p`
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: keep-all;
+  color: ${({ $tone, theme }) =>
+    $tone === 'error'
+      ? theme.colors.danger
+      : $tone === 'warning'
+        ? theme.colors.warning
+        : theme.colors.primary};
+  background: ${({ $tone, theme }) =>
+    $tone === 'error'
+      ? theme.colors.dangerSoft
+      : $tone === 'warning'
+        ? theme.colors.warningSoft
+        : theme.colors.primarySoft};
+`;
+
+const RegionActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  > button {
+    min-height: 46px;
+  }
+
+  > button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 520px) {
+    > button {
+      width: 100%;
+    }
+  }
+`;
+
 function VerificationPage() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState('verify');
@@ -267,71 +345,117 @@ function VerificationPage() {
           ) : profileError ? (
             <p role="alert">{profileError}</p>
           ) : !profile ? null : showRegionMap ? (
-            <SectionCard title="내 활동 지역">
-              <p>
-                가입한 활동 지역: <strong>{profile?.regionName || '미등록'}</strong>
-              </p>
-              <p>
-                현재 위치가 가입한 활동 지역과 일치하면 지역 인증을 완료할 수 있습니다.
-              </p>
+            <SectionCard title="지역 인증">
+              <RegionContent>
+                <RegionSummary>
+                  <div>
+                    <dt>가입한 시·도</dt>
+                    <dd>{profile.provinceName || profile.regionName || '미등록'}</dd>
+                  </div>
+                  <div>
+                    <dt>시·군·구</dt>
+                    <dd>{profile.districtName || '세부 지역 확인 필요'}</dd>
+                  </div>
+                </RegionSummary>
 
-              <RegionMap
-                latitude={position?.latitude}
-                longitude={position?.longitude}
-              />
+                <RegionNotice>
+                  {profile.regionVerified
+                    ? '가입한 활동 지역의 인증이 완료되어 있습니다.'
+                    : '가입한 활동 지역에서 현재 위치를 확인해주세요. 예상 오차 반경이 500m 이하일 때 인증할 수 있습니다.'}
+                </RegionNotice>
 
-              <Button
-                type="button"
-                onClick={handleCurrentLocation}
-                disabled={isLocating || isVerifying}
-              >
-                {isLocating ? '위치 확인 중…' : '현재 위치 확인'}
-              </Button>
+                <RegionMap
+                  latitude={position?.latitude}
+                  longitude={position?.longitude}
+                />
 
-              {locationError && <p role="alert">{locationError}</p>}
-              {position && (
-                <p role="status">
-                  {position.accuracy <= MAX_LOCATION_ACCURACY_M
-                    ? '위치를 확인했습니다. 활동 지역 일치 여부를 확인해주세요.'
-                    : '대략적인 위치를 표시하고 있습니다.'}
-                  {' '}예상 오차 반경: 약{' '}
-                  {Math.ceil(position.accuracy).toLocaleString()}m
-                </p>
-              )}
-              <Button
-                type="button"
-                onClick={handleRegionVerification}
-                disabled={
-                  !position ||
-                  !Number.isFinite(position.accuracy) ||
-                  position.accuracy <= 0 ||
-                  position.accuracy > MAX_LOCATION_ACCURACY_M ||
-                  isLocating ||
-                  isVerifying ||
-                  profile?.regionVerified
-                }
-              >
-                {isVerifying
-                  ? '지역 확인 중…'
-                  : profile?.regionVerified
-                    ? '지역 인증 완료'
-                    : '이 위치로 인증하기'}
-              </Button>
+                {locationError ? (
+                  <RegionNotice $tone="warning" role="alert">
+                    {locationError}
+                    {position && (
+                      <>
+                        <br />
+                        예상 오차 반경: 약{' '}
+                        {Math.ceil(position.accuracy).toLocaleString()}m
+                      </>
+                    )}
+                  </RegionNotice>
+                ) : position ? (
+                  <RegionNotice role="status">
+                    위치를 확인했습니다.
+                    <br />
+                    예상 오차 반경: 약{' '}
+                    {Math.ceil(position.accuracy).toLocaleString()}m
+                    {!profile.regionVerified && (
+                      <>
+                        <br />
+                        ‘이 위치로 인증하기’를 누르면 활동 지역과 일치하는지 확인합니다.
+                      </>
+                    )}
+                  </RegionNotice>
+                ) : (
+                  <RegionNotice>
+                    {isLocating
+                      ? '현재 위치를 확인하고 있습니다. 잠시만 기다려주세요.'
+                      : '아래 ‘현재 위치 확인’ 버튼을 눌러 시작해주세요.'}
+                  </RegionNotice>
+                )}
 
-              {verificationError && (
-                <p role="alert">{verificationError}</p>
-              )}
-              {verificationMessage && (
-                <p role="status">{verificationMessage}</p>
-              )}
+                {verificationError && (
+                  <RegionNotice $tone="error" role="alert">
+                    {verificationError}
+                  </RegionNotice>
+                )}
+                {verificationMessage && (
+                  <RegionNotice role="status">
+                    {verificationMessage}
+                  </RegionNotice>
+                )}
 
-              <Button
-                type="button"
-                $variant="secondary"
-                onClick={() => setShowRegionMap(false)}
-              >
-                인증관리로 돌아가기
-              </Button>
+                <RegionActions>
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    onClick={handleCurrentLocation}
+                    disabled={isLocating || isVerifying}
+                  >
+                    {isLocating
+                      ? '위치 확인 중…'
+                      : position
+                        ? '현재 위치 다시 확인'
+                        : '현재 위치 확인'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={handleRegionVerification}
+                    disabled={
+                      !position ||
+                      !Number.isFinite(position.accuracy) ||
+                      position.accuracy <= 0 ||
+                      position.accuracy > MAX_LOCATION_ACCURACY_M ||
+                      isLocating ||
+                      isVerifying ||
+                      profile.regionVerified
+                    }
+                  >
+                    {isVerifying
+                      ? '지역 확인 중…'
+                      : profile.regionVerified
+                        ? '지역 인증 완료'
+                        : '이 위치로 인증하기'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    $variant="secondary"
+                    disabled={isLocating || isVerifying}
+                    onClick={() => setShowRegionMap(false)}
+                  >
+                    인증관리로 돌아가기
+                  </Button>
+                </RegionActions>
+              </RegionContent>
             </SectionCard>
           ) : (
             <VerificationStatusList
