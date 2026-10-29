@@ -227,6 +227,29 @@ class SavingGroupCreationServiceImplTest {
         assertThat(captor.getValue().getType()).isEqualTo("DELETE");
     }
 
+    @Test
+    // AI작성: 유형·상태·검색어·첫 페이지 조건이 하나의 관리자 목록 조회 조건으로 조합되는지 검증한다.
+    void getApplicationsCombinesFiltersAndPaging() {
+        SavingGroupCreationApplicationSearchCondition condition = new SavingGroupCreationApplicationSearchCondition();
+        condition.setType("DELETE");
+        condition.setStatus("PENDING");
+        condition.setKeyword("100%_!");
+        condition.setPage(1);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationCount(any())).thenReturn(0);
+
+        savingGroupCreationService.getCreationApplicationPageMeta(condition);
+
+        ArgumentCaptor<SavingGroupCreationApplicationListCondition> captor =
+                ArgumentCaptor.forClass(SavingGroupCreationApplicationListCondition.class);
+        verify(savingGroupMapper).selectSavingGroupCreationApplicationCount(captor.capture());
+        SavingGroupCreationApplicationListCondition actual = captor.getValue();
+        assertThat(actual.getType()).isEqualTo("DELETE");
+        assertThat(actual.getStatus()).isEqualTo("PENDING");
+        assertThat(actual.getKeywordPattern()).isEqualTo("%100!%!_!!%");
+        assertThat(actual.getOffset()).isZero();
+        assertThat(actual.getLimit()).isEqualTo(8);
+    }
+
     private SavingGroupCreationRequest creationRequest() {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
