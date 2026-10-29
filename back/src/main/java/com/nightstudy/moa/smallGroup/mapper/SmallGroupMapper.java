@@ -4,6 +4,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
@@ -68,6 +69,15 @@ public interface SmallGroupMapper {
 
     // AI작성: 가입 신청은 별도 입력 없이 인증 회원을 MEMBER·PENDING 관계로 한 건 저장한다.
     int insertSmallGroupJoinRequest(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    // AI작성: 개설자 권한 검증 후 같은 상태 조건으로 신청 수와 페이지 목록을 조회한다.
+    int selectSmallGroupJoinRequestCount(@Param("groupId") Long groupId, @Param("status") String status);
+
+    List<SmallGroupJoinRequestRow> selectSmallGroupJoinRequests(
+            @Param("groupId") Long groupId,
+            @Param("status") String status,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
 
     // AI작성: 자진 탈퇴한 LEFT 관계만 기존 승인 정보를 초기화하고 PENDING 신청으로 되돌린다.
     int reactivateLeftSmallGroupMembership(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
