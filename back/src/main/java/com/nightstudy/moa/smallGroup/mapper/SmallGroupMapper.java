@@ -3,6 +3,7 @@ package com.nightstudy.moa.smallGroup.mapper;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinApprovalTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow;
@@ -78,6 +79,18 @@ public interface SmallGroupMapper {
             @Param("status") String status,
             @Param("offset") int offset,
             @Param("limit") int limit);
+
+    // AI작성: 신청 회원 잠금 전 식별에만 사용하며 이후 잠금 조회 결과를 승인 근거로 사용한다.
+    SmallGroupJoinApprovalTargetRow selectSmallGroupJoinApprovalTarget(
+            @Param("crewMemberId") Long crewMemberId);
+
+    // AI작성: 신청 회원·소모임 잠금 뒤 신청 행의 소속과 대기 상태를 다시 확인한다.
+    SmallGroupJoinApprovalTargetRow selectSmallGroupJoinApprovalTargetForUpdate(
+            @Param("crewMemberId") Long crewMemberId);
+
+    // AI작성: 동일 소모임의 PENDING 신청 한 건만 승인 상태·MEMBER 역할·승인 이력으로 변경한다.
+    int approveSmallGroupJoinRequest(@Param("crewMemberId") Long crewMemberId,
+            @Param("groupId") Long groupId, @Param("approvedBy") Long approvedBy);
 
     // AI작성: 자진 탈퇴한 LEFT 관계만 기존 승인 정보를 초기화하고 PENDING 신청으로 되돌린다.
     int reactivateLeftSmallGroupMembership(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
