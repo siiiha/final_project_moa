@@ -93,4 +93,53 @@
           AND m.deleted_at IS NULL
     </select>
 
+    <!-- AI작성: 동시에 처리되는 제한·해제 요청이 현재 상태를 덮어쓰지 못하도록 대상 회원을 잠근다. -->
+    <select id="selectRestrictionTargetForUpdate"
+            resultType="com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget">
+        SELECT member_id, account_status, suspended_until
+        FROM members
+        WHERE member_id = #{memberId}
+          AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <update id="updateMemberRestriction">
+        UPDATE members
+        SET account_status = 'SUSPENDED',
+            suspended_until = #{suspendedUntil},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE member_id = #{memberId}
+          AND account_status != 'INACTIVE'
+          AND deleted_at IS NULL
+    </update>
+
+    <update id="releaseMemberRestriction">
+        UPDATE members
+        SET account_status = 'ACTIVE',
+            suspended_until = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE member_id = #{memberId}
+          AND account_status = 'SUSPENDED'
+          AND deleted_at IS NULL
+    </update>
+
+    <!-- AI작성: 상태 변경과 같은 트랜잭션에서 직접 제한·해제 사유를 보존한다. -->
+    <insert id="insertRestrictionHistory">
+        INSERT INTO restriction_history (
+            member_id,
+            saving_group_id,
+            action,
+            restriction_type,
+            reason,
+            restricted_until
+        ) VALUES (
+            #{memberId},
+            NULL,
+            #{action},
+            #{restrictionType},
+            #{reason},
+            #{restrictedUntil}
+        )
+    </insert>
+
 </mapper>

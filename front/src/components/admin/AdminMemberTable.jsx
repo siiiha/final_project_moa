@@ -170,7 +170,30 @@ const Empty = styled.td`
   text-align: center !important;
 `;
 
-function AdminMemberTable({ members, filter, onViewMember }) {
+const Pagination = styled.nav`
+  padding: 0 18px 18px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+`;
+
+const PageButton = styled(Button)`
+  min-width: 32px;
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 11px;
+`;
+
+function AdminMemberTable({
+  members,
+  filter,
+  onViewMember,
+  loading,
+  errorMessage,
+  currentPage,
+  totalPages,
+  onPageChange,
+}) {
   return (
     <Card>
       <Header>
@@ -192,9 +215,11 @@ function AdminMemberTable({ members, filter, onViewMember }) {
             </tr>
           </thead>
           <tbody>
-            {members.length === 0 ? (
+            {loading || errorMessage || members.length === 0 ? (
               <tr>
-                <Empty colSpan="7">검색 조건에 맞는 회원이 없습니다.</Empty>
+                <Empty colSpan="7">
+                  {loading ? '회원 목록을 불러오는 중입니다.' : errorMessage || '검색 조건에 맞는 회원이 없습니다.'}
+                </Empty>
               </tr>
             ) : (
               members.map((member) => (
@@ -237,6 +262,36 @@ function AdminMemberTable({ members, filter, onViewMember }) {
           </tbody>
         </Table>
       </TableArea>
+      {!loading && !errorMessage && totalPages > 1 && (
+        <Pagination aria-label="관리자 회원 목록 페이지">
+          <PageButton
+            type="button"
+            $variant="secondary"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 1)}
+          >
+            이전
+          </PageButton>
+          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+            <PageButton
+              key={page}
+              type="button"
+              $variant={page === currentPage ? 'primary' : 'secondary'}
+              onClick={() => onPageChange(page)}
+            >
+              {page}
+            </PageButton>
+          ))}
+          <PageButton
+            type="button"
+            $variant="secondary"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+          >
+            다음
+          </PageButton>
+        </Pagination>
+      )}
     </Card>
   );
 }

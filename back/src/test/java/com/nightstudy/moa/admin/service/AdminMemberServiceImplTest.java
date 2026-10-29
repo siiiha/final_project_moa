@@ -5,13 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 import com.nightstudy.moa.admin.dto.AdminMemberDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberListResult;
 import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.service.AuthSessionService;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +30,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class AdminMemberServiceImplTest {
     @Mock
     private AdminMemberMapper adminMemberMapper;
+
+    @Mock
+    private MemberRestrictionPolicy memberRestrictionPolicy;
+
+    @Mock
+    private AuthSessionService authSessionService;
 
     @InjectMocks
     private AdminMemberServiceImpl adminMemberService;
@@ -75,5 +87,38 @@ class AdminMemberServiceImplTest {
                     assertThat(exception.getStatus().value()).isEqualTo(404);
                     assertThat(exception.getCode()).isEqualTo("MEMBER_NOT_FOUND");
                 });
+    }
+
+    @Test
+    void restrictMemberUpdatesHistoryAndRevokesSessions() {
+        AdminMemberRestrictionTarget target = new AdminMemberRestrictionTarget();
+        target.setMemberId(2L);
+        target.setAccountStatus("ACTIVE");
+        LocalDateTime restrictedUntil = LocalDateTime.of(2026, 11, 5, 10, 0);
+        AdminMemberRestrictionRequest request = new AdminMemberRestrictionRequest();
+        request.setRestrictionType("7_DAYS");
+        request.setReason("운영정책 위반");
+
+        when(adminMemberMapper.selectRestrictionTargetForUpdate(2L)).thenReturn(target);
+        when(memberRestrictionPolicy.calculateSuspendedUntil(eq("ACTIVE"), eq(null), eq("7_DAYS"), any()))
+                .thenReturn(restrictedUntil);
+        when(adminMemberMapper.updateMemberRestriction(2L, restrictedUntil)).thenReturn(1);
+        when(adminMemberMapper.insertRestrictionHistory(
+                2L, "RESTRICT", "7_DAYS", "운영정책 위반", restrictedUntil
+        )).thenReturn(1);
+
+        adminMemberService.restrictMember(1L, 2L, request);
+
+        verify(authSessionService).revokeAllSessions(2L);
+    }
+
+    @Test
+    void restrictMemberRejectsAdministratorSelfRestriction() {
+        AdminMemberRestrictionRequest request = new AdminMemberRestrictionRequest();
+
+        assertThatThrownBy(() -> adminMemberService.restrictMember(1L, 1L, request))
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.getCode()).isEqualTo("ADMIN_SELF_RESTRICTION_NOT_ALLOWED"));
+        verify(adminMemberMapper, never()).selectRestrictionTargetForUpdate(1L);
     }
 }

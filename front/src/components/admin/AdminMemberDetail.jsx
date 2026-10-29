@@ -131,12 +131,18 @@ const ManagementCard = styled(Card)`
 const ManagementForm = styled.form`
   margin-top: 14px;
   display: grid;
-  grid-template-columns: 145px minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, 145px) minmax(0, 1fr) auto;
   gap: 8px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     grid-template-columns: 1fr;
   }
+`;
+
+const ResultMessage = styled.p`
+  margin-top: 10px;
+  color: ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.primary)};
+  font-size: 12px;
 `;
 
 const Control = styled.select`
@@ -186,7 +192,21 @@ const BackActions = styled.div`
   margin-top: 14px;
 `;
 
-function AdminMemberDetail({ member, detail, action, reason, onActionChange, onReasonChange, onSubmit, onBack }) {
+function AdminMemberDetail({
+  member,
+  detail,
+  action,
+  reason,
+  restrictionType,
+  submitting,
+  message,
+  errorMessage,
+  onActionChange,
+  onReasonChange,
+  onRestrictionTypeChange,
+  onSubmit,
+  onBack,
+}) {
   const actionIsRestrict = action === '이용 제한';
 
   return (
@@ -197,7 +217,9 @@ function AdminMemberDetail({ member, detail, action, reason, onActionChange, onR
             <FiUser size={14} aria-hidden="true" /> 회원 상태
           </SummaryLabel>
           <SummaryValue>{member.status}</SummaryValue>
-          <SummaryDescription>최근 활동 {detail.lastActiveAt}</SummaryDescription>
+          <SummaryDescription>
+            {detail.suspendedUntil ? `제한 종료 ${detail.suspendedUntil}` : '회원 계정 상태'}
+          </SummaryDescription>
         </SummaryCard>
         <SummaryCard>
           <SummaryLabel>참여 모임</SummaryLabel>
@@ -253,15 +275,32 @@ function AdminMemberDetail({ member, detail, action, reason, onActionChange, onR
             <option value="이용 제한">이용 제한</option>
             <option value="제한 해제">제한 해제</option>
           </Control>
+          {actionIsRestrict && (
+            <Control
+              aria-label="이용 제한 기간"
+              value={restrictionType}
+              onChange={(event) => onRestrictionTypeChange(event.target.value)}
+              disabled={submitting}
+            >
+              <option value="7_DAYS">7일</option>
+              <option value="30_DAYS">30일</option>
+              <option value="PERMANENT">영구</option>
+            </Control>
+          )}
           <ReasonInput
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
             placeholder="처리 사유를 입력해주세요"
+            maxLength={500}
+            required
+            disabled={submitting}
           />
-          <ListButton type="submit" $variant={actionIsRestrict ? 'danger' : 'primary'}>
-            {action}
+          <ListButton type="submit" $variant={actionIsRestrict ? 'danger' : 'primary'} disabled={submitting}>
+            {submitting ? '처리 중...' : action}
           </ListButton>
         </ManagementForm>
+        {errorMessage && <ResultMessage $error role="alert">{errorMessage}</ResultMessage>}
+        {message && <ResultMessage role="status">{message}</ResultMessage>}
       </ManagementCard>
 
       <BackActions>

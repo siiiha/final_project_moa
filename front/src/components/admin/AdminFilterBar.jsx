@@ -73,8 +73,8 @@ function AdminFilterBar({ status, region, query, onStatusChange, onRegionChange,
       <Control aria-label="회원 상태" value={status} onChange={(event) => onStatusChange(event.target.value)}>
         <option value="전체">전체 상태</option>
         <option value="정상">정상</option>
-        <option value="휴면">휴면</option>
         <option value="제재">제재</option>
+        <option value="탈퇴">탈퇴</option>
       </Control>
       <Control aria-label="활동 지역" value={region} onChange={(event) => onRegionChange(event.target.value)}>
         <option value="전체">전체 지역</option>
