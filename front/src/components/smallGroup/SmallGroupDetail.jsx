@@ -287,6 +287,7 @@ function formatDate(value) {
 
 function SmallGroupDetail({
   group,
+  smallGroupId,
   myRole = null,
   activeMenu,
   settings,
@@ -373,7 +374,7 @@ function SmallGroupDetail({
         </SettingsContent>
       ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
-          <SmallGroupJoinRequestsPanel groupName={group.name} />
+          <SmallGroupJoinRequestsPanel smallGroupId={smallGroupId} groupName={group.name} />
         </JoinRequestsContent>
       ) : currentMenu !== 'notice' ? (
         <Placeholder>{activeLabel} 기능은 준비 중입니다.</Placeholder>

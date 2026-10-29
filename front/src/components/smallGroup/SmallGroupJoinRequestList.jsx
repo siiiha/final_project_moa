@@ -1,7 +1,6 @@
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
-import Checkbox from '../common/Checkbox';
 
 const Filters = styled.nav`
   margin-top: 16px;
@@ -203,37 +202,23 @@ const PageButton = styled(Button)`
 
 const filters = ['전체', '대기', '승인', '거절'];
 
-function RequestActions({ request, onApprove, onReject }) {
-  if (request.status !== '대기') {
-    return <ActionButton type="button" $variant="secondary">상세 보기</ActionButton>;
-  }
-
-  return (
-    <ActionGroup>
-      <ActionButton type="button" onClick={() => onApprove(request.id)}>승인</ActionButton>
-      <ActionButton type="button" $variant="secondary" onClick={() => onReject(request.id)}>거절</ActionButton>
-    </ActionGroup>
-  );
+function RequestActions() {
+  // AI작성: 승인·거절 API가 없는 범위에서는 화면 상태만 변경하는 버튼을 제공하지 않는다.
+  return <ActionButton type="button" $variant="secondary" disabled title="가입 신청 처리 기능 준비 중">처리 준비 중</ActionButton>;
 }
 
 function SmallGroupJoinRequestList({
   requests,
   activeFilter,
   onFilterChange,
-  selectedIds,
-  onToggleAll,
-  onToggleRequest,
-  onApprove,
-  onReject,
-  onBulkApprove,
   currentPage,
   totalPages,
   onPageChange,
   totalCount,
+  isLoading,
+  errorMessage,
+  onRetry,
 }) {
-  const selectableRequests = requests.filter((request) => request.status === '대기');
-  const isAllSelected = selectableRequests.length > 0 && selectableRequests.every((request) => selectedIds.includes(request.id));
-
   return (
     <>
       <Filters aria-label="소모임 가입 신청 상태 필터">
@@ -243,6 +228,7 @@ function SmallGroupJoinRequestList({
             type="button"
             $active={activeFilter === filter}
             aria-current={activeFilter === filter ? 'page' : undefined}
+            disabled={isLoading}
             onClick={() => onFilterChange(filter)}
           >
             {filter}
@@ -252,29 +238,32 @@ function SmallGroupJoinRequestList({
 
       <Card>
         <CardHeader>
-          <Count>신청자 {totalCount}명</Count>
-          <BulkApproveButton type="button" disabled={!selectedIds.length} onClick={onBulkApprove}>
+          <Count>{isLoading ? '신청 목록을 불러오는 중입니다.' : errorMessage ? '가입 신청 목록' : `신청자 ${totalCount}명`}</Count>
+          <BulkApproveButton type="button" disabled title="선택 승인 준비 중">
             선택 승인
           </BulkApproveButton>
         </CardHeader>
 
-        {requests.length ? (
+        {isLoading ? <Empty role="status">가입 신청 목록을 불러오고 있습니다.</Empty> : errorMessage ? (
+          <Empty role="alert">
+            {errorMessage}<br />
+            <Button type="button" $variant="secondary" onClick={onRetry}>다시 시도</Button>
+          </Empty>
+        ) : requests.length ? (
           <>
             <TableWrap>
               <Table>
                 <colgroup>
-                  <col width="7%" />
-                  <col width="17%" />
+                  <col width="20%" />
                   <col width="20%" />
                   <col width="25%" />
-                  <col width="10%" />
-                  <col width="21%" />
+                  <col width="15%" />
+                  <col width="20%" />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col"><Checkbox id="small-group-request-all" aria-label="대기 신청 전체 선택" checked={isAllSelected} onChange={onToggleAll} /></th>
                     <th scope="col">신청자</th>
-                    <th scope="col">지역·관심사</th>
+                    <th scope="col">지역</th>
                     <th scope="col">신청 메시지</th>
                     <th scope="col">상태</th>
                     <th scope="col">처리</th>
@@ -283,12 +272,11 @@ function SmallGroupJoinRequestList({
                 <tbody>
                   {requests.map((request) => (
                     <tr key={request.id}>
-                      <td><Checkbox id={`small-group-request-${request.id}`} aria-label={`${request.applicant} 선택`} checked={selectedIds.includes(request.id)} disabled={request.status !== '대기'} onChange={() => onToggleRequest(request.id)} /></td>
                       <td><Applicant>{request.applicant}</Applicant></td>
                       <td>{request.regionInterest}</td>
                       <td>{request.message}</td>
                       <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
-                      <td><RequestActions request={request} onApprove={onApprove} onReject={onReject} /></td>
+                      <td><RequestActions /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -299,14 +287,11 @@ function SmallGroupJoinRequestList({
               {requests.map((request) => (
                 <MobileItem key={request.id}>
                   <MobileTop>
-                    <MobileApplicant>
-                      <Checkbox id={`mobile-small-group-request-${request.id}`} aria-label={`${request.applicant} 선택`} checked={selectedIds.includes(request.id)} disabled={request.status !== '대기'} onChange={() => onToggleRequest(request.id)} />
-                      <Applicant>{request.applicant}</Applicant>
-                    </MobileApplicant>
+                    <MobileApplicant><Applicant>{request.applicant}</Applicant></MobileApplicant>
                     <StatusBadge $status={request.status}>{request.status}</StatusBadge>
                   </MobileTop>
                   <MobileInfo>{request.regionInterest}<br />{request.message}</MobileInfo>
-                  <MobileActions><RequestActions request={request} onApprove={onApprove} onReject={onReject} /></MobileActions>
+                  <MobileActions><RequestActions /></MobileActions>
                 </MobileItem>
               ))}
             </MobileList>
@@ -314,7 +299,7 @@ function SmallGroupJoinRequestList({
         ) : <Empty>해당 상태의 가입 신청이 없습니다.</Empty>}
       </Card>
 
-      {totalPages > 1 && (
+      {!isLoading && !errorMessage && totalPages > 1 && (
         <Pagination aria-label="소모임 가입 신청 목록 페이지 이동">
           <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>이전</PageButton>
           {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (

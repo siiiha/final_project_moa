@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { smallGroupJoinRequests } from '../../mocks/smallGroupJoinRequests';
+import { getSmallGroupJoinRequests } from '../../api/smallGroups';
 import SmallGroupJoinRequestList from './SmallGroupJoinRequestList';
 
 const Heading = styled.div`
@@ -23,58 +23,47 @@ const Heading = styled.div`
   }
 `;
 
-const PAGE_SIZE = 10;
+// AI작성: 화면 상태 필터를 서버의 가입 신청 상태값으로만 변환한다.
+const REQUEST_STATUS = { 대기: 'PENDING', 승인: 'APPROVED', 거절: 'REJECTED' };
 
-function SmallGroupJoinRequestsPanel({ groupName }) {
-  const [requests, setRequests] = useState(smallGroupJoinRequests);
+function SmallGroupJoinRequestsPanel({ smallGroupId, groupName }) {
   const [activeFilter, setActiveFilter] = useState('전체');
-  const [selectedIds, setSelectedIds] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [retry, setRetry] = useState(0);
+  const [result, setResult] = useState(null);
+  const status = REQUEST_STATUS[activeFilter];
+  const queryKey = `${smallGroupId}:${status || 'ALL'}:${currentPage}:${retry}`;
+  const currentResult = result?.key === queryKey ? result : null;
+  const isLoading = currentResult === null;
+  const requests = currentResult?.items || [];
+  const totalPages = currentResult?.meta?.totalPages || 0;
+  const totalCount = currentResult?.meta?.total || 0;
+  const errorMessage = currentResult?.error || '';
 
-  const filteredRequests = useMemo(
-    () => (activeFilter === '전체' ? requests : requests.filter((request) => request.status === activeFilter)),
-    [activeFilter, requests],
-  );
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
-  const visibleRequests = filteredRequests.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  useEffect(() => {
+    const controller = new AbortController();
+    // AI작성: 필터·페이지·소모임 전환 시 이전 요청을 취소해 다른 모임의 가입 신청 목록이 보이지 않게 한다.
+    getSmallGroupJoinRequests(smallGroupId, { status, page: currentPage, signal: controller.signal })
+      .then((data) => {
+        if (!controller.signal.aborted) setResult({ key: queryKey, ...data });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setResult({ key: queryKey, items: [], meta: null, error: error.message || '가입 신청 목록을 불러오지 못했습니다.' });
+        }
+      });
+    return () => controller.abort();
+  }, [smallGroupId, status, currentPage, queryKey]);
 
   const changeFilter = (filter) => {
+    if (isLoading) return;
     setActiveFilter(filter);
     setCurrentPage(1);
-    setSelectedIds([]);
   };
 
   const changePage = (page) => {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-    setSelectedIds([]);
-  };
-
-  const changeStatus = (requestId, status) => {
-    // TODO: Spring Boot 소모임 가입 신청 승인·거절 API 요청을 연결합니다.
-    setRequests((currentRequests) => currentRequests.map((request) => (
-      request.id === requestId ? { ...request, status } : request
-    )));
-    setSelectedIds((currentIds) => currentIds.filter((id) => id !== requestId));
-  };
-
-  const toggleRequest = (requestId) => {
-    setSelectedIds((currentIds) => (
-      currentIds.includes(requestId) ? currentIds.filter((id) => id !== requestId) : [...currentIds, requestId]
-    ));
-  };
-
-  const toggleAll = () => {
-    const pendingIds = visibleRequests.filter((request) => request.status === '대기').map((request) => request.id);
-    const isAllSelected = pendingIds.length > 0 && pendingIds.every((id) => selectedIds.includes(id));
-    setSelectedIds(isAllSelected ? [] : pendingIds);
-  };
-
-  const bulkApprove = () => {
-    // TODO: Spring Boot 소모임 가입 신청 일괄 승인 API 요청을 연결합니다.
-    setRequests((currentRequests) => currentRequests.map((request) => (
-      selectedIds.includes(request.id) ? { ...request, status: '승인' } : request
-    )));
-    setSelectedIds([]);
+    if (isLoading || errorMessage) return;
+    setCurrentPage(Math.min(Math.max(page, 1), Math.max(totalPages, 1)));
   };
 
   return (
@@ -82,23 +71,20 @@ function SmallGroupJoinRequestsPanel({ groupName }) {
       <Heading>
         <div>
           <h2>{groupName} 가입 신청 목록</h2>
-          <p>가입 메시지를 확인한 후 신청을 처리해주세요.</p>
+          <p>가입 메시지와 신청 상태를 확인할 수 있습니다.</p>
         </div>
       </Heading>
       <SmallGroupJoinRequestList
-        requests={visibleRequests}
+        requests={requests}
         activeFilter={activeFilter}
         onFilterChange={changeFilter}
-        selectedIds={selectedIds}
-        onToggleAll={toggleAll}
-        onToggleRequest={toggleRequest}
-        onApprove={(requestId) => changeStatus(requestId, '승인')}
-        onReject={(requestId) => changeStatus(requestId, '거절')}
-        onBulkApprove={bulkApprove}
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={changePage}
-        totalCount={filteredRequests.length}
+        totalCount={totalCount}
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        onRetry={() => setRetry((value) => value + 1)}
       />
     </section>
   );
