@@ -123,8 +123,6 @@ function AdminSavingGroupApplicationsPage() {
       navigate('/admin/reposts');
       return;
     }
-
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
   };
 
   return (
