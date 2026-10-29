@@ -147,6 +147,21 @@ class SavingGroupCreationServiceImplTest {
         verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
     }
 
+    @Test
+    // AI작성: 이미 승인된 삭제 신청은 심사 상태와 계모임을 다시 변경하지 않는지 검증한다.
+    void approveDeletionRejectsAlreadyApprovedApplication() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        application.setStatus("APPROVED");
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.approveCreationApplication(1L, 20L), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_APPLICATION_ALREADY_PROCESSED");
+        verify(savingGroupMapper, never()).approveSavingGroupDeletionApplication(1L);
+        verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+    }
+
     private SavingGroupCreationRequest creationRequest() {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
