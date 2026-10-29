@@ -15,6 +15,11 @@ public interface MemberMapper {
     int countRegionById(@Param("regionId") Long regionId);
     List<MemberRegionDto> findRegions();
 
+    int markRegionVerified(
+            @Param("memberId") Long memberId,
+            @Param("regionId") Long regionId
+    );
+
     int insertMember(MemberInsertDto member);
 
     int countVerifiedEmail(@Param("email") String email);

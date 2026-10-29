@@ -2,6 +2,7 @@ package com.nightstudy.moa.member.service;
 
 import com.nightstudy.moa.common.config.KakaoOAuthProperties;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.dto.KakaoRegionResponse;
 import com.nightstudy.moa.member.dto.KakaoTokenResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -128,5 +129,60 @@ public class KakaoApiClient {
         }
 
         return userResponse.getId();
+    }
+
+    // 현재 좌표의 시·도와 시·군·구를 카카오에서 조회
+    public KakaoRegionResponse.Region getRegion(
+            double latitude,
+            double longitude
+    ) {
+        KakaoRegionResponse response;
+
+        try {
+            response = restClient.get()
+                    .uri(
+                            "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json"
+                                    + "?x={longitude}&y={latitude}",
+                            longitude,
+                            latitude
+                    )
+                    .header(
+                            "Authorization",
+                            "KakaoAK " + properties.getClientId()
+                    )
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(KakaoRegionResponse.class);
+        } catch (RestClientException exception) {
+            // 외부 응답 본문에 포함될 수 있는 키와 좌표를 노출하지 않음
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "KAKAO_REGION_REQUEST_FAILED",
+                    "현재 위치의 지역을 확인하지 못했습니다. 잠시 후 다시 시도해주세요."
+            );
+        }
+
+        if (response == null || response.getDocuments() == null) {
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "KAKAO_REGION_RESPONSE_INVALID",
+                    "지역 조회 응답을 확인할 수 없습니다. 다시 시도해주세요."
+            );
+        }
+
+        // 법정동 응답 중 시·도와 시·군·구가 있는 항목을 사용
+        return response.getDocuments().stream()
+                .filter(region -> region != null
+                        && "B".equals(region.getRegionType())
+                        && region.getProvinceName() != null
+                        && !region.getProvinceName().isBlank()
+                        && region.getDistrictName() != null
+                        && !region.getDistrictName().isBlank())
+                .findFirst()
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.BAD_REQUEST,
+                        "REGION_NOT_FOUND",
+                        "현재 위치에서 인증 가능한 지역을 찾지 못했습니다."
+                ));
     }
 }

@@ -163,26 +163,40 @@
             AND deleted_at IS NULL
     </select>
 
+    <!-- 기존 회원정보와 가입 활동 지역을 함께 조회 -->
     <select id="findProfileByMemberId"
-
-    resultType="com.nightstudy.moa.member.dto.MemberProfileResponse">
+            resultType="com.nightstudy.moa.member.dto.MemberProfileResponse">
         SELECT
-            member_id AS memberId,
-            name,
-            email,
-            phone,
-            nickname,
-            TIMESTAMPDIFF(YEAR, birth_date, CURRENT_DATE()) AS age,
-            gender,
-            profile_img_url AS profileImageUrl,
-            (identity_verified_at IS NOT NULL) AS
-        identityVerified,
-            (region_verified_at IS NOT NULL) AS regionVerified
-        FROM members
-        WHERE member_id = #{memberId}
-            AND deleted_at IS NULL
+        m.member_id AS memberId,
+        m.name,
+        m.email,
+        m.phone,
+        m.nickname,
+        TIMESTAMPDIFF(YEAR, m.birth_date, CURRENT_DATE()) AS age,
+        m.gender,
+        m.profile_img_url AS profileImageUrl,
+        m.region_id AS regionId,
+        r.region_name AS regionName,
+        r.province_name AS provinceName,
+        r.district_name AS districtName,
+        (m.identity_verified_at IS NOT NULL) AS identityVerified,
+        (m.region_verified_at IS NOT NULL) AS regionVerified
+        FROM members m
+        LEFT JOIN region r
+        ON r.region_id = m.region_id
+        WHERE m.member_id = #{memberId}
+        AND m.deleted_at IS NULL
     </select>
 
+    <!-- 활성 회원의 활동 지역이 유지된 경우 인증 완료 시각을 저장 -->
+    <update id="markRegionVerified">
+        UPDATE members
+        SET region_verified_at = CURRENT_TIMESTAMP
+        WHERE member_id = #{memberId}
+            AND region_id = #{regionId}
+            AND account_status = 'ACTIVE'
+            AND deleted_at IS NULL
+    </update>
     <select id="findInterestsByMemberId"
             resultType="com.nightstudy.moa.member.dto.MemberProfileResponse$Interest">
 

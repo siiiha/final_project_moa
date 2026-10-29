@@ -18,6 +18,10 @@ public class MemberProfileResponse {
     private Integer age;
     private String gender;
     private String profileImageUrl;
+    private Long regionId;
+    private String regionName;
+    private String provinceName;
+    private String districtName;
     private boolean identityVerified;
     private boolean regionVerified;
 
