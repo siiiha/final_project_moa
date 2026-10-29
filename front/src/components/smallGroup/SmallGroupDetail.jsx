@@ -277,6 +277,7 @@ function SmallGroupDetail({
   settings,
   settingsCategories,
   isSettingsLoading,
+  isSettingsSaving,
   settingsErrorMessage,
   onMenuChange,
   onSettingsSubmit,
@@ -334,6 +335,7 @@ function SmallGroupDetail({
             <SmallGroupSettingsForm
               settings={settings}
               categories={settingsCategories}
+              isSaving={isSettingsSaving}
               onSubmit={onSettingsSubmit}
               onCancel={onSettingsCancel}
               onDelete={onDelete}

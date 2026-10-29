@@ -8,6 +8,7 @@ import {
   fetchSmallGroupCategories,
   getSmallGroupDetail,
   getSmallGroupSettings,
+  updateSmallGroupSettings,
 } from '../api/smallGroups';
 
 const Page = styled.div`
@@ -66,6 +67,7 @@ function SmallGroupDetailPage() {
   const [menu, setMenu] = useState({ id, value: 'notice' });
   const [settingsResult, setSettingsResult] = useState(null);
   const [settingsRetry, setSettingsRetry] = useState(0);
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // AI작성: URL 변경·화면 이탈 시 이전 요청을 취소해 다른 소모임의 결과가 표시되지 않게 한다.
@@ -116,9 +118,16 @@ function SmallGroupDetailPage() {
     };
   }, [id, isSettingsSelected, settingsRetry]);
 
-  const handleSettingsSubmit = (event) => {
-    event.preventDefault();
-    // TODO: Spring Boot 소모임 정보 수정 API에 변경한 폼 값을 전송합니다.
+  // AI작성: 폼이 비교·검증한 변경 필드만 저장하고 성공 후 공개 상세와 설정값을 모두 최신 상태로 다시 읽는다.
+  const handleSettingsSubmit = async (changes) => {
+    setIsSettingsSaving(true);
+    try {
+      await updateSmallGroupSettings(id, changes);
+      setRetry((value) => value + 1);
+      setSettingsRetry((value) => value + 1);
+    } finally {
+      setIsSettingsSaving(false);
+    }
   };
 
   const handleDeleteConfirm = () => {
@@ -167,6 +176,7 @@ function SmallGroupDetailPage() {
               settings={currentSettings?.settings}
               settingsCategories={currentSettings?.categories || []}
               isSettingsLoading={isSettingsSelected && (!currentSettings || currentSettings.loading)}
+              isSettingsSaving={isSettingsSaving}
               settingsErrorMessage={currentSettings?.error ? settingsErrorMessage : null}
               onMenuChange={(value) => setMenu({ id, value })}
               onSettingsSubmit={handleSettingsSubmit}
