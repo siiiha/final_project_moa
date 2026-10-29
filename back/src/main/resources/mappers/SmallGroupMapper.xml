@@ -214,21 +214,8 @@
           AND g.deleted_at IS NULL
     </select>
 
-    <resultMap id="smallGroupSettings"
-            type="com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse">
-        <constructor>
-            <arg column="group_name" javaType="java.lang.String"/>
-            <arg column="like_category" javaType="java.lang.String"/>
-            <arg column="description" javaType="java.lang.String"/>
-            <arg column="max_members" javaType="java.lang.Integer"/>
-            <arg column="meet_date" javaType="java.time.LocalDate"/>
-            <arg column="location" javaType="java.lang.String"/>
-            <arg column="approved_member_count" javaType="long"/>
-        </constructor>
-    </resultMap>
-
     <!-- AI작성: 승인된 OWNER와 MEMBER만 정원 축소 기준 및 설정 화면의 현재 참여 인원으로 반환한다. -->
-    <select id="selectSmallGroupCurrentSettings" resultMap="smallGroupSettings">
+    <select id="selectSmallGroupCurrentSettings" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse">
         SELECT g.group_name,
                sg.like_category,
                g.description,
