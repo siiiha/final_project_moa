@@ -172,6 +172,13 @@ const Empty = styled.td`
   text-align: center !important;
 `;
 
+function getPageNumbers(currentPage, totalPages) {
+  // AI작성: 많은 계모임 데이터에서도 페이지 버튼이 과도하게 늘어나지 않도록 다섯 개만 표시한다.
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const length = Math.min(5, totalPages - start + 1);
+  return Array.from({ length }, (_, index) => start + index);
+}
+
 function SavingGroupTable({
   groups,
   filter,
@@ -248,7 +255,16 @@ function SavingGroupTable({
         </Table>
         {!loading && !errorMessage && totalPages > 1 && (
           <Pagination aria-label="계모임 목록 페이지">
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+            <PageButton
+              type="button"
+              $active={false}
+              disabled={currentPage === 1}
+              onClick={() => onPageChange(currentPage - 1)}
+              aria-label="이전 페이지"
+            >
+              이전
+            </PageButton>
+            {getPageNumbers(currentPage, totalPages).map((page) => (
               <PageButton
                 key={page}
                 type="button"
@@ -259,6 +275,15 @@ function SavingGroupTable({
                 {page}
               </PageButton>
             ))}
+            <PageButton
+              type="button"
+              $active={false}
+              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(currentPage + 1)}
+              aria-label="다음 페이지"
+            >
+              다음
+            </PageButton>
           </Pagination>
         )}
       </TableArea>
