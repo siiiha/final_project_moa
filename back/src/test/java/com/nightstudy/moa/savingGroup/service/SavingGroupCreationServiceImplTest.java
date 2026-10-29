@@ -162,6 +162,21 @@ class SavingGroupCreationServiceImplTest {
         verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
     }
 
+    @Test
+    // AI작성: 이미 반려된 삭제 신청은 반려 사유와 계모임을 다시 변경하지 않는지 검증한다.
+    void rejectDeletionRejectsAlreadyRejectedApplication() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        application.setStatus("REJECTED");
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.rejectCreationApplication(1L, "재반려 사유"), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_APPLICATION_ALREADY_PROCESSED");
+        verify(savingGroupMapper, never()).rejectSavingGroupDeletionApplication(1L, "재반려 사유");
+        verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+    }
+
     private SavingGroupCreationRequest creationRequest() {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
