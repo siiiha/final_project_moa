@@ -22,7 +22,13 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -37,6 +43,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class SmallGroupServiceImpl implements SmallGroupService {
     private static final int PAGE_SIZE = 6;
     private static final int JOIN_REQUEST_PAGE_SIZE = 10;
+    private static final int VOTE_TITLE_MIN_LENGTH = 2;
+    private static final int VOTE_TITLE_MAX_LENGTH = 12;
+    private static final int VOTE_OPTION_MIN_COUNT = 2;
+    private static final int VOTE_OPTION_MAX_COUNT = 8;
+    private static final int VOTE_OPTION_MIN_LENGTH = 2;
+    private static final int VOTE_OPTION_MAX_LENGTH = 12;
+    private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final String ACTIVE_ACCOUNT_STATUS = "ACTIVE";
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
@@ -49,6 +62,124 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    // AI작성: 소모임·개설자·승인 OWNER 관계를 잠근 뒤 검증된 투표와 보기를 한 트랜잭션으로 저장한다.
+    @Override
+    @Transactional
+    public SmallGroupVoteCreateResponse createSmallGroupVote(
+            Long smallGroupId, Long memberId, SmallGroupVoteCreateRequest request) {
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        validateSmallGroupVoteCreateAuthority(target, memberId);
+
+        SmallGroupVoteCreateCommand command = createSmallGroupVoteCommand(smallGroupId, memberId, request);
+        if (smallGroupMapper.insertSmallGroupVote(command) != 1 || command.getSmallGroupVoteId() == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_CREATE_FAILED",
+                    "투표 생성 처리에 실패했습니다.");
+        }
+        if (smallGroupMapper.insertSmallGroupVoteOptions(
+                command.getSmallGroupVoteId(), command.getOptions()) != command.getOptions().size()) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_OPTION_CREATE_FAILED",
+                    "투표 보기 저장에 실패했습니다.");
+        }
+
+        // TODO: 알림 기능 담당 구현 후, 승인된 소모임 회원에게 투표 생성 알림을 발송한다.
+        // TODO: 투표 종료 기능 담당 구현 후, 마감·생성자 종료 시 종료 알림을 발송한다.
+        return new SmallGroupVoteCreateResponse(command.getSmallGroupVoteId());
+    }
+
+    // AI작성: 투표 생성 권한은 groups 개설자이면서 승인된 OWNER 관계인 회원으로만 한정한다.
+    private void validateSmallGroupVoteCreateAuthority(SmallGroupJoinTargetRow target, Long memberId) {
+        if (!Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_CREATE_FORBIDDEN",
+                    "소모임 개설자만 투표를 생성할 수 있습니다.");
+        }
+        SmallGroupMemberRelationRow relation =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (relation == null || !"OWNER".equals(relation.getMemberRole())
+                || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_CREATE_FORBIDDEN",
+                    "승인된 소모임 개설자만 투표를 생성할 수 있습니다.");
+        }
+    }
+
+    // AI작성: 공백·빈 값·완전히 같은 보기를 정리한 뒤, 확정된 제목·보기·마감일 정책을 검증한다.
+    private SmallGroupVoteCreateCommand createSmallGroupVoteCommand(
+            Long smallGroupId, Long memberId, SmallGroupVoteCreateRequest request) {
+        if (request == null || request.getMultipleChoice() == null || request.getAnonymous() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "투표 생성 요청이 올바르지 않습니다.");
+        }
+
+        String title = normalizeVoteTitle(request.getTitle());
+        List<String> options = normalizeVoteOptions(request.getOptions());
+        validateVoteEndsAt(request.getEndsAt());
+        return new SmallGroupVoteCreateCommand(
+                null,
+                smallGroupId,
+                memberId,
+                title,
+                request.getMultipleChoice(),
+                request.getAnonymous(),
+                request.getEndsAt(),
+                options);
+    }
+
+    private String normalizeVoteTitle(String title) {
+        if (title == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "투표 제목을 입력해 주세요.");
+        }
+        String normalizedTitle = title.strip();
+        if (normalizedTitle.length() < VOTE_TITLE_MIN_LENGTH || normalizedTitle.length() > VOTE_TITLE_MAX_LENGTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
+                    "투표 제목은 공백을 제외하고 2자 이상 12자 이하여야 합니다.");
+        }
+        return normalizedTitle;
+    }
+
+    private List<String> normalizeVoteOptions(List<String> rawOptions) {
+        if (rawOptions == null || rawOptions.size() > VOTE_OPTION_MAX_COUNT) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "투표 보기는 최대 8개까지 입력할 수 있습니다.");
+        }
+
+        LinkedHashSet<String> normalizedOptions = new LinkedHashSet<>();
+        for (String option : rawOptions) {
+            if (option == null || option.strip().isEmpty()) {
+                continue;
+            }
+            String normalizedOption = option.strip();
+            if (normalizedOption.length() < VOTE_OPTION_MIN_LENGTH
+                    || normalizedOption.length() > VOTE_OPTION_MAX_LENGTH) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
+                        "투표 보기는 공백을 제외하고 2자 이상 12자 이하여야 합니다.");
+            }
+            normalizedOptions.add(normalizedOption);
+        }
+        if (normalizedOptions.size() < VOTE_OPTION_MIN_COUNT) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
+                    "빈 값과 중복을 제외한 투표 보기는 2개 이상이어야 합니다.");
+        }
+        return List.copyOf(normalizedOptions);
+    }
+
+    private void validateVoteEndsAt(LocalDateTime endsAt) {
+        if (endsAt == null) {
+            return;
+        }
+        LocalDateTime minimumEndsAt = LocalDateTime.now(KOREA_ZONE_ID).plusMinutes(10);
+        if (endsAt.isBefore(minimumEndsAt)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST",
+                    "투표 마감 일시는 현재 시각 기준 10분 이후부터 설정할 수 있습니다.");
+        }
     }
 
     // AI작성: 목록 조회와 권한 검증을 같은 트랜잭션에서 처리해 개설자·OWNER 관계가 바뀐 뒤 목록을 반환하지 않는다.
