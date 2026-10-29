@@ -22,11 +22,32 @@ function formatStatus(status) {
   return '확인 필요';
 }
 
+// AI작성: 관리자 화면에서도 개인정보 노출을 줄이기 위해 표시 직전에 마스킹한다.
+function maskName(value) {
+  const name = String(value || '');
+  if (!name) return '-';
+  if (name.length === 1) return '*';
+  if (name.length === 2) return `${name[0]}*`;
+  return `${name[0]}${'*'.repeat(name.length - 2)}${name.at(-1)}`;
+}
+
+function maskEmail(value) {
+  const [localPart, domain] = String(value || '').split('@');
+  if (!localPart || !domain) return '-';
+  return `${localPart[0]}***@${domain}`;
+}
+
+function maskPhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length < 7) return '-';
+  return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
+}
+
 function mapMember(member) {
   return {
     id: member.memberId,
-    name: member.name,
-    email: member.email,
+    name: maskName(member.name),
+    email: maskEmail(member.email),
     region: member.regionName,
     verified: member.identityVerifiedAt && member.regionVerifiedAt ? '인증 완료' : '인증 필요',
     joinedAt: formatDate(member.createdAt),
@@ -69,7 +90,7 @@ export async function getAdminMember(memberId, signal) {
     return {
       member: mapMember(data),
       detail: {
-        phone: data.phone,
+        phone: maskPhone(data.phone),
         address: data.regionName,
         identityStatus: data.identityVerifiedAt ? '인증 완료' : '미인증',
         regionStatus: data.regionVerifiedAt ? '인증 완료' : '미인증',
