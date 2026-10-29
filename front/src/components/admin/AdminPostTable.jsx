@@ -207,7 +207,10 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                       <PostTitle>{post.title}</PostTitle>
                     </td>
                     <td data-label="작성자">{post.author}</td>
-                    <td data-label="작성일">{post.date.slice(5)}</td>
+                    <td data-label="작성일">
+                      {/* AI작성: 게시글 작성 시점의 연도와 날짜 안내 문구가 잘리지 않도록 전체 값을 표시한다. */}
+                      {post.date}
+                    </td>
                     <td data-label="관리">
                       <ActionArea>
                         <ActionButton type="button" $variant="secondary" onClick={() => onToggleHidden(post.id)}>
