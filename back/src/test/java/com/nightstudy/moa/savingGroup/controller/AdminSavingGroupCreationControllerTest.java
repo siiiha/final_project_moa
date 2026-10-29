@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.common.exception.GlobalExceptionHandler;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationDetailResponse;
 import com.nightstudy.moa.savingGroup.service.SavingGroupCreationService;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -53,5 +55,19 @@ class AdminSavingGroupCreationControllerTest {
                 .andExpect(jsonPath("$.data.currentBalance").value(15000))
                 .andExpect(jsonPath("$.data.activeRound").value(true))
                 .andExpect(jsonPath("$.data.pendingPayout").value(true));
+    }
+
+    @Test
+    // AI작성: 존재하지 않는 심사 번호는 빈 성공 응답 대신 명확한 404 오류를 반환하는지 검증한다.
+    void getApplicationDetailReturnsNotFound() throws Exception {
+        when(savingGroupCreationService.getCreationApplication(999L)).thenThrow(new ApiException(
+                HttpStatus.NOT_FOUND,
+                "SAVING_GROUP_APPLICATION_NOT_FOUND",
+                "계모임 심사 신청을 찾을 수 없습니다."
+        ));
+
+        mockMvc.perform(get("/api/admin/saving-group-applications/999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("SAVING_GROUP_APPLICATION_NOT_FOUND"));
     }
 }
