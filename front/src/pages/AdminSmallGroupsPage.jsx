@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import SmallGroupFilterBar from '../components/admin/SmallGroupFilterBar';
 import SmallGroupTable from '../components/admin/SmallGroupTable';
@@ -87,7 +86,6 @@ const SummaryDescription = styled.p`
 `;
 
 function AdminSmallGroupsPage() {
-  const navigate = useNavigate();
   const [groups, setGroups] = useState(adminSmallGroups);
   const [status, setStatus] = useState('전체');
   const [region, setRegion] = useState('전체');
@@ -128,40 +126,6 @@ function AdminSmallGroupsPage() {
     setCurrentPage(1);
   };
 
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'members') {
-      navigate('/admin/members');
-      return;
-    }
-
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
-    }
-
-    if (menuId === 'gathering-review') {
-      navigate('/admin/saving-groups/applications');
-      return;
-    }
-
-    if (menuId === 'posts') {
-      navigate('/admin/posts');
-      return;
-    }
-
-    if (menuId === 'comments') {
-      navigate('/admin/comments');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
-  };
-
   return (
     <Page>
       <Heading>
@@ -169,7 +133,7 @@ function AdminSmallGroupsPage() {
         <p>서비스에서 운영 중인 소모임의 활동 현황과 이용 상태를 관리하세요.</p>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="groups" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="groups" />
         <main>
           <SummaryGrid aria-label="소모임 현황 요약">
             <SummaryCard>

@@ -50,7 +50,6 @@ const Grid = styled.div`
 
 function AdminMembersPage() {
   const navigate = useNavigate();
-  const [activeMenu, setActiveMenu] = useState('members');
   const [status, setStatus] = useState('전체');
   const [region, setRegion] = useState('전체');
   const [query, setQuery] = useState('');
@@ -98,41 +97,6 @@ function AdminMembersPage() {
     setCurrentPage(1);
   };
 
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
-    }
-
-    if (menuId === 'gathering-review') {
-      navigate('/admin/saving-groups/applications');
-      return;
-    }
-
-    if (menuId === 'groups') {
-      navigate('/admin/small-groups');
-      return;
-    }
-
-    if (menuId === 'posts') {
-      navigate('/admin/posts');
-      return;
-    }
-
-    if (menuId === 'comments') {
-      navigate('/admin/comments');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-
-    setActiveMenu(menuId);
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
-  };
-
   const handleViewMember = (memberId) => {
     navigate(`/admin/members/${memberId}`);
   };
@@ -144,7 +108,7 @@ function AdminMembersPage() {
         <p>서비스 회원 현황을 확인하고 회원 정보를 관리하세요.</p>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem={activeMenu} onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="members" />
         <main>
           <AdminDashboard stats={adminSummaryStats} />
           <AdminMemberTable
