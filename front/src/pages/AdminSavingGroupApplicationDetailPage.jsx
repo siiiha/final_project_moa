@@ -54,6 +54,17 @@ const MessageCard = styled.section`
     font-size: 13px;
   }
 `;
+// AI작성: 관리자 처리 결과를 성공·실패에 따라 구분하되 기존 테마 색상과 여백을 재사용한다.
+const FeedbackMessage = styled.p`
+  margin-bottom: 12px;
+  padding: 11px 13px;
+  color: ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.primary)};
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ $error, theme }) => ($error ? theme.colors.danger : theme.colors.primary)};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12px;
+  font-weight: 700;
+`;
 
 function AdminSavingGroupApplicationDetailPage() {
   const navigate = useNavigate();
@@ -133,8 +144,12 @@ function AdminSavingGroupApplicationDetailPage() {
             </MessageCard>
           ) : application ? (
             <>
-              {error && <p role="alert">{error}</p>}
-              {successMessage && <p role="status">{successMessage}</p>}
+              {error && (
+                <FeedbackMessage $error role="alert">
+                  {error}
+                </FeedbackMessage>
+              )}
+              {successMessage && <FeedbackMessage role="status">{successMessage}</FeedbackMessage>}
               <SavingGroupApplicationDetail
                 application={application}
                 isProcessing={isProcessing}
