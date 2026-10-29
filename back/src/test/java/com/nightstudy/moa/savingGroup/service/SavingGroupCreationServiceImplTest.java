@@ -134,6 +134,19 @@ class SavingGroupCreationServiceImplTest {
         verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
     }
 
+    @Test
+    // AI작성: 삭제 심사 반려는 반려 사유만 저장하고 원본 계모임을 삭제하지 않는지 검증한다.
+    void rejectDeletionKeepsSavingGroup() {
+        SavingGroupCreationApplicationDetailResponse application = pendingDeletionApplication(1L, 100L);
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
+        when(savingGroupMapper.rejectSavingGroupDeletionApplication(1L, "공동자금 정리 필요")).thenReturn(1);
+
+        savingGroupCreationService.rejectCreationApplication(1L, " 공동자금 정리 필요 ");
+
+        verify(savingGroupMapper).rejectSavingGroupDeletionApplication(1L, "공동자금 정리 필요");
+        verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+    }
+
     private SavingGroupCreationRequest creationRequest() {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
