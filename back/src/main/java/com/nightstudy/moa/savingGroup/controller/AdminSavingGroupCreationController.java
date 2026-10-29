@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-// AI작성: JWT 적용 전에는 관리자 경로만 구분하며, 병합 후 ADMIN 권한 검증을 추가해야 한다.
+// AI작성: SecurityConfig에서 ADMIN 권한을 검증한 계모임 개설·삭제 심사 요청을 처리한다.
 @RestController
 @RequestMapping("/api/admin/saving-group-applications")
 public class AdminSavingGroupCreationController {
