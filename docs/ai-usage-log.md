@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-28 — 소모임 설정 수정 API
+
+- 목적: 소모임 개설자가 설정 화면에서 모임명·관심사·소개글·정원·만남일·장소를 부분 수정할 수 있게 한다.
+- 사용자 확정: 경로는 `PATCH /api/small-groups/{id}`이고 ID는 `small_group.small_group_id`이다. 수정은 삭제되지 않은 소모임에서만 가능하며, 개설자이면서 `OWNER`·`APPROVED` 관계인 사용자만 허용한다. 정원은 2~20명이고 승인 OWNER·MEMBER 수보다 작게 줄일 수 없다. 소모임은 상태 정책이 없으므로 상태 기반 수정 제한을 추가하지 않는다.
+- AI 작성: 전달 필드 감지·Bean Validation 요청 DTO, 공통/소모임 전용 MyBatis UPDATE DTO와 잠금 SQL, Service 트랜잭션·권한·정원 검증, PATCH Controller, Service·Mapper XML·Controller·Security 테스트, API 명세를 추가했다.
+- 응답·오류: 성공 시 기존 `ApiResponse.ok(null)`을 반환한다. 없는·삭제 소모임은 `404 SMALL_GROUP_NOT_FOUND`, 권한 없음은 `403 SMALL_GROUP_SETTINGS_FORBIDDEN`, 승인 인원보다 작은 정원은 `409 SMALL_GROUP_CAPACITY_BELOW_MEMBERS`, 요청 검증 실패는 공통 `400 BAD_REQUEST`를 사용한다.
+- DB·의존성·외부 연동: 기존 `groups`, `small_group`, `group_member`와 MyBatis Mapper를 재사용했다. DB 마이그레이션, 상태값, 외부 호출, 의존성·설정 변경은 하지 않았다.
+- 검증: `git diff --check`를 통과했다. Gradle 대상 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 PATCH Controller·Security·Service·Mapper XML 테스트를 실행하고, 실제 JWT와 MySQL에서 부분 수정, 401·403·404·409, 잠금·롤백, 삭제된 소모임 차단을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 프런트 저장 연결 전 사용자에게 표시할 400·403·404·409 오류 메시지를 확인한다.
+
 ## 2026-10-28 — 소모임 설정 정보 조회 API
 
 - 목적: 소모임 개설자가 설정 화면을 열기 전에 현재 수정 가능한 모임 정보와 승인 참여 인원을 안전하게 조회할 수 있게 한다.

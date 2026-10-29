@@ -145,3 +145,68 @@ Spring Security에서 숫자 ID의 `GET /api/small-groups/{id}`만 공개한다.
 - Service 단위 테스트는 정상 조회, 비로그인, 없는·삭제된 소모임, 비개설자, 승인 OWNER 관계가 없는 개설자를 검증한다.
 - Controller 테스트는 JWT 요청 속성 전달, 공통 성공·업무 오류 응답, 양수가 아닌 경로 ID를 검증한다.
 - Security 통합 테스트는 설정 조회 API가 인증 없이는 접근할 수 없음을 검증한다.
+
+---
+
+## 소모임 설정 수정 API
+
+### 범위
+
+- 엔드포인트: `PATCH /api/small-groups/{id}`
+- `{id}`는 `small_group.small_group_id`이며 양수여야 한다.
+- 설정 조회와 같이 JWT 인증을 통과한 개설자이면서 `OWNER`·`APPROVED` 관계인 사용자만 수정할 수 있다.
+- `groups.deleted_at`이 설정된 소모임은 수정할 수 없다.
+- 소모임에는 모집·진행·완료 상태 정책이 없으므로 상태에 따른 수정 제한을 두지 않는다.
+
+### 요청과 성공 응답
+
+요청 본문에는 실제로 바꿀 필드만 포함한다. 빈 객체는 허용하지 않는다.
+
+```json
+{
+  "groupName": "주말 걷기 모임",
+  "likeCategory": "운동",
+  "description": "함께 걷고 이야기하는 소모임입니다.",
+  "maxMembers": 10,
+  "meetDate": "2026-11-01",
+  "location": "한강공원"
+}
+```
+
+성공 시 기존 계모임 설정 수정과 동일하게 데이터를 반환하지 않는다.
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 수정 가능 필드와 검증
+
+| 필드 | 검증 |
+| --- | --- |
+| `groupName` | 공백 제거 후 2~20자 |
+| `likeCategory` | 공백 불가, 최대 50자 |
+| `description` | 공백 제거 후 최대 40자 |
+| `maxMembers` | 2~20명 |
+| `meetDate` | 오늘 이후, 즉 내일부터 |
+| `location` | 공백 불가, 최대 40자 |
+
+식별자, 개설자, 생성일, 지역은 요청 DTO에 없어 수정할 수 없다. 전달된 문자열은 Service에서 공백을 제거해 저장한다.
+
+`maxMembers`를 변경할 때는 `APPROVED` 상태의 `OWNER`, `MEMBER` 수를 잠금 조회한다. 새 정원이 이 인원보다 작으면 변경하지 않고 `409 SMALL_GROUP_CAPACITY_BELOW_MEMBERS`를 반환한다.
+
+### 오류와 처리
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증 정보 없음 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 잘못된 ID·요청 본문·값 범위 | `400 BAD_REQUEST` 또는 잘못된 JSON 날짜 형식의 `400 INVALID_REQUEST` |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 개설자 또는 승인 OWNER가 아님 | `403 SMALL_GROUP_SETTINGS_FORBIDDEN` |
+| 새 정원이 승인 참여자 수보다 작음 | `409 SMALL_GROUP_CAPACITY_BELOW_MEMBERS` |
+
+공통 모임 필드(`group_name`, `description`, `max_members`)와 소모임 전용 필드(`like_category`, `meet_date`, `location`)는 하나의 Service 트랜잭션에서 수정한다. DB 마이그레이션은 추가하지 않는다.
