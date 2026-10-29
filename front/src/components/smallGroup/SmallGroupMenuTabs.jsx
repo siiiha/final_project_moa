@@ -48,16 +48,27 @@ const MenuButton = styled.button`
   }
 `;
 
-const menuItems = [
+const commonMenuItems = [
   { id: 'notice', label: '공지' },
   { id: 'directions', label: '길찾기' },
   { id: 'poll', label: '투표' },
   { id: 'review', label: '후기' },
+];
+
+const ownerMenuItems = [
   { id: 'settings', label: '설정' },
   { id: 'joinRequests', label: '신청 목록' },
 ];
 
-function SmallGroupMenuTabs({ activeMenu, onMenuChange }) {
+// AI작성: 공개 상세는 공지만, 승인 MEMBER·OWNER는 확정된 역할 범위의 탭만 표시한다.
+export function getSmallGroupMenuItems(myRole) {
+  if (myRole === 'OWNER') return [...commonMenuItems, ...ownerMenuItems];
+  return myRole === 'MEMBER' ? commonMenuItems : commonMenuItems.slice(0, 1);
+}
+
+function SmallGroupMenuTabs({ myRole, activeMenu, onMenuChange }) {
+  const menuItems = getSmallGroupMenuItems(myRole);
+
   return (
     <Menu aria-label="소모임 메뉴">
       {menuItems.map((item) => (

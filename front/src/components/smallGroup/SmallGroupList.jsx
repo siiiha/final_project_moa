@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
 import SmallGroupCard from './SmallGroupCard';
+import { getSmallGroupPages } from '../../api/smallGroups';
 
 const Grid = styled.section`
   margin-top: 12px;
@@ -37,6 +38,12 @@ const PageButton = styled(Button)`
 
 function SmallGroupList({ groups, currentPage, totalPages, onPageChange, onView }) {
   if (!groups.length) {
+    // AI작성: 서버 응답의 마지막 페이지를 넘긴 경우와 일반적인 빈 검색 결과를 구분한다.
+    if (totalPages > 0 && currentPage > totalPages) {
+      return <Empty>해당 페이지에 표시할 소모임이 없습니다.{' '}
+        <PageButton type="button" $variant="secondary" $size="small" onClick={() => onPageChange(1)}>첫 페이지로 이동</PageButton>
+      </Empty>;
+    }
     return <Empty>검색 조건에 맞는 소모임이 없습니다.</Empty>;
   }
 
@@ -50,7 +57,8 @@ function SmallGroupList({ groups, currentPage, totalPages, onPageChange, onView 
           <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
             이전
           </PageButton>
-          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+          {/* AI작성: 기존 계모임과 동일하게 현재 페이지 주변의 최대 다섯 개 번호만 표시한다. */}
+          {getSmallGroupPages(currentPage, totalPages).map((page) => (
             <PageButton
               key={page}
               type="button"

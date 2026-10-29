@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { createSmallGroup, fetchSmallGroupRegions } from '../api/smallGroups';
 import SmallGroupCreateForm from '../components/smallGroup/SmallGroupCreateForm';
-import { smallGroupInterests, smallGroupRegions } from '../mocks/smallGroups';
+import { smallGroupInterests } from '../mocks/smallGroups';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -37,25 +38,70 @@ const Content = styled.main`
   margin: 18px auto 0;
 `;
 
-const Notice = styled.p`
+const ErrorNotice = styled.p`
   margin-top: 14px;
   padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.primarySoft};
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 12px;
 `;
 
 function SmallGroupCreatePage() {
   const navigate = useNavigate();
-  const [createdName, setCreatedName] = useState('');
+  const [submissionError, setSubmissionError] = useState('');
+  const [regions, setRegions] = useState([]);
+  const [isRegionLoading, setIsRegionLoading] = useState(true);
+  const [regionLoadError, setRegionLoadError] = useState('');
 
-  const handleSubmit = (event) => {
+  useEffect(() => {
+    let isCurrentPage = true;
+
+    // AI작성: 페이지 진입 시 로그인 토큰으로 DB의 팔도 지역 목록을 조회해 선택지로 사용한다.
+    const loadRegions = async () => {
+      try {
+        const loadedRegions = await fetchSmallGroupRegions();
+        if (isCurrentPage) setRegions(loadedRegions);
+      } catch (error) {
+        if (isCurrentPage) {
+          setRegionLoadError(error.message || '활동 지역을 불러오지 못했습니다.');
+        }
+      } finally {
+        if (isCurrentPage) setIsRegionLoading(false);
+      }
+    };
+
+    loadRegions();
+    return () => {
+      isCurrentPage = false;
+    };
+  }, []);
+
+  // AI작성: 기존 폼 name을 백엔드 소모임 생성 DTO 필드명으로 변환한다.
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    setSubmissionError('');
 
-    // TODO: Spring Boot 소모임 생성 API에 폼 입력값을 전송하고 생성 결과를 처리합니다.
-    setCreatedName(formData.get('name'));
+    try {
+      const created = await createSmallGroup({
+        groupName: formData.get('name'),
+        regionName: formData.get('region'),
+        likeCategory: formData.get('interest'),
+        description: formData.get('description'),
+        maxMembers: Number(formData.get('capacity')),
+        meetDate: formData.get('meetingDate'),
+        location: formData.get('place'),
+      });
+      // AI작성: 상세 API가 small_group.small_group_id를 경로 변수로 사용하므로 생성 응답의 식별값만 사용한다.
+      if (created?.smallGroupId == null) {
+        throw new Error('생성된 소모임 정보를 확인하지 못했습니다. 다시 시도해 주세요.');
+      }
+      // AI작성: 뒤로 가기로 빈 생성 폼을 다시 제출하지 않도록 상세 화면으로 현재 기록을 교체한다.
+      navigate(`/small-groups/${encodeURIComponent(created.smallGroupId)}`, { replace: true });
+    } catch (error) {
+      setSubmissionError(error.message || '소모임 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
   };
 
   return (
@@ -67,12 +113,15 @@ function SmallGroupCreatePage() {
       </Heading>
       <Content>
         <SmallGroupCreateForm
-          regions={smallGroupRegions}
+          regions={regions}
           interests={smallGroupInterests}
+          isRegionLoading={isRegionLoading}
+          regionLoadError={regionLoadError}
           onSubmit={handleSubmit}
           onCancel={() => navigate('/small-groups')}
         />
-        {createdName && <Notice role="status">{createdName} 소모임 만들기를 준비했습니다.</Notice>}
+        {regionLoadError && <ErrorNotice role="alert">{regionLoadError}</ErrorNotice>}
+        {submissionError && <ErrorNotice role="alert">{submissionError}</ErrorNotice>}
       </Content>
     </Page>
   );
