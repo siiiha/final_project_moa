@@ -163,40 +163,6 @@ function AdminCommentsPage() {
     setDeleteTarget(comment);
   };
 
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'members') {
-      navigate('/admin/members');
-      return;
-    }
-
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
-    }
-
-    if (menuId === 'gathering-review') {
-      navigate('/admin/saving-groups/applications');
-      return;
-    }
-
-    if (menuId === 'groups') {
-      navigate('/admin/small-groups');
-      return;
-    }
-
-    if (menuId === 'posts') {
-      navigate('/admin/posts');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
-  };
-
   return (
     <Page>
       <Heading>
@@ -207,7 +173,7 @@ function AdminCommentsPage() {
         <AdminBadge>관리자 전용</AdminBadge>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="comments" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="comments" />
         <Content>
           <AdminCommentFilterBar
             query={query}
