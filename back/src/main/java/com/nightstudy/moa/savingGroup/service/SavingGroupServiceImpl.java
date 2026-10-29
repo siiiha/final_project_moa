@@ -50,6 +50,11 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
         }
+        // AI작성: 관리자 제한을 포함한 일시정지 상태에서는 가입 신청 관리 활동도 차단한다.
+        if (!"01".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
         validateSavingGroupOwner(target, memberId);
         int total = savingGroupMapper.selectSavingGroupJoinRequestCount(target.getGroupId(), status);
         PageMeta meta = PageMeta.of(page, 10, total);
@@ -113,6 +118,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(groupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        if (!List.of("01", "02").contains(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
         }
         validateSavingGroupOwner(target, memberId);
 
@@ -273,6 +282,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "해당 계모임의 가입 신청을 찾을 수 없습니다.");
         }
         validateSavingGroupOwner(target, memberId);
+        if (!"01".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
         if (!"PENDING".equals(request.getMembershipStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_NOT_PENDING",
                     "대기 중인 가입 신청만 " + actionName + "할 수 있습니다.");
@@ -358,6 +371,11 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (!isOwner) {
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_SETTINGS_FORBIDDEN",
                     "계주만 설정을 조회할 수 있습니다.");
+        }
+
+        if ("03".equals(authority.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "이용 제한된 계모임의 설정은 조회할 수 없습니다.");
         }
 
         if ("04".equals(authority.getStatus())) {

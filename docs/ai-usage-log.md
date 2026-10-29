@@ -378,3 +378,13 @@
 - DB·의존성·외부 서비스 변경: 없음. 기존 `members.account_status`, `members.suspended_until`, `restriction_history`를 재사용했다.
 - 검증: 백엔드 `compileJava`, 프론트 `npm run build`, `npm run lint` 통과. 전체 백엔드 테스트는 기존 `SmallGroupSecurityIntegrationTest` 생성자 인자 불일치로 테스트 소스 컴파일 단계에서 중단된다.
 - 개발자 검토: MySQL 연결 환경에서 직접 제한·해제 이력과 기존 JWT·재발급 차단을 Postman 및 브라우저로 최종 확인해야 한다.
+
+## 2026-10-29 — 관리자 계모임 이용 제한·해제 및 실제 API 연결
+
+- 목적: 관리자가 진행 중인 계모임을 기간 없이 활동 정지하고 문제 해결 후 해제하며, 관리자 계모임 Mock 화면을 실제 API로 교체한다.
+- 사용자 확정: 기존 `02(진행 중) ↔ 03(일시정지)` 상태를 재사용하고, 최근 `restriction_history`가 미해제 `RESTRICT`인 경우에만 관리자 제한 해제를 허용한다.
+- AI 제안·작성: 기존 `SavingGroupService.changeSavingGroupStatus`를 재사용해 회비 설정 보류·재개 로직의 중복을 피하고, 상태 변경과 제한·해제 사유 저장을 하나의 트랜잭션으로 처리했다. 계모임은 기간제가 아니므로 `restriction_type`과 `restricted_until`은 NULL로 저장한다.
+- AI 제안·작성: 공개 목록·상세의 기존 `01/02` 조회 조건을 유지하고 가입 관리·계원 추방·설정 조회의 `03` 상태 활동을 차단했다. 프론트에는 실제 목록 API, 서버 페이징·필터, 사유 입력 모달, 중복 제출 방지, 성공 후 재조회를 연결했다.
+- DB·의존성·외부 서비스 변경: 없음. 기존 `saving_group.status`와 `restriction_history`를 재사용했다.
+- 검증: 백엔드 `compileJava`, 프론트 `npm run lint`, `npm run build`, `git diff --check` 통과. 린트의 기존 경고 8건은 이번 작업과 관계없다.
+- 개발자 검토: 실제 DB에서 제한·해제 이력과 일반 일시정지 해제 거부, 제한 상태의 일반 사용자 접근·활동 차단을 확인해야 한다.

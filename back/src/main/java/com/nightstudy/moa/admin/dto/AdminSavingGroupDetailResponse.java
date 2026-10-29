@@ -25,6 +25,7 @@ public class AdminSavingGroupDetailResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private String status;
+    private Boolean adminRestricted;
     private String groupImage;
     private Long ownerMemberId;
     private String ownerNickname;
