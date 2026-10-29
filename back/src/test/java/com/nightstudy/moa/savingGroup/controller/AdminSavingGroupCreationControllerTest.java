@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -155,5 +156,33 @@ class AdminSavingGroupCreationControllerTest {
 
         verify(savingGroupCreationService).rejectCreationApplication(
                 1L, "공동자금 정리 후 다시 신청해 주세요.");
+    }
+
+    @Test
+    // AI작성: 빈 반려 사유는 관리자 심사 Service를 호출하기 전에 요청 검증으로 차단한다.
+    void rejectApplicationRejectsMissingReason() throws Exception {
+        mockMvc.perform(patch("/api/admin/saving-group-applications/1/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rejectReason":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+
+        verify(savingGroupCreationService, never()).rejectCreationApplication(any(), any());
+    }
+
+    @Test
+    // AI작성: DB 반려 사유 컬럼 길이를 넘는 입력은 저장 전에 요청 검증으로 차단한다.
+    void rejectApplicationRejectsReasonOverMaxLength() throws Exception {
+        String content = "{\"rejectReason\":\"" + "가".repeat(256) + "\"}";
+
+        mockMvc.perform(patch("/api/admin/saving-group-applications/1/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(content))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+
+        verify(savingGroupCreationService, never()).rejectCreationApplication(any(), any());
     }
 }
