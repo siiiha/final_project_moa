@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
+import ConfirmModal from '../components/common/ConfirmModal';
 import AdminMemberDetail from '../components/admin/AdminMemberDetail';
 import AdminSidebar from '../components/layout/AdminSidebar';
 import { adminMenuItems } from '../mocks/admin';
@@ -73,6 +74,7 @@ function AdminMemberDetailPage() {
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -141,6 +143,14 @@ function AdminMemberDetailPage() {
       return;
     }
 
+    // AI작성: 회원 이용 제한·해제는 영향이 큰 작업이므로 실제 요청 전에 처리 내용을 확인한다.
+    setErrorMessage('');
+    setConfirmOpen(true);
+  };
+
+  const handleStatusConfirm = async () => {
+    if (submitting) return;
+
     setSubmitting(true);
     setMessage('');
     setErrorMessage('');
@@ -151,6 +161,7 @@ function AdminMemberDetailPage() {
         await releaseAdminMemberRestriction(id, reason.trim());
       }
       setReason('');
+      setConfirmOpen(false);
       setMessage(action === '이용 제한' ? '회원 이용을 제한했습니다.' : '회원 이용 제한을 해제했습니다.');
       // AI작성: 처리된 서버 상태와 제한 종료 시각을 화면에 반영하도록 상세 정보를 다시 조회한다.
       setLoading(true);
@@ -161,6 +172,12 @@ function AdminMemberDetailPage() {
       setSubmitting(false);
     }
   };
+
+  const restrictionTypeLabel = {
+    '7_DAYS': '7일',
+    '30_DAYS': '30일',
+    PERMANENT: '영구',
+  }[restrictionType];
 
   if (loading || !member || !detail) {
     return (
@@ -201,6 +218,22 @@ function AdminMemberDetailPage() {
           />
         </main>
       </Grid>
+      {confirmOpen && (
+        <ConfirmModal
+          title={action === '이용 제한' ? '회원 이용 제한' : '회원 제한 해제'}
+          description={
+            action === '이용 제한'
+              ? `${member.name} 회원을 ${restrictionTypeLabel} 동안 제한합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
+              : `${member.name} 회원의 이용 제한을 해제합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
+          }
+          confirmLabel={submitting ? '처리 중...' : action}
+          confirmVariant={action === '이용 제한' ? 'danger' : 'primary'}
+          cancelFirst
+          isBusy={submitting}
+          onConfirm={handleStatusConfirm}
+          onCancel={() => !submitting && setConfirmOpen(false)}
+        />
+      )}
     </Page>
   );
 }
