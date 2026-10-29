@@ -184,6 +184,13 @@ const PageButton = styled(Button)`
   font-size: 11px;
 `;
 
+function getPageNumbers(currentPage, totalPages) {
+  // AI작성: 많은 회원 데이터에서도 페이지 버튼이 과도하게 늘어나지 않도록 다섯 개만 표시한다.
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const length = Math.min(5, totalPages - start + 1);
+  return Array.from({ length }, (_, index) => start + index);
+}
+
 function AdminMemberTable({
   members,
   filter,
@@ -272,12 +279,13 @@ function AdminMemberTable({
           >
             이전
           </PageButton>
-          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+          {getPageNumbers(currentPage, totalPages).map((page) => (
             <PageButton
               key={page}
               type="button"
               $variant={page === currentPage ? 'primary' : 'secondary'}
               onClick={() => onPageChange(page)}
+              aria-current={page === currentPage ? 'page' : undefined}
             >
               {page}
             </PageButton>
