@@ -3,6 +3,8 @@ package com.nightstudy.moa.smallGroup.mapper;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
@@ -53,6 +55,22 @@ public interface SmallGroupMapper {
 
     // AI작성: 소모임 참여 인원은 승인된 OWNER와 MEMBER만 중복 없이 집계한다.
     long selectApprovedSmallGroupMemberCount(@Param("groupId") Long groupId);
+
+    // AI작성: 가입 신청 중 회원 계정·본인 인증·시스템 권한 변경과 경합하지 않도록 회원 행을 잠가 조회한다.
+    SmallGroupJoinMemberRow selectSmallGroupJoinMemberForUpdate(@Param("memberId") Long memberId);
+
+    // AI작성: 삭제되지 않은 소모임의 공통 모임 ID·개설자·정원을 잠가 가입 대상 검증에 사용한다.
+    SmallGroupJoinTargetRow selectSmallGroupJoinTargetForUpdate(@Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 같은 회원의 기존 관계를 잠가 역할 제한·중복 신청·LEFT 재신청을 안전하게 판단한다.
+    SmallGroupMemberRelationRow selectSmallGroupMembershipForUpdate(
+            @Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    // AI작성: 가입 신청은 별도 입력 없이 인증 회원을 MEMBER·PENDING 관계로 한 건 저장한다.
+    int insertSmallGroupJoinRequest(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
+    // AI작성: 자진 탈퇴한 LEFT 관계만 기존 승인 정보를 초기화하고 PENDING 신청으로 되돌린다.
+    int reactivateLeftSmallGroupMembership(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 
     // AI작성: 삭제되지 않은 소모임의 개설자와 승인 OWNER를 함께 조회해 설정 접근 권한 검증에 사용한다.
     SmallGroupSettingsAuthorityRow selectSmallGroupSettingsAuthority(
