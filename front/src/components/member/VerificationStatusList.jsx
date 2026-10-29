@@ -87,7 +87,13 @@ function VerificationStatusList({ items, onAction }) {
               </VerificationName>
               <Description>{item.description}</Description>
             </div>
-            <ActionButton type="button" $variant="secondary" $size="small" onClick={() => onAction(item.id)}>
+            <ActionButton
+              type="button"
+              $variant="secondary"
+              $size="small"
+              disabled={Boolean(item.disabled)}
+              onClick={() => onAction(item.id)}
+            >
               {item.actionLabel}
             </ActionButton>
           </VerificationRow>
