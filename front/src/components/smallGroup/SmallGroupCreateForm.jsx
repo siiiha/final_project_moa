@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
@@ -123,12 +124,35 @@ const ActionButton = styled(Button)`
   font-size: 13px;
 `;
 
-function SmallGroupCreateForm({ regions, interests, onSubmit, onCancel }) {
+function SmallGroupCreateForm({
+  regions,
+  interests,
+  isRegionLoading,
+  regionLoadError,
+  onSubmit,
+  onCancel,
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isRegionUnavailable = isRegionLoading || Boolean(regionLoadError) || regions.length === 0;
+
+  // AI작성: 비동기 생성 요청이 끝날 때까지 버튼을 잠가 중복 저장과 취소 이동을 막는다.
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(event);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Card>
       <CardTitle>소모임 정보 입력</CardTitle>
       <Description>이웃과 함께할 소모임의 기본 정보를 입력해주세요.</Description>
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={handleSubmit} aria-busy={isSubmitting}>
         <FieldGrid>
           <Field>
             소모임 이름
@@ -136,10 +160,19 @@ function SmallGroupCreateForm({ regions, interests, onSubmit, onCancel }) {
           </Field>
           <Field>
             활동 지역
-            <Select name="region" required defaultValue="서울 마포구">
-              {regions.filter((region) => region !== '전체').map((region) => (
-                <option key={region} value={region}>
-                  {region}
+            <Select name="region" required defaultValue="" disabled={isRegionUnavailable}>
+              <option value="" disabled>
+                {isRegionLoading
+                  ? '활동 지역을 불러오는 중입니다.'
+                  : regionLoadError
+                    ? '활동 지역을 불러오지 못했습니다.'
+                    : regions.length === 0
+                      ? '등록된 활동 지역이 없습니다.'
+                      : '활동 지역을 선택하세요'}
+              </option>
+              {regions.map((region) => (
+                <option key={region.regionId} value={region.regionName}>
+                  {region.regionName}
                 </option>
               ))}
             </Select>
@@ -180,10 +213,12 @@ function SmallGroupCreateForm({ regions, interests, onSubmit, onCancel }) {
         </DetailFieldGrid>
 
         <Actions>
-          <ActionButton type="button" $variant="secondary" onClick={onCancel}>
+          <ActionButton type="button" $variant="secondary" onClick={onCancel} disabled={isSubmitting}>
             취소
           </ActionButton>
-          <ActionButton type="submit">소모임 만들기</ActionButton>
+          <ActionButton type="submit" disabled={isSubmitting || isRegionUnavailable}>
+            {isSubmitting ? '생성 중...' : '소모임 만들기'}
+          </ActionButton>
         </Actions>
       </Form>
     </Card>

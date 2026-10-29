@@ -1,8 +1,7 @@
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
-import SmallGroupMenuTabs from './SmallGroupMenuTabs';
+import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
 
@@ -52,13 +51,6 @@ const Meta = styled.p`
   gap: 5px;
   color: ${({ theme }) => theme.colors.muted};
   font-size: 11px;
-`;
-
-const StatusBadge = styled(Badge)`
-  min-height: 20px;
-  padding: 2px 7px;
-  color: ${({ theme }) => theme.colors.primary};
-  font-size: 10px;
 `;
 
 const ContentGrid = styled.div`
@@ -183,23 +175,23 @@ const CalendarIcon = styled.div`
 const ScheduleText = styled.div`
   min-width: 0;
 
-  strong {
+  strong,
+  span {
     display: block;
     overflow: hidden;
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  strong {
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 12px;
+  }
+
   span {
     margin-top: 4px;
-    display: block;
-    overflow: hidden;
     color: ${({ theme }) => theme.colors.muted};
     font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 `;
 
@@ -229,7 +221,7 @@ const NoticeTable = styled.div`
 const NoticeRow = styled.div`
   padding: 9px 10px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 66px 42px;
+  grid-template-columns: minmax(0, 1fr) 66px 72px;
   gap: 8px;
   color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
   background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
@@ -241,6 +233,13 @@ const NoticeRow = styled.div`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+`;
+
+const NoticeEmpty = styled.p`
+  padding: 16px 10px;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 11px;
+  text-align: center;
 `;
 
 const Placeholder = styled.section`
@@ -262,9 +261,19 @@ const JoinRequestsContent = styled.div`
   margin-top: 16px;
 `;
 
+function formatDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  }).format(date);
+}
+
 function SmallGroupDetail({
   group,
   detail,
+  myRole = null,
   activeMenu,
   interests,
   onMenuChange,
@@ -272,13 +281,19 @@ function SmallGroupDetail({
   onSettingsCancel,
   onDelete,
 }) {
+  const allowedMenuItems = getSmallGroupMenuItems(myRole);
+  // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
+  const currentMenu = allowedMenuItems.some((item) => item.id === activeMenu) ? activeMenu : 'notice';
   const activeLabel = {
     directions: '길찾기',
     poll: '투표',
     review: '후기',
     settings: '설정',
     joinRequests: '신청 목록',
-  }[activeMenu];
+  }[currentMenu];
+  const meetDate = formatDate(group.meetDate) || '일정 조율 중';
+  const location = group.location || '모임에서 추후 안내';
+  const createdAt = formatDate(group.createdAt);
 
   return (
     <>
@@ -294,14 +309,16 @@ function SmallGroupDetail({
               <span>·</span>
               <FiUsers size={12} aria-hidden="true" />
               <span>{group.participants}</span>
-              <StatusBadge>{detail.status}</StatusBadge>
+              {/* AI작성: 상세 카드와 중복되는 개설자·생성일은 모임 기본 정보 옆에서만 표시한다. */}
+              {group.creatorNickname && <><span>·</span><span>개설자 {group.creatorNickname}</span></>}
+              {createdAt && <><span>·</span><span>생성일 {createdAt}</span></>}
             </Meta>
           </TitleBlock>
         </ProfileTop>
-        <SmallGroupMenuTabs activeMenu={activeMenu} onMenuChange={onMenuChange} />
+        <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>
 
-      {activeMenu === 'settings' ? (
+      {currentMenu === 'settings' ? (
         <SettingsContent>
           <SmallGroupSettingsForm
             group={group}
@@ -312,11 +329,11 @@ function SmallGroupDetail({
             onDelete={onDelete}
           />
         </SettingsContent>
-      ) : activeMenu === 'joinRequests' ? (
+      ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
           <SmallGroupJoinRequestsPanel groupName={group.name} />
         </JoinRequestsContent>
-      ) : activeMenu !== 'notice' ? (
+      ) : currentMenu !== 'notice' ? (
         <Placeholder>{activeLabel} 기능은 준비 중입니다.</Placeholder>
       ) : (
         <ContentGrid>
@@ -331,8 +348,9 @@ function SmallGroupDetail({
             <Card>
               <CardTitle>장소</CardTitle>
               <PlaceContent>
-                <Place><FiMapPin size={14} aria-hidden="true" /> {detail.meetingPlace}</Place>
-                <MapButton type="button" $variant="secondary" onClick={() => {}}>
+                <Place><FiMapPin size={14} aria-hidden="true" /> {location}</Place>
+                {/* AI작성: 길찾기 API가 확정되기 전에는 이동을 발생시키지 않는다. */}
+                <MapButton type="button" $variant="secondary" disabled title="길찾기 기능은 준비 중입니다.">
                   선택 장소 길찾기 <FiChevronRight size={12} aria-hidden="true" />
                 </MapButton>
               </PlaceContent>
@@ -343,28 +361,36 @@ function SmallGroupDetail({
             <Card>
               <CardHeading>
                 <CardTitle>다음 모임 일정</CardTitle>
-                <TextButton type="button" onClick={() => {}}>일정 확인</TextButton>
+                {/* AI작성: 소모임 일정 목록 API가 준비되기 전에는 화면 이동을 연결하지 않는다. */}
+                <TextButton type="button" disabled title="일정 목록 기능은 준비 중입니다.">일정 확인</TextButton>
               </CardHeading>
               <ScheduleRow>
                 <CalendarIcon><FiCalendar size={17} aria-hidden="true" /></CalendarIcon>
                 <ScheduleText>
-                  <strong>{detail.nextMeeting}</strong>
-                  <span>{detail.meetingPlace}</span>
+                  <strong>{meetDate}</strong>
+                  <span>{location}</span>
                 </ScheduleText>
               </ScheduleRow>
             </Card>
             <Card>
               <CardHeading>
                 <CardTitle>최근 공지</CardTitle>
-                <NoticeButton type="button" $variant="secondary">공지 전체 보기</NoticeButton>
+                {/* AI작성: 공지 목록·상세 API 구현 전에는 이동을 연결하지 않는다. */}
+                <NoticeButton type="button" $variant="secondary" disabled title="공지 목록 기능은 준비 중입니다.">
+                  공지 전체 보기
+                </NoticeButton>
               </CardHeading>
               <NoticeTable aria-label="최근 공지 목록">
                 <NoticeRow $header>
                   <span>제목</span><span>작성자</span><span>작성일</span>
                 </NoticeRow>
-                {detail.notices.map((notice, index) => (
-                  <NoticeRow key={notice.id} $last={index === detail.notices.length - 1}>
-                    <span>{notice.title}</span><span>{notice.author}</span><span>{notice.date}</span>
+                {group.notices.length === 0 ? (
+                  <NoticeEmpty>등록된 공지가 없습니다.</NoticeEmpty>
+                ) : group.notices.map((notice, index) => (
+                  <NoticeRow key={notice.noticeId} $last={index === group.notices.length - 1}>
+                    <span>{notice.title}</span>
+                    <span>{notice.writerNickname}</span>
+                    <span>{formatDate(notice.createdAt)}</span>
                   </NoticeRow>
                 ))}
               </NoticeTable>

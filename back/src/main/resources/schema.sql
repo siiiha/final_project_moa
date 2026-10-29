@@ -161,7 +161,8 @@ CREATE TABLE IF NOT EXISTS `meeting_approval` (
 	`type`	ENUM('CREATE', 'DELETE')	NOT NULL,
 	`bank_book_url`	VARCHAR(500)	NULL,
 	`status`	ENUM('PENDING','APPROVED','REJECTED')	NOT NULL	DEFAULT 'PENDING',
-	`reject_reason`	VARCHAR(255)	NULL,
+    `request_reason` VARCHAR(500) NULL,
+    `reject_reason`	VARCHAR(255)	NULL,
 	`processed_at`	DATETIME	NULL,
 	PRIMARY KEY (`approval_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -234,6 +235,34 @@ CREATE TABLE IF NOT EXISTS `saving_group` (
 		CHECK(`dues_day` BETWEEN 1 AND 28)
     ) ENGINE=InnoDB DEFAULT CHARSET=UTF8MB4
     COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `restriction_history` (
+    `restriction_history_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `member_id` BIGINT NULL,
+    `saving_group_id` BIGINT NULL,
+    `action` ENUM('RESTRICT', 'RELEASE') NOT NULL,
+    `restriction_type` ENUM('7_DAYS', '30_DAYS', 'PERMANENT') NULL,
+    `reason` VARCHAR(500) NOT NULL,
+    `restricted_until` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`restriction_history_id`),
+
+    CONSTRAINT `chk_restriction_history_target`
+    CHECK (
+(`member_id` IS NOT NULL AND `saving_group_id` IS NULL)
+    OR
+(`member_id` IS NULL AND `saving_group_id` IS NOT NULL)
+    ),
+
+    CONSTRAINT `fk_restriction_history_member`
+    FOREIGN KEY (`member_id`)
+    REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `fk_restriction_history_saving_group`
+    FOREIGN KEY (`saving_group_id`)
+    REFERENCES `saving_group` (`saving_group_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `saving_group_setting_change` (
     `setting_change_id` BIGINT NOT NULL AUTO_INCREMENT,
