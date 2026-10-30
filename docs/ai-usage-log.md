@@ -407,3 +407,13 @@
 - DB 변경 필요: `member_feature_restriction` 테이블과 `restriction_history.restriction_scope`, `report_case.restriction_scope` 컬럼이 필요하지만 DB 담당자 반영 전이므로 `schema.sql`은 수정하지 않았다.
 - 검증: 관리자 관련 백엔드 테스트 통과, Mapper XML 파싱 및 프론트 `npm run lint`, `npm run build` 통과. 린트의 기존 경고와 Vite 청크 크기 경고는 이번 변경과 관계없는 비차단 경고이다.
 - 개발자 검토: DB 마이그레이션 후 신고 승인 범위별 제한과 관리자 직접 제한·해제, 만료 정리를 실제 MySQL 및 브라우저에서 확인해야 한다.
+
+## 2026-10-30 — 회원 기능별 제한 실제 적용 및 관리자 목록 표시
+
+- 목적: 계정 로그인을 차단하지 않고 `CONTENT`, `CHAT`, `REPORT` 영역별 제한을 독립적으로 관리하며, 구현된 콘텐츠 기능에 실제 제한을 적용한다.
+- 사용자 확정: `CONTENT` 제한 회원은 게시글·댓글 조회는 가능하지만 작성·수정·삭제는 할 수 없다. 채팅과 일반 회원 신고 접수는 해당 기능 구현 브랜치에서 각각 제한 검사를 연결한다.
+- AI 제안·작성: `MemberFeatureRestrictionService`의 공통 제한 검사를 게시글·댓글 Service에서 재사용하고, 각 Service 내부의 반복 호출은 `validateContentAllowed` 메서드로 정리했다. 현재 제한은 `member_feature_restriction`의 회원·영역 행 존재 여부와 `restricted_until`로 판정한다.
+- AI 제안·작성: 관리자 회원 목록에 활성 제한 영역 필터와 현재 제한 영역 표시를 추가했다. 목록 SQL은 `EXISTS`로 필터링하고, 표시 데이터는 상관 서브쿼리의 `GROUP_CONCAT`으로 함께 조회해 중복 목록 행과 회원별 추가 조회를 방지했다.
+- DB 변경 필요: `member_feature_restriction` 테이블과 관련 제한 범위 컬럼은 DB 담당자 반영이 필요하며, 이번 작업에서는 `schema.sql`을 수정하지 않았다.
+- 검증: 백엔드 `compileJava`와 기능 제한 Service 단위 테스트가 통과했다. 프론트 변경 파일은 Vite 변환을 통과했으나 전체 빌드는 기존 `VerificationPage.jsx`의 `@portone/browser-sdk/v2` 의존성 누락으로 중단됐다.
+- 개발자 검토: DB 반영 후 `CONTENT` 기간·영구 제한 상태에서 게시글·댓글 작성·수정·삭제 차단과 조회 허용, 만료 후 재허용, 관리자 목록의 영역별 필터·표시를 실제 MySQL 및 브라우저에서 확인해야 한다.
