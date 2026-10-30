@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `fee_payment` (
 CREATE TABLE IF NOT EXISTS `members` (
 	`member_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`region_id`	BIGINT	NOT NULL,
-	`email`	VARCHAR(40)	NOT NULL,
+	`email`	VARCHAR(40)	NULL,
 	`password_hash`	VARCHAR(255)	NULL,
 	`name`	VARCHAR(50)	NOT NULL,
 	`nickname`	VARCHAR(50)	NOT NULL,
@@ -523,10 +523,16 @@ CREATE TABLE IF NOT EXISTS `email_verification` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `region` (
-	`region_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`region_name`	VARCHAR(100)	NOT NULL,
-	PRIMARY KEY (`region_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `region_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `region_name` VARCHAR(100) NOT NULL,
+    `province_name` VARCHAR(30) NULL,
+    `district_name` VARCHAR(50) NULL,
+    `legal_code` VARCHAR(10) NULL,
+    `town_name` VARCHAR(50) NULL,
+    PRIMARY KEY (`region_id`),
+    UNIQUE KEY `uq_region_legal_code` (`legal_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `meeting_round` (
 	`round_id`	BIGINT	NOT NULL AUTO_INCREMENT,
