@@ -3,11 +3,17 @@ import test from 'node:test';
 import client from './client.js';
 import {
   createSmallGroup,
+  createSmallGroupVote,
+  getSmallGroupVoteDetail,
+  getSmallGroupVotes,
   fetchSmallGroupRegions,
   SmallGroupCreationError,
   getSmallGroupDetail,
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
+  SmallGroupVoteCreateError,
+  SmallGroupVoteDetailLoadError,
+  SmallGroupVoteListLoadError,
   approveSmallGroupJoinRequest,
   rejectSmallGroupJoinRequest,
   getSmallGroupJoinRequests,
@@ -18,8 +24,218 @@ import {
   SmallGroupSettingsUpdateError,
   toSmallGroupCard,
   toSmallGroupDetail,
+  toSmallGroupVoteDetail,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+test('소모임 투표 상세는 두 ID와 취소 신호로 GET 요청하고 검증된 응답을 반환한다', async () => {
+  const originalGet = client.get;
+  const signal = new AbortController().signal;
+  const detail = voteDetail();
+
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/small-groups/7/votes/11');
+      assert.deepEqual(options, { signal });
+      return { data: { success: true, data: detail, meta: null, error: null } };
+    };
+
+    assert.deepEqual(await getSmallGroupVoteDetail(7, 11, { signal }), detail);
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 상세는 필수 응답 필드가 없으면 INVALID_RESPONSE로 실패한다', () => {
+  assert.throws(
+    () => toSmallGroupVoteDetail({ smallGroupVoteId: 11, title: '11월 모임 장소' }),
+    (error) => error instanceof SmallGroupVoteDetailLoadError && error.code === 'INVALID_RESPONSE',
+  );
+});
+
+test('소모임 투표 상세 조회는 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => {
+      const error = new Error('Not Found');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_VOTE_NOT_FOUND',
+            message: '투표를 찾을 수 없습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      getSmallGroupVoteDetail(7, 11),
+      (error) => error instanceof SmallGroupVoteDetailLoadError
+        && error.code === 'SMALL_GROUP_VOTE_NOT_FOUND'
+        && error.message === '투표를 찾을 수 없습니다.',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 목록은 취소 신호와 함께 GET 요청하고 목록 항목만 반환한다', async () => {
+  const originalGet = client.get;
+  const signal = new AbortController().signal;
+  const votes = [
+    { smallGroupVoteId: 11, title: '11월 정기 모임 날짜', status: 'OPEN', endsAt: '2026-11-02T18:00:00' },
+    { smallGroupVoteId: 12, title: '식사 장소', status: 'CLOSED', endsAt: null },
+  ];
+
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/small-groups/7/votes');
+      assert.deepEqual(options, { signal });
+      return { data: { success: true, data: votes, meta: null, error: null } };
+    };
+
+    assert.deepEqual(await getSmallGroupVotes(7, { signal }), votes);
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 목록의 빈 결과는 정상 응답으로 유지한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => ({ data: { success: true, data: [], meta: null, error: null } });
+
+    assert.deepEqual(await getSmallGroupVotes(7), []);
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 목록은 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => {
+      const error = new Error('Forbidden');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_VOTE_LIST_FORBIDDEN',
+            message: '승인된 소모임 회원만 투표 목록을 조회할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      getSmallGroupVotes(7),
+      (error) => error instanceof SmallGroupVoteListLoadError
+        && error.code === 'SMALL_GROUP_VOTE_LIST_FORBIDDEN'
+        && error.message === '승인된 소모임 회원만 투표 목록을 조회할 수 있습니다.',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 목록은 알 수 없는 상태값을 INVALID_RESPONSE로 처리한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => ({
+      data: { success: true, data: [{ smallGroupVoteId: 11, title: '상태가 잘못된 응답', status: 'WAITING', endsAt: null }], meta: null, error: null },
+    });
+
+    await assert.rejects(
+      getSmallGroupVotes(7),
+      (error) => error instanceof SmallGroupVoteListLoadError && error.code === 'INVALID_RESPONSE',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 목록은 상세 식별자가 없으면 INVALID_RESPONSE로 처리한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => ({
+      data: { success: true, data: [{ title: '식사 장소', status: 'OPEN', endsAt: null }], meta: null, error: null },
+    });
+
+    await assert.rejects(
+      getSmallGroupVotes(7),
+      (error) => error instanceof SmallGroupVoteListLoadError && error.code === 'INVALID_RESPONSE',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 생성은 소모임 ID와 입력값을 POST 본문으로 전달하고 생성 ID를 반환한다', async () => {
+  const originalPost = client.post;
+  const request = {
+    title: '주말 산책 장소',
+    options: ['한강 공원', '동네 둘레길'],
+    multipleChoice: false,
+    anonymous: true,
+    endsAt: '2099-01-01T12:00',
+  };
+
+  try {
+    client.post = async (path, payload) => {
+      assert.equal(path, '/small-groups/7/votes');
+      assert.deepEqual(payload, request);
+      return {
+        data: {
+          success: true,
+          data: { smallGroupVoteId: 101 },
+          meta: null,
+          error: null,
+        },
+      };
+    };
+
+    assert.deepEqual(await createSmallGroupVote(7, request), { smallGroupVoteId: 101 });
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+test('소모임 투표 생성 실패는 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalPost = client.post;
+
+  try {
+    client.post = async () => {
+      const error = new Error('Forbidden');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_VOTE_CREATE_FORBIDDEN',
+            message: '승인된 소모임 개설자만 투표를 생성할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      createSmallGroupVote(7, {}),
+      (error) => error instanceof SmallGroupVoteCreateError
+        && error.code === 'SMALL_GROUP_VOTE_CREATE_FORBIDDEN'
+        && error.message === '승인된 소모임 개설자만 투표를 생성할 수 있습니다.',
+    );
+  } finally {
+    client.post = originalPost;
+  }
+});
 
 test('소모임 가입 신청 목록은 상태·페이지·취소 신호를 API에 전달하고 화면 필드로 변환한다', async () => {
   const originalGet = client.get;
@@ -501,6 +717,31 @@ test('소모임 설정 수정은 서버 정원 축소 오류 코드와 메시지
     client.patch = originalPatch;
   }
 });
+
+function voteDetail() {
+  return {
+    smallGroupVoteId: 11,
+    title: '11월 모임 장소',
+    creatorNickname: '모임장',
+    multipleChoice: true,
+    anonymous: false,
+    createdAt: '2026-10-30T10:00:00',
+    endsAt: '2026-10-31T18:00:00',
+    status: 'OPEN',
+    participantCount: 2,
+    myParticipation: {
+      participated: true,
+      selectedOptionIds: [101],
+    },
+    options: [{
+      smallGroupVoteOptionId: 101,
+      content: '한강공원',
+      displayOrder: 1,
+      voteCount: 2,
+      voterNicknames: ['걷기좋아', '모아회원'],
+    }],
+  };
+}
 
 async function assertDetailLoadError(code, message) {
   const originalGet = client.get;

@@ -1,6 +1,26 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-30 — 소모임 투표 상세 조회 및 목록-상세 화면 연동
+
+- 목적: 승인된 소모임 OWNER·MEMBER가 자기 소모임 투표의 결과와 참여 상태를 안전하게 조회하고, 투표 목록에서 상세 화면으로 이동하도록 구현했다.
+- 사용자 확정: 투표 생성자는 OWNER만 가능하다. 상세 조회와 참여는 승인 OWNER·MEMBER로 제한한다. 복수 선택과 익명 투표를 지원하며, 익명 투표는 생성자를 포함해 누구도 참여자 이름·선택을 볼 수 없다. 공개 투표도 참여 완료한 회원에게만 보기별 닉네임을 공개한다. 마감 투표는 참여할 수 없고 결과는 24시간 동안 조회한 뒤 목록·상세에서 숨긴다.
+- AI 작성: 투표 상세 응답·내 참여·보기·Mapper 내부 DTO, MyBatis 상세·보기·득표·참여·닉네임 조회 계약, Service 권한·소속·마감·공개 범위 조합, GET Controller와 Service·Controller 테스트, React 상세 요청 API·응답 검증·오류 보존, 상세 페이지·표시 컴포넌트, 목록의 `smallGroupVoteId` 응답과 상세 라우트·클릭 이동을 작성했다.
+- API·데이터: `GET /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}`는 기존 `ApiResponse` 형식을 사용한다. 기존 투표·보기·참여·선택 테이블과 Mapper를 재사용했다. 삭제 투표 제외를 위한 `small_group_vote.deleted_at`은 별도 0단계 작업의 선행 조건이며, 이 작업에서는 외부 API·의존성·Security 설정을 변경하지 않았다.
+- 검증: `git diff --check`를 통과했다. 프런트 `node --test src/api/smallGroups.test.js` 33개, `npm run build`를 통과했다. `npm run lint`는 이번 변경과 무관한 기존 경고만 반환했다. 백엔드 Gradle 대상 테스트는 실행을 시도했으나 현재 환경에서 Java 17 toolchain을 찾지 못해 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 `SmallGroupVoteDetailServiceTest`, `SmallGroupVoteDetailControllerTest`, `SmallGroupVoteListControllerTest`, `SmallGroupMapperXmlTest`를 실행한다. 실제 MySQL·JWT로 소모임별 투표 격리, 삭제 투표, 마감 후 24시간 경계, 익명·공개 닉네임 범위와 목록에서 상세 이동을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 투표 참여 저장, 선택 변경·취소, 투표 수정·삭제, 종료 처리와 알림은 별도 요구사항으로 구현한다.
+
+## 2026-10-30 — 소모임 투표 목록 조회 API 및 투표 탭 연동
+
+- 목적: 승인된 소모임 회원이 해당 소모임의 투표 제목·등록일·마감일을 검색·필터·페이징 없이 조회하고, 상세 화면의 투표 탭에서 확인하게 한다.
+- 사용자 확정: 경로는 `GET /api/small-groups/{smallGroupId}/votes`이며, 승인된 `OWNER`·`MEMBER`만 조회할 수 있다. 목록에는 제목·등록일·마감일만 포함하고, 결과·보기·참여 정보는 포함하지 않는다. 투표 생성 한도는 `closed_at IS NULL`인 진행 중 투표 5개이며 종료된 투표는 한도에 포함하지 않는다.
+- AI 작성: 투표 목록 응답·대상 DTO, MyBatis 대상·목록 조회 계약과 XML 파싱 검증, Service의 소모임 존재·승인 회원 검증, GET Controller와 Controller·Security 테스트, React 목록 요청·응답 검증·단위 테스트, 투표 탭의 로딩·오류 재시도·빈 목록·생성 후 재조회 UI를 작성했다.
+- API·데이터: 기존 `small_group`, `groups`, `group_member`, `small_group_vote`와 `SmallGroupMapper`를 재사용했다. 목록은 `created_at DESC, small_group_vote_id DESC` 순으로 `title`, `createdAt`, `endsAt`만 반환하며 빈 결과는 성공 배열이다. DB 마이그레이션, 상태값, 외부 연동, 의존성, Security 설정은 변경하지 않았다.
+- 검증: `git diff --check`를 통과했다. 프런트 `node --test src/api/smallGroups.test.js`는 29개 테스트가 통과했다. 백엔드 Gradle 대상 테스트와 Mapper XML 테스트는 실행을 시도했으나 현재 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 미검증: `npm run build`는 이번 변경과 무관하게 `VerificationPage.jsx`의 `@portone/browser-sdk/v2` import를 해석하지 못해 실패했다. 실제 MySQL·JWT 환경에서 소모임별 격리, 승인 회원 권한, `closed_at` 기준 진행 중 투표 5개 제한과 종료 투표 제외를 확인해야 한다. 브라우저에서 투표 탭의 목록·오류·빈 상태·생성 후 갱신도 직접 확인해야 한다.
+- 개발자 코드 검토·수정: 대기 중. 투표 상세, 보기·참여·결과, 마감 처리, 결과 공개와 알림은 후속 요구사항 확정 후 구현한다.
+
 ## 2026-10-29 — 소모임 개설자 가입 신청 거절 API 및 화면 연동
 
 - 목적: 소모임 개설자가 본인이 개설한 소모임의 대기 가입 신청만 거절하고, OWNER 신청 목록 화면에서 실제 처리 결과를 확인하게 한다.

@@ -29,6 +29,7 @@ import SavingGroupSettingsPage from './pages/SavingGroupSettingsPage';
 import SmallGroupsPage from './pages/SmallGroupsPage';
 import SmallGroupCreatePage from './pages/SmallGroupCreatePage';
 import SmallGroupDetailPage from './pages/SmallGroupDetailPage';
+import SmallGroupVoteDetailPage from './pages/SmallGroupVoteDetailPage';
 import NotFound from './pages/NotFound';
 import SocialLoginCallbackPage from './pages/SocialLoginCallbackPage.jsx';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -52,6 +53,7 @@ function App() {
         <Route path="/saving-groups/:id/settings" element={<SavingGroupSettingsPage />} />
         <Route path="/saving-groups/:id" element={<SavingGroupDetailPage />} />
         <Route path="/small-groups/new" element={<SmallGroupCreatePage />} />
+        <Route path="/small-groups/:smallGroupId/votes/:voteId" element={<SmallGroupVoteDetailPage />} />
         <Route path="/small-groups/:id" element={<SmallGroupDetailPage />} />
         <Route path="/small-groups" element={<SmallGroupsPage />} />
         <Route path="/member/login" element={<LoginPage />} />

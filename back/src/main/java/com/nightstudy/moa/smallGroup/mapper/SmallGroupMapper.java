@@ -17,6 +17,12 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionVoterNicknameRow;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -122,6 +128,48 @@ public interface SmallGroupMapper {
 
     // AI작성: 요청에 포함된 소모임 전용 필드만 small_group 테이블에 수정한다.
     int updateSmallGroupDetailSettings(@Param("update") SmallGroupSettingsDetailUpdate update);
+
+    // AI작성: Service가 검증한 투표 기본 정보를 저장하고 생성 키를 command에 설정한다.
+    int insertSmallGroupVote(@Param("command") SmallGroupVoteCreateCommand command);
+
+    // AI작성: 같은 투표의 정리된 보기 목록을 입력 순서대로 일괄 저장한다.
+    int insertSmallGroupVoteOptions(
+            @Param("smallGroupVoteId") Long smallGroupVoteId,
+            @Param("options") List<String> options);
+
+    // AI작성: 같은 소모임의 종료되지 않은 투표를 잠금 조회해 동시 생성에서도 진행 중 투표 수를 제한한다.
+    long selectOpenSmallGroupVoteCountForUpdate(@Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 목록 조회 권한 검증 전에 삭제되지 않은 소모임의 공통 모임 ID만 조회한다.
+    SmallGroupVoteListTargetRow selectSmallGroupVoteListTarget(@Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 검색·필터·페이징 없이 해당 소모임의 투표 제목과 등록·마감 일시만 최신순으로 조회한다.
+    List<SmallGroupVoteListItemResponse> selectSmallGroupVoteList(@Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 소모임과 투표 식별자가 함께 일치하고 삭제되지 않은 상세 대상만 조회한다.
+    SmallGroupVoteDetailRow selectSmallGroupVoteDetail(
+            @Param("smallGroupId") Long smallGroupId,
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
+    // AI작성: 투표 상세의 보기를 표시 순서와 현재 득표 수로 함께 조회한다.
+    List<SmallGroupVoteOptionDetailRow> selectSmallGroupVoteDetailOptions(
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
+    // AI작성: 탈퇴 여부와 관계없이 저장된 참여 이력 기준의 총 참여 회원 수를 반환한다.
+    long selectSmallGroupVoteParticipantCount(@Param("smallGroupVoteId") Long smallGroupVoteId);
+
+    // AI작성: 현재 로그인 회원의 중복 없는 참여 이력 식별자를 조회한다.
+    Long selectSmallGroupVoteParticipationId(
+            @Param("smallGroupVoteId") Long smallGroupVoteId,
+            @Param("memberId") Long memberId);
+
+    // AI작성: 참여 이력에 연결된 선택 보기 ID만 반환해 내 선택 표시와 참여 API 후 재조회에 사용한다.
+    List<Long> selectSmallGroupVoteSelectedOptionIds(
+            @Param("smallGroupVoteParticipationId") Long smallGroupVoteParticipationId);
+
+    // AI작성: 공개 투표의 참여 완료 회원에게만 Service가 호출할 보기별 닉네임 조회 계약이다.
+    List<SmallGroupVoteOptionVoterNicknameRow> selectSmallGroupVoteOptionVoterNicknames(
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
 
     // AI작성: 공개 상세 화면의 최근 공지 영역에는 최신 4건의 요약만 전달한다.
     List<SmallGroupNoticeSummaryResponse> selectRecentSmallGroupNotices(@Param("groupId") Long groupId);
