@@ -43,11 +43,7 @@ public class CommentServiceImpl implements CommentService {
     // AI작성: 댓글 저장과 등록 결과 조회를 하나의 작업으로 묶어 중간 실패 시 저장을 롤백합니다.
     @Transactional
     public CommentDto insertComment(Long postId, Long memberId, String content) {
-        // AI작성: CONTENT 제한 회원은 새 댓글을 작성할 수 없습니다.
-        restrictionService.validateAllowed(
-                memberId,
-                MemberRestrictionScope.CONTENT
-        );
+        validateContentAllowed(memberId);
 
         validatePostExists(postId);
 
@@ -72,11 +68,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto insertReply(Long postId, Long parentCommentId, Long memberId, String content) {
-        // AI작성: CONTENT 제한 회원은 새 답글을 작성할 수 없습니다.
-        restrictionService.validateAllowed(
-                memberId,
-                MemberRestrictionScope.CONTENT
-        );
+        validateContentAllowed(memberId);
 
         validatePostExists(postId);
 
@@ -171,11 +163,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto updateComment(Long postId, Long commentId, Long loginMemberId, CommentEditRequest request) {
-        // AI작성: CONTENT 제한 회원은 기존 댓글을 수정할 수 없습니다.
-        restrictionService.validateAllowed(
-                loginMemberId,
-                MemberRestrictionScope.CONTENT
-        );
+        validateContentAllowed(loginMemberId);
 
         // AI작성: 삭제된 게시글의 댓글은 수정할 수 없도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
@@ -219,12 +207,7 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public void deleteComment (Long postId, Long commentId, Long loginMemberId) {
-
-        // AI작성: CONTENT 제한 회원은 기존 댓글을 삭제할 수 없다.
-        restrictionService.validateAllowed(
-                loginMemberId,
-                MemberRestrictionScope.CONTENT
-        );
+        validateContentAllowed(loginMemberId);
 
         // AI작성: 삭제된 게시글의 댓글은 삭제 요청을 처리하지 않도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
@@ -262,6 +245,14 @@ public class CommentServiceImpl implements CommentService {
                     "게시글을 찾을 수 없습니다."
             );
         }
+    }
+
+    // AI작성: 댓글 작성·답글·수정·삭제에서 사용하는 CONTENT 제한 검사를 한 곳에서 처리합니다.
+    private void validateContentAllowed(Long memberId) {
+        restrictionService.validateAllowed(
+                memberId,
+                MemberRestrictionScope.CONTENT
+        );
     }
 }
 
