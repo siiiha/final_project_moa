@@ -490,6 +490,15 @@
         </foreach>
     </insert>
 
+    <!-- AI작성: closed_at이 없는 진행 중 투표만 잠가 최대 5개 제한을 동시 생성 요청에도 일관되게 적용한다. -->
+    <select id="selectOpenSmallGroupVoteCountForUpdate" resultType="long">
+        SELECT COUNT(*)
+        FROM small_group_vote
+        WHERE small_group_id = #{smallGroupId}
+          AND closed_at IS NULL
+        FOR UPDATE
+    </select>
+
     <!-- AI작성: 공지 본문은 제외하고 작성 시각·ID 내림차순의 최근 4건만 공개 상세에 제공한다. -->
     <select id="selectRecentSmallGroupNotices"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">

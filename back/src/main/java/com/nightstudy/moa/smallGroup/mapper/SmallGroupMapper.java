@@ -132,6 +132,9 @@ public interface SmallGroupMapper {
             @Param("smallGroupVoteId") Long smallGroupVoteId,
             @Param("options") List<String> options);
 
+    // AI작성: 같은 소모임의 종료되지 않은 투표를 잠금 조회해 동시 생성에서도 진행 중 투표 수를 제한한다.
+    long selectOpenSmallGroupVoteCountForUpdate(@Param("smallGroupId") Long smallGroupId);
+
     // AI작성: 공개 상세 화면의 최근 공지 영역에는 최신 4건의 요약만 전달한다.
     List<SmallGroupNoticeSummaryResponse> selectRecentSmallGroupNotices(@Param("groupId") Long groupId);
 }

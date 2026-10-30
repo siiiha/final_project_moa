@@ -49,6 +49,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     private static final int VOTE_OPTION_MAX_COUNT = 8;
     private static final int VOTE_OPTION_MIN_LENGTH = 2;
     private static final int VOTE_OPTION_MAX_LENGTH = 12;
+    private static final int MAX_OPEN_VOTE_COUNT = 5;
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final String ACTIVE_ACCOUNT_STATUS = "ACTIVE";
     private static final List<String> REGIONS = List.of(
@@ -83,6 +84,10 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         validateSmallGroupVoteCreateAuthority(target, memberId);
 
         SmallGroupVoteCreateCommand command = createSmallGroupVoteCommand(smallGroupId, memberId, request);
+        if (smallGroupMapper.selectOpenSmallGroupVoteCountForUpdate(smallGroupId) >= MAX_OPEN_VOTE_COUNT) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_OPEN_VOTE_LIMIT_EXCEEDED",
+                    "진행 중인 투표는 최대 5개까지 생성할 수 있습니다.");
+        }
         if (smallGroupMapper.insertSmallGroupVote(command) != 1 || command.getSmallGroupVoteId() == null) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_CREATE_FAILED",
                     "투표 생성 처리에 실패했습니다.");
