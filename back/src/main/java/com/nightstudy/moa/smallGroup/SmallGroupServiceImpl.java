@@ -25,6 +25,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateCommand;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -63,6 +65,38 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    // AI작성: 목록 조회는 삭제되지 않은 소모임 확인 후 승인된 OWNER·MEMBER 관계만 허용하고, 검색·필터·페이징 없이 반환한다.
+    @Override
+    @Transactional(readOnly = true)
+    public List<SmallGroupVoteListItemResponse> getSmallGroupVotes(Long smallGroupId, Long memberId) {
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupVoteListTargetRow target = smallGroupMapper.selectSmallGroupVoteListTarget(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        validateSmallGroupVoteListAuthority(target.getGroupId(), memberId);
+        return smallGroupMapper.selectSmallGroupVoteList(smallGroupId);
+    }
+
+    // AI작성: 탈퇴·대기·추방 관계와 OWNER·MEMBER 이외의 역할은 투표 목록을 볼 수 없다.
+    private void validateSmallGroupVoteListAuthority(Long groupId, Long memberId) {
+        List<SmallGroupMemberRelationRow> relations =
+                smallGroupMapper.selectSmallGroupMemberRelations(groupId, memberId);
+        boolean isApprovedMember = relations.size() == 1
+                && "APPROVED".equals(relations.get(0).getMembershipStatus())
+                && List.of("OWNER", "MEMBER").contains(relations.get(0).getMemberRole());
+        if (!isApprovedMember) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_LIST_FORBIDDEN",
+                    "승인된 소모임 회원만 투표 목록을 조회할 수 있습니다.");
+        }
     }
 
     // AI작성: 소모임·개설자·승인 OWNER 관계를 잠근 뒤 검증된 투표와 보기를 한 트랜잭션으로 저장한다.
