@@ -1,12 +1,17 @@
 package com.nightstudy.moa.smallGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
@@ -14,13 +19,16 @@ import com.nightstudy.moa.smallGroup.SmallGroupService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 // AI작성: 소모임 생성·목록·상세 API를 같은 기본 경로에서 제공한다.
@@ -57,12 +65,83 @@ public class SmallGroupController {
         return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
 
+    // AI작성: 가입 신청 목록은 JWT 필터가 저장한 회원 ID만 Service에 전달하고 목록·메타 형식은 공통 응답을 사용한다.
+    @GetMapping("/{smallGroupId}/join-requests")
+    public ApiResponse<List<SmallGroupJoinRequestRow>> getJoinRequests(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "page", defaultValue = "1") int page) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        SmallGroupJoinRequestListResponse result =
+                smallGroupService.getSmallGroupJoinRequests(smallGroupId, memberId, status, page);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+
+    // AI작성: 가입 신청자는 요청값이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
+    @PostMapping("/{smallGroupId}/join-requests")
+    public ApiResponse<Void> requestJoin(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        smallGroupService.requestSmallGroupJoin(smallGroupId, memberId);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 승인자는 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
+    @PatchMapping("/{smallGroupId}/join-requests/{crewMemberId}/approve")
+    public ApiResponse<Void> approveJoinRequest(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @PathVariable("crewMemberId") Long crewMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        smallGroupService.approveSmallGroupJoin(smallGroupId, crewMemberId, memberId);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 거절 처리자도 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
+    @PatchMapping("/{smallGroupId}/join-requests/{crewMemberId}/reject")
+    public ApiResponse<Void> rejectJoinRequest(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @PathVariable("crewMemberId") Long crewMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        smallGroupService.rejectSmallGroupJoin(smallGroupId, crewMemberId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 공개 상세는 비로그인 요청도 허용하므로 memberId를 선택적으로 Service에 전달한다.
     @GetMapping("/{id}")
     public ApiResponse<SmallGroupDetailResponse> detail(
             @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(smallGroupService.getSmallGroupDetail(id, memberId));
+    }
+
+    // AI작성: 설정 정보는 JWT 필터가 검증한 회원 ID를 Service에만 전달하고 권한 판단은 Service에서 처리한다.
+    @GetMapping("/{id}/settings")
+    public ApiResponse<SmallGroupSettingsResponse> getSettings(
+            @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(smallGroupService.getSmallGroupSettings(id, memberId));
+    }
+
+    // AI작성: 수정 권한과 정원 축소 정책은 Service가 JWT 인증 회원 ID를 기준으로 검증한다.
+    @PatchMapping("/{id}")
+    public ApiResponse<Void> updateSettings(
+            @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
+            @Valid @RequestBody SmallGroupSettingsPatchRequest request,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.updateSmallGroupSettings(id, memberId, request);
+        return ApiResponse.ok(null);
     }
 
     @PostMapping

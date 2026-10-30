@@ -1,6 +1,71 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-29 — 소모임 개설자 가입 신청 거절 API 및 화면 연동
+
+- 목적: 소모임 개설자가 본인이 개설한 소모임의 대기 가입 신청만 거절하고, OWNER 신청 목록 화면에서 실제 처리 결과를 확인하게 한다.
+- 사용자 확정: 기존 계모임 가입 신청 거절의 인증·권한·예외·응답·상태 전이를 따른다. 처리자는 JWT request attribute `memberId`만 사용하며, 개설자이면서 `OWNER`·`APPROVED` 관계인 회원으로 제한한다. `MANAGER`에게 권한을 부여하지 않고, 거절 사유·처리자·처리일·알림·재신청 정책 변경은 추가하지 않는다.
+- AI 작성: 기존 소모임 가입 신청·목록·승인 DTO와 잠금 조회 계약을 재사용해 거절 Mapper 계약·조건부 UPDATE SQL, Service 트랜잭션 검증, PATCH Controller, Service·Controller 테스트, 프론트 거절 API 함수·테스트, OWNER 신청 목록의 거절 버튼과 성공 후 목록 재조회 처리를 작성했다. 기존 실제 목록 API와 화면 연결은 이미 구현되어 있어 중복 구현하지 않았다.
+- API·데이터: `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/reject`는 요청 본문 없이 공통 성공 응답을 반환한다. `group_member`의 같은 `crew_member_id`, `group_id`, `PENDING` 행 한 건만 `REJECTED`로 갱신하며 회원 관계 INSERT·승인 이력 변경은 하지 않는다. DB 마이그레이션, 새 DTO·상태값, 외부 연동, 의존성·Security 설정 변경은 하지 않았다.
+- 검증: Java 17 경로를 지정한 `compileJava`를 통과했다. `SmallGroupJoinRejectionServiceTest` 7개, `SmallGroupJoinRejectionControllerTest` 4개, 기존 가입 신청 목록 Controller·Service 대상 테스트를 통과했다. 프론트 `node --test src/api/smallGroups.test.js` 23개, `npm run lint`, `npm run build`, `git diff --check`를 통과했다. lint의 경고와 번들 크기 경고는 이번 변경 파일과 무관한 기존 경고로 유지했다.
+- 직접 확인 필요: 실제 MySQL에서 `FOR UPDATE`와 조건부 UPDATE 영향 행, 동시 승인·거절 경합과 트랜잭션 롤백을 확인한다. 실제 JWT로 개설자·비개설자·MANAGER·비로그인·없는/삭제 소모임·다른 소모임 신청·처리 완료 신청의 HTTP 응답을 확인한다. 브라우저에서 OWNER 신청 목록의 거절 중 상태, 성공 후 재조회, 서버 오류 표시, 승인·거절 중복 클릭 차단을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 실제 git commit은 수행하지 않았으며, 취소·선택 승인·알림·거절 사유/처리자/처리일 저장과 재신청 정책 변경은 별도 요구사항 확정 후 진행한다.
+
+## 2026-10-29 — 소모임 개설자 가입 신청 승인 API 및 화면 연동
+
+- 목적: 소모임 개설자가 본인이 개설한 소모임의 대기 가입 신청을 승인하고, 신청 목록 화면에서 실제 승인 결과를 확인하게 한다.
+- 사용자 확정: 소모임에는 모집 상태가 없으므로 삭제 여부·정원·승인 참여자 수만 검증한다. 승인자는 `groups.member_id`가 일치하고 `OWNER`·`APPROVED` 관계인 개설자로 제한하며, `MANAGER`에게 권한을 부여하지 않는다. 승인 식별자는 기존 계모임과 같이 `crewMemberId`를 사용한다.
+- AI 작성: 기존 소모임 가입 신청·목록 흐름을 재사용해 승인 대상 DTO, Mapper 계약·조건부 승인 SQL, Service 트랜잭션과 권한·소속·상태·정원 검증, PATCH Controller, Service·Controller·Security 테스트, 프론트 승인 API와 승인 후 목록 재조회 UI를 작성했다.
+- API·데이터: `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/approve`는 요청 본문 없이 공통 성공 응답을 반환한다. 기존 `group_member` PENDING 행을 APPROVED·MEMBER로 갱신하고 `joined_at`, `approved_at`, `approved_by`를 저장한다. DB 마이그레이션, 새 상태값, 외부 연동, 의존성·Security 설정 변경은 하지 않았다.
+- 범위와 TODO: 거절·취소·선택 승인·알림·회비·추가 역할 부여는 구현하지 않았다. 소모임 모집 상태와 가입 모임 수 제한 정책이 없으므로 승인 조건에 추가하지 않았다.
+- 검증: Mapper XML statement 확인과 `git diff --check`를 통과했다. 프론트 `node --test src/api/smallGroups.test.js` 22개와 `npm run build`를 통과했다. 백엔드 Gradle 테스트는 실행을 시도했으나 로컬 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 `SmallGroupJoinApprovalServiceTest`, `SmallGroupJoinApprovalControllerTest`, `SmallGroupSecurityIntegrationTest`, `SmallGroupMapperXmlTest`를 실행한다. 실제 MySQL·JWT에서 개설자·비개설자·MANAGER·비로그인·없는/삭제 소모임·다른 소모임 신청·처리 완료 신청·정원 초과 및 동시 승인을 확인한다. 브라우저에서는 OWNER 신청 목록의 승인 중 상태, 성공 후 목록 재조회, 오류 표시와 거절·선택 승인 비활성을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 실제 운영 DB의 `approved_by`, `approved_at`, 유니크 제약과 잠금 경합은 별도 테스트 DB에서 검토해야 한다.
+
+## 2026-10-29 — 소모임 개설자 전용 가입 신청 목록 조회 API
+
+- 목적: 소모임 개설자가 본인이 개설한 소모임의 가입 신청 현황을 계모임과 동일한 상태 필터·정렬·페이징·마스킹 규칙으로 조회하게 한다.
+- 사용자 확정: `status`, `page`, 고정 크기 10을 사용하며 `PENDING`·`APPROVED`·`REJECTED`만 조회한다. 개설자이면서 `OWNER`·`APPROVED` 관계인 회원만 신청 목록 탭과 API를 사용할 수 있고, `MANAGER`를 포함한 운영진은 권한이 없다. 승인·거절·취소·일괄 처리는 범위에서 제외한다.
+- AI 작성: 가입 신청 목록 DTO·Mapper 계약과 SQL, Service 권한·조건·페이징 조합, GET Controller와 Service·Controller·Security 테스트, 프론트 API 모듈·테스트, 실제 API를 쓰는 OWNER 목록 패널을 작성했다. 기존 Mock 목록 파일과 로컬 승인·거절 상태 변경은 제거했다.
+- API·데이터: `GET /api/small-groups/{smallGroupId}/join-requests`는 `ApiResponse`의 data 배열과 meta를 반환한다. 기존 `small_group`, `groups`, `group_member`, `members`, `region`만 재사용하고 DB 마이그레이션, 상태값, 외부 연동, 의존성·보안 설정 변경은 하지 않았다. 신청자 이름은 SQL에서 마스킹하고 BIGINT 신청 ID는 문자열로 반환한다.
+- 검증: 프론트 `node --test src/api/smallGroups.test.js` 21개 통과, `npm run build` 통과, `npm run lint` 완료(기존 경고 유지), `git diff --check` 통과를 확인했다. 백엔드 Gradle 대상 테스트는 실행을 시도했으나 현재 환경에서 Java 17 toolchain을 찾지 못해 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 `SmallGroupServiceImplTest`, `SmallGroupJoinRequestControllerTest`, `SmallGroupSecurityIntegrationTest`를 실행한다. 실제 MySQL·JWT에서 개설자·비개설자·MANAGER·비로그인·삭제 소모임, 상태 필터·페이지·빈 결과·마스킹·정렬을 확인한다. 브라우저에서 OWNER 탭의 로딩·오류 재시도·필터·페이지 및 비OWNER 탭 미노출을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 승인·거절·일괄 처리 정책과 API가 확정되면 현재 비활성 UI를 실제 서버 요청으로 교체한다.
+
+## 2026-10-29 — 소모임 가입 신청 API와 상세 화면 연결
+
+- 목적: 일반 회원이 소모임 상세에서 가입 신청을 제출하고, 서버가 기존 관계·정원·권한을 검증해 대기 상태로 저장하도록 한다.
+- 사용자 확정: 소모임은 삭제되지 않았고 정원이 남으면 신청 가능하다. ADMIN은 신청할 수 없고 개설자·OWNER·MANAGER도 자신의 소모임에 신청할 수 없다. 재신청은 `LEFT`만 허용하며, `REJECTED`, `EXPELLED`은 재신청할 수 없다. 가입 메시지는 처리하지 않으며, 승인·거절은 후속 OWNER 전용 기능으로 분리한다.
+- AI 작성: 가입 신청 내부 DTO·MyBatis 잠금 조회 및 INSERT/UPDATE 계약·SQL, Service 트랜잭션과 예외 처리, POST Controller, Service·Mapper XML·Security 테스트, 프론트 API 모듈·테스트, 상세 가입 신청 버튼과 완료·본인 인증·실패 모달을 작성했다.
+- 권한·데이터: 인증 회원 ID는 JWT 필터 request attribute만 사용한다. 활성·본인 인증 완료 USER만 신청할 수 있고, 기존 `group_member`에 `MEMBER`·`PENDING`으로 저장한다. `LEFT` 재신청은 승인·가입·탈퇴 이력을 초기화한다. DB 마이그레이션, 새 상태값, 외부 연동, 의존성·설정 변경은 하지 않았다.
+- API·오류: `POST /api/small-groups/{smallGroupId}/join-requests`는 성공 시 `ApiResponse.ok()`을 반환한다. 인증 없음은 Security 공통 401, 없는 소모임은 `404 SMALL_GROUP_NOT_FOUND`, 관리자·운영 관계는 403, 중복·정원 문제는 409로 처리한다. 구체적 오류 코드는 `docs/small-group-public-detail-api.md`에 기록했다.
+- 프론트: 승인된 OWNER·MEMBER에게 가입 신청 버튼을 노출하지 않는다. 나머지 사용자는 요청할 수 있고, 성공·본인 인증 필요·일반 실패를 모달로 구분한다. OWNER 신청 목록 화면의 Mock 데이터는 승인·거절 API가 후속 범위이므로 유지한다.
+- 검증: Java 17 경로를 지정한 `gradlew.bat test --tests "com.nightstudy.moa.smallGroup.SmallGroupServiceImplTest" --tests "com.nightstudy.moa.smallGroup.SmallGroupSecurityIntegrationTest" --no-daemon`에서 35개 테스트가 통과했다. 프론트 `node --test src/api/smallGroups.test.js` 18개 통과, `npm run build` 통과, `git diff --check` 통과를 확인했다.
+- 직접 확인 필요: 실제 MySQL에서 `FOR UPDATE`, 유니크 제약, `LEFT` 재신청 초기화와 동시 요청을 확인한다. 실제 JWT로 일반 회원·ADMIN·개설자·OWNER·MANAGER·대기 신청·정원 초과의 HTTP 응답과 브라우저 버튼·모달을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 모집 상태·공개 범위·자동 승인 정책 및 OWNER의 신청 목록·승인·거절 요구사항이 확정되면 후속 API와 화면을 설계한다.
+
+## 2026-10-28 — 소모임 설정 수정 API
+
+- 목적: 소모임 개설자가 설정 화면에서 모임명·관심사·소개글·정원·만남일·장소를 부분 수정할 수 있게 한다.
+- 사용자 확정: 경로는 `PATCH /api/small-groups/{id}`이고 ID는 `small_group.small_group_id`이다. 수정은 삭제되지 않은 소모임에서만 가능하며, 개설자이면서 `OWNER`·`APPROVED` 관계인 사용자만 허용한다. 정원은 2~20명이고 승인 OWNER·MEMBER 수보다 작게 줄일 수 없다. 소모임은 상태 정책이 없으므로 상태 기반 수정 제한을 추가하지 않는다.
+- AI 작성: 전달 필드 감지·Bean Validation 요청 DTO, 공통/소모임 전용 MyBatis UPDATE DTO와 잠금 SQL, Service 트랜잭션·권한·정원 검증, PATCH Controller, Service·Mapper XML·Controller·Security 테스트, API 명세를 추가했다.
+- 응답·오류: 성공 시 기존 `ApiResponse.ok(null)`을 반환한다. 없는·삭제 소모임은 `404 SMALL_GROUP_NOT_FOUND`, 권한 없음은 `403 SMALL_GROUP_SETTINGS_FORBIDDEN`, 승인 인원보다 작은 정원은 `409 SMALL_GROUP_CAPACITY_BELOW_MEMBERS`, 요청 검증 실패는 공통 `400 BAD_REQUEST`를 사용한다.
+- DB·의존성·외부 연동: 기존 `groups`, `small_group`, `group_member`와 MyBatis Mapper를 재사용했다. DB 마이그레이션, 상태값, 외부 호출, 의존성·설정 변경은 하지 않았다.
+- 검증: `git diff --check`를 통과했다. Gradle 대상 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 PATCH Controller·Security·Service·Mapper XML 테스트를 실행하고, 실제 JWT와 MySQL에서 부분 수정, 401·403·404·409, 잠금·롤백, 삭제된 소모임 차단을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 프런트 저장 연결 전 사용자에게 표시할 400·403·404·409 오류 메시지를 확인한다.
+
+## 2026-10-28 — 소모임 설정 정보 조회 API
+
+- 목적: 소모임 개설자가 설정 화면을 열기 전에 현재 수정 가능한 모임 정보와 승인 참여 인원을 안전하게 조회할 수 있게 한다.
+- 사용자 확정: 경로는 `GET /api/small-groups/{id}/settings`이며, `id`는 `small_group.small_group_id`를 사용한다. 수정 가능 정보는 모임명·관심사 카테고리·소개글·정원·만남일·장소이고, 소모임에는 상태별 수정·조회 제한을 추가하지 않는다. 설정 조회와 수정 권한은 개설자이면서 `OWNER`·`APPROVED` 관계인 사용자로 한정한다.
+- AI 작성: 설정 조회 응답·권한 DTO, MyBatis 권한·현재값 조회, Service의 개설자/승인 OWNER 이중 권한 검증, GET Controller, Service·Mapper XML·Controller·Security 테스트, API 명세를 추가했다.
+- 응답·권한: 성공 시 기존 `ApiResponse`의 `data`에 6개 수정 가능 필드와 `approvedMemberCount`를 반환한다. 승인 인원은 `APPROVED` 상태의 `OWNER`, `MEMBER`만 중복 없이 집계한다. 없는·삭제 소모임은 `404 SMALL_GROUP_NOT_FOUND`, 개설자 또는 승인 OWNER가 아닌 요청은 `403 SMALL_GROUP_SETTINGS_FORBIDDEN`으로 처리한다. 인증이 없으면 Spring Security 공통 `401 LOGIN_REQUIRED`를 사용한다.
+- DB·의존성·외부 연동: 기존 `small_group`, `groups`, `group_member`와 MyBatis Mapper만 재사용했다. DB 마이그레이션, 상태값, 외부 호출, 의존성·설정 변경은 하지 않았다.
+- 검증: `git diff --check`를 통과했다. Gradle 대상 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 소모임 Mapper XML·Service·Controller·Security 테스트를 실행하고, 실제 JWT로 OWNER·비OWNER·비로그인·삭제 소모임의 200/401/403/404 응답을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 다음 단계에서 프런트 설정 폼이 이 API의 데이터와 승인 인원 수를 사용하도록 연결하기 전 응답 필드를 검토한다.
+
 ## 2026-10-28 — 소모임 공개 상세 조회 API 구현 및 문서화
 
 - 목적: 비로그인 사용자와 비회원도 조회할 수 있는 소모임 상세 API와 상세 화면 연동을 구현하고, 역할별 응답·탭 노출 규칙을 기록했다.
