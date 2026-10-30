@@ -4,6 +4,7 @@ import client from './client.js';
 import {
   createSmallGroup,
   createSmallGroupVote,
+  getSmallGroupVoteDetail,
   getSmallGroupVotes,
   fetchSmallGroupRegions,
   SmallGroupCreationError,
@@ -11,6 +12,7 @@ import {
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
   SmallGroupVoteCreateError,
+  SmallGroupVoteDetailLoadError,
   SmallGroupVoteListLoadError,
   approveSmallGroupJoinRequest,
   rejectSmallGroupJoinRequest,
@@ -22,8 +24,63 @@ import {
   SmallGroupSettingsUpdateError,
   toSmallGroupCard,
   toSmallGroupDetail,
+  toSmallGroupVoteDetail,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+test('소모임 투표 상세는 두 ID와 취소 신호로 GET 요청하고 검증된 응답을 반환한다', async () => {
+  const originalGet = client.get;
+  const signal = new AbortController().signal;
+  const detail = voteDetail();
+
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/small-groups/7/votes/11');
+      assert.deepEqual(options, { signal });
+      return { data: { success: true, data: detail, meta: null, error: null } };
+    };
+
+    assert.deepEqual(await getSmallGroupVoteDetail(7, 11, { signal }), detail);
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 상세는 필수 응답 필드가 없으면 INVALID_RESPONSE로 실패한다', () => {
+  assert.throws(
+    () => toSmallGroupVoteDetail({ smallGroupVoteId: 11, title: '11월 모임 장소' }),
+    (error) => error instanceof SmallGroupVoteDetailLoadError && error.code === 'INVALID_RESPONSE',
+  );
+});
+
+test('소모임 투표 상세 조회는 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => {
+      const error = new Error('Not Found');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_VOTE_NOT_FOUND',
+            message: '투표를 찾을 수 없습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      getSmallGroupVoteDetail(7, 11),
+      (error) => error instanceof SmallGroupVoteDetailLoadError
+        && error.code === 'SMALL_GROUP_VOTE_NOT_FOUND'
+        && error.message === '투표를 찾을 수 없습니다.',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
 
 test('소모임 투표 목록은 취소 신호와 함께 GET 요청하고 목록 항목만 반환한다', async () => {
   const originalGet = client.get;
@@ -643,6 +700,31 @@ test('소모임 설정 수정은 서버 정원 축소 오류 코드와 메시지
     client.patch = originalPatch;
   }
 });
+
+function voteDetail() {
+  return {
+    smallGroupVoteId: 11,
+    title: '11월 모임 장소',
+    creatorNickname: '모임장',
+    multipleChoice: true,
+    anonymous: false,
+    createdAt: '2026-10-30T10:00:00',
+    endsAt: '2026-10-31T18:00:00',
+    status: 'OPEN',
+    participantCount: 2,
+    myParticipation: {
+      participated: true,
+      selectedOptionIds: [101],
+    },
+    options: [{
+      smallGroupVoteOptionId: 101,
+      content: '한강공원',
+      displayOrder: 1,
+      voteCount: 2,
+      voterNicknames: ['걷기좋아', '모아회원'],
+    }],
+  };
+}
 
 async function assertDetailLoadError(code, message) {
   const originalGet = client.get;

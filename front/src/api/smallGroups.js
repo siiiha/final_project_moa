@@ -81,6 +81,15 @@ export class SmallGroupVoteListLoadError extends Error {
   }
 }
 
+// AI작성: 소모임 투표 상세 조회 실패 코드와 메시지를 상세 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupVoteDetailLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteDetailLoadError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -181,6 +190,15 @@ function toSmallGroupVoteListLoadError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupVoteListLoadError(
     responseError?.code || 'SMALL_GROUP_VOTE_LIST_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteDetailLoadError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteDetailLoadError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteDetailLoadError(
+    responseError?.code || 'SMALL_GROUP_VOTE_DETAIL_LOAD_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -399,6 +417,50 @@ export async function getSmallGroupVotes(smallGroupId, { signal } = {}) {
     return response.data.data.map(toSmallGroupVoteListItem);
   } catch (error) {
     throw toSmallGroupVoteListLoadError(error, '투표 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 상세 화면에 필요한 투표·보기·내 참여 정보만 검증하며 닉네임 공개 범위 판단은 서버 응답을 그대로 따른다.
+export function toSmallGroupVoteDetail(data) {
+  const hasVoteId = typeof data?.smallGroupVoteId === 'number' || typeof data?.smallGroupVoteId === 'string';
+  const hasValidEndsAt = data?.endsAt == null || typeof data?.endsAt === 'string';
+  const hasValidParticipantCount = Number.isFinite(Number(data?.participantCount));
+  const hasValidParticipation = typeof data?.myParticipation?.participated === 'boolean'
+    && Array.isArray(data?.myParticipation?.selectedOptionIds);
+  const hasValidOptions = Array.isArray(data?.options) && data.options.every((option) => (
+    (typeof option?.smallGroupVoteOptionId === 'number' || typeof option?.smallGroupVoteOptionId === 'string')
+    && typeof option?.content === 'string'
+    && Number.isInteger(option?.displayOrder)
+    && Number.isFinite(Number(option?.voteCount))
+    && Array.isArray(option?.voterNicknames)
+    && option.voterNicknames.every((nickname) => typeof nickname === 'string')
+  ));
+  if (!hasVoteId || typeof data?.title !== 'string' || typeof data?.creatorNickname !== 'string'
+    || typeof data?.multipleChoice !== 'boolean' || typeof data?.anonymous !== 'boolean'
+    || typeof data?.createdAt !== 'string' || !hasValidEndsAt
+    || !['OPEN', 'CLOSED'].includes(data?.status) || !hasValidParticipantCount
+    || !hasValidParticipation || !hasValidOptions) {
+    throw new SmallGroupVoteDetailLoadError('INVALID_RESPONSE', '투표 상세 응답을 확인하지 못했습니다.');
+  }
+  return data;
+}
+
+// AI작성: 상세 조회는 두 식별자와 취소 신호만 전달하고 권한·결과 공개 범위는 서버 정책을 사용한다.
+export async function getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, { signal } = {}) {
+  try {
+    const response = await client.get(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}`,
+      { signal },
+    );
+    if (!response.data?.success || !response.data.data) {
+      throw new SmallGroupVoteDetailLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '투표 상세 응답을 확인하지 못했습니다.',
+      );
+    }
+    return toSmallGroupVoteDetail(response.data.data);
+  } catch (error) {
+    throw toSmallGroupVoteDetailLoadError(error, '투표 상세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 
