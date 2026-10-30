@@ -183,20 +183,24 @@ function PostCreateForm({
         </Field>
         <Field>
           제목
+          {/* AI작성: 백엔드 제목 Validation과 동일하게 입력 단계에서 100자로 제한합니다. */}
           <Input
             value={title}
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder="제목을 입력하세요"
+            maxLength={100}
             required
           />
         </Field>
       </TopFields>
       <ContentField>
         내용
+        {/* AI작성: 백엔드 본문 Validation과 동일하게 입력 단계에서 5,000자로 제한합니다. */}
         <Textarea
           value={content}
           onChange={(event) => onContentChange(event.target.value)}
           placeholder="내용을 입력하세요"
+          maxLength={5000}
           required
         />
       </ContentField>
