@@ -453,6 +453,7 @@
 - AI 제안·작성: 게시글 제목과 본문 입력에 백엔드와 동일한 100자·5,000자 `maxLength`를 적용하고, 댓글 Controller의 게시글·댓글·부모 댓글 번호에 `@Positive`를 추가했다.
 - AI 제안·작성: 댓글 총 개수 SQL에서 삭제된 댓글을 제외하고, Mapper XML 파싱 및 `deleted_at IS NULL` 조건을 검증하는 테스트를 추가했다.
 - AI 제안·작성: 50~60세대 사용자를 고려해 게시글 상세의 메타·본문·댓글·입력창 글자를 14~18px 범위로 확대했다.
+- AI 제안·작성: `@Validated` 프록시와 Spring MVC 기본 메서드 검증에서 발생하는 `ConstraintViolationException`, `HandlerMethodValidationException`을 공통 400 응답으로 처리하고 댓글 경로 번호 검증 테스트를 추가했다.
 - DB·의존성·외부 서비스 변경: 없음.
-- 검증: 프론트 `npm run build`와 변경 파일 lint, 백엔드 컴파일, 댓글 Service 테스트, `CommentMapperXmlTest`가 통과했다.
-- 개발자 검토: `@Validated` 경로 제약의 400 공통 응답 테스트는 standalone MockMvc와 공통 예외 처리 구성이 맞지 않아 보류했다. 실제 서버에서 0·음수 경로 요청의 응답 상태를 확인하고 필요하면 `ConstraintViolationException` 공통 처리를 추가해야 한다.
+- 검증: 프론트 `npm run build`와 변경 파일 lint, 백엔드 컴파일, 댓글 Service 테스트, `CommentMapperXmlTest`, `CommentControllerTest`가 통과했다. 기존에 실패했던 소모임 설정·투표 Controller 경로 검증 테스트 4건도 통과했다.
+- 개발자 검토: 실제 서버에서 0·음수 경로 요청의 400 응답과 메시지 표시를 Postman으로 최종 확인해야 한다.
