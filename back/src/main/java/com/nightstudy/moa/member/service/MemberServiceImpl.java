@@ -127,7 +127,7 @@ public class MemberServiceImpl implements MemberService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_REGION",
-                    "존재하지 않는 지역입니다."
+                    "활동 지역을 읍·면·동까지 선택해주세요."
             );
         }
 

@@ -40,6 +40,60 @@ const FieldList = styled.div`
   gap: 12px;
 `;
 
+// AI작성: 활동 지역 선택창을 기존 회원가입 입력창의 디자인과 통일한다.
+const RegionField = styled.div`
+  > p {
+    margin-bottom: 12px;
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: -0.35px;
+  }
+
+  label {
+    min-width: 0;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  select {
+    box-sizing: border-box;
+    min-width: 0;
+    height: 48px;
+    color: ${({ theme }) => theme.colors.text};
+    background-color: ${({ theme }) => theme.colors.white};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  select:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  select:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
+  }
+
+  select:disabled {
+    color: ${({ theme }) => theme.colors.muted};
+    background-color: #eef2f1;
+    cursor: not-allowed;
+  }
+
+  label[for='join-town'] {
+    grid-column: 1 / -1;
+  }
+`;
+
 const VerifyButton = styled(Button)`
   min-width: 88px;
   min-height: 42px;
@@ -216,6 +270,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   // AI작성: 서버의 지역 목록과 시·도 선택 상태를 관리한다.
   const [memberRegionOptions, setMemberRegionOptions] = useState([]);
   const [provinceName, setProvinceName] = useState('');
+  const [districtRegionId, setDistrictRegionId] = useState('');
   const [isRegionsLoading, setIsRegionsLoading] = useState(true);
   const [regionsError, setRegionsError] = useState('');
   const [nicknameMessage, setNicknameMessage] = useState('');
@@ -495,13 +550,22 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     }
 
     const selectedRegionId = Number(regionId);
+    const selectedDistrict = memberRegionOptions.find(
+      (region) => region.regionId === Number(districtRegionId),
+    );
+
+    const selectedTown = memberRegionOptions.find(
+      (region) => region.regionId === selectedRegionId,
+    );
 
     if (
-      !memberRegionOptions.some(
-        (region) => region.regionId === selectedRegionId,
-      )
+      !selectedDistrict ||
+      !selectedTown?.townName ||
+      selectedDistrict.provinceName !== provinceName ||
+      selectedTown.provinceName !== provinceName ||
+      selectedTown.districtName !== selectedDistrict.districtName
     ) {
-      setSignupError('활동 지역을 선택해주세요.');
+      setSignupError('활동 지역의 시·도, 시·군·구, 읍·면·동을 모두 선택해주세요.');
       return;
     }
 
@@ -807,7 +871,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 </GenderOptions>
               </GenderField>
 
-              <div>
+              <RegionField>
                 <p>활동 지역</p>
 
                 <div
@@ -825,6 +889,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                       value={provinceName}
                       onChange={(event) => {
                         setProvinceName(event.target.value);
+                        setDistrictRegionId('');
                         setRegionId('');
                       }}
                       disabled={isRegionsLoading || Boolean(regionsError) || isSubmitting}
@@ -851,8 +916,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                     시·군·구
                     <select
                       id="join-region"
-                      value={regionId}
-                      onChange={(event) => setRegionId(event.target.value)}
+                      value={districtRegionId}
+                      onChange={(event) => {
+                        setDistrictRegionId(event.target.value);
+                        setRegionId('');
+                      }}
                       disabled={
                         !provinceName ||
                         isRegionsLoading ||
@@ -870,13 +938,58 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                     >
                       <option value="">시·군·구 선택</option>
                       {memberRegionOptions
-                        .filter((region) => region.provinceName === provinceName)
+                        .filter(
+                          (region) =>
+                            region.provinceName === provinceName &&
+                            !region.townName,
+                        )
                         .map((region) => (
                           <option key={region.regionId} value={region.regionId}>
-                            {region.districtName ||
-                              (region.provinceName === '세종특별자치시'
-                                ? '세종특별자치시 전체'
-                                : '세부 지역 확인 필요')}
+                            {region.districtName || '세종특별자치시 전체'}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+
+                  <label htmlFor="join-town">
+                    읍·면·동
+                    <select
+                      id="join-town"
+                      value={regionId}
+                      onChange={(event) => setRegionId(event.target.value)}
+                      disabled={
+                        !districtRegionId ||
+                        isRegionsLoading ||
+                        Boolean(regionsError) ||
+                        isSubmitting
+                      }
+                      required
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        minHeight: '44px',
+                        marginTop: '6px',
+                        padding: '8px',
+                      }}
+                    >
+                      <option value="">읍·면·동 선택</option>
+                      {memberRegionOptions
+                        .filter((region) => {
+                          const district = memberRegionOptions.find(
+                            (item) =>
+                              item.regionId === Number(districtRegionId),
+                          );
+
+                          return (
+                            district &&
+                            region.townName &&
+                            region.provinceName === district.provinceName &&
+                            region.districtName === district.districtName
+                          );
+                        })
+                        .map((region) => (
+                          <option key={region.regionId} value={region.regionId}>
+                            {region.townName}
                           </option>
                         ))}
                     </select>
@@ -887,7 +1000,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                   <p role="status">지역 목록을 불러오고 있습니다.</p>
                 )}
                 {regionsError && <p role="alert">{regionsError}</p>}
-              </div>
+              </RegionField>
             </FieldList>
           </SectionCard>
         </DetailsGrid>
