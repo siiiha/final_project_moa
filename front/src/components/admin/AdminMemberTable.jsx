@@ -60,25 +60,28 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 13%;
+    width: 11%;
   }
   th:nth-child(2) {
-    width: 24%;
+    width: 20%;
   }
   th:nth-child(3) {
-    width: 16%;
+    width: 13%;
   }
   th:nth-child(4) {
-    width: 15%;
-  }
-  th:nth-child(5) {
     width: 12%;
   }
+  th:nth-child(5) {
+    width: 11%;
+  }
   th:nth-child(6) {
-    width: 10%;
+    width: 16%;
   }
   th:nth-child(7) {
-    width: 10%;
+    width: 8%;
+  }
+  th:nth-child(8) {
+    width: 9%;
     text-align: right;
   }
 
@@ -158,6 +161,21 @@ const Status = styled.span`
   font-weight: 700;
 `;
 
+const RestrictionList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+`;
+
+const RestrictionBadge = styled.span`
+  padding: 3px 6px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: 10px;
+  font-weight: 700;
+`;
+
 const DetailButton = styled(Button)`
   min-height: 28px;
   padding: 5px 8px;
@@ -217,6 +235,7 @@ function AdminMemberTable({
               <th scope="col">활동 지역</th>
               <th scope="col">인증 상태</th>
               <th scope="col">가입일</th>
+              <th scope="col">제한 영역</th>
               <th scope="col">상태</th>
               <th scope="col">관리</th>
             </tr>
@@ -224,7 +243,7 @@ function AdminMemberTable({
           <tbody>
             {loading || errorMessage || members.length === 0 ? (
               <tr>
-                <Empty colSpan="7">
+                <Empty colSpan="8">
                   {loading ? '회원 목록을 불러오는 중입니다.' : errorMessage || '검색 조건에 맞는 회원이 없습니다.'}
                 </Empty>
               </tr>
@@ -248,6 +267,15 @@ function AdminMemberTable({
                   <td data-label="활동 지역">{member.region}</td>
                   <td data-label="인증 상태">{member.verified}</td>
                   <td data-label="가입일">{member.joinedAt}</td>
+                  <td data-label="제한 영역">
+                    {member.restrictionScopes.length > 0 ? (
+                      <RestrictionList>
+                        {member.restrictionScopes.map((scope) => (
+                          <RestrictionBadge key={scope}>{scope}</RestrictionBadge>
+                        ))}
+                      </RestrictionList>
+                    ) : '-'}
+                  </td>
                   <td data-label="상태">
                     <Status $status={member.status}>{member.status}</Status>
                   </td>

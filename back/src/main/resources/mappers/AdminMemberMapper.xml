@@ -67,6 +67,20 @@
             <include refid="maskedMemberEmail"/> AS email,
             r.region_name,
             m.account_status,
+            /* AI작성: 회원별 활성 제한 영역을 목록 조회 한 번에 묶어 반환해 추가 조회를 방지한다. */
+            (
+                SELECT GROUP_CONCAT(
+                    mfr.restriction_scope
+                    ORDER BY mfr.restriction_scope
+                    SEPARATOR ','
+                )
+                FROM member_feature_restriction mfr
+                WHERE mfr.member_id = m.member_id
+                  AND (
+                      mfr.restricted_until IS NULL
+                      OR mfr.restricted_until &gt; CURRENT_TIMESTAMP
+                  )
+            ) AS active_restriction_scopes,
             m.identity_verified_at,
             m.region_verified_at,
             m.created_at

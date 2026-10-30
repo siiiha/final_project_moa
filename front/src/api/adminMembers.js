@@ -52,6 +52,12 @@ function maskPhone(value) {
 }
 
 function mapMember(member) {
+  // AI작성: 목록 응답의 쉼표 구분 제한 영역을 기존 화면 표시 문구 배열로 변환한다.
+  const restrictionScopes = String(member.activeRestrictionScopes || '')
+    .split(',')
+    .filter(Boolean)
+    .map(formatRestrictionScope);
+
   return {
     id: member.memberId,
     name: maskName(member.name),
@@ -61,6 +67,7 @@ function mapMember(member) {
     joinedAt: formatDate(member.createdAt),
     status: formatStatus(member.accountStatus),
     accountStatus: member.accountStatus,
+    restrictionScopes,
   };
 }
 
