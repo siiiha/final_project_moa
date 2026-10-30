@@ -50,7 +50,8 @@ public class CommentServiceImpl implements CommentService {
         CommentDto comment = new CommentDto();
         comment.setPostId(postId);
         comment.setMemberId(memberId);
-        comment.setContent(content);
+        // AI작성: 클라이언트 종류와 관계없이 댓글 저장값의 앞뒤 공백을 제거한다.
+        comment.setContent(content.trim());
 
         int insertRows = commentMapper.insertComment(comment);
 
@@ -94,7 +95,8 @@ public class CommentServiceImpl implements CommentService {
         reply.setPostId(postId);
         reply.setParentId(parentCommentId);
         reply.setMemberId(memberId);
-        reply.setContent(content);
+        // AI작성: 대댓글도 일반 댓글과 동일한 공백 정규화 규칙을 적용한다.
+        reply.setContent(content.trim());
 
         if (commentMapper.insertComment(reply) != 1) {
             throw new ApiException(
@@ -184,6 +186,8 @@ public class CommentServiceImpl implements CommentService {
             throw new ApiException(HttpStatus.FORBIDDEN, "COMMENT_UPDATE_FORBIDDEN", "댓글 수정 권한이 없습니다.");
         }
 
+        // AI작성: 수정 비교와 DB 저장에 동일한 공백 제거 값을 사용한다.
+        request.setContent(request.getContent().trim());
         if (comment.getContent().equals(request.getContent())) {
             return comment;
         }

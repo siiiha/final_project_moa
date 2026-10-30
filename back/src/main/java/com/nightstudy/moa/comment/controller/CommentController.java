@@ -8,9 +8,11 @@ import com.nightstudy.moa.comment.dto.CommentSearchCondition;
 import com.nightstudy.moa.comment.service.CommentService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -22,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
+// AI작성: 댓글 API의 경로 변수 제약 조건이 Controller 진입 전에 검증되도록 설정합니다.
+@Validated
 @RestController
 @RequestMapping("/api")
 public class CommentController {
@@ -33,7 +37,7 @@ public class CommentController {
 
     @PostMapping("/post/{postId}/comments")
     public ResponseEntity<ApiResponse<CommentDto>> insertComment(
-            @PathVariable Long postId,
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
             @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody CommentCreateRequest request) {
         CommentDto insertedComment = commentService.insertComment(postId,
@@ -48,8 +52,8 @@ public class CommentController {
     // AI작성: 원댓글 번호를 경로로 받아 한 단계 대댓글을 등록합니다.
     @PostMapping("/post/{postId}/comments/{parentCommentId}/replies")
     public ResponseEntity<ApiResponse<CommentDto>> insertReply(
-            @PathVariable Long postId,
-            @PathVariable Long parentCommentId,
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
+            @PathVariable @Positive(message = "부모 댓글 번호는 1 이상이어야 합니다.") Long parentCommentId,
             @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody CommentCreateRequest request) {
         CommentDto insertedReply = commentService.insertReply(
@@ -65,7 +69,7 @@ public class CommentController {
 
     @GetMapping("/post/{postId}/comments")
     public ApiResponse<CommentListResult> getCommentList(
-            @PathVariable Long postId,
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
             @ModelAttribute CommentSearchCondition condition
             ) {
         // AI작성: 게시글 번호와 페이지 조건으로 댓글 목록을 조회합니다.
@@ -77,8 +81,8 @@ public class CommentController {
 
     @PutMapping("/post/{postId}/comments/{commentId}")
     public ApiResponse<CommentDto> updateComment(
-            @PathVariable Long postId,
-            @PathVariable Long commentId,
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
+            @PathVariable @Positive(message = "댓글 번호는 1 이상이어야 합니다.") Long commentId,
             @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody CommentEditRequest request) {
         CommentDto updateComment = commentService.updateComment(postId,
@@ -89,8 +93,8 @@ public class CommentController {
 
         @DeleteMapping("/post/{postId}/comments/{commentId}")
         public ApiResponse<Void> deleteComment(
-            @PathVariable Long postId,
-            @PathVariable Long commentId,
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
+            @PathVariable @Positive(message = "댓글 번호는 1 이상이어야 합니다.") Long commentId,
             @RequestAttribute("memberId") Long loginMemberId) {
 
         commentService.deleteComment(postId, commentId, loginMemberId);

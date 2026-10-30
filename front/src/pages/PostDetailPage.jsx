@@ -17,6 +17,25 @@ import useAuthStore from '../store/authStore';
 
 const COMMENTS_PER_PAGE = 20;
 
+// AI작성: 로그인 JWT의 subject는 백엔드가 발급한 회원 번호이므로 댓글 작성 권한 비교에 사용한다.
+const getMemberIdFromToken = (token) => {
+  try {
+    const payload = String(token || '').split('.')[1];
+
+    if (!payload) return null;
+
+    const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decodedPayload = window.atob(
+      normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '='),
+    );
+    const memberId = JSON.parse(decodedPayload).sub;
+
+    return memberId ? String(memberId) : null;
+  } catch {
+    return null;
+  }
+};
+
 // AI작성: 더보기로 가져온 과거 댓글과 방금 작성한 댓글이 시간 순서대로 표시되도록 정렬합니다.
 const sortCommentsByCreatedAt = (comments) =>
   [...comments].sort((first, second) => {
@@ -97,8 +116,8 @@ function PostDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
-  const memberId = useAuthStore((state) => state.memberId);
   const token = useAuthStore((state) => state.token);
+  const memberId = getMemberIdFromToken(token);
   const [commentText, setCommentText] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
@@ -541,6 +560,8 @@ function PostDetailPage() {
           };
         })
       );
+      // AI작성: 삭제된 댓글은 목록에는 안내 문구로 남지만 댓글 수에서는 즉시 제외한다.
+      setCommentTotal((currentTotal) => Math.max(0, currentTotal - 1));
       // AI작성: 입력 또는 수정 중인 댓글이 삭제되면 남아 있는 입력 상태를 함께 정리합니다.
       if (replyingCommentId === deletingCommentId) {
         setReplyingCommentId(null);
