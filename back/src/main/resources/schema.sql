@@ -297,6 +297,116 @@ CREATE TABLE IF NOT EXISTS `small_group` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci;
 
+-- 소모임 투표의 기본 정보와 종료 이력을 저장
+CREATE TABLE IF NOT EXISTS small_group_vote (
+    small_group_vote_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_id BIGINT NOT NULL,
+    creator_member_id BIGINT NOT NULL,
+    title VARCHAR(12) NOT NULL,
+    is_multiple_choice BOOLEAN NOT NULL DEFAULT FALSE,
+    is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+    ends_at DATETIME NULL,
+    status ENUM('OPEN', 'CLOSED') NOT NULL DEFAULT 'OPEN',
+    closed_at DATETIME NULL,
+    closed_by_member_id BIGINT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (small_group_vote_id),
+
+    KEY ix_small_group_vote_group_status_ends
+        (small_group_id, status, ends_at),
+
+    CONSTRAINT fk_small_group_vote_small_group
+        FOREIGN KEY (small_group_id)
+        REFERENCES small_group (small_group_id),
+
+    CONSTRAINT fk_small_group_vote_creator
+        FOREIGN KEY (creator_member_id)
+        REFERENCES members (member_id),
+
+    CONSTRAINT fk_small_group_vote_closed_by
+        FOREIGN KEY (closed_by_member_id)
+        REFERENCES members (member_id),
+
+    CONSTRAINT chk_small_group_vote_title
+        CHECK (CHAR_LENGTH(TRIM(title)) BETWEEN 2 AND 12)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+-- 투표 보기와 표시 순서를 저장
+CREATE TABLE IF NOT EXISTS small_group_vote_option (
+    small_group_vote_option_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_vote_id BIGINT NOT NULL,
+    option_content VARCHAR(12) NOT NULL,
+    display_order TINYINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (small_group_vote_option_id),
+
+    UNIQUE KEY uq_small_group_vote_option_order
+        (small_group_vote_id, display_order),
+
+    CONSTRAINT fk_small_group_vote_option_vote
+        FOREIGN KEY (small_group_vote_id)
+        REFERENCES small_group_vote (small_group_vote_id),
+
+    CONSTRAINT chk_small_group_vote_option_content
+        CHECK (CHAR_LENGTH(TRIM(option_content)) BETWEEN 2 AND 12)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+-- 회원별 투표 참여 이력을 저장하고 중복 참여를 방지
+CREATE TABLE IF NOT EXISTS small_group_vote_participation (
+    small_group_vote_participation_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_vote_id BIGINT NOT NULL,
+    member_id BIGINT NOT NULL,
+    participated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (small_group_vote_participation_id),
+
+    UNIQUE KEY uq_small_group_vote_participation_member
+        (small_group_vote_id, member_id),
+
+    CONSTRAINT fk_small_group_vote_participation_vote
+        FOREIGN KEY (small_group_vote_id)
+        REFERENCES small_group_vote (small_group_vote_id),
+
+    CONSTRAINT fk_small_group_vote_participation_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+-- 투표 참여 이력과 선택한 보기 연결
+CREATE TABLE IF NOT EXISTS small_group_vote_selection (
+    small_group_vote_participation_id BIGINT NOT NULL,
+    small_group_vote_option_id BIGINT NOT NULL,
+
+    PRIMARY KEY (
+        small_group_vote_participation_id,
+    small_group_vote_option_id
+),
+
+    CONSTRAINT fk_small_group_vote_selection_participation
+        FOREIGN KEY (small_group_vote_participation_id)
+        REFERENCES small_group_vote_participation (
+            small_group_vote_participation_id
+        ),
+
+    CONSTRAINT fk_small_group_vote_selection_option
+        FOREIGN KEY (small_group_vote_option_id)
+        REFERENCES small_group_vote_option (
+            small_group_vote_option_id
+        )
+) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `term` (
 	`term_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`title`	VARCHAR(200)	NOT NULL,
