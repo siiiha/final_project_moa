@@ -1,12 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import SmallGroupFilterBar from '../components/admin/SmallGroupFilterBar';
 import SmallGroupTable from '../components/admin/SmallGroupTable';
 import AdminSidebar from '../components/layout/AdminSidebar';
 import { adminMenuItems } from '../mocks/admin';
-import { adminSmallGroups } from '../mocks/adminSmallGroups';
-
-const PAGE_SIZE = 8;
+import client from '../api/client';
+import { smallGroupRegionOptions } from '../api/smallGroups';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -86,29 +85,61 @@ const SummaryDescription = styled.p`
 `;
 
 function AdminSmallGroupsPage() {
-  const [groups, setGroups] = useState(adminSmallGroups);
+  const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState('전체');
   const [region, setRegion] = useState('전체');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  const filteredGroups = useMemo(() => {
-    const normalizedQuery = submittedQuery.trim().toLowerCase();
+  useEffect(() => {
+    const controller = new AbortController();
 
-    return groups.filter((group) => {
-      const matchesStatus = status === '전체' || group.status === status;
-      const matchesRegion = region === '전체' || group.region.startsWith(region);
-      const matchesQuery = !normalizedQuery || group.name.toLowerCase().includes(normalizedQuery);
+    async function loadGroups() {
+      try {
+        const regionCode = smallGroupRegionOptions.find((item) => item.name === region)?.code;
+        const response = await client.get('/admin/small-groups', {
+          params: {
+            keyword: submittedQuery || undefined,
+            regionCode,
+            page: currentPage,
+          },
+          signal: controller.signal,
+        });
 
-      return matchesStatus && matchesRegion && matchesQuery;
-    });
-  }, [groups, region, status, submittedQuery]);
+        if (!response.data?.success || !Array.isArray(response.data.data) || !response.data.meta) {
+          throw new Error('소모임 목록 응답을 확인할 수 없습니다.');
+        }
 
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
-  const pageGroups = filteredGroups.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const activeCount = groups.filter((group) => group.status === '활동중').length;
-  const suspendedCount = groups.filter((group) => group.status === '정지').length;
+        // AI작성: 관리자 전용 목록 응답의 모임장·운영 상태를 화면 표시값으로 변환한다.
+        setGroups(response.data.data.map((group) => ({
+          id: group.smallGroupId,
+          name: group.groupName,
+          category: group.likeCategory || '-',
+          leader: group.creatorNickname || '-',
+          region: group.regionName,
+          participants: group.memberCount ?? 0,
+          status: group.status === 'ACTIVE' ? '활동중' : group.status === 'RESTRICTED' ? '정지' : '-',
+        })));
+        setTotalCount(response.data.meta.total || 0);
+        setTotalPages(response.data.meta.totalPages || 0);
+      } catch (error) {
+        if (error.code !== 'ERR_CANCELED') {
+          setGroups([]);
+          setTotalCount(0);
+          setTotalPages(0);
+        }
+      }
+    }
+
+    loadGroups();
+    return () => controller.abort();
+  }, [currentPage, region, submittedQuery]);
+
+  const activeCount = 0;
+  const suspendedCount = 0;
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -117,13 +148,8 @@ function AdminSmallGroupsPage() {
   };
 
   const handleStatusAction = (groupId) => {
-    // TODO: Spring Boot 소모임 이용 제한·제한 해제 API 요청 후 소모임 목록을 갱신합니다.
-    setGroups((currentGroups) =>
-      currentGroups.map((group) =>
-        group.id === groupId ? { ...group, status: group.status === '활동중' ? '정지' : '활동중' } : group
-      )
-    );
-    setCurrentPage(1);
+    // AI작성: 상태 정보가 API에 없어 이용 제한·해제 기능 연결 전에는 목록 데이터만 조회한다.
+    void groupId;
   };
 
   return (
@@ -138,8 +164,8 @@ function AdminSmallGroupsPage() {
           <SummaryGrid aria-label="소모임 현황 요약">
             <SummaryCard>
               <SummaryLabel>전체 소모임</SummaryLabel>
-              <SummaryValue>{groups.length}개</SummaryValue>
-              <SummaryDescription>서비스에 등록된 소모임</SummaryDescription>
+              <SummaryValue>{totalCount}개</SummaryValue>
+              <SummaryDescription>검색 조건에 해당하는 소모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>활동 중</SummaryLabel>
@@ -153,7 +179,7 @@ function AdminSmallGroupsPage() {
             </SummaryCard>
           </SummaryGrid>
           <SmallGroupTable
-            groups={pageGroups}
+            groups={groups}
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={setCurrentPage}

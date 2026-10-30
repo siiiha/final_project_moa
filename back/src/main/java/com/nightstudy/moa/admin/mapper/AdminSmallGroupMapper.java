@@ -1,14 +1,21 @@
 package com.nightstudy.moa.admin.mapper;
 
 import com.nightstudy.moa.admin.dto.AdminSmallGroupRestrictionTarget;
+import com.nightstudy.moa.admin.dto.AdminSmallGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupStatus;
 import com.nightstudy.moa.admin.dto.RestrictionAction;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
+import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 @Mapper
 // AI작성: 관리자 소모임 운영정지·해제와 제한 이력 저장 SQL의 계약을 정의한다.
 public interface AdminSmallGroupMapper {
+    int selectSmallGroupCount(SmallGroupListCondition condition);
+
+    List<AdminSmallGroupListItemResponse> selectSmallGroupList(SmallGroupListCondition condition);
+
     AdminSmallGroupRestrictionTarget selectRestrictionTargetForUpdate(
             @Param("smallGroupId") Long smallGroupId
     );

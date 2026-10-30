@@ -5,6 +5,53 @@
 
 <mapper namespace="com.nightstudy.moa.admin.mapper.AdminSmallGroupMapper">
 
+    <sql id="adminSmallGroupListWhere">
+        WHERE g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+        <if test="keywordPattern != null">
+            AND (g.group_name LIKE #{keywordPattern} ESCAPE '!'
+            OR g.description LIKE #{keywordPattern} ESCAPE '!')
+        </if>
+        <if test="regionName != null">
+            AND r.region_name = #{regionName}
+        </if>
+        <if test="likeCategory != null">
+            AND sg.like_category = #{likeCategory}
+        </if>
+    </sql>
+
+    <!-- AI작성: 관리자 화면에만 모임장·운영 상태를 포함하고 공개 목록 SQL과 분리한다. -->
+    <select id="selectSmallGroupCount" resultType="int">
+        SELECT COUNT(*)
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN region r ON r.region_id = g.region_id
+        JOIN members creator ON creator.member_id = g.member_id
+        <include refid="adminSmallGroupListWhere"/>
+    </select>
+
+    <select id="selectSmallGroupList"
+            resultType="com.nightstudy.moa.admin.dto.AdminSmallGroupListItemResponse">
+        SELECT sg.small_group_id,
+               g.group_id,
+               g.group_name,
+               g.description,
+               r.region_name,
+               g.max_members,
+               sg.like_category,
+               sg.meet_date,
+               sg.location,
+               creator.nickname AS creator_nickname,
+               sg.status
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN region r ON r.region_id = g.region_id
+        JOIN members creator ON creator.member_id = g.member_id
+        <include refid="adminSmallGroupListWhere"/>
+        ORDER BY g.created_at DESC, sg.small_group_id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <!-- AI작성: 삭제되지 않은 소모임을 잠가 동시에 들어온 운영정지·해제 요청을 직렬화한다. -->
     <select id="selectRestrictionTargetForUpdate"
             resultType="com.nightstudy.moa.admin.dto.AdminSmallGroupRestrictionTarget">

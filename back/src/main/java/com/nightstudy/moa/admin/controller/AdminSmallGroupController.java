@@ -1,13 +1,13 @@
 package com.nightstudy.moa.admin.controller;
 
 import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminSmallGroupListItemResponse;
+import com.nightstudy.moa.admin.dto.AdminSmallGroupListResult;
 import com.nightstudy.moa.admin.service.AdminSmallGroupService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
-import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
-import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,11 +34,11 @@ public class AdminSmallGroupController {
     }
 
     @GetMapping
-    public ApiResponse<List<SmallGroupSummaryResponse>> getSmallGroupList(
+    public ApiResponse<List<AdminSmallGroupListItemResponse>> getSmallGroupList(
             @Valid @ModelAttribute SmallGroupSearchCondition condition
     ) {
-        SmallGroupListResponse result = smallGroupService.getSmallGroupList(condition);
-        return ApiResponse.ok(result.getItems(), result.getPageMeta());
+        AdminSmallGroupListResult result = adminSmallGroupService.getSmallGroupList(condition);
+        return ApiResponse.ok(result.getSmallGroups(), result.getPageMeta());
     }
 
     @GetMapping("/{smallGroupId}")
