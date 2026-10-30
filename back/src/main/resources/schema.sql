@@ -277,6 +277,7 @@ CREATE TABLE IF NOT EXISTS `restriction_history` (
     `restriction_history_id` BIGINT NOT NULL AUTO_INCREMENT,
     `member_id` BIGINT NULL,
     `saving_group_id` BIGINT NULL,
+    `small_group_id` BIGINT NULL,
     `action` ENUM('RESTRICT', 'RELEASE') NOT NULL,
     `restriction_scope` VARCHAR(30) NULL DEFAULT NULL,
     `restriction_type` ENUM('7_DAYS', '30_DAYS', 'PERMANENT') NULL,
@@ -288,9 +289,9 @@ CREATE TABLE IF NOT EXISTS `restriction_history` (
 
     CONSTRAINT `chk_restriction_history_target`
     CHECK (
-(`member_id` IS NOT NULL AND `saving_group_id` IS NULL)
-    OR
-(`member_id` IS NULL AND `saving_group_id` IS NOT NULL)
+(`member_id` IS NOT NULL)
+    + (`saving_group_id` IS NOT NULL)
+    + (`small_group_id` IS NOT NULL) = 1
     ),
 
     CONSTRAINT `fk_restriction_history_member`
@@ -331,9 +332,15 @@ CREATE TABLE IF NOT EXISTS `small_group` (
     `like_category` VARCHAR(50) NULL,
     `meet_date` DATE NULL,
     `location` VARCHAR(40) NULL,
+    `status` ENUM('ACTIVE', 'RESTRICTED') NOT NULL DEFAULT 'ACTIVE',
     PRIMARY KEY (`small_group_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `restriction_history`
+    ADD CONSTRAINT `fk_restriction_history_small_group`
+        FOREIGN KEY (`small_group_id`)
+            REFERENCES `small_group` (`small_group_id`);
 
 -- 소모임 투표의 기본 정보와 종료 이력을 저장
 CREATE TABLE IF NOT EXISTS small_group_vote (
