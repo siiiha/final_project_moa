@@ -21,5 +21,6 @@ public class AdminSavingGroupListItemResponse {
     private BigDecimal duesAmount;
     private Integer duesDay;
     private String status;
+    private Boolean adminRestricted;
     private LocalDateTime createdAt;
 }

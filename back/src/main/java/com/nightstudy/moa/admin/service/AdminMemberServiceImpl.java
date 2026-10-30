@@ -1,11 +1,17 @@
 package com.nightstudy.moa.admin.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.admin.dto.AdminMemberDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberListResult;
 import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionReleaseRequest;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
+import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,13 +21,20 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 관리자 회원 조회의 페이징과 대상 없음 예외를 처리한다.
 public class AdminMemberServiceImpl implements AdminMemberService {
     private final AdminMemberMapper adminMemberMapper;
+    private final MemberRestrictionPolicy memberRestrictionPolicy;
 
-    public AdminMemberServiceImpl(AdminMemberMapper adminMemberMapper) {
+    // AI작성: 조회·기능별 제한 저장 Mapper와 공통 제한 기간 정책을 재사용한다.
+    public AdminMemberServiceImpl(
+            AdminMemberMapper adminMemberMapper,
+            MemberRestrictionPolicy memberRestrictionPolicy
+    ) {
         this.adminMemberMapper = adminMemberMapper;
+        this.memberRestrictionPolicy = memberRestrictionPolicy;
     }
 
     @Override
     @Transactional(readOnly = true)
+    // AI작성: 전체 건수로 페이지 정보를 계산하고 유효한 페이지일 때만 회원 목록을 조회한다.
     public AdminMemberListResult getMemberList(AdminMemberSearchCondition condition) {
         int total = adminMemberMapper.selectMemberCount(condition);
         PageMeta pageMeta = PageMeta.of(condition.getPage(), condition.getSize(), total);
@@ -36,6 +49,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
 
     @Override
     @Transactional(readOnly = true)
+    // AI작성: 회원 상세가 없으면 공통 404 예외로 변환해 Controller에 전달한다.
     public AdminMemberDetailResponse getMemberDetail(Long memberId) {
         AdminMemberDetailResponse detail = adminMemberMapper.selectMemberDetail(memberId);
         if (detail == null) {
@@ -45,6 +59,115 @@ public class AdminMemberServiceImpl implements AdminMemberService {
                     "회원을 찾을 수 없습니다."
             );
         }
+        detail.setRestrictions(adminMemberMapper.selectMemberFeatureRestrictions(memberId));
         return detail;
+    }
+
+    @Override
+    @Transactional
+    // AI작성: 대상 잠금, 제한 상태 변경, 이력 저장, 세션 폐기를 하나의 트랜잭션으로 처리한다.
+    public void restrictMember(
+            Long administratorId,
+            Long memberId,
+            AdminMemberRestrictionRequest request
+    ) {
+        validateNotSelf(administratorId, memberId);
+        MemberRestrictionScope restrictionScope = request.getRestrictionScope();
+        AdminMemberRestrictionTarget target = getRestrictionTarget(memberId, restrictionScope);
+
+        if ("INACTIVE".equals(target.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "INACTIVE_MEMBER_RESTRICTION_NOT_ALLOWED",
+                    "비활성 회원은 이용 제한할 수 없습니다."
+            );
+        }
+
+        LocalDateTime restrictedUntil = memberRestrictionPolicy.calculateRestrictedUntil(
+                target.isCurrentlyRestricted(),
+                target.getRestrictedUntil(),
+                request.getRestrictionType(),
+                LocalDateTime.now()
+        );
+
+        adminMemberMapper.upsertMemberRestriction(memberId, restrictionScope, restrictedUntil);
+        if (adminMemberMapper.insertRestrictionHistory(
+                memberId,
+                MemberRestrictionAction.RESTRICT,
+                request.getRestrictionType(),
+                restrictionScope,
+                request.getReason(),
+                restrictedUntil
+        ) != 1) {
+            throw restrictionConflict();
+        }
+    }
+
+    @Override
+    @Transactional
+    // AI작성: 현재 제한 상태를 확인한 뒤 상태 복구와 해제 이력을 하나의 트랜잭션으로 저장한다.
+    public void releaseMemberRestriction(
+            Long administratorId,
+            Long memberId,
+            AdminMemberRestrictionReleaseRequest request
+    ) {
+        validateNotSelf(administratorId, memberId);
+        MemberRestrictionScope restrictionScope = request.getRestrictionScope();
+        AdminMemberRestrictionTarget target = getRestrictionTarget(memberId, restrictionScope);
+
+        if (!target.isCurrentlyRestricted()) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "MEMBER_FEATURE_NOT_RESTRICTED",
+                    "선택한 기능이 제한된 회원만 제한을 해제할 수 있습니다."
+            );
+        }
+
+        if (adminMemberMapper.releaseMemberRestriction(memberId, restrictionScope) != 1
+                || adminMemberMapper.insertRestrictionHistory(
+                        memberId,
+                        MemberRestrictionAction.RELEASE,
+                        null,
+                        restrictionScope,
+                        request.getReason(),
+                        null
+                ) != 1) {
+            throw restrictionConflict();
+        }
+    }
+
+    // AI작성: 동시 요청에 사용될 잠긴 회원 정보를 조회하고 존재하지 않으면 404로 처리한다.
+    private AdminMemberRestrictionTarget getRestrictionTarget(
+            Long memberId,
+            MemberRestrictionScope restrictionScope
+    ) {
+        AdminMemberRestrictionTarget target = adminMemberMapper.selectRestrictionTargetForUpdate(
+                memberId,
+                restrictionScope
+        );
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "회원을 찾을 수 없습니다.");
+        }
+        return target;
+    }
+
+    // AI작성: 인증에서 얻은 관리자 번호와 대상 번호를 비교해 관리자 본인 제한을 막는다.
+    private void validateNotSelf(Long administratorId, Long memberId) {
+        if (administratorId.equals(memberId)) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "ADMIN_SELF_RESTRICTION_NOT_ALLOWED",
+                    "관리자는 본인의 이용을 제한하거나 해제할 수 없습니다."
+            );
+        }
+    }
+
+    // AI작성: 상태 변경 또는 이력 저장 건수가 예상과 다를 때 사용할 공통 충돌 예외를 생성한다.
+    private ApiException restrictionConflict() {
+        return new ApiException(
+                HttpStatus.CONFLICT,
+                "MEMBER_RESTRICTION_FAILED",
+                "회원 이용 제한 상태가 변경되어 처리하지 못했습니다."
+        );
     }
 }

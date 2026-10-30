@@ -20,7 +20,7 @@ public class MemberRestrictionScheduler {
     }
 
     // AI작성: 매시간 정각에 만료된 기간제 이용 제한을 찾아 해제한다.
-    // suspended_until이 NULL인 영구 제한 회원은 해제 대상에 포함되지 않는다.
+    // AI작성: restricted_until이 NULL인 기능별 영구 제한은 자동 정리 대상에 포함하지 않는다.
     @Scheduled(cron = "0 0 * * * *", zone = "Asia/Seoul")
     public void releaseExpiredRestrictions() {
         adminReportService.releaseExpiredMemberRestrictions();

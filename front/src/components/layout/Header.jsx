@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import { logoutMember } from '../../api/member';
-import useAuthStore from '../../store/authStore';
+import useAuthStore, { isAdminToken } from '../../store/authStore';
 
 const Shell = styled.header`
   height: 56px;
@@ -150,6 +150,7 @@ function Header() {
   const { pathname } = useLocation();
   const token = useAuthStore((state) => state.token);
   const clearToken = useAuthStore((state) => state.clearToken);
+  const isAdmin = isAdminToken(token);
   // AI작성: 로그아웃 요청 중에는 중복 요청을 막고 처리 상태를 화면에 표시한다.
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -206,6 +207,7 @@ function Header() {
               <FiBell size={15} aria-hidden="true" /> 알림
             </NotificationLink>
             <Link to="/member/mypage">마이페이지</Link>
+            {isAdmin && <Link to="/admin/members">관리자 페이지</Link>}
             <LogoutButton
               type="button"
               onClick={handleLogout}
