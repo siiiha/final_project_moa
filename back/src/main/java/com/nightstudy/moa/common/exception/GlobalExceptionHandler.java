@@ -1,6 +1,7 @@
 package com.nightstudy.moa.common.exception;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import jakarta.validation.ConstraintViolationException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,21 @@ public class GlobalExceptionHandler {
                 .getFieldErrors()
                 .stream()
                 .map(error -> error.getDefaultMessage())
+                .distinct()
+                .collect(Collectors.joining(" "));
+
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.fail("BAD_REQUEST", message));
+    }
+
+    // AI작성: @Validated 메서드의 경로 변수 제약 위반을 500이 아닌 공통 400 응답으로 변환합니다.
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(
+            ConstraintViolationException e
+    ) {
+        String message = e.getConstraintViolations()
+                .stream()
+                .map(violation -> violation.getMessage())
                 .distinct()
                 .collect(Collectors.joining(" "));
 
