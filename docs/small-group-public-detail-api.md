@@ -1,5 +1,5 @@
-<!-- AI작성: 기존 계모임·소모임 구현과 사용자 확정 정책을 기준으로 작성한 소모임 상세·설정·가입 신청 API 설계 문서입니다. -->
-# 소모임 상세·설정·가입 신청 API 설계
+<!-- AI작성: 기존 소모임 구현과 사용자 확정 정책을 기준으로 작성한 상세·설정·가입 신청·투표 API 설계 문서입니다. -->
+# 소모임 상세·설정·가입 신청·투표 API 설계
 
 ## 범위
 
@@ -489,3 +489,73 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 - 실제 MySQL과 JWT 환경에서 개설자·비개설자·MANAGER·비로그인, 없는·삭제 소모임, 다른 소모임 신청, 처리 완료 신청, 동시 거절을 확인해야 한다.
 - 브라우저에서는 OWNER 신청 목록의 거절 중 상태, 성공 후 목록 재조회, 서버 오류 표시, 승인과 거절의 중복 클릭 차단을 확인해야 한다.
 - 취소, 선택 승인, 재신청 정책 변경, 알림, 거절 사유·처리자·처리일 저장은 이번 범위에 포함하지 않는다.
+
+---
+
+## 소모임 투표 목록 조회 API
+
+### 범위
+
+- 엔드포인트: `GET /api/small-groups/{smallGroupId}/votes`
+- `{smallGroupId}`는 `small_group.small_group_id`이며 양수여야 한다.
+- 요청 본문과 쿼리 파라미터는 없다. 검색·상태 필터·정렬 파라미터·페이징은 제공하지 않는다.
+- Spring Security와 JWT 필터가 인증한 회원 ID만 사용하며, 클라이언트는 회원 ID를 전달하지 않는다.
+- 삭제되지 않은 소모임의 `group_member`에서 `APPROVED` 상태인 `OWNER` 또는 `MEMBER`만 조회할 수 있다.
+- `PENDING`, `LEFT`, `EXPELLED`, 비회원, `MANAGER` 관계는 조회할 수 없다.
+- 투표 상세, 보기, 참여 여부, 참여자, 득표 수, 결과 공개 여부는 이 목록 API 범위에 포함하지 않는다.
+
+### 성공 응답
+
+기존 `ApiResponse`의 `data` 배열을 반환하며, `meta`는 `null`이다.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "title": "11월 정기 모임 날짜",
+      "createdAt": "2026-10-30T10:00:00",
+      "endsAt": "2026-11-02T18:00:00"
+    }
+  ],
+  "meta": null,
+  "error": null
+}
+```
+
+- 목록 항목에는 `title`, `createdAt`, `endsAt`만 포함한다.
+- `endsAt`은 마감일을 설정하지 않은 투표인 경우 `null`일 수 있다.
+- 결과가 없으면 성공 응답의 `data: []`를 반환한다.
+
+### 조회 기준·정렬·진행 중 투표 한도
+
+- 기존 `small_group`, `groups`, `group_member`, `small_group_vote`와 `SmallGroupMapper`를 재사용한다. DB 마이그레이션, 상태값, 외부 연동, 의존성, Security 설정은 추가하지 않는다.
+- 소모임이 없거나 `groups.deleted_at`이 설정되면 목록을 반환하지 않는다.
+- 해당 `small_group_id`의 종료·진행 투표를 모두 `created_at DESC, small_group_vote_id DESC` 순으로 반환한다.
+- 목록 조회 자체에는 `LIMIT`, 검색, 상태 조건, 페이지 조건을 적용하지 않는다.
+- 투표 생성 시에는 `closed_at IS NULL`인 진행 중 투표 수만 집계하며, 같은 소모임에서 5개 이상이면 새 투표를 생성할 수 없다. 종료된 투표(`closed_at IS NOT NULL`)는 이 한도에 포함하지 않는다.
+
+### 오류
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증되지 않은 HTTP 요청 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 소모임 ID가 0 이하 또는 형식이 올바르지 않음 | `400 BAD_REQUEST` |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 승인된 `OWNER`·`MEMBER` 관계가 아님 | `403 SMALL_GROUP_VOTE_LIST_FORBIDDEN` |
+
+### 프런트 연결·검증
+
+- `getSmallGroupVotes(smallGroupId, { signal })`는 `GET /small-groups/{smallGroupId}/votes`를 호출하고, 제목·등록일·마감일 배열만 검증해 반환한다.
+- 소모임 상세의 투표 탭은 탭 선택 시에만 목록을 요청하고, 화면 전환 시 이전 요청을 취소한다.
+- 투표 생성 성공 뒤에는 목록을 다시 조회한다. 프런트에서 목록을 임의 정렬하거나 추가하지 않는다.
+- 탭에는 로딩, 재시도 가능한 오류, 빈 목록, 마감일 미설정 상태를 표시한다.
+- Service·Controller·Security·Mapper XML 테스트는 정상 OWNER/MEMBER, 빈 목록, 비회원·대기·탈퇴·추방·MANAGER, 없는 소모임, 잘못된 ID, 인증 누락을 다룬다.
+
+### 수동 확인
+
+1. 승인 OWNER와 MEMBER로 각각 조회해 제목·등록일·마감일 순서가 최신 등록순인지 확인한다.
+2. 진행 중 투표 5개가 있을 때 생성이 `409 SMALL_GROUP_OPEN_VOTE_LIMIT_EXCEEDED`인지, 종료된 투표는 생성 한도에 포함되지 않는지 확인한다.
+3. 비회원, `PENDING`, `LEFT`, `EXPELLED`, `MANAGER`, 비로그인 계정으로 403 또는 401 응답을 확인한다.
+4. 없는·삭제 소모임의 404, 투표가 없는 승인 회원의 빈 배열을 확인한다.
+5. 브라우저에서 투표 탭의 로딩·오류 재시도·빈 목록·마감일 미설정·생성 후 목록 갱신을 확인한다.
