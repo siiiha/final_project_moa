@@ -16,6 +16,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
@@ -110,6 +111,16 @@ public class SmallGroupController {
             @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(smallGroupService.getSmallGroupVotes(smallGroupId, memberId));
+    }
+
+    // AI작성: JWT 회원 ID와 두 경로 식별자만 Service에 전달하고 상세 권한·소속·마감 정책은 Service가 처리한다.
+    @GetMapping("/{smallGroupId}/votes/{smallGroupVoteId}")
+    public ApiResponse<SmallGroupVoteDetailResponse> getVoteDetail(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(
+                smallGroupService.getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, memberId));
     }
 
     // AI작성: 승인자는 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
