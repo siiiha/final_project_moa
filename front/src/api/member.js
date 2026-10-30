@@ -2,16 +2,16 @@ import client from './client';
 
 // 이메일과 비밀번호로 로그인하고 JWT를 반환
 export async function loginMember(email, password) {
-    const response = await client.post('/auth/login', { 
-        email, 
+    const response = await client.post('/auth/login', {
+        email,
         password,
     });
-    
+
     return response.data.data;
 }
 
-export async function getMyProfile(token){
-    const response = await client.get('/members/me', { 
+export async function getMyProfile(token) {
+    const response = await client.get('/members/me', {
         headers: {
             Authorization: `Bearer ${token}`,
         },
@@ -31,21 +31,21 @@ export async function updateMyProfile(token, request) {
 
 // AI작성: DB에서 재정렬한 관심사 ID 1~15를 화면 순서에 맞춰 사용한다.
 export const memberInterestOptions = [
-  { interestId: 1, interestName: '운동/스포츠' },
-  { interestId: 2, interestName: '사교/인맥' },
-  { interestId: 3, interestName: '인문학/책/글' },
-  { interestId: 4, interestName: '아웃도어/여행' },
-  { interestId: 5, interestName: '음악/악기' },
-  { interestId: 6, interestName: '문화/공연/축제' },
-  { interestId: 7, interestName: '외국/언어' },
-  { interestId: 8, interestName: '게임/오락' },
-  { interestId: 9, interestName: '공예/만들기' },
-  { interestId: 10, interestName: '댄스/무용' },
-  { interestId: 11, interestName: '사진/영상' },
-  { interestId: 12, interestName: '자기계발' },
-  { interestId: 13, interestName: '스포츠관람' },
-  { interestId: 14, interestName: '요리/제조' },
-  { interestId: 15, interestName: '자동차/바이크' },
+    { interestId: 1, interestName: '운동/스포츠' },
+    { interestId: 2, interestName: '사교/인맥' },
+    { interestId: 3, interestName: '인문학/책/글' },
+    { interestId: 4, interestName: '아웃도어/여행' },
+    { interestId: 5, interestName: '음악/악기' },
+    { interestId: 6, interestName: '문화/공연/축제' },
+    { interestId: 7, interestName: '외국/언어' },
+    { interestId: 8, interestName: '게임/오락' },
+    { interestId: 9, interestName: '공예/만들기' },
+    { interestId: 10, interestName: '댄스/무용' },
+    { interestId: 11, interestName: '사진/영상' },
+    { interestId: 12, interestName: '자기계발' },
+    { interestId: 13, interestName: '스포츠관람' },
+    { interestId: 14, interestName: '요리/제조' },
+    { interestId: 15, interestName: '자동차/바이크' },
 ];
 
 // 현재 비밀번호 확인하고 새 비밀번호로 수정
@@ -75,7 +75,8 @@ export async function logoutMember(token) {
 // 이메일의 사용 가능 여부 확인
 export async function checkEmailAvailable(email) {
     const response = await client.post('/auth/check-email', {
-email });
+        email
+    });
     return response.data.data;
 }
 
@@ -105,12 +106,12 @@ export async function uploadMyProfileImage(token, file) {
 
 // AI작성: 인증 목적을 지정하고, 기존 회원가입은 SIGNUP을 기본값으로 사용한다.
 export async function sendEmailVerification(email, purpose = 'SIGNUP') {
-  const response = await client.post('/auth/email-verifications', {
-    email,
-    purpose,
-  });
+    const response = await client.post('/auth/email-verifications', {
+        email,
+        purpose,
+    });
 
-  return response.data.data;
+    return response.data.data;
 }
 
 // 인증번호 확인 후 회원가입용 인증 토큰 반환
@@ -125,7 +126,7 @@ export async function verifyEmailCode(verificationRequestId, code) {
 // 인증 완료 토큰 회원정보 전달 후 회원가입
 export async function signupMember(request) {
     const response = await client.post('/auth/signup',
-request);
+        request);
     return response.data.data;
 }
 
@@ -166,8 +167,8 @@ export const memberRegionOptions = [
 
 // AI작성: 일반·소셜 회원가입에서 사용할 약관을 서버에서 조회한다.
 export async function getMemberTerms() {
-  const response = await client.get('/auth/terms');
-  return response.data.data;
+    const response = await client.get('/auth/terms');
+    return response.data.data;
 }
 
 export async function withdrawMyAccount(token, request) {
@@ -181,36 +182,70 @@ export async function withdrawMyAccount(token, request) {
 
 // AI작성: 인증된 소셜 계정과 추가 회원정보로 가입을 완료한다.
 export async function signupSocialMember(request) {
-  const response = await client.post('/auth/social/signup', request);
-  return response.data.data;
+    const response = await client.post('/auth/social/signup', request);
+    return response.data.data;
 }
 
 // AI작성: 이메일 인증 완료 후 가입 계정의 존재 여부를 확인한다.
 export async function findMemberAccount(email, emailVerificationToken) {
+    const response = await client.post(
+        '/auth/email-verifications/find-account',
+        {
+            email,
+            emailVerificationToken,
+        },
+    );
+
+    return response.data.data;
+}
+
+// AI작성: 이메일 인증 완료 토큰과 새 비밀번호로 재설정을 요청한다.
+export async function resetMemberPassword(
+    email,
+    emailVerificationToken,
+    newPassword,
+    newPasswordConfirm,
+) {
+    const response = await client.post('/auth/password/reset', {
+        email,
+        emailVerificationToken,
+        newPassword,
+        newPasswordConfirm,
+    });
+
+    return response.data;
+}
+
+// AI작성: 서버에서 로그인 회원의 본인인증 요청 번호를 발급받습니다.
+export async function startMyIdentityVerification(token) {
   const response = await client.post(
-    '/auth/email-verifications/find-account',
+    '/members/me/identity-verification/start',
+    null,
     {
-      email,
-      emailVerificationToken,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
   );
 
   return response.data.data;
 }
 
-// AI작성: 이메일 인증 완료 토큰과 새 비밀번호로 재설정을 요청한다.
-export async function resetMemberPassword(
-  email,
-  emailVerificationToken,
-  newPassword,
-  newPasswordConfirm,
+// AI작성: 서버가 포트원 결과를 검증한 뒤 갱신된 회원 정보를 받습니다.
+export async function completeMyIdentityVerification(
+  token,
+  identityVerificationId,
 ) {
-  const response = await client.post('/auth/password/reset', {
-    email,
-    emailVerificationToken,
-    newPassword,
-    newPasswordConfirm,
-  });
+  const response = await client.post(
+    '/members/me/identity-verification/complete',
+    { identityVerificationId },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      timeout: 20000,
+    },
+  );
 
-  return response.data;
+  return response.data.data;
 }
