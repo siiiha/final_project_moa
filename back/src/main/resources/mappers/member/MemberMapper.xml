@@ -305,7 +305,7 @@
         )
     </insert>
 
-    <!-- AI작성: 서비스에서 현재 비밀번호를 검증한 후 마이페이지의 새 비밀번호를 저장한다. -->
+    <!-- 서비스에서 현재 비밀번호를 검증한 후 마이페이지의 새 비밀번호를 저장-->
     <update id="updatePassword">
         UPDATE members
         SET password_hash = #{passwordHash}
@@ -314,7 +314,7 @@
             AND deleted_at IS NULL
     </update>
 
-    <!-- AI작성: 이메일 인증 후 비밀번호를 재설정하며 기존 해시를 비교해 동시 변경의 덮어쓰기를 방지한다. -->
+    <!-- 이메일 인증 후 비밀번호를 재설정하며 기존 해시를 비교해 동시 변경의 덮어쓰기를 방지 -->
     <update id="updatePasswordForReset">
         UPDATE members
         SET password_hash = #{newPasswordHash}
@@ -322,5 +322,66 @@
             AND BINARY password_hash = BINARY #{currentPasswordHash}
             AND account_status = 'ACTIVE'
             AND deleted_at IS NULL
+    </update>
+
+    <!-- 활성 회원의 인증 요청을 UTC 기준 10분 동안 유효하게 저장 -->
+    <insert id="insertIdentityVerificationRequest">
+        INSERT INTO member_identity_verification_request (
+        identity_verification_id,
+        member_id,
+        created_at,
+        expires_at
+        )
+        SELECT
+        #{identityVerificationId},
+        member_id,
+        UTC_TIMESTAMP(6),
+        DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 10 MINUTE)
+        FROM members
+        WHERE member_id = #{memberId}
+        AND account_status = 'ACTIVE'
+        AND deleted_at IS NULL
+    </insert>
+
+    <!-- 요청 소유 회원, 만료 여부와 사용 여부를 확인-->
+    <select id="countAvailableIdentityVerificationRequest" resultType="int">
+        SELECT COUNT(*)
+        FROM member_identity_verification_request
+        WHERE identity_verification_id = #{identityVerificationId}
+        AND member_id = #{memberId}
+        AND expires_at &gt; UTC_TIMESTAMP(6)
+        AND consumed_at IS NULL
+    </select>
+
+    <!-- 인증된 정보와 기존 회원 정보를 비교 -->
+    <select id="countMemberIdentityMatch" resultType="int">
+        SELECT COUNT(*)
+        FROM members
+        WHERE member_id = #{memberId}
+        AND BINARY name = BINARY #{name}
+        AND birth_date = #{birthDate}
+        AND REPLACE(REPLACE(phone, '-', ''), ' ', '') = #{phoneNumber}
+        AND account_status = 'ACTIVE'
+        AND deleted_at IS NULL
+    </select>
+
+    <!-- 같은 요청은 한 번만 사용하도록 조건부 갱신 -->
+    <update id="consumeIdentityVerificationRequest">
+        UPDATE member_identity_verification_request
+        SET consumed_at = UTC_TIMESTAMP(6)
+        WHERE identity_verification_id = #{identityVerificationId}
+        AND member_id = #{memberId}
+        AND expires_at &gt; UTC_TIMESTAMP(6)
+        AND consumed_at IS NULL
+    </update>
+
+    <!-- 기존 인증 완료 시각은 유지하고 미인증 회원만 갱신 -->
+    <update id="markIdentityVerified">
+        UPDATE members
+        SET identity_verified_at = UTC_TIMESTAMP()
+        WHERE member_id = #{memberId}
+        AND account_status = 'ACTIVE'
+        AND deleted_at IS NULL
+        AND identity_verified_at IS NULL
     </update>
 </mapper>

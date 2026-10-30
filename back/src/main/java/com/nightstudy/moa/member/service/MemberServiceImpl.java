@@ -15,6 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.member.dto.MemberRegionDto;
 
 import java.util.List;
+import com.nightstudy.moa.common.config.PortOneProperties;
+import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
+import org.springframework.util.StringUtils;
+import java.util.UUID;
+import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
+import com.nightstudy.moa.member.dto.PortOneIdentityVerificationResponse;
+import org.springframework.transaction.annotation.Isolation;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 
 import java.nio.charset.StandardCharsets;
 
@@ -27,6 +37,8 @@ public class MemberServiceImpl implements MemberService {
     private final EmailVerificationService emailVerificationService;
     private final AuthSessionService authSessionService;
     private final KakaoApiClient kakaoApiClient;
+    private final PortOneProperties portOneProperties;
+    private final PortOneApiClient portOneApiClient;
 
     public MemberServiceImpl(
             MemberMapper memberMapper,
@@ -34,7 +46,9 @@ public class MemberServiceImpl implements MemberService {
             JwtTokenProvider jwtTokenProvider,
             EmailVerificationService emailVerificationService,
             AuthSessionService authSessionService,
-            KakaoApiClient kakaoApiClient
+            KakaoApiClient kakaoApiClient,
+            PortOneProperties portOneProperties,
+            PortOneApiClient portOneApiClient
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
@@ -42,6 +56,8 @@ public class MemberServiceImpl implements MemberService {
         this.emailVerificationService = emailVerificationService;
         this.authSessionService = authSessionService;
         this.kakaoApiClient = kakaoApiClient;
+        this.portOneProperties = portOneProperties;
+        this.portOneApiClient = portOneApiClient;
     }
 
     // 기존 회원 Mapper를 재사용해 약관 목록 조회
@@ -780,5 +796,179 @@ public class MemberServiceImpl implements MemberService {
 
         // 비밀번호 변경 성공 시 해당 회원의 기존 로그인 세션 폐기
         authSessionService.revokeAllSessions(member.getMemberId());
+    }
+
+    // 인증 요청 번호를 서버에서 발급하고 활성 회원에게 연결
+    @Override
+    @Transactional
+    public IdentityVerificationStartResponse startIdentityVerification(
+            Long memberId
+    ) {
+        if (!portOneProperties.isEnabled()
+                || !StringUtils.hasText(portOneProperties.getStoreId())
+                || !StringUtils.hasText(portOneProperties.getChannelKey())
+                || !StringUtils.hasText(portOneProperties.getApiSecret())) {
+            throw new ApiException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "IDENTITY_VERIFICATION_NOT_CONFIGURED",
+                    "본인인증 서비스를 준비 중입니다."
+            );
+        }
+
+        String identityVerificationId =
+                "identity-verification-" + UUID.randomUUID();
+
+        int inserted = memberMapper.insertIdentityVerificationRequest(
+                identityVerificationId,
+                memberId
+        );
+
+        if (inserted != 1) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "MEMBER_UNAVAILABLE",
+                    "현재 계정 상태에서는 본인인증을 진행할 수 없습니다."
+            );
+        }
+
+        return new IdentityVerificationStartResponse(
+                identityVerificationId,
+                portOneProperties.getStoreId(),
+                portOneProperties.getChannelKey()
+        );
+    }
+
+    // 포트원 조회 결과를 확인한 뒤 인증 요청과 회원을 함께 갱신
+    @Override
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public MemberProfileResponse completeIdentityVerification(
+            Long memberId,
+            IdentityVerificationRequest request
+    ) {
+        if (request == null
+                || !StringUtils.hasText(request.getIdentityVerificationId())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_IDENTITY_VERIFICATION_ID",
+                    "본인인증 요청 번호가 필요합니다."
+            );
+        }
+
+        String verificationId = request.getIdentityVerificationId();
+
+        if (memberMapper.countAvailableIdentityVerificationRequest(
+                verificationId, memberId) != 1) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "IDENTITY_VERIFICATION_REQUEST_INVALID",
+                    "인증 요청이 만료되었거나 사용할 수 없습니다. 다시 시작해주세요."
+            );
+        }
+
+        // 외부 조회를 마친 뒤 회원 행을 잠가 잠금 시간을 줄임
+        PortOneIdentityVerificationResponse result =
+                portOneApiClient.getIdentityVerification(verificationId);
+
+        if (!"VERIFIED".equals(result.getStatus())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "IDENTITY_VERIFICATION_NOT_COMPLETED",
+                    "본인인증이 완료되지 않았습니다."
+            );
+        }
+
+        // 현재는 설정된 테스트 채널의 결과만 허용
+        if (result.getChannel() == null
+                || !portOneProperties.getChannelKey()
+                .equals(result.getChannel().getKey())
+                || !"TEST".equals(result.getChannel().getType())
+                || result.getVerifiedAt() == null
+                || result.getVerifiedAt().isAfter(
+                Instant.now().plusSeconds(60))) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "IDENTITY_VERIFICATION_CHANNEL_INVALID",
+                    "설정된 테스트 채널의 인증 결과인지 확인해주세요."
+            );
+        }
+
+        PortOneIdentityVerificationResponse.VerifiedCustomer customer =
+                result.getVerifiedCustomer();
+
+        if (customer == null
+                || !StringUtils.hasText(customer.getName())
+                || !StringUtils.hasText(customer.getBirthDate())
+                || !StringUtils.hasText(customer.getPhoneNumber())) {
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "IDENTITY_VERIFICATION_CUSTOMER_INVALID",
+                    "인증된 회원 정보를 확인할 수 없습니다."
+            );
+        }
+
+        String birthDate;
+        try {
+            birthDate = LocalDate.parse(customer.getBirthDate()).toString();
+        } catch (DateTimeParseException exception) {
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "IDENTITY_VERIFICATION_BIRTH_DATE_INVALID",
+                    "인증된 생년월일 정보를 확인할 수 없습니다."
+            );
+        }
+
+        String phoneNumber = customer.getPhoneNumber()
+                .replaceAll("[\\s-]", "");
+
+        // 국제전화 표기를 국내 번호 형식으로 맞춤
+        if (phoneNumber.startsWith("+82")) {
+            phoneNumber = "0" + phoneNumber.substring(3);
+        }
+
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null || !"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "MEMBER_UNAVAILABLE",
+                    "현재 계정 상태에서는 본인인증을 진행할 수 없습니다."
+            );
+        }
+
+        if (memberMapper.countMemberIdentityMatch(
+                memberId,
+                customer.getName().trim(),
+                birthDate,
+                phoneNumber
+        ) != 1) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "IDENTITY_VERIFICATION_MEMBER_MISMATCH",
+                    "인증된 이름·생년월일·전화번호가 가입 정보와 다릅니다."
+            );
+        }
+
+        if (memberMapper.consumeIdentityVerificationRequest(
+                verificationId, memberId) != 1) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "IDENTITY_VERIFICATION_REQUEST_INVALID",
+                    "인증 요청이 만료되었거나 이미 사용되었습니다."
+            );
+        }
+
+        int updated = memberMapper.markIdentityVerified(memberId);
+        MemberProfileResponse profile = getMyProfile(memberId);
+
+        if (updated != 1 && !profile.isIdentityVerified()) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "IDENTITY_VERIFICATION_SAVE_FAILED",
+                    "본인인증 결과를 저장하지 못했습니다."
+            );
+        }
+
+        return profile;
     }
 }

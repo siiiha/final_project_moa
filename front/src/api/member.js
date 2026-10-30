@@ -241,3 +241,37 @@ export async function resetMemberPassword(
 
     return response.data;
 }
+
+// AI작성: 서버에서 로그인 회원의 본인인증 요청 번호를 발급받습니다.
+export async function startMyIdentityVerification(token) {
+  const response = await client.post(
+    '/members/me/identity-verification/start',
+    null,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  return response.data.data;
+}
+
+// AI작성: 서버가 포트원 결과를 검증한 뒤 갱신된 회원 정보를 받습니다.
+export async function completeMyIdentityVerification(
+  token,
+  identityVerificationId,
+) {
+  const response = await client.post(
+    '/members/me/identity-verification/complete',
+    { identityVerificationId },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      timeout: 20000,
+    },
+  );
+
+  return response.data.data;
+}

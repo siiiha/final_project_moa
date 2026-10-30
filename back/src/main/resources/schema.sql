@@ -131,10 +131,31 @@ CURRENT_TIMESTAMP(6),
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS
+member_identity_verification_request (
+    identity_verification_id VARCHAR(128)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    member_id BIGINT NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT
+CURRENT_TIMESTAMP(6),
+    expires_at DATETIME(6) NOT NULL,
+    consumed_at DATETIME(6) NULL,
+
+    PRIMARY KEY (identity_verification_id),
+    KEY ix_member_identity_verification_request_member(member_id),
+
+    CONSTRAINT
+fk_member_identity_verification_request_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS member_social_account (
-                                                     social_account_id BIGINT NOT NULL AUTO_INCREMENT,
-                                                     member_id BIGINT NOT NULL,
-                                                     provider VARCHAR(20)
+    social_account_id BIGINT NOT NULL AUTO_INCREMENT,
+    member_id BIGINT NOT NULL,
+    provider VARCHAR(20)
     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     provider_user_id VARCHAR(255)
     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,

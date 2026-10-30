@@ -41,4 +41,13 @@ public interface MemberService {
 
     List<MemberTermDto> getTerms();
     List<MemberRegionDto> getRegions();
+
+    IdentityVerificationStartResponse startIdentityVerification(
+            Long memberId
+    );
+
+    MemberProfileResponse completeIdentityVerification(
+            Long memberId,
+            IdentityVerificationRequest request
+    );
 }

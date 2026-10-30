@@ -7,7 +7,8 @@ import { memberMenuItems } from '../mocks/mypage';
 import RegionMap from '../components/member/RegionMap';
 import SectionCard from '../components/common/SectionCard';
 import Button from '../components/common/Button';
-import { getMyProfile, verifyMyRegion } from '../api/member';
+import { getMyProfile, verifyMyRegion, startMyIdentityVerification, completeMyIdentityVerification } from '../api/member';
+import * as PortOne from '@portone/browser-sdk/v2';
 import useAuthStore from '../store/authStore';
 const MAX_LOCATION_ACCURACY_M = 500;
 // AI작성: UTC 인증 시각을 사용자 기기의 시간대와 관계없이 한국 시간으로 표시한다.
@@ -147,6 +148,28 @@ const RegionActions = styled.div`
   }
 `;
 
+// AI작성: 인증 진행 결과를 구분된 안내 박스로 표시합니다.
+const VerificationNotice = styled.div`
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-left: 4px solid ${({ $warning, theme }) =>
+    $warning ? theme.colors.warning : theme.colors.primary};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ $warning, theme }) =>
+    $warning ? theme.colors.warningSoft : theme.colors.primarySoft};
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: keep-all;
+
+  strong {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 700;
+  }
+`;
+
 function VerificationPage() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState('verify');
@@ -162,6 +185,9 @@ function VerificationPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [verificationError, setVerificationError] = useState('');
+  const [isIdentityVerifying, setIsIdentityVerifying] = useState(false);
+  const [identityError, setIdentityError] = useState('');
+  const [identityMessage, setIdentityMessage] = useState('');
 
   // AI작성: 기존 회원 조회 API로 실제 인증 상태와 활동 지역을 가져온다.
   useEffect(() => {
@@ -218,8 +244,9 @@ function VerificationPage() {
         id: 'identity',
         title: '본인 인증',
         status: profile.identityVerified ? '인증 완료' : '미인증',
-        description: '본인 명의의 휴대전화로 인증합니다.',
-        actionLabel: '본인 인증 안내',
+        description: '본인 명의의 인증 수단으로 본인 여부를 확인합니다.',
+        actionLabel: isIdentityVerifying ? '인증 진행 중…' : profile.identityVerified ? '인증 완료' : '본인인증 시작',
+        disabled: isIdentityVerifying || isVerifying || Boolean(profile.identityVerified),
       },
       {
         id: 'region',
@@ -234,10 +261,99 @@ function VerificationPage() {
     : [];
 
   const handleVerificationAction = (id) => {
+    if (isIdentityVerifying || isVerifying) return;
     if (id === 'region') {
       setShowRegionMap(true);
+    } else if (id === 'identity') {
+      handleIdentityVerification(id);
     }
   };
+  // AI작성: 서버 발급 번호로 인증창을 열고 서버 검증 후 화면을 갱신합니다.
+  const handleIdentityVerification = async (id) => {
+    if (id !== 'identity' || isIdentityVerifying || !profile) return;
+    if (profile.identityVerified) return;
+
+    if (!token) {
+      navigate('/member/login', { replace: true });
+      return;
+    }
+
+    const authVersion = useAuthStore.getState().authVersion;
+    const isCurrentLogin = () =>
+      useAuthStore.getState().authVersion === authVersion;
+
+    setIsIdentityVerifying(true);
+    setIdentityError('');
+    setIdentityMessage('');
+
+    try {
+      const start = await startMyIdentityVerification(token);
+      if (!isCurrentLogin()) return;
+
+      if (!start?.identityVerificationId || !start.storeId || !start.channelKey) {
+        throw new Error('본인인증 시작 정보를 확인할 수 없습니다.');
+      }
+
+      const result = await PortOne.requestIdentityVerification({
+        storeId: start.storeId,
+        channelKey: start.channelKey,
+        identityVerificationId: start.identityVerificationId,
+        bypass: {
+          inicisUnified: {
+            flgFixedUser: 'N',
+          },
+        },
+      });
+
+      if (!isCurrentLogin()) return;
+
+      if (!result) {
+        setIdentityMessage('본인인증이 취소되었습니다.');
+        return;
+      }
+
+      if (result.code !== undefined) {
+        setIdentityError(
+          result.message || '본인인증을 완료하지 못했습니다.',
+        );
+        return;
+      }
+
+      if (result.identityVerificationId !== start.identityVerificationId) {
+        throw new Error('본인인증 요청 정보가 일치하지 않습니다.');
+      }
+
+      const updatedProfile = await completeMyIdentityVerification(
+        useAuthStore.getState().token,
+        start.identityVerificationId,
+      );
+      if (!isCurrentLogin()) return;
+
+      if (!updatedProfile?.identityVerified) {
+        throw new Error('본인인증 완료 상태를 확인할 수 없습니다.');
+      }
+
+      setProfile(updatedProfile);
+      setIdentityMessage('본인인증이 완료되었습니다.');
+    } catch (error) {
+      if (!isCurrentLogin()) return;
+
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      setIdentityError(
+        error.response?.data?.error?.message ||
+        error.message ||
+        '본인인증 중 문제가 발생했습니다. 다시 시도해주세요.',
+      );
+    } finally {
+      setIsIdentityVerifying(false);
+    }
+  };
+
   // AI작성: 서버가 인증 성공을 반환한 경우에만 실제 인증 상태를 갱신한다.
   const handleRegionVerification = async () => {
     if (isVerifying || isLocating) return;
@@ -361,6 +477,32 @@ function VerificationPage() {
           onWithdraw={() => navigate('/member/mypage/delete')}
         />
         <main>
+          {isIdentityVerifying && (
+            <VerificationNotice role="status">
+              <strong>본인인증을 진행하고 있어요</strong>
+              인증창에서 인증을 완료해주세요.
+            </VerificationNotice>
+          )}
+
+          {identityError && (
+            <VerificationNotice $warning role="alert">
+              <strong>본인인증이 완료되지 않았어요</strong>
+              {identityError.includes('취소')
+                ? '인증을 취소하셨습니다. 원하실 때 다시 시작해주세요.'
+                : identityError}
+            </VerificationNotice>
+          )}
+
+          {identityMessage && (
+            <VerificationNotice role="status">
+              <strong>
+                {profile?.identityVerified
+                  ? '본인인증이 완료됐어요'
+                  : '본인인증 안내'}
+              </strong>
+              {identityMessage}
+            </VerificationNotice>
+          )}
           {isProfileLoading ? (
             <p role="status">인증 정보를 불러오고 있습니다.</p>
           ) : profileError ? (
