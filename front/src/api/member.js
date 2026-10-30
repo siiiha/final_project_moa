@@ -19,6 +19,26 @@ export async function getMyProfile(token) {
     return response.data.data;
 }
 
+
+// AI작성: 현재 좌표와 정확도를 서버에 전달해 지역 인증을 요청한다.
+export async function verifyMyRegion(token, position) {
+    const response = await client.post(
+        '/members/me/region-verification',
+        {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            accuracy: position.accuracy,
+        },
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
+
+    return response.data.data;
+}
+
 // 현재 비밀번호 확인 후 회원정보를 수정
 export async function updateMyProfile(token, request) {
     const response = await client.put('/members/me', request, {
@@ -171,6 +191,12 @@ export async function getMemberTerms() {
     return response.data.data;
 }
 
+// AI작성: 일반·소셜 회원가입에서 사용할 지역 목록을 서버에서 조회한다.
+export async function getMemberRegions() {
+    const response = await client.get('/auth/regions');
+    return response.data.data;
+}
+
 export async function withdrawMyAccount(token, request) {
     const response = await client.delete('/members/me', {
         headers: {
@@ -244,6 +270,21 @@ export async function completeMyIdentityVerification(
         Authorization: `Bearer ${token}`,
       },
       timeout: 20000,
+    },
+  );
+
+  return response.data.data;
+}
+
+// AI작성: 활동 지역을 변경하고 갱신된 회원정보를 반환한다.
+export async function updateMyRegion(token, regionId) {
+  const response = await client.put(
+    '/members/me/region',
+    { regionId },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
   );
 

@@ -1,19 +1,16 @@
 package com.nightstudy.moa.member.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
-import com.nightstudy.moa.member.dto.MemberSignupRequest;
+import com.nightstudy.moa.member.dto.*;
 import com.nightstudy.moa.member.service.MemberService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.nightstudy.moa.member.dto.EmailCheckRequest;
-import com.nightstudy.moa.member.dto.NicknameCheckRequest;
-import com.nightstudy.moa.member.dto.MemberLoginRequest;
 import com.nightstudy.moa.common.auth.LoginSessionManager;
 import jakarta.servlet.http.HttpServletResponse;
-import com.nightstudy.moa.member.dto.PasswordResetRequest;
-import com.nightstudy.moa.member.dto.MemberTermDto;
+import com.nightstudy.moa.member.dto.MemberRegionDto;
+
 import java.util.List;
 
 
@@ -37,6 +34,13 @@ public class MemberController {
     public ResponseEntity<ApiResponse<List<MemberTermDto>>> getTerms() {
         return ResponseEntity.ok(
                 ApiResponse.ok(memberService.getTerms())
+        );
+    }
+
+    @GetMapping("/regions")
+    public ResponseEntity<ApiResponse<List<MemberRegionDto>>> getRegions() {
+        return ResponseEntity.ok(
+                ApiResponse.ok(memberService.getRegions())
         );
     }
 
