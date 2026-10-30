@@ -313,7 +313,7 @@ const VoteTable = styled.div`
 const VoteRow = styled.div`
   padding: 11px 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px 90px;
+  grid-template-columns: minmax(0, 1fr) 74px 160px;
   gap: 8px;
   color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
   background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
@@ -327,11 +327,28 @@ const VoteRow = styled.div`
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    grid-template-columns: minmax(0, 1fr) 74px 74px;
+    grid-template-columns: minmax(0, 1fr) 66px 132px;
     padding: 10px 8px;
     gap: 4px;
     font-size: 10px;
   }
+`;
+
+const VoteStatusCell = styled.div`
+  min-width: 0;
+`;
+
+const VoteStatusBadge = styled.span`
+  padding: 4px 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ $closed, theme }) => ($closed ? theme.colors.muted : theme.colors.primary)};
+  background: ${({ $closed, theme }) => ($closed ? theme.colors.background : theme.colors.primarySoft)};
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 `;
 
 function formatDate(value) {
@@ -340,6 +357,16 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric',
+  }).format(date);
+}
+
+// AI작성: 투표 목록의 마감 시각은 날짜뿐 아니라 시·분까지 표시해 마감 여부를 명확히 한다.
+function formatDateTime(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
   }).format(date);
 }
 
@@ -439,13 +466,17 @@ function SmallGroupDetail({
           ) : (
             <VoteTable aria-label="소모임 투표 목록">
               <VoteRow $header>
-                <span>투표명</span><span>등록일</span><span>마감일</span>
+                <span>투표명</span><span>상태</span><span>마감시각</span>
               </VoteRow>
               {votes.map((vote, index) => (
-                <VoteRow key={`${vote.title}-${vote.createdAt}-${index}`} $last={index === votes.length - 1}>
+                <VoteRow key={`${vote.title}-${vote.status}-${vote.endsAt}-${index}`} $last={index === votes.length - 1}>
                   <span>{vote.title}</span>
-                  <span>{formatDate(vote.createdAt)}</span>
-                  <span>{formatDate(vote.endsAt) || '마감일 미설정'}</span>
+                  <VoteStatusCell>
+                    <VoteStatusBadge $closed={vote.status === 'CLOSED'}>
+                      {vote.status === 'CLOSED' ? '종료' : '진행 중'}
+                    </VoteStatusBadge>
+                  </VoteStatusCell>
+                  <span>{formatDateTime(vote.endsAt) || '마감시각 미설정'}</span>
                 </VoteRow>
               ))}
             </VoteTable>
