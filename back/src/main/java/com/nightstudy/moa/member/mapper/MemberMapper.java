@@ -20,6 +20,12 @@ public interface MemberMapper {
             @Param("regionId") Long regionId
     );
 
+    // 회원의 활동 지역을 변경하고 기존 지역 인증을 초기화
+    int updateMemberRegion(
+            @Param("memberId") Long memberId,
+            @Param("regionId") Long regionId
+    );
+
     int insertMember(MemberInsertDto member);
 
     int countVerifiedEmail(@Param("email") String email);

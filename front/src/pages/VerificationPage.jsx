@@ -79,7 +79,7 @@ const RegionContent = styled.div`
 const RegionSummary = styled.dl`
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 
   dt {
@@ -523,6 +523,10 @@ function VerificationPage() {
                           ? '세종특별자치시 전체'
                           : '세부 지역 확인 필요')}
                     </dd>
+                  </div>
+                  <div>
+                    <dt>읍·면·동</dt>
+                    <dd>{profile.townName || '읍·면·동 설정 필요'}</dd>
                   </div>
                 </RegionSummary>
 
