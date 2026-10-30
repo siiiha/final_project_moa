@@ -510,14 +510,18 @@
           AND g.deleted_at IS NULL
     </select>
 
-    <!-- AI작성: 투표 목록은 검색·상태 필터·페이징 없이 해당 소모임의 제목과 일시만 등록 최신순으로 반환한다. -->
+    <!-- AI작성: 투표 목록은 검색·상태 필터·페이징 없이 제목·상태·마감 시각만 등록 최신순으로 반환한다. -->
     <select id="selectSmallGroupVoteList"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse">
         SELECT title,
-               created_at,
+               status,
                ends_at
         FROM small_group_vote
         WHERE small_group_id = #{smallGroupId}
+        AND (
+            closed_at IS NULL
+            OR closed_at >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
+        )
         ORDER BY created_at DESC, small_group_vote_id DESC
     </select>
 
