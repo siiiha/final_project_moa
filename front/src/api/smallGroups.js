@@ -369,15 +369,16 @@ export async function createSmallGroupVote(smallGroupId, request) {
   }
 }
 
-// AI작성: 투표 목록은 제목·등록일·마감일만 사용하며 마감일 미설정은 null로 보존한다.
+// AI작성: 투표 목록은 제목·OPEN/CLOSED 상태·마감 시각만 사용하며 마감 시각 미설정은 null로 보존한다.
 export function toSmallGroupVoteListItem(item) {
   const hasValidEndsAt = item?.endsAt == null || typeof item.endsAt === 'string';
-  if (typeof item?.title !== 'string' || typeof item.createdAt !== 'string' || !hasValidEndsAt) {
+  const hasValidStatus = ['OPEN', 'CLOSED'].includes(item?.status);
+  if (typeof item?.title !== 'string' || !hasValidStatus || !hasValidEndsAt) {
     throw new SmallGroupVoteListLoadError('INVALID_RESPONSE', '투표 목록 응답을 확인하지 못했습니다.');
   }
   return {
     title: item.title,
-    createdAt: item.createdAt,
+    status: item.status,
     endsAt: item.endsAt,
   };
 }

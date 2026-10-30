@@ -29,8 +29,8 @@ test('소모임 투표 목록은 취소 신호와 함께 GET 요청하고 목록
   const originalGet = client.get;
   const signal = new AbortController().signal;
   const votes = [
-    { title: '11월 정기 모임 날짜', createdAt: '2026-10-30T10:00:00', endsAt: '2026-11-02T18:00:00' },
-    { title: '식사 장소', createdAt: '2026-10-29T10:00:00', endsAt: null },
+    { title: '11월 정기 모임 날짜', status: 'OPEN', endsAt: '2026-11-02T18:00:00' },
+    { title: '식사 장소', status: 'CLOSED', endsAt: null },
   ];
 
   try {
@@ -87,12 +87,12 @@ test('소모임 투표 목록은 서버 오류 코드와 메시지를 보존한�
   }
 });
 
-test('소모임 투표 목록은 잘못된 성공 응답을 INVALID_RESPONSE로 처리한다', async () => {
+test('소모임 투표 목록은 알 수 없는 상태값을 INVALID_RESPONSE로 처리한다', async () => {
   const originalGet = client.get;
 
   try {
     client.get = async () => ({
-      data: { success: true, data: [{ title: '마감일 없는 응답', endsAt: null }], meta: null, error: null },
+      data: { success: true, data: [{ title: '상태가 잘못된 응답', status: 'WAITING', endsAt: null }], meta: null, error: null },
     });
 
     await assert.rejects(
