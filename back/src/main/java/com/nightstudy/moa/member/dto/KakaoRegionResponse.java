@@ -28,5 +28,11 @@ public class KakaoRegionResponse {
 
         @JsonProperty("region_2depth_name")
         private String districtName;
+
+        @JsonProperty("region_3depth_name")
+        private String townName;
+
+        @JsonProperty("code")
+        private String legalCode;
     }
 }

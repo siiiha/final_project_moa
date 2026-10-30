@@ -24,6 +24,8 @@ public class MemberProfileResponse {
     private String regionName;
     private String provinceName;
     private String districtName;
+    private String townName;
+    private String legalCode;
     private boolean identityVerified;
     private boolean regionVerified;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")

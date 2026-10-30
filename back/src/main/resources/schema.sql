@@ -527,8 +527,12 @@ CREATE TABLE IF NOT EXISTS `region` (
     `region_name` VARCHAR(100) NOT NULL,
     `province_name` VARCHAR(30) NULL,
     `district_name` VARCHAR(50) NULL,
-    PRIMARY KEY (`region_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `legal_code` VARCHAR(10) NULL,
+    `town_name` VARCHAR(50) NULL,
+    PRIMARY KEY (`region_id`),
+    UNIQUE KEY `uq_region_legal_code` (`legal_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `meeting_round` (
 	`round_id`	BIGINT	NOT NULL AUTO_INCREMENT,

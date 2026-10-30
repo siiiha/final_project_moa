@@ -11,4 +11,6 @@ public class MemberRegionDto {
     private String regionName;
     private String provinceName;
     private String districtName;
+    private String legalCode;
+    private String townName;
 }

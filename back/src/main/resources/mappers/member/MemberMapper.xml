@@ -17,20 +17,27 @@
         SELECT COUNT(*)
         FROM region
         WHERE region_id = #{regionId}
+        AND province_name IS NOT NULL
+        AND district_name IS NOT NULL
+        AND legal_code IS NOT NULL
+        AND town_name IS NOT NULL
+        AND TRIM(town_name) != ''
     </select>
 
     <!-- 시·도와 시·군·구가 등록된 가입용 지역 목록 조회 -->
     <select id="findRegions"
             resultType="com.nightstudy.moa.member.dto.MemberRegionDto">
         SELECT
-            region_id AS regionId,
-            region_name AS regionName,
-            province_name AS provinceName,
-            district_name AS districtName
+        region_id AS regionId,
+        region_name AS regionName,
+        province_name AS provinceName,
+        district_name AS districtName,
+        legal_code AS legalCode,
+        town_name AS townName
         FROM region
         WHERE province_name IS NOT NULL
-            AND district_name IS NOT NULL
-        ORDER BY province_name, district_name, region_id
+        AND district_name IS NOT NULL
+        ORDER BY province_name, district_name, town_name ,region_id
     </select>
 
     <!-- 회원 저장 후 자동 생성된 회원 번호를 DTO에 전달 -->
@@ -88,11 +95,11 @@
     <select id="findTerms"
             resultType="com.nightstudy.moa.member.dto.MemberTermDto">
         SELECT
-            term_id AS termId,
-            title,
-            version,
-            content,
-            is_required AS `required`
+        term_id AS termId,
+        title,
+        version,
+        content,
+        is_required AS `required`
         FROM term
         ORDER BY term_id
     </select>
@@ -154,13 +161,13 @@
     <select id="findByEmail"
             resultType="com.nightstudy.moa.member.dto.MemberLoginDto">
         SELECT
-            member_id,
-            password_hash,
-            account_status,
-            system_role
+        member_id,
+        password_hash,
+        account_status,
+        system_role
         FROM members
         WHERE email = #{email}
-            AND deleted_at IS NULL
+        AND deleted_at IS NULL
     </select>
 
     <!-- 기존 회원정보와 가입 활동 지역을 함께 조회 -->
@@ -179,8 +186,15 @@
         r.region_name AS regionName,
         r.province_name AS provinceName,
         r.district_name AS districtName,
+        r.town_name AS townName,
+        r.legal_code AS legalCode,
         (m.identity_verified_at IS NOT NULL) AS identityVerified,
-        (m.region_verified_at IS NOT NULL) AS regionVerified,
+        (
+        m.region_verified_at IS NOT NULL
+        AND r.legal_code REGEXP '^[0-9]{8}00$'
+        AND r.town_name IS NOT NULL
+        AND TRIM(r.town_name) != ''
+        ) AS regionVerified,
         m.region_verified_at AS regionVerifiedAt
         FROM members m
         LEFT JOIN region r
@@ -194,19 +208,31 @@
         UPDATE members
         SET region_verified_at = UTC_TIMESTAMP()
         WHERE member_id = #{memberId}
-            AND region_id = #{regionId}
+        AND region_id = #{regionId}
+        AND account_status = 'ACTIVE'
+        AND deleted_at IS NULL
+    </update>
+
+    <!-- 활동 지역이 달라진 경우에만 변경하고 기존 지역 인증 초기화 -->
+    <update id="updateMemberRegion">
+        UPDATE members
+        SET region_id = #{regionId},
+            region_verified_at = NULL
+        WHERE member_id = #{memberId}
+            AND region_id &lt;&gt; #{regionId}
             AND account_status = 'ACTIVE'
             AND deleted_at IS NULL
     </update>
+
     <select id="findInterestsByMemberId"
             resultType="com.nightstudy.moa.member.dto.MemberProfileResponse$Interest">
 
         SELECT
-            i.interest_id AS interestId,
-            i.interest_name AS interestName
+        i.interest_id AS interestId,
+        i.interest_name AS interestName
         FROM member_interest mi
         INNER JOIN interest i
-            ON mi.interest_id = i.interest_id
+        ON mi.interest_id = i.interest_id
         WHERE mi.member_id = #{memberId}
         ORDER BY i.interest_id
     </select>
@@ -252,7 +278,7 @@
         UPDATE members
         SET profile_img_url = #{profileImageUrl, jdbcType=VARCHAR}
         WHERE member_id = #{memberId}
-            AND deleted_at IS NULL
+        AND deleted_at IS NULL
     </update>
 
 
@@ -260,35 +286,35 @@
         SELECT COUNT(*)
         FROM `groups` g
         INNER JOIN saving_group sg
-            ON sg.group_id = g.group_id
+        ON sg.group_id = g.group_id
         WHERE g.deleted_at IS NULL
-            AND sg.status IN ('02', '03')
-            AND (
-                g.member_id = #{memberId}
-                OR EXISTS (
-                    SELECT 1
-                    FROM group_member gm
-                    WHERE gm.group_id = g.group_id
-                        AND gm.member_id = #{memberId}
-                        AND gm.membership_status = 'APPROVED'
-                )
-            )
+        AND sg.status IN ('02', '03')
+        AND (
+        g.member_id = #{memberId}
+        OR EXISTS (
+        SELECT 1
+        FROM group_member gm
+        WHERE gm.group_id = g.group_id
+        AND gm.member_id = #{memberId}
+        AND gm.membership_status = 'APPROVED'
+        )
+        )
     </select>
 
     <update id="withdrawMember">
         UPDATE members
         SET account_status = 'INACTIVE',
-            deleted_at = CURRENT_TIMESTAMP
+        deleted_at = CURRENT_TIMESTAMP
         WHERE member_id = #{memberId}
-            AND deleted_at IS NULL
+        AND deleted_at IS NULL
     </update>
 
     <select id="countNotWithdrawnMemberById" resultType="int">
         SELECT COUNT(*)
         FROM members
         WHERE member_id = #{memberId}
-            AND deleted_at IS NULL
-            AND account_status != 'INACTIVE'
+        AND deleted_at IS NULL
+        AND account_status != 'INACTIVE'
     </select>
 
     <!-- 소셜 인증에서 확인한 계정을 모아 회원에게 연결 -->
@@ -310,8 +336,8 @@
         UPDATE members
         SET password_hash = #{passwordHash}
         WHERE member_id = #{memberId}
-            AND account_status = 'ACTIVE'
-            AND deleted_at IS NULL
+        AND account_status = 'ACTIVE'
+        AND deleted_at IS NULL
     </update>
 
     <!-- 이메일 인증 후 비밀번호를 재설정하며 기존 해시를 비교해 동시 변경의 덮어쓰기를 방지 -->
@@ -319,9 +345,9 @@
         UPDATE members
         SET password_hash = #{newPasswordHash}
         WHERE member_id = #{memberId}
-            AND BINARY password_hash = BINARY #{currentPasswordHash}
-            AND account_status = 'ACTIVE'
-            AND deleted_at IS NULL
+        AND BINARY password_hash = BINARY #{currentPasswordHash}
+        AND account_status = 'ACTIVE'
+        AND deleted_at IS NULL
     </update>
 
     <!-- 활성 회원의 인증 요청을 UTC 기준 10분 동안 유효하게 저장 -->
