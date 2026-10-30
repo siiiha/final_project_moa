@@ -72,6 +72,15 @@ export class SmallGroupVoteCreateError extends Error {
   }
 }
 
+// AI작성: 소모임 투표 목록 조회 실패 코드와 메시지를 투표 탭까지 보존하기 위한 오류 객체다.
+export class SmallGroupVoteListLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteListLoadError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -163,6 +172,15 @@ function toSmallGroupVoteCreateError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupVoteCreateError(
     responseError?.code || 'SMALL_GROUP_VOTE_CREATE_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteListLoadError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteListLoadError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteListLoadError(
+    responseError?.code || 'SMALL_GROUP_VOTE_LIST_LOAD_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -348,6 +366,38 @@ export async function createSmallGroupVote(smallGroupId, request) {
     return response.data.data;
   } catch (error) {
     throw toSmallGroupVoteCreateError(error, '투표를 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 투표 목록은 제목·등록일·마감일만 사용하며 마감일 미설정은 null로 보존한다.
+export function toSmallGroupVoteListItem(item) {
+  const hasValidEndsAt = item?.endsAt == null || typeof item.endsAt === 'string';
+  if (typeof item?.title !== 'string' || typeof item.createdAt !== 'string' || !hasValidEndsAt) {
+    throw new SmallGroupVoteListLoadError('INVALID_RESPONSE', '투표 목록 응답을 확인하지 못했습니다.');
+  }
+  return {
+    title: item.title,
+    createdAt: item.createdAt,
+    endsAt: item.endsAt,
+  };
+}
+
+// AI작성: 투표 목록은 서버의 소속 권한·정렬 결과를 그대로 사용하며 검색·필터·페이징을 추가하지 않는다.
+export async function getSmallGroupVotes(smallGroupId, { signal } = {}) {
+  try {
+    const response = await client.get(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes`,
+      { signal },
+    );
+    if (!response.data?.success || !Array.isArray(response.data.data)) {
+      throw new SmallGroupVoteListLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '투표 목록 응답을 확인하지 못했습니다.',
+      );
+    }
+    return response.data.data.map(toSmallGroupVoteListItem);
+  } catch (error) {
+    throw toSmallGroupVoteListLoadError(error, '투표 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 
