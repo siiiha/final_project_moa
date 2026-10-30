@@ -43,6 +43,7 @@ function AdminReportDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [action, setAction] = useState('CONFIRMED');
+  const [restrictionScope, setRestrictionScope] = useState('CONTENT');
   const [restrictionType, setRestrictionType] = useState('7_DAYS');
   const [processReason, setProcessReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -78,6 +79,7 @@ function AdminReportDetailPage() {
     try {
       await processAdminReport(report.processId, {
         status: action,
+        restrictionScope: action === 'CONFIRMED' ? restrictionScope : undefined,
         restrictionType: action === 'CONFIRMED' ? restrictionType : undefined,
         processReason: processReason.trim(),
       });
@@ -95,7 +97,7 @@ function AdminReportDetailPage() {
   if (!loading && report) {
     content = <>
       {error && <Message role="alert">{error}</Message>}
-      <AdminReportDetail report={report} action={action} restrictionType={restrictionType} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionTypeChange={setRestrictionType} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onBack={() => navigate('/admin/reposts')} />
+      <AdminReportDetail report={report} action={action} restrictionScope={restrictionScope} restrictionType={restrictionType} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionScopeChange={setRestrictionScope} onRestrictionTypeChange={setRestrictionType} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onBack={() => navigate('/admin/reposts')} />
     </>;
   }
 

@@ -86,7 +86,7 @@ const Actions = styled.div`
 `;
 
 // AI작성: 신고 사건 정보와 처리 입력 영역을 분리해 관리자에게 처리 대상과 결과를 명확히 안내한다.
-function AdminReportDetail({ report, action, restrictionType, processReason, submitting, onActionChange, onRestrictionTypeChange, onProcessReasonChange, onSubmit, onBack }) {
+function AdminReportDetail({ report, action, restrictionScope, restrictionType, processReason, submitting, onActionChange, onRestrictionScopeChange, onRestrictionTypeChange, onProcessReasonChange, onSubmit, onBack }) {
   const pending = report.statusCode === 'PENDING';
   return (
     <Card>
@@ -95,6 +95,7 @@ function AdminReportDetail({ report, action, restrictionType, processReason, sub
         <div><dt>신고 유형</dt><dd>{report.type}</dd></div><div><dt>신고 대상</dt><dd>{report.targetMember}</dd></div>
         <div><dt>신고 수</dt><dd>{report.reporterCount}건</dd></div><div><dt>접수일</dt><dd>{report.createdAt}</dd></div>
         {!pending && <div><dt>처리일</dt><dd>{report.processedAt}</dd></div>}
+        {report.restrictionScope && <div><dt>제한 영역</dt><dd>{report.restrictionScope}</dd></div>}
         {report.processReason && <div><dt>처리 사유</dt><dd>{report.processReason}</dd></div>}
       </Summary>
       <SectionTitle>개별 신고 내용</SectionTitle>
@@ -102,6 +103,8 @@ function AdminReportDetail({ report, action, restrictionType, processReason, sub
       {pending && <ProcessForm onSubmit={onSubmit}>
         <SectionTitle>신고 처리</SectionTitle>
         <Field>처리 결과<select value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting}><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option></select></Field>
+        {/* AI작성: 신고 승인 시 관리자가 실제로 제한할 기능 범위를 명시적으로 선택한다. */}
+        {action === 'CONFIRMED' && <Field>제한 영역<select value={restrictionScope} onChange={(event) => onRestrictionScopeChange(event.target.value)} disabled={submitting}><option value="CONTENT">게시글·댓글</option><option value="CHAT">채팅</option><option value="REPORT">신고</option></select></Field>}
         {action === 'CONFIRMED' && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
         <Field>처리 사유<textarea value={processReason} onChange={(event) => onProcessReasonChange(event.target.value)} maxLength={500} required disabled={submitting} /></Field>
         <Actions><Button type="submit" disabled={submitting}>{submitting ? '처리 중...' : '처리 저장'}</Button></Actions>

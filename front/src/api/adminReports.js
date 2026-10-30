@@ -28,6 +28,11 @@ function formatReportStatus(value) {
   return { PENDING: '대기', CONFIRMED: '승인', REJECTED: '반려' }[value] || '상태 확인 필요';
 }
 
+// AI작성: 서버의 기능 제한 범위를 관리자 화면에서 이해하기 쉬운 문구로 변환한다.
+function formatRestrictionScope(value) {
+  return { CONTENT: '게시글·댓글', CHAT: '채팅', REPORT: '신고' }[value] || '';
+}
+
 function mapReport(item) {
   return {
     id: item.caseId,
@@ -42,6 +47,7 @@ function mapReport(item) {
     createdAt: formatDate(item.createdAt),
     processedAt: item.processedAt ? formatDate(item.processedAt) : '-',
     restrictedUntil: item.restrictedUntil ? formatDate(item.restrictedUntil) : '-',
+    restrictionScope: formatRestrictionScope(item.restrictionScope),
   };
 }
 

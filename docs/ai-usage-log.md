@@ -398,3 +398,12 @@
 - DB·의존성·외부 서비스 변경: 없음.
 - 검증: 백엔드 `compileJava`, `processResources`, `git diff --check` 통과, 프론트 `npm run build` 및 `npm run lint` 통과. 백엔드 테스트는 기존 `SmallGroupSecurityIntegrationTest` 생성자 인자 불일치로 테스트 소스 컴파일 단계에서 중단된다.
 - 개발자 검토: 실제 DB에서 0원/잔액 존재, 상태 01/02/03/04, PENDING·APPROVED 출금 요청, 승인 후 일반 조회 제외를 확인해야 한다.
+
+## 2026-10-30 — 회원 기능별 제한 및 신고 승인 범위 선택
+
+- 목적: 계정 정지와 커뮤니티 기능 제한을 분리하고, 관리자 직접 제한과 신고 승인에서 CONTENT·CHAT·REPORT 범위를 선택해 독립적으로 제한한다.
+- 사용자 확정: 현재 제한은 `member_feature_restriction`, 과거 이력은 `restriction_history`에 저장하며 로그인과 조회 기능은 허용한다.
+- AI 제안·작성: 기능 범위·액션 Enum, 범위별 제한 UPSERT·해제·만료 정리, 공통 기간 누적 정책, 신고 승인 범위 선택과 조합 검증, 관리자 상세의 제한 목록, 프론트 신고 처리 영역 선택을 구현했다.
+- DB 변경 필요: `member_feature_restriction` 테이블과 `restriction_history.restriction_scope`, `report_case.restriction_scope` 컬럼이 필요하지만 DB 담당자 반영 전이므로 `schema.sql`은 수정하지 않았다.
+- 검증: 관리자 관련 백엔드 테스트 통과, Mapper XML 파싱 및 프론트 `npm run lint`, `npm run build` 통과. 린트의 기존 경고와 Vite 청크 크기 경고는 이번 변경과 관계없는 비차단 경고이다.
+- 개발자 검토: DB 마이그레이션 후 신고 승인 범위별 제한과 관리자 직접 제한·해제, 만료 정리를 실제 MySQL 및 브라우저에서 확인해야 한다.

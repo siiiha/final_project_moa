@@ -117,6 +117,7 @@ public class AdminReportServiceImpl implements AdminReportService {
         if ("CONFIRMED".equals(request.getStatus())) {
             restrictedUntil = applyMemberRestriction(
                     reportId,
+                    request.getRestrictionScope(),
                     request.getRestrictionType(),
                     request.getProcessReason()
             );
@@ -126,7 +127,8 @@ public class AdminReportServiceImpl implements AdminReportService {
                 reportId,
                 request.getStatus(),
                 request.getProcessReason(),
-                restrictedUntil
+                restrictedUntil,
+                request.getRestrictionScope()
         );
 
         if (updatedCount != 1) {
@@ -149,21 +151,22 @@ public class AdminReportServiceImpl implements AdminReportService {
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
     private void validateProcessRequest(AdminReportProcessRequest request) {
         boolean confirmed = "CONFIRMED".equals(request.getStatus());
-        boolean hasRestriction = request.getRestrictionType() != null;
+        boolean hasRestrictionType = request.getRestrictionType() != null;
+        boolean hasRestrictionScope = request.getRestrictionScope() != null;
 
-        if (confirmed && !hasRestriction) {
+        if (confirmed && (!hasRestrictionType || !hasRestrictionScope)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_REQUIRED",
-                    "신고를 처리하려면 이용 제한 값을 선택해야 합니다."
+                    "신고를 승인하려면 이용 제한 범위와 기간을 선택해야 합니다."
             );
         }
 
-        if (!confirmed && hasRestriction) {
+        if (!confirmed && (hasRestrictionType || hasRestrictionScope)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_NOT_ALLOWED",
-                    "반려 처리에는 이용 제한 값을 입력할 수 없습니다."
+                    "반려 처리에는 이용 제한 범위와 기간을 입력할 수 없습니다."
             );
         }
     }
@@ -171,6 +174,7 @@ public class AdminReportServiceImpl implements AdminReportService {
     // AI작성: 신고 사건에 기록된 제재 대상 회원에게 이용 제한을 적용한다.
     private LocalDateTime applyMemberRestriction(
             Long reportId,
+            MemberRestrictionScope restrictionScope,
             String restrictionType,
             String reason
     ) {
@@ -183,7 +187,6 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        MemberRestrictionScope restrictionScope = MemberRestrictionScope.CONTENT;
         AdminMemberRestrictionTarget target = adminMemberMapper.selectRestrictionTargetForUpdate(
                 memberId,
                 restrictionScope
@@ -204,7 +207,7 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        // AI작성: 게시글·댓글 신고 승인에는 CONTENT 범위를 적용하고 기존 제한 종료 시각부터 기간을 누적한다.
+        // AI작성: 관리자가 선택한 기능 범위의 기존 제한 종료 시각부터 새 제한 기간을 누적한다.
         LocalDateTime restrictedUntil = memberRestrictionPolicy.calculateRestrictedUntil(
                 target.isCurrentlyRestricted(),
                 target.getRestrictedUntil(),
