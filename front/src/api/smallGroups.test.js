@@ -3,11 +3,13 @@ import test from 'node:test';
 import client from './client.js';
 import {
   createSmallGroup,
+  createSmallGroupVote,
   fetchSmallGroupRegions,
   SmallGroupCreationError,
   getSmallGroupDetail,
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
+  SmallGroupVoteCreateError,
   approveSmallGroupJoinRequest,
   rejectSmallGroupJoinRequest,
   getSmallGroupJoinRequests,
@@ -20,6 +22,65 @@ import {
   toSmallGroupDetail,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+test('소모임 투표 생성은 소모임 ID와 입력값을 POST 본문으로 전달하고 생성 ID를 반환한다', async () => {
+  const originalPost = client.post;
+  const request = {
+    title: '주말 산책 장소',
+    options: ['한강 공원', '동네 둘레길'],
+    multipleChoice: false,
+    anonymous: true,
+    endsAt: '2099-01-01T12:00',
+  };
+
+  try {
+    client.post = async (path, payload) => {
+      assert.equal(path, '/small-groups/7/votes');
+      assert.deepEqual(payload, request);
+      return {
+        data: {
+          success: true,
+          data: { smallGroupVoteId: 101 },
+          meta: null,
+          error: null,
+        },
+      };
+    };
+
+    assert.deepEqual(await createSmallGroupVote(7, request), { smallGroupVoteId: 101 });
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+test('소모임 투표 생성 실패는 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalPost = client.post;
+
+  try {
+    client.post = async () => {
+      const error = new Error('Forbidden');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_VOTE_CREATE_FORBIDDEN',
+            message: '승인된 소모임 개설자만 투표를 생성할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      createSmallGroupVote(7, {}),
+      (error) => error instanceof SmallGroupVoteCreateError
+        && error.code === 'SMALL_GROUP_VOTE_CREATE_FORBIDDEN'
+        && error.message === '승인된 소모임 개설자만 투표를 생성할 수 있습니다.',
+    );
+  } finally {
+    client.post = originalPost;
+  }
+});
 
 test('소모임 가입 신청 목록은 상태·페이지·취소 신호를 API에 전달하고 화면 필드로 변환한다', async () => {
   const originalGet = client.get;

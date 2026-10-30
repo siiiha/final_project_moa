@@ -5,6 +5,7 @@ import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import SmallGroupDetail from '../components/smallGroup/SmallGroupDetail';
 import {
+  createSmallGroupVote,
   fetchSmallGroupCategories,
   getSmallGroupDetail,
   getSmallGroupSettings,
@@ -74,6 +75,8 @@ function SmallGroupDetailPage() {
   const [isJoinSubmitting, setIsJoinSubmitting] = useState(false);
   const [joinErrorMessage, setJoinErrorMessage] = useState(null);
   const [isIdentityVerificationModalOpen, setIsIdentityVerificationModalOpen] = useState(false);
+  const [isVoteCreating, setIsVoteCreating] = useState(false);
+  const [isVoteCreateSuccessModalOpen, setIsVoteCreateSuccessModalOpen] = useState(false);
 
   // AI작성: URL 변경·화면 이탈 시 이전 요청을 취소해 다른 소모임의 결과가 표시되지 않게 한다.
   useEffect(() => {
@@ -161,6 +164,19 @@ function SmallGroupDetailPage() {
     }
   };
 
+  // AI작성: 목록 조회 API가 준비되기 전에는 생성 결과를 성공 안내로만 표시하고, 목록 재조회는 연결하지 않는다.
+  const handleVoteCreate = async (request) => {
+    if (isVoteCreating) return;
+
+    setIsVoteCreating(true);
+    try {
+      await createSmallGroupVote(id, request);
+      setIsVoteCreateSuccessModalOpen(true);
+    } finally {
+      setIsVoteCreating(false);
+    }
+  };
+
   const errorCode = current?.error?.code;
   const errorMessage = errorCode === 'NOT_FOUND' ? '조회할 수 있는 소모임이 없습니다.'
     : errorCode === 'ACCESS_DENIED' ? '이 소모임에 접근할 수 없습니다.'
@@ -212,6 +228,8 @@ function SmallGroupDetailPage() {
               onDelete={() => setIsDeleteModalOpen(true)}
               onJoinRequest={handleJoinRequest}
               isJoinSubmitting={isJoinSubmitting}
+              onCreateVote={handleVoteCreate}
+              isVoteCreating={isVoteCreating}
             />
           )}
       </Content>
@@ -234,6 +252,16 @@ function SmallGroupDetailPage() {
           showCancel={false}
           onConfirm={() => setIsJoinModalOpen(false)}
           onCancel={() => setIsJoinModalOpen(false)}
+        />
+      )}
+      {isVoteCreateSuccessModalOpen && (
+        <ConfirmModal
+          title="투표 생성 완료"
+          description="투표가 생성되었습니다."
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setIsVoteCreateSuccessModalOpen(false)}
+          onCancel={() => setIsVoteCreateSuccessModalOpen(false)}
         />
       )}
       {isIdentityVerificationModalOpen && (

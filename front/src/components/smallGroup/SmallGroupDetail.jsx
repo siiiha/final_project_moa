@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
+import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
 
 const Profile = styled.section`
   padding: 6px 0 0;
@@ -276,6 +278,31 @@ const JoinRequestsContent = styled.div`
   margin-top: 16px;
 `;
 
+const PollContent = styled.section`
+  margin-top: 16px;
+  position: relative;
+`;
+
+const PollHeading = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const PollTitle = styled.h2`
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+`;
+
+const VoteCreateButton = styled(Button)`
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
+`;
+
 function formatDate(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -302,8 +329,11 @@ function SmallGroupDetail({
   onDelete,
   onJoinRequest,
   isJoinSubmitting,
+  onCreateVote,
+  isVoteCreating,
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
+  const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
   // AI작성: 이미 승인된 OWNER·MEMBER는 재신청할 수 없으므로 상세 화면에서 버튼을 노출하지 않는다.
   const canRequestJoin = !['OWNER', 'MEMBER'].includes(myRole);
   // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
@@ -352,7 +382,29 @@ function SmallGroupDetail({
         <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>
 
-      {currentMenu === 'settings' ? (
+      {currentMenu === 'poll' ? (
+        <PollContent>
+          <PollHeading>
+            <PollTitle>투표 목록</PollTitle>
+            {myRole === 'OWNER' && (
+              <VoteCreateButton type="button" onClick={() => setIsVoteCreateModalOpen(true)}>
+                투표 생성
+              </VoteCreateButton>
+            )}
+          </PollHeading>
+          <Placeholder>투표 목록을 불러오는 기능은 준비 중입니다.</Placeholder>
+          {isVoteCreateModalOpen && (
+            <SmallGroupVoteCreateModal
+              isSubmitting={isVoteCreating}
+              onClose={() => setIsVoteCreateModalOpen(false)}
+              onSubmit={async (request) => {
+                await onCreateVote(request);
+                setIsVoteCreateModalOpen(false);
+              }}
+            />
+          )}
+        </PollContent>
+      ) : currentMenu === 'settings' ? (
         <SettingsContent>
           {isSettingsLoading ? (
             <Placeholder role="status">소모임 설정 정보를 불러오는 중입니다.</Placeholder>

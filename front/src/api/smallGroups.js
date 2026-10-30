@@ -63,6 +63,15 @@ export class SmallGroupJoinRequestError extends Error {
   }
 }
 
+// AI작성: 소모임 투표 생성 실패 코드와 메시지를 투표 생성 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupVoteCreateError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteCreateError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -145,6 +154,15 @@ function toSmallGroupJoinRequestError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupJoinRequestError(
     responseError?.code || 'JOIN_REQUEST_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteCreateError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteCreateError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteCreateError(
+    responseError?.code || 'SMALL_GROUP_VOTE_CREATE_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -311,6 +329,25 @@ export async function requestSmallGroupJoin(smallGroupId) {
     return response.data;
   } catch (error) {
     throw toSmallGroupJoinRequestError(error, '가입 신청 처리에 실패했습니다.');
+  }
+}
+
+// AI작성: 투표 생성자는 JWT에서 서버가 결정하므로 소모임 ID와 화면 입력값만 전송한다.
+export async function createSmallGroupVote(smallGroupId, request) {
+  try {
+    const response = await client.post(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes`,
+      request,
+    );
+    if (!response.data?.success || response.data.data?.smallGroupVoteId == null) {
+      throw new SmallGroupVoteCreateError(
+        response.data?.error?.code || 'SMALL_GROUP_VOTE_CREATE_FAILED',
+        response.data?.error?.message || '투표 생성 응답을 확인하지 못했습니다.',
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    throw toSmallGroupVoteCreateError(error, '투표를 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 
