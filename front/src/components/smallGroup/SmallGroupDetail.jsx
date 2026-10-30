@@ -303,6 +303,37 @@ const VoteCreateButton = styled(Button)`
   font-size: 12px;
 `;
 
+const VoteTable = styled.div`
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
+const VoteRow = styled.div`
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 90px;
+  gap: 8px;
+  color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
+  background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
+  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
+  font-size: 11px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr) 74px 74px;
+    padding: 10px 8px;
+    gap: 4px;
+    font-size: 10px;
+  }
+`;
+
 function formatDate(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -322,6 +353,9 @@ function SmallGroupDetail({
   isSettingsLoading,
   isSettingsSaving,
   settingsErrorMessage,
+  votes = [],
+  isVoteLoading,
+  voteErrorMessage,
   onMenuChange,
   onSettingsSubmit,
   onSettingsCancel,
@@ -331,6 +365,7 @@ function SmallGroupDetail({
   isJoinSubmitting,
   onCreateVote,
   isVoteCreating,
+  onRetryVotes,
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
   const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
@@ -392,7 +427,29 @@ function SmallGroupDetail({
               </VoteCreateButton>
             )}
           </PollHeading>
-          <Placeholder>투표 목록을 불러오는 기능은 준비 중입니다.</Placeholder>
+          {isVoteLoading ? (
+            <Placeholder role="status">투표 목록을 불러오는 중입니다.</Placeholder>
+          ) : voteErrorMessage ? (
+            <Placeholder role="alert">
+              <p>{voteErrorMessage}</p>
+              <Button type="button" onClick={onRetryVotes}>다시 시도</Button>
+            </Placeholder>
+          ) : votes.length === 0 ? (
+            <Placeholder>등록된 투표가 없습니다.</Placeholder>
+          ) : (
+            <VoteTable aria-label="소모임 투표 목록">
+              <VoteRow $header>
+                <span>투표명</span><span>등록일</span><span>마감일</span>
+              </VoteRow>
+              {votes.map((vote, index) => (
+                <VoteRow key={`${vote.title}-${vote.createdAt}-${index}`} $last={index === votes.length - 1}>
+                  <span>{vote.title}</span>
+                  <span>{formatDate(vote.createdAt)}</span>
+                  <span>{formatDate(vote.endsAt) || '마감일 미설정'}</span>
+                </VoteRow>
+              ))}
+            </VoteTable>
+          )}
           {isVoteCreateModalOpen && (
             <SmallGroupVoteCreateModal
               isSubmitting={isVoteCreating}

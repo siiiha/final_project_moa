@@ -9,6 +9,7 @@ import {
   fetchSmallGroupCategories,
   getSmallGroupDetail,
   getSmallGroupSettings,
+  getSmallGroupVotes,
   requestSmallGroupJoin,
   updateSmallGroupSettings,
 } from '../api/smallGroups';
@@ -77,6 +78,8 @@ function SmallGroupDetailPage() {
   const [isIdentityVerificationModalOpen, setIsIdentityVerificationModalOpen] = useState(false);
   const [isVoteCreating, setIsVoteCreating] = useState(false);
   const [isVoteCreateSuccessModalOpen, setIsVoteCreateSuccessModalOpen] = useState(false);
+  const [voteResult, setVoteResult] = useState(null);
+  const [voteRetry, setVoteRetry] = useState(0);
 
   // AI작성: URL 변경·화면 이탈 시 이전 요청을 취소해 다른 소모임의 결과가 표시되지 않게 한다.
   useEffect(() => {
@@ -100,6 +103,8 @@ function SmallGroupDetailPage() {
   const current = result?.id === id && result?.retry === retry ? result : null;
   const isSettingsSelected = current?.group?.myRole === 'OWNER'
     && menu.id === id && menu.value === 'settings';
+  const isVoteSelected = ['OWNER', 'MEMBER'].includes(current?.group?.myRole)
+    && menu.id === id && menu.value === 'poll';
 
   // AI작성: OWNER가 설정 탭을 열 때만 설정값과 서버 기준 관심사 목록을 함께 조회한다.
   useEffect(() => {
@@ -125,6 +130,28 @@ function SmallGroupDetailPage() {
       controller.abort();
     };
   }, [id, isSettingsSelected, settingsRetry]);
+
+  // AI작성: 승인 회원이 투표 탭을 열 때만 목록을 조회하고, 화면 전환 시 이전 요청은 취소한다.
+  useEffect(() => {
+    if (!isVoteSelected) return undefined;
+
+    const controller = new AbortController();
+    let active = true;
+    setVoteResult({ id, retry: voteRetry, loading: true });
+
+    getSmallGroupVotes(id, { signal: controller.signal })
+      .then((votes) => {
+        if (active) setVoteResult({ id, retry: voteRetry, votes });
+      })
+      .catch((error) => {
+        if (active && !controller.signal.aborted) setVoteResult({ id, retry: voteRetry, error });
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [id, isVoteSelected, voteRetry]);
 
   // AI작성: 폼이 비교·검증한 변경 필드만 저장하고 성공 후 공개 상세와 설정값을 모두 최신 상태로 다시 읽는다.
   const handleSettingsSubmit = async (changes) => {
@@ -164,13 +191,14 @@ function SmallGroupDetailPage() {
     }
   };
 
-  // AI작성: 목록 조회 API가 준비되기 전에는 생성 결과를 성공 안내로만 표시하고, 목록 재조회는 연결하지 않는다.
+  // AI작성: 투표 생성 성공 뒤 목록을 다시 조회해 새 투표를 현재 탭에 즉시 반영한다.
   const handleVoteCreate = async (request) => {
     if (isVoteCreating) return;
 
     setIsVoteCreating(true);
     try {
       await createSmallGroupVote(id, request);
+      setVoteRetry((value) => value + 1);
       setIsVoteCreateSuccessModalOpen(true);
     } finally {
       setIsVoteCreating(false);
@@ -193,6 +221,15 @@ function SmallGroupDetailPage() {
       : ['UNAUTHORIZED', 'LOGIN_REQUIRED'].includes(settingsErrorCode)
         ? '로그인이 필요합니다.'
         : currentSettings?.error?.message || '소모임 설정 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  const currentVotes = voteResult?.id === id && voteResult?.retry === voteRetry ? voteResult : null;
+  const voteErrorCode = currentVotes?.error?.code;
+  const voteErrorMessage = voteErrorCode === 'SMALL_GROUP_VOTE_LIST_FORBIDDEN'
+    ? '승인된 소모임 회원만 투표 목록을 조회할 수 있습니다.'
+    : voteErrorCode === 'SMALL_GROUP_NOT_FOUND'
+      ? '조회할 수 있는 소모임이 없습니다.'
+      : ['UNAUTHORIZED', 'LOGIN_REQUIRED'].includes(voteErrorCode)
+        ? '로그인이 필요합니다.'
+        : currentVotes?.error?.message || '투표 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 
   return (
     <Page>
@@ -221,6 +258,9 @@ function SmallGroupDetailPage() {
               isSettingsLoading={isSettingsSelected && (!currentSettings || currentSettings.loading)}
               isSettingsSaving={isSettingsSaving}
               settingsErrorMessage={currentSettings?.error ? settingsErrorMessage : null}
+              votes={currentVotes?.votes || []}
+              isVoteLoading={isVoteSelected && (!currentVotes || currentVotes.loading)}
+              voteErrorMessage={currentVotes?.error ? voteErrorMessage : null}
               onMenuChange={(value) => setMenu({ id, value })}
               onSettingsSubmit={handleSettingsSubmit}
               onSettingsCancel={() => setMenu({ id, value: 'notice' })}
@@ -230,6 +270,7 @@ function SmallGroupDetailPage() {
               isJoinSubmitting={isJoinSubmitting}
               onCreateVote={handleVoteCreate}
               isVoteCreating={isVoteCreating}
+              onRetryVotes={() => setVoteRetry((value) => value + 1)}
             />
           )}
       </Content>
