@@ -7,7 +7,14 @@ import { memberMenuItems } from '../mocks/mypage';
 import RegionMap from '../components/member/RegionMap';
 import SectionCard from '../components/common/SectionCard';
 import Button from '../components/common/Button';
-import { getMyProfile, verifyMyRegion, startMyIdentityVerification, completeMyIdentityVerification } from '../api/member';
+import {
+  getMyProfile,
+  verifyMyRegion,
+  startMyIdentityVerification,
+  completeMyIdentityVerification,
+  getMemberRegions,
+  updateMyRegion,
+} from '../api/member';
 import * as PortOne from '@portone/browser-sdk/v2';
 import useAuthStore from '../store/authStore';
 const MAX_LOCATION_ACCURACY_M = 500;
@@ -79,7 +86,7 @@ const RegionContent = styled.div`
 const RegionSummary = styled.dl`
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 
   dt {
@@ -148,6 +155,80 @@ const RegionActions = styled.div`
   }
 `;
 
+// AI작성: 기존 인증관리 화면과 동일한 색상으로 지역 변경 폼을 표시한다.
+const RegionEditor = styled.form`
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.colors.background};
+
+  > strong {
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 17px;
+  }
+
+  > p {
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  > p[role='alert'] {
+    color: ${({ theme }) => theme.colors.danger};
+  }
+
+  fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  label {
+    min-width: 0;
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  select {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 48px;
+    margin-top: 7px;
+    padding: 0 12px;
+    color: ${({ theme }) => theme.colors.text};
+    background: ${({ theme }) => theme.colors.white};
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    font: inherit;
+  }
+
+  select:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 2px;
+  }
+
+  select:disabled {
+    color: ${({ theme }) => theme.colors.muted};
+    background: ${({ theme }) => theme.colors.background};
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 640px) {
+    fieldset {
+      grid-template-columns: 1fr;
+    }
+  }
+`;
+
 // AI작성: 인증 진행 결과를 구분된 안내 박스로 표시합니다.
 const VerificationNotice = styled.div`
   margin-bottom: 16px;
@@ -188,6 +269,15 @@ function VerificationPage() {
   const [isIdentityVerifying, setIsIdentityVerifying] = useState(false);
   const [identityError, setIdentityError] = useState('');
   const [identityMessage, setIdentityMessage] = useState('');
+  // AI작성: 활동 지역 변경 화면의 선택값과 처리 상태를 관리한다.
+  const [isRegionEditing, setIsRegionEditing] = useState(false);
+  const [regionOptions, setRegionOptions] = useState([]);
+  const [selectedProvince, setSelectedProvince] = useState('');
+  const [selectedDistrictId, setSelectedDistrictId] = useState('');
+  const [selectedTownId, setSelectedTownId] = useState('');
+  const [isRegionsLoading, setIsRegionsLoading] = useState(false);
+  const [isRegionSaving, setIsRegionSaving] = useState(false);
+  const [regionEditError, setRegionEditError] = useState('');
 
   // AI작성: 기존 회원 조회 API로 실제 인증 상태와 활동 지역을 가져온다.
   useEffect(() => {
@@ -356,7 +446,7 @@ function VerificationPage() {
 
   // AI작성: 서버가 인증 성공을 반환한 경우에만 실제 인증 상태를 갱신한다.
   const handleRegionVerification = async () => {
-    if (isVerifying || isLocating) return;
+    if (isVerifying || isLocating || isRegionEditing || isRegionSaving) return;
 
     setVerificationError('');
     setVerificationMessage('');
@@ -403,7 +493,7 @@ function VerificationPage() {
 
   // AI작성: 사용자가 요청했을 때 현재 위치를 조회한다.
   const handleCurrentLocation = () => {
-    if (isLocating || isVerifying) return;
+    if (isLocating || isVerifying || isRegionEditing || isRegionSaving) return;
 
     setLocationError('');
     setPosition(null);
@@ -462,6 +552,171 @@ function VerificationPage() {
       },
     );
   };
+
+  // AI작성: 기존 지역 목록 API를 재사용하고 현재 가입 지역을 미리 선택한다.
+  const handleOpenRegionEditor = async () => {
+    if (
+      !profile ||
+      isRegionsLoading ||
+      isRegionSaving ||
+      isVerifying ||
+      isLocating ||
+      isIdentityVerifying
+    ) return;
+
+    const authVersion = useAuthStore.getState().authVersion;
+
+    setIsRegionEditing(true);
+    setIsRegionsLoading(true);
+    setRegionEditError('');
+    setSelectedProvince('');
+    setSelectedDistrictId('');
+    setSelectedTownId('');
+
+    try {
+      const regions = await getMemberRegions();
+
+      if (useAuthStore.getState().authVersion !== authVersion) return;
+
+      if (!Array.isArray(regions) || regions.length === 0) {
+        throw new Error('활동 지역 목록을 불러오지 못했습니다.');
+      }
+
+      setRegionOptions(regions);
+      setSelectedProvince(profile.provinceName || '');
+
+      const district = regions.find(
+        (region) =>
+          !region.townName &&
+          region.provinceName === profile.provinceName &&
+          region.districtName === profile.districtName,
+      );
+
+      setSelectedDistrictId(district ? String(district.regionId) : '');
+      setSelectedTownId(profile.townName ? String(profile.regionId) : '');
+    } catch (error) {
+      if (useAuthStore.getState().authVersion !== authVersion) return;
+
+      setRegionEditError(
+        error.response?.data?.error?.message ||
+        error.message ||
+        '지역 목록을 불러오지 못했습니다. 다시 시도해주세요.',
+      );
+    } finally {
+      setIsRegionsLoading(false);
+    }
+  };
+  // AI작성: 선택한 읍·면·동을 저장하고 서버가 반환한 인증 상태로 갱신한다.
+  const handleSaveRegion = async (event) => {
+    event.preventDefault();
+
+    if (
+      !profile ||
+      isRegionSaving ||
+      isRegionsLoading ||
+      isVerifying ||
+      isLocating ||
+      isIdentityVerifying
+    ) return;
+
+    const currentToken = useAuthStore.getState().token;
+
+    if (!currentToken) {
+      navigate('/member/login', { replace: true });
+      return;
+    }
+
+    const district = regionOptions.find(
+      (region) => region.regionId === Number(selectedDistrictId),
+    );
+    const town = regionOptions.find(
+      (region) => region.regionId === Number(selectedTownId),
+    );
+
+    if (
+      !district ||
+      !town?.townName ||
+      district.provinceName !== selectedProvince ||
+      town.provinceName !== selectedProvince ||
+      town.districtName !== district.districtName
+    ) {
+      setRegionEditError('시·도, 시·군·구, 읍·면·동을 모두 선택해주세요.');
+      return;
+    }
+
+    const authVersion = useAuthStore.getState().authVersion;
+    const isCurrentLogin = () =>
+      useAuthStore.getState().authVersion === authVersion;
+    const regionChanged = profile.regionId !== town.regionId;
+
+    setIsRegionSaving(true);
+    setRegionEditError('');
+    setVerificationError('');
+    setVerificationMessage('');
+
+    try {
+      const updatedProfile = await updateMyRegion(currentToken, town.regionId);
+
+      if (!isCurrentLogin()) return;
+
+      if (!updatedProfile || updatedProfile.regionId !== town.regionId) {
+        throw new Error('저장된 활동 지역을 확인하지 못했습니다.');
+      }
+
+      setProfile(updatedProfile);
+      setIsRegionEditing(false);
+
+      if (regionChanged) {
+        setPosition(null);
+        setLocationError('');
+      }
+
+      setVerificationMessage(
+        regionChanged
+          ? '활동 지역을 변경했습니다. 선택한 지역에서 위치 인증을 진행해주세요.'
+          : '기존 활동 지역을 유지했습니다.',
+      );
+    } catch (error) {
+      if (!isCurrentLogin()) return;
+
+      if (error.response?.status === 401) {
+        clearToken();
+        navigate('/member/login', { replace: true });
+        return;
+      }
+
+      setRegionEditError(
+        error.response?.data?.error?.message ||
+        error.message ||
+        '활동 지역을 저장하지 못했습니다. 다시 시도해주세요.',
+      );
+    } finally {
+      setIsRegionSaving(false);
+    }
+  };
+  // AI작성: 선택한 시·도와 시·군·구에 해당하는 하위 지역만 표시한다.
+  const provinceOptions = [
+    ...new Set(regionOptions.map((region) => region.provinceName)),
+  ];
+
+  const districtOptions = regionOptions.filter(
+    (region) =>
+      region.provinceName === selectedProvince &&
+      !region.townName,
+  );
+
+  const selectedDistrict = districtOptions.find(
+    (region) => region.regionId === Number(selectedDistrictId),
+  );
+
+  const townOptions = selectedDistrict
+    ? regionOptions.filter(
+      (region) =>
+        region.townName &&
+        region.provinceName === selectedDistrict.provinceName &&
+        region.districtName === selectedDistrict.districtName,
+    )
+    : [];
 
   return (
     <Page>
@@ -524,7 +779,121 @@ function VerificationPage() {
                           : '세부 지역 확인 필요')}
                     </dd>
                   </div>
+                  <div>
+                    <dt>읍·면·동</dt>
+                    <dd>{profile.townName || '읍·면·동 설정 필요'}</dd>
+                  </div>
                 </RegionSummary>
+                {isRegionEditing ? (
+                  <RegionEditor onSubmit={handleSaveRegion}>
+                    <strong>활동 지역 변경</strong>
+                    <p>다른 지역으로 변경하면 기존 지역 인증이 초기화됩니다.</p>
+
+                    {isRegionsLoading && (
+                      <p role="status">지역 목록을 불러오고 있습니다.</p>
+                    )}
+
+                    <fieldset disabled={isRegionsLoading || isRegionSaving}>
+                      <label htmlFor="verify-province">
+                        시·도
+                        <select
+                          id="verify-province"
+                          value={selectedProvince}
+                          onChange={(event) => {
+                            setSelectedProvince(event.target.value);
+                            setSelectedDistrictId('');
+                            setSelectedTownId('');
+                          }}
+                          required
+                        >
+                          <option value="">시·도 선택</option>
+                          {provinceOptions.map((province) => (
+                            <option key={province} value={province}>
+                              {province}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label htmlFor="verify-district">
+                        시·군·구
+                        <select
+                          id="verify-district"
+                          value={selectedDistrictId}
+                          onChange={(event) => {
+                            setSelectedDistrictId(event.target.value);
+                            setSelectedTownId('');
+                          }}
+                          disabled={!selectedProvince}
+                          required
+                        >
+                          <option value="">시·군·구 선택</option>
+                          {districtOptions.map((region) => (
+                            <option key={region.regionId} value={region.regionId}>
+                              {region.districtName || '세종특별자치시 전체'}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label htmlFor="verify-town">
+                        읍·면·동
+                        <select
+                          id="verify-town"
+                          value={selectedTownId}
+                          onChange={(event) =>
+                            setSelectedTownId(event.target.value)
+                          }
+                          disabled={!selectedDistrictId}
+                          required
+                        >
+                          <option value="">읍·면·동 선택</option>
+                          {townOptions.map((region) => (
+                            <option key={region.regionId} value={region.regionId}>
+                              {region.townName}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </fieldset>
+
+                    {regionEditError && (
+                      <p role="alert">{regionEditError}</p>
+                    )}
+
+                    <RegionActions>
+                      <Button
+                        type="submit"
+                        disabled={
+                          isRegionsLoading ||
+                          isRegionSaving ||
+                          !selectedTownId
+                        }
+                      >
+                        {isRegionSaving ? '저장 중…' : '활동 지역 저장'}
+                      </Button>
+                      <Button
+                        type="button"
+                        $variant="secondary"
+                        disabled={isRegionsLoading || isRegionSaving}
+                        onClick={() => setIsRegionEditing(false)}
+                      >
+                        취소
+                      </Button>
+                    </RegionActions>
+                  </RegionEditor>
+                ) : (
+                  <RegionActions>
+                    <Button
+                      type="button"
+                      $variant="secondary"
+                      onClick={handleOpenRegionEditor}
+                      disabled={isVerifying || isLocating || isIdentityVerifying}
+                    >
+                      활동 지역 변경
+                    </Button>
+                  </RegionActions>
+                )}
 
                 <RegionNotice>
                   {profile.regionVerified ? (
@@ -599,7 +968,7 @@ function VerificationPage() {
                     type="button"
                     $variant="secondary"
                     onClick={handleCurrentLocation}
-                    disabled={isLocating || isVerifying}
+                    disabled={isLocating || isVerifying || isRegionEditing || isRegionSaving}
                   >
                     {isLocating
                       ? '위치 확인 중…'
@@ -618,6 +987,8 @@ function VerificationPage() {
                       position.accuracy > MAX_LOCATION_ACCURACY_M ||
                       isLocating ||
                       isVerifying ||
+                      isRegionEditing ||
+                      isRegionSaving ||
                       profile.regionVerified
                     }
                   >
@@ -631,7 +1002,7 @@ function VerificationPage() {
                   <Button
                     type="button"
                     $variant="secondary"
-                    disabled={isLocating || isVerifying}
+                    disabled={isLocating || isVerifying || isRegionEditing || isRegionSaving}
                     onClick={() => setShowRegionMap(false)}
                   >
                     인증관리로 돌아가기

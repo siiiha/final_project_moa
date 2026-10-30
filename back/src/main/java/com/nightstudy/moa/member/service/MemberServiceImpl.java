@@ -15,13 +15,17 @@ import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.member.dto.MemberRegionDto;
 
 import java.util.List;
+
 import com.nightstudy.moa.common.config.PortOneProperties;
 import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
 import org.springframework.util.StringUtils;
+
 import java.util.UUID;
+
 import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
 import com.nightstudy.moa.member.dto.PortOneIdentityVerificationResponse;
 import org.springframework.transaction.annotation.Isolation;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -127,7 +131,7 @@ public class MemberServiceImpl implements MemberService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_REGION",
-                    "존재하지 않는 지역입니다."
+                    "활동 지역을 읍·면·동까지 선택해주세요."
             );
         }
 
@@ -384,29 +388,27 @@ public class MemberServiceImpl implements MemberService {
 
         MemberProfileResponse profile = getMyProfile(memberId);
 
-        // AI작성: 세종시는 하위 시·군·구 없이 시·도 일치 여부로 인증합니다.
-        boolean isSejong =
-                "세종특별자치시".equals(profile.getProvinceName());
-
-        if (profile.getProvinceName() == null
-                || profile.getProvinceName().isBlank()
-                || (!isSejong && (
-                profile.getDistrictName() == null
-                        || profile.getDistrictName().isBlank()))) {
+        // 읍·면·동 선택이 없는 기존 회원은 지역을 보완한 후 인증
+        if (profile.getLegalCode() == null
+                || !profile.getLegalCode().matches("[0-9]{8}00")
+                || profile.getTownName() == null
+                || profile.getTownName().isBlank()) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "ACTIVITY_REGION_INCOMPLETE",
-                    "가입한 활동 지역의 시·군·구 정보가 없어 인증할 수 없습니다."
+                    "활동 지역을 읍·면·동까지 설정한 후 다시 인증해주세요."
             );
         }
 
-        if (!profile.getProvinceName().equals(actualRegion.getProvinceName())
-                || (!isSejong && !profile.getDistrictName()
-                .equals(actualRegion.getDistrictName()))) {
+        // 리 단위 응답도 선택 단위인 읍·면·동 코드로 맞춰 비교
+        String actualTownCode =
+                actualRegion.getLegalCode().substring(0, 8) + "00";
+
+        if (!profile.getLegalCode().equals(actualTownCode)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "REGION_MISMATCH",
-                    "현재 위치가 가입한 활동 지역과 다릅니다. 해당 지역에서 다시 시도해주세요."
+                    "현재 위치가 가입한 읍·면·동과 다릅니다. 해당 지역에서 다시 시도해주세요."
             );
         }
 
@@ -421,6 +423,65 @@ public class MemberServiceImpl implements MemberService {
                     HttpStatus.CONFLICT,
                     "REGION_VERIFICATION_NOT_SAVED",
                     "인증 결과를 저장하지 못했습니다. 다시 시도해주세요."
+            );
+        }
+
+        return getMyProfile(memberId);
+    }
+
+    // 로그인 회원의 활동 지역을 변경하고 지역이 달라지면 인증을 초기화
+    @Override
+    @Transactional
+    public MemberProfileResponse updateMyRegion(
+            Long memberId,
+            MemberRegionUpdateRequest request
+    ) {
+        if (request == null
+                || request.getRegionId() == null
+                || request.getRegionId() <= 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REGION",
+                    "활동 지역을 읍·면·동까지 선택해주세요."
+            );
+        }
+
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null || !"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "MEMBER_UNAVAILABLE",
+                    "현재 계정 상태에서는 활동 지역을 변경할 수 없습니다."
+            );
+        }
+
+        if (memberMapper.countRegionById(request.getRegionId()) != 1) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REGION",
+                    "활동 지역을 읍·면·동까지 선택해주세요."
+            );
+        }
+
+        MemberProfileResponse profile = getMyProfile(memberId);
+
+        // 같은 지역을 다시 저장하면 기존 인증 상태를 유지
+        if (request.getRegionId().equals(profile.getRegionId())) {
+            return profile;
+        }
+
+        int updated = memberMapper.updateMemberRegion(
+                memberId,
+                request.getRegionId()
+        );
+
+        if (updated != 1) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "REGION_UPDATE_FAILED",
+                    "활동 지역을 저장하지 못했습니다. 다시 시도해주세요."
             );
         }
 

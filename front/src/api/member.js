@@ -275,3 +275,18 @@ export async function completeMyIdentityVerification(
 
   return response.data.data;
 }
+
+// AI작성: 활동 지역을 변경하고 갱신된 회원정보를 반환한다.
+export async function updateMyRegion(token, regionId) {
+  const response = await client.put(
+    '/members/me/region',
+    { regionId },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  return response.data.data;
+}
