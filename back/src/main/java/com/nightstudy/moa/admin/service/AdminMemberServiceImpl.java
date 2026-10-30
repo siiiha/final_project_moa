@@ -1,5 +1,6 @@
 package com.nightstudy.moa.admin.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.admin.dto.AdminMemberDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberListResult;
 import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
@@ -7,7 +8,6 @@ import com.nightstudy.moa.admin.dto.AdminMemberRestrictionReleaseRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
 import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
-import com.nightstudy.moa.admin.dto.MemberRestrictionScope;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;

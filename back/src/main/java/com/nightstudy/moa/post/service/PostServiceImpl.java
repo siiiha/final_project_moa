@@ -1,5 +1,7 @@
 package com.nightstudy.moa.post.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.dto.PostDto;
@@ -18,11 +20,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class PostServiceImpl implements PostService {
     private final PostMapper postMapper;
+    private final MemberFeatureRestrictionService restrictionService;
 
 
     @Autowired
-    public PostServiceImpl(PostMapper postMapper) {
+    public PostServiceImpl(
+            PostMapper postMapper,
+            MemberFeatureRestrictionService restrictionService
+    ) {
         this.postMapper = postMapper;
+        this.restrictionService = restrictionService;
     }
 
     @Override
@@ -148,8 +155,16 @@ public class PostServiceImpl implements PostService {
         return postId;
     }
 
+
     @Override
     public void deletePost(Long postId, Long loginMemberId) {
+
+        // AI작성: CONTENT 제한 회원은 기존 게시글도 삭제할 수 없다.
+        restrictionService.validateAllowed(
+                loginMemberId,
+                MemberRestrictionScope.CONTENT
+        );
+
         PostDto post = postMapper.selectPostDetail(postId);
 
         if (post == null) {

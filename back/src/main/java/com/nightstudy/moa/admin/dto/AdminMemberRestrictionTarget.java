@@ -1,5 +1,6 @@
 package com.nightstudy.moa.admin.dto;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

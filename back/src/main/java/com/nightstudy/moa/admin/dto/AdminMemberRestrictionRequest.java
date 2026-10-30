@@ -1,5 +1,6 @@
 package com.nightstudy.moa.admin.dto;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;

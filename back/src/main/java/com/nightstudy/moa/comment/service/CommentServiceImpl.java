@@ -1,5 +1,7 @@
 package com.nightstudy.moa.comment.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.comment.dto.CommentDto;
 import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
@@ -24,13 +26,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class CommentServiceImpl implements CommentService {
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
+    private final MemberFeatureRestrictionService restrictionService;
 
     @Autowired
     public CommentServiceImpl(
             CommentMapper commentMapper,
-            PostMapper postMapper) {
+            PostMapper postMapper,
+            MemberFeatureRestrictionService restrictionService
+    ) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
+        this.restrictionService = restrictionService;
     }
 
     @Override
@@ -195,6 +201,13 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public void deleteComment (Long postId, Long commentId, Long loginMemberId) {
+
+        // AI작성: CONTENT 제한 회원은 기존 댓글을 삭제할 수 없다.
+        restrictionService.validateAllowed(
+                loginMemberId,
+                MemberRestrictionScope.CONTENT
+        );
+
         // AI작성: 삭제된 게시글의 댓글은 삭제 요청을 처리하지 않도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
 

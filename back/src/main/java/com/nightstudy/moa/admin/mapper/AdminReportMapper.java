@@ -1,9 +1,9 @@
 package com.nightstudy.moa.admin.mapper;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
-import com.nightstudy.moa.admin.dto.MemberRestrictionScope;
 import java.util.List;
 import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Mapper;
