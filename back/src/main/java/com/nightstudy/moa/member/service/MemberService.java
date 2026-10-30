@@ -7,6 +7,8 @@ import com.nightstudy.moa.member.dto.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
 import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
+import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
+import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
 
 import com.nightstudy.moa.member.dto.PasswordResetRequest;
 import com.nightstudy.moa.member.dto.MemberTermDto;
@@ -44,4 +46,13 @@ public interface MemberService {
     void resetPassword(PasswordResetRequest request);
 
     List<MemberTermDto> getTerms();
+
+    IdentityVerificationStartResponse startIdentityVerification(
+            Long memberId
+    );
+
+    MemberProfileResponse completeIdentityVerification(
+            Long memberId,
+            IdentityVerificationRequest request
+    );
 }
