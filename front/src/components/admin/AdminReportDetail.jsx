@@ -78,6 +78,21 @@ const Field = styled.label`
   textarea { min-height: 92px; resize: vertical; }
 `;
 
+// AI작성: 승인 처리에 필요한 선택 항목을 한 줄에 배치해 관리자가 값을 빠르게 비교할 수 있게 한다.
+const ProcessFields = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+
+  ${Field} {
+    margin-top: 14px;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 const Actions = styled.div`
   margin-top: 20px;
   display: flex;
@@ -102,14 +117,19 @@ function AdminReportDetail({ report, action, restrictionScope, restrictionType, 
       <SubmissionList>{report.submissions.map((submission) => <Submission key={submission.id}><strong>{submission.reporter}</strong><p>{submission.reason}</p><small>{submission.reportedAt}{submission.hasEvidence ? ' · 증빙 첨부' : ''}</small></Submission>)}</SubmissionList>
       {pending && <ProcessForm onSubmit={onSubmit}>
         <SectionTitle>신고 처리</SectionTitle>
-        <Field>처리 결과<select value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting}><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option></select></Field>
-        {/* AI작성: 신고 승인 시 관리자가 실제로 제한할 기능 범위를 명시적으로 선택한다. */}
-        {action === 'CONFIRMED' && <Field>제한 영역<select value={restrictionScope} onChange={(event) => onRestrictionScopeChange(event.target.value)} disabled={submitting}><option value="CONTENT">게시글·댓글</option><option value="CHAT">채팅</option><option value="REPORT">신고</option></select></Field>}
-        {action === 'CONFIRMED' && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
+        <ProcessFields>
+          <Field>처리 결과<select value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting}><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option></select></Field>
+          {/* AI작성: 신고 승인 시 관리자가 실제로 제한할 기능 범위를 명시적으로 선택한다. */}
+          {action === 'CONFIRMED' && <Field>제한 영역<select value={restrictionScope} onChange={(event) => onRestrictionScopeChange(event.target.value)} disabled={submitting}><option value="CONTENT">게시글·댓글</option><option value="CHAT">채팅</option><option value="REPORT">신고</option></select></Field>}
+          {action === 'CONFIRMED' && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
+        </ProcessFields>
         <Field>처리 사유<textarea value={processReason} onChange={(event) => onProcessReasonChange(event.target.value)} maxLength={500} required disabled={submitting} /></Field>
-        <Actions><Button type="submit" disabled={submitting}>{submitting ? '처리 중...' : '처리 저장'}</Button></Actions>
+        <Actions>
+          <Button type="button" $variant="secondary" onClick={onBack}>목록으로</Button>
+          <Button type="submit" disabled={submitting}>{submitting ? '처리 중...' : '처리 저장'}</Button>
+        </Actions>
       </ProcessForm>}
-      <Actions><Button type="button" $variant="secondary" onClick={onBack}>목록으로</Button></Actions>
+      {!pending && <Actions><Button type="button" $variant="secondary" onClick={onBack}>목록으로</Button></Actions>}
     </Card>
   );
 }
