@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
 import com.nightstudy.moa.admin.dto.AdminReportProcessRequest;
-import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -61,7 +61,7 @@ class AdminReportServiceImplTest {
                 .thenReturn(restrictedUntil);
         when(adminMemberMapper.insertRestrictionHistory(
                 2L,
-                MemberRestrictionAction.RESTRICT,
+                RestrictionAction.RESTRICT,
                 "7_DAYS",
                 MemberRestrictionScope.CHAT,
                 "게시글 운영정책 위반",

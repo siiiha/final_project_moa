@@ -4,6 +4,7 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionTarget;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -31,7 +32,7 @@ public interface AdminSavingGroupMapper {
     // AI작성: 계모임 제한·해제 사유를 기존 공통 제한 이력에 저장한다.
     int insertRestrictionHistory(
             @Param("savingGroupId") Long savingGroupId,
-            @Param("action") String action,
+            @Param("action") RestrictionAction action,
             @Param("reason") String reason
     );
 }

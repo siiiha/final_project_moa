@@ -14,7 +14,7 @@ import com.nightstudy.moa.admin.dto.AdminMemberListResult;
 import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionReleaseRequest;
-import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
 import com.nightstudy.moa.admin.dto.AdminMemberFeatureRestrictionResponse;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
@@ -112,7 +112,7 @@ class AdminMemberServiceImplTest {
                 .thenReturn(restrictedUntil);
         when(adminMemberMapper.insertRestrictionHistory(
                 2L,
-                MemberRestrictionAction.RESTRICT,
+                RestrictionAction.RESTRICT,
                 "7_DAYS",
                 MemberRestrictionScope.CONTENT,
                 "운영정책 위반",
@@ -154,7 +154,7 @@ class AdminMemberServiceImplTest {
         when(adminMemberMapper.releaseMemberRestriction(2L, MemberRestrictionScope.CHAT)).thenReturn(1);
         when(adminMemberMapper.insertRestrictionHistory(
                 2L,
-                MemberRestrictionAction.RELEASE,
+                RestrictionAction.RELEASE,
                 null,
                 MemberRestrictionScope.CHAT,
                 "관리자 재검토",

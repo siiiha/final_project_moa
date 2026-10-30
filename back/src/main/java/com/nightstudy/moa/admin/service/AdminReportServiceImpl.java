@@ -8,7 +8,7 @@ import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
 import com.nightstudy.moa.admin.dto.AdminReportProcessRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
-import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
@@ -218,7 +218,7 @@ public class AdminReportServiceImpl implements AdminReportService {
         adminMemberMapper.upsertMemberRestriction(memberId, restrictionScope, restrictedUntil);
         if (adminMemberMapper.insertRestrictionHistory(
                 memberId,
-                MemberRestrictionAction.RESTRICT,
+                RestrictionAction.RESTRICT,
                 restrictionType,
                 restrictionScope,
                 reason,
