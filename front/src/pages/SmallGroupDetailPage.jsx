@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -64,10 +64,15 @@ function toSmallGroupDetailView(data) {
 
 function SmallGroupDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
-  const [menu, setMenu] = useState({ id, value: 'notice' });
+  const [menu, setMenu] = useState({
+    id,
+    // AI작성: 투표 상세의 목록 복귀 상태만 허용해 일반 소모임 진입은 기존 공지 탭을 유지한다.
+    value: location.state?.activeSmallGroupMenu === 'poll' ? 'poll' : 'notice',
+  });
   const [settingsResult, setSettingsResult] = useState(null);
   const [settingsRetry, setSettingsRetry] = useState(0);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
@@ -271,6 +276,7 @@ function SmallGroupDetailPage() {
               onCreateVote={handleVoteCreate}
               isVoteCreating={isVoteCreating}
               onRetryVotes={() => setVoteRetry((value) => value + 1)}
+              onVoteDetail={(smallGroupVoteId) => navigate(`/small-groups/${id}/votes/${smallGroupVoteId}`)}
             />
           )}
       </Content>

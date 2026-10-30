@@ -39,6 +39,12 @@ class SmallGroupMapperXmlTest {
         assertThat(configuration.hasStatement(NAMESPACE + "reactivateLeftSmallGroupMembership")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteListTarget")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteList")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetail")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetailOptions")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteParticipantCount")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteParticipationId")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteSelectedOptionIds")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteOptionVoterNicknames")).isTrue();
         assertThat(configuration.getResultMapNames()).contains(NAMESPACE + "smallGroupSettings");
     }
 }

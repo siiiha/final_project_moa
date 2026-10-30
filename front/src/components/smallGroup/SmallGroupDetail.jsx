@@ -334,6 +334,43 @@ const VoteRow = styled.div`
   }
 `;
 
+const VoteItem = styled.button`
+  width: 100%;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px 160px;
+  gap: 8px;
+  color: ${({ theme }) => theme.colors.text};
+  text-align: left;
+  background: ${({ theme }) => theme.colors.white};
+  border: 0;
+  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
+  cursor: pointer;
+  font-size: 11px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primarySoft};
+  }
+
+  &:focus-visible {
+    outline: 3px solid rgba(23, 107, 91, 0.22);
+    outline-offset: -3px;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr) 66px 132px;
+    padding: 10px 8px;
+    gap: 4px;
+    font-size: 10px;
+  }
+`;
+
 const VoteStatusCell = styled.div`
   min-width: 0;
 `;
@@ -393,6 +430,7 @@ function SmallGroupDetail({
   onCreateVote,
   isVoteCreating,
   onRetryVotes,
+  onVoteDetail,
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
   const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
@@ -469,7 +507,13 @@ function SmallGroupDetail({
                 <span>투표명</span><span>상태</span><span>마감시각</span>
               </VoteRow>
               {votes.map((vote, index) => (
-                <VoteRow key={`${vote.title}-${vote.status}-${vote.endsAt}-${index}`} $last={index === votes.length - 1}>
+                <VoteItem
+                  key={vote.smallGroupVoteId}
+                  type="button"
+                  $last={index === votes.length - 1}
+                  onClick={() => onVoteDetail(vote.smallGroupVoteId)}
+                  aria-label={`${vote.title} 투표 상세 보기`}
+                >
                   <span>{vote.title}</span>
                   <VoteStatusCell>
                     <VoteStatusBadge $closed={vote.status === 'CLOSED'}>
@@ -477,7 +521,7 @@ function SmallGroupDetail({
                     </VoteStatusBadge>
                   </VoteStatusCell>
                   <span>{formatDateTime(vote.endsAt) || '마감시각 미설정'}</span>
-                </VoteRow>
+                </VoteItem>
               ))}
             </VoteTable>
           )}

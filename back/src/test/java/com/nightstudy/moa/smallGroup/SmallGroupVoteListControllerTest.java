@@ -50,6 +50,7 @@ class SmallGroupVoteListControllerTest {
         mockMvc.perform(get("/api/small-groups/10/votes").requestAttr("memberId", 30L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].smallGroupVoteId").value(101))
                 .andExpect(jsonPath("$.data[0].title").value("11월 정기 모임 날짜"))
                 .andExpect(jsonPath("$.data[0].status").value("OPEN"))
                 .andExpect(jsonPath("$.data[0].endsAt").exists());
@@ -77,6 +78,7 @@ class SmallGroupVoteListControllerTest {
 
     private SmallGroupVoteListItemResponse voteListItem(String title) {
         SmallGroupVoteListItemResponse response = new SmallGroupVoteListItemResponse();
+        response.setSmallGroupVoteId(101L);
         response.setTitle(title);
         response.setStatus("OPEN");
         response.setEndsAt(LocalDateTime.of(2026, 11, 2, 18, 0));
