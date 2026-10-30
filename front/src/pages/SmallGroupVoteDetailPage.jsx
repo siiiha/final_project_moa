@@ -91,7 +91,10 @@ function SmallGroupVoteDetailPage() {
     'UNAUTHORIZED',
     'LOGIN_REQUIRED',
   ].includes(errorCode);
-  const goToVoteList = () => navigate(`/small-groups/${smallGroupId}`);
+  // AI작성: 투표 상세에서 돌아갈 때는 소모임 기본 공지가 아닌 기존 투표 탭을 다시 연다.
+  const goToVoteList = () => navigate(`/small-groups/${smallGroupId}`, {
+    state: { activeSmallGroupMenu: 'poll' },
+  });
   const currentVote = current?.vote;
   const selectedOptionIds = voteView.voteId === voteId
     ? voteView.selectedOptionIds
