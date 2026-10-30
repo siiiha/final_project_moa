@@ -6,6 +6,7 @@ import AdminSidebar from '../components/layout/AdminSidebar';
 import { adminMenuItems } from '../mocks/admin';
 import client from '../api/client';
 import { smallGroupRegionOptions } from '../api/smallGroups';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -84,6 +85,23 @@ const SummaryDescription = styled.p`
   font-size: 10px;
 `;
 
+const ReasonInput = styled.textarea`
+  width: 100%;
+  min-height: 110px;
+  padding: 11px;
+  resize: none;
+  color: ${({ theme }) => theme.colors.text};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font: inherit;
+`;
+
+const ErrorMessage = styled.p`
+  margin-top: 10px;
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 12px;
+`;
+
 function AdminSmallGroupsPage() {
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState('전체');
@@ -93,11 +111,21 @@ function AdminSmallGroupsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [actionTarget, setActionTarget] = useState(null);
+  const [reason, setReason] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadGroups() {
+      setLoading(true);
+      setErrorMessage('');
       try {
         const regionCode = smallGroupRegionOptions.find((item) => item.name === region)?.code;
         const response = await client.get('/admin/small-groups', {
@@ -122,6 +150,7 @@ function AdminSmallGroupsPage() {
           region: group.regionName,
           participants: group.memberCount ?? 0,
           status: group.status === 'ACTIVE' ? '활동중' : group.status === 'RESTRICTED' ? '정지' : '-',
+          statusCode: group.status,
         })));
         setTotalCount(response.data.meta.total || 0);
         setTotalPages(response.data.meta.totalPages || 0);
@@ -130,16 +159,19 @@ function AdminSmallGroupsPage() {
           setGroups([]);
           setTotalCount(0);
           setTotalPages(0);
+          setErrorMessage(error.message || '소모임 목록을 불러오지 못했습니다.');
         }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     loadGroups();
     return () => controller.abort();
-  }, [currentPage, region, submittedQuery]);
+  }, [currentPage, region, reloadKey, submittedQuery]);
 
-  const activeCount = 0;
-  const suspendedCount = 0;
+  const activeCount = groups.filter((group) => group.statusCode === 'ACTIVE').length;
+  const suspendedCount = groups.filter((group) => group.statusCode === 'RESTRICTED').length;
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -147,9 +179,42 @@ function AdminSmallGroupsPage() {
     setCurrentPage(1);
   };
 
-  const handleStatusAction = (groupId) => {
-    // AI작성: 상태 정보가 API에 없어 이용 제한·해제 기능 연결 전에는 목록 데이터만 조회한다.
-    void groupId;
+  const handleStatusAction = (group) => {
+    setReason('');
+    setActionError('');
+    setActionTarget(group);
+  };
+
+  const handleActionConfirm = async () => {
+    if (!actionTarget || submitting) return;
+    if (!reason.trim()) {
+      setActionError('처리 사유를 입력해주세요.');
+      return;
+    }
+
+    setSubmitting(true);
+    setActionError('');
+    try {
+      const actionPath = actionTarget.statusCode === 'RESTRICTED'
+        ? 'restriction/release'
+        : 'restriction';
+      const response = await client.patch(
+        `/admin/small-groups/${encodeURIComponent(actionTarget.id)}/${actionPath}`,
+        { reason: reason.trim() },
+      );
+      if (!response.data?.success) {
+        throw new Error('소모임 이용 상태 변경 응답을 확인할 수 없습니다.');
+      }
+      setNotice(actionTarget.statusCode === 'RESTRICTED'
+        ? '소모임 이용 제한을 해제했습니다.'
+        : '소모임 이용을 제한했습니다.');
+      setActionTarget(null);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setActionError(error.response?.data?.error?.message || error.message || '소모임 이용 상태를 변경하지 못했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -184,6 +249,9 @@ function AdminSmallGroupsPage() {
             totalPages={totalPages}
             onPageChange={setCurrentPage}
             onStatusAction={handleStatusAction}
+            loading={loading}
+            errorMessage={errorMessage}
+            submitting={submitting}
             filter={
               <SmallGroupFilterBar
                 status={status}
@@ -204,6 +272,38 @@ function AdminSmallGroupsPage() {
           />
         </main>
       </Grid>
+      {actionTarget && (
+        <ConfirmModal
+          title={actionTarget.statusCode === 'RESTRICTED' ? '소모임 제한 해제' : '소모임 이용 제한'}
+          description={`${actionTarget.name}의 처리 사유를 입력해주세요.`}
+          confirmLabel={submitting ? '처리 중...' : actionTarget.statusCode === 'RESTRICTED' ? '제한 해제' : '이용 제한'}
+          confirmVariant={actionTarget.statusCode === 'RESTRICTED' ? 'primary' : 'danger'}
+          cancelFirst
+          isBusy={submitting}
+          onConfirm={handleActionConfirm}
+          onCancel={() => !submitting && setActionTarget(null)}
+        >
+          <ReasonInput
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={500}
+            disabled={submitting}
+            placeholder="처리 사유를 입력해주세요"
+            aria-label="소모임 처리 사유"
+          />
+          {actionError && <ErrorMessage role="alert">{actionError}</ErrorMessage>}
+        </ConfirmModal>
+      )}
+      {notice && (
+        <ConfirmModal
+          title="처리 완료"
+          description={notice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setNotice('')}
+          onCancel={() => setNotice('')}
+        />
+      )}
     </Page>
   );
 }

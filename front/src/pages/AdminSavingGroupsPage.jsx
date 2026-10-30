@@ -95,7 +95,7 @@ const ReasonInput = styled.textarea`
   width: 100%;
   min-height: 110px;
   padding: 11px;
-  resize: vertical;
+  resize: none;
   color: ${({ theme }) => theme.colors.text};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
