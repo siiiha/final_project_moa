@@ -37,6 +37,8 @@ class SmallGroupMapperXmlTest {
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupMembershipForUpdate")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "insertSmallGroupJoinRequest")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "reactivateLeftSmallGroupMembership")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteListTarget")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteList")).isTrue();
         assertThat(configuration.getResultMapNames()).contains(NAMESPACE + "smallGroupSettings");
     }
 }

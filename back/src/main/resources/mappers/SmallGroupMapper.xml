@@ -499,6 +499,28 @@
         FOR UPDATE
     </select>
 
+    <!-- AI작성: 목록 조회에서는 잠금 없이 삭제되지 않은 소모임과 연결된 공통 모임 ID만 확인한다. -->
+    <select id="selectSmallGroupVoteListTarget"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow">
+        SELECT sg.small_group_id,
+               sg.group_id
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+    </select>
+
+    <!-- AI작성: 투표 목록은 검색·상태 필터·페이징 없이 해당 소모임의 제목과 일시만 등록 최신순으로 반환한다. -->
+    <select id="selectSmallGroupVoteList"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse">
+        SELECT title,
+               created_at,
+               ends_at
+        FROM small_group_vote
+        WHERE small_group_id = #{smallGroupId}
+        ORDER BY created_at DESC, small_group_vote_id DESC
+    </select>
+
     <!-- AI작성: 공지 본문은 제외하고 작성 시각·ID 내림차순의 최근 4건만 공개 상세에 제공한다. -->
     <select id="selectRecentSmallGroupNotices"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">

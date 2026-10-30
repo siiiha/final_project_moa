@@ -18,6 +18,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -134,6 +136,12 @@ public interface SmallGroupMapper {
 
     // AI작성: 같은 소모임의 종료되지 않은 투표를 잠금 조회해 동시 생성에서도 진행 중 투표 수를 제한한다.
     long selectOpenSmallGroupVoteCountForUpdate(@Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 목록 조회 권한 검증 전에 삭제되지 않은 소모임의 공통 모임 ID만 조회한다.
+    SmallGroupVoteListTargetRow selectSmallGroupVoteListTarget(@Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 검색·필터·페이징 없이 해당 소모임의 투표 제목과 등록·마감 일시만 최신순으로 조회한다.
+    List<SmallGroupVoteListItemResponse> selectSmallGroupVoteList(@Param("smallGroupId") Long smallGroupId);
 
     // AI작성: 공개 상세 화면의 최근 공지 영역에는 최신 4건의 요약만 전달한다.
     List<SmallGroupNoticeSummaryResponse> selectRecentSmallGroupNotices(@Param("groupId") Long groupId);
