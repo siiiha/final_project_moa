@@ -16,6 +16,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupListResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
 import jakarta.validation.Valid;
@@ -101,6 +102,14 @@ public class SmallGroupController {
             @Valid @RequestBody SmallGroupVoteCreateRequest request,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(smallGroupService.createSmallGroupVote(smallGroupId, memberId, request));
+    }
+
+    // AI작성: 목록 조회는 JWT 필터가 저장한 회원 ID만 전달하고 소모임 존재·회원 권한 판단은 Service에서 처리한다.
+    @GetMapping("/{smallGroupId}/votes")
+    public ApiResponse<List<SmallGroupVoteListItemResponse>> getVotes(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(smallGroupService.getSmallGroupVotes(smallGroupId, memberId));
     }
 
     // AI작성: 승인자는 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
