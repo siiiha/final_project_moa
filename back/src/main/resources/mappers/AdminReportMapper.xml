@@ -81,7 +81,8 @@
         rc.process_reason AS processReason,
         rc.created_at AS createdAt,
         rc.processed_at AS processedAt,
-        rc.restricted_until AS restrictedUntil
+        rc.restricted_until AS restrictedUntil,
+        rc.restriction_scope AS restrictionScope
 
         FROM report_case rc
 
@@ -130,7 +131,8 @@
         rc.process_reason AS processReason,
         rc.created_at AS createdAt,
         rc.processed_at AS processedAt,
-        rc.restricted_until AS restrictedUntil
+        rc.restricted_until AS restrictedUntil,
+        rc.restriction_scope AS restrictionScope
 
         FROM report_case rc
 
@@ -181,49 +183,17 @@
         WHERE mr.report_id = #{reportId}
     </select>
 
-    <!-- AI작성: INACTIVE 회원은 제재하지 않고, 기존 SUSPENDED 여부는 기간 계산에 사용한다. -->
-    <select id="selectMemberAccountStatus" resultType="string">
-        SELECT account_status
-        FROM members
-        WHERE member_id = #{memberId}
-    </select>
-
-    <!-- AI작성: suspended_until 컬럼이 추가된 스키마를 전제로 기존 제한 종료일을 조회한다. -->
-    <select id="selectMemberSuspendedUntil" resultType="java.time.LocalDateTime">
-        SELECT suspended_until
-        FROM members
-        WHERE member_id = #{memberId}
-    </select>
-
-    <!-- AI작성: 신고 사건의 상태, 처리 사유, 처리 시각과 제한 종료 시각을 함께 저장한다. -->
+    <!-- AI작성: 신고 처리 결과와 관리자가 선택한 기능 제한 범위·종료 시각을 함께 저장한다. -->
     <update id="updateReportProcess">
         UPDATE report_case rc
         JOIN member_report mr ON mr.case_id = rc.case_id
         SET rc.status = #{status},
             rc.process_reason = #{processReason},
             rc.processed_at = CURRENT_TIMESTAMP,
-            rc.restricted_until = #{restrictedUntil, jdbcType=TIMESTAMP}
+            rc.restricted_until = #{restrictedUntil, jdbcType=TIMESTAMP},
+            rc.restriction_scope = #{restrictionScope, jdbcType=VARCHAR}
         WHERE mr.report_id = #{reportId}
           AND rc.status = 'PENDING'
-    </update>
-
-    <!-- AI작성: 기간 제한과 영구 제한(NULL)을 동일한 상태 컬럼과 함께 저장한다. -->
-    <update id="updateMemberRestriction">
-        UPDATE members
-        SET account_status = 'SUSPENDED',
-            suspended_until = #{suspendedUntil, jdbcType=TIMESTAMP}
-        WHERE member_id = #{memberId}
-          AND account_status != 'INACTIVE'
-    </update>
-
-    <!-- AI작성: 종료 시각이 있는 기간제 제한만 해제하며, NULL인 영구 제한은 유지한다. -->
-    <update id="releaseExpiredMemberRestrictions">
-        UPDATE members
-        SET account_status = 'ACTIVE',
-            suspended_until = NULL
-        WHERE account_status = 'SUSPENDED'
-          AND suspended_until IS NOT NULL
-          AND suspended_until &lt;= CURRENT_TIMESTAMP
     </update>
 
 </mapper>

@@ -59,21 +59,24 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 27%;
+    width: 23%;
   }
   th:nth-child(2) {
-    width: 14%;
-  }
-  th:nth-child(3) {
-    width: 17%;
-  }
-  th:nth-child(4) {
-    width: 16%;
-  }
-  th:nth-child(5) {
     width: 12%;
   }
+  th:nth-child(3) {
+    width: 13%;
+  }
+  th:nth-child(4) {
+    width: 15%;
+  }
+  th:nth-child(5) {
+    width: 14%;
+  }
   th:nth-child(6) {
+    width: 10%;
+  }
+  th:nth-child(7) {
     width: 14%;
     text-align: right;
   }
@@ -178,6 +181,13 @@ const Empty = styled.td`
   text-align: center !important;
 `;
 
+function getPageNumbers(currentPage, totalPages) {
+  // AI작성: 많은 심사 신청 데이터에서도 페이지 버튼이 과도하게 늘어나지 않도록 다섯 개만 표시한다.
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const length = Math.min(5, totalPages - start + 1);
+  return Array.from({ length }, (_, index) => start + index);
+}
+
 function SavingGroupApplicationTable({ applications, filter, currentPage, totalPages, onPageChange, onReview }) {
   return (
     <Card>
@@ -191,6 +201,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
           <thead>
             <tr>
               <th scope="col">계모임명</th>
+              <th scope="col">유형</th>
               <th scope="col">신청자</th>
               <th scope="col">희망 지역</th>
               <th scope="col">신청일</th>
@@ -201,7 +212,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
           <tbody>
             {applications.length === 0 ? (
               <tr>
-                <Empty colSpan="6">검색 조건에 맞는 신청 내역이 없습니다.</Empty>
+                <Empty colSpan="7">검색 조건에 맞는 신청 내역이 없습니다.</Empty>
               </tr>
             ) : (
               applications.map((application) => (
@@ -209,6 +220,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
                   <td data-label="계모임명">
                     <GroupName>{application.name}</GroupName>
                   </td>
+                  <td data-label="유형">{application.reviewType}</td>
                   <td data-label="신청자">{application.applicant}</td>
                   <td data-label="희망 지역">{application.region}</td>
                   <td data-label="신청일">{application.appliedAt}</td>
@@ -227,7 +239,16 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
         </Table>
         {totalPages > 1 && (
           <Pagination aria-label="계모임 심사 목록 페이지">
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+            <PageButton
+              type="button"
+              $active={false}
+              disabled={currentPage === 1}
+              onClick={() => onPageChange(currentPage - 1)}
+              aria-label="이전 페이지"
+            >
+              이전
+            </PageButton>
+            {getPageNumbers(currentPage, totalPages).map((page) => (
               <PageButton
                 key={page}
                 type="button"
@@ -238,6 +259,15 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
                 {page}
               </PageButton>
             ))}
+            <PageButton
+              type="button"
+              $active={false}
+              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(currentPage + 1)}
+              aria-label="다음 페이지"
+            >
+              다음
+            </PageButton>
           </Pagination>
         )}
       </TableArea>

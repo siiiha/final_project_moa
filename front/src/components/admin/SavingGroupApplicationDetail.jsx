@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { FiCalendar, FiCheckCircle, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
+import {
+  savingGroupReviewStatus,
+  savingGroupReviewStatusLabel,
+  savingGroupReviewType,
+  savingGroupReviewTypeLabel,
+} from '../../api/savingGroups';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
 
@@ -31,7 +37,12 @@ const SummaryLabel = styled.p`
 const SummaryValue = styled.strong`
   display: block;
   margin-top: 13px;
-  color: ${({ $status, theme }) => ($status === 'REJECTED' ? theme.colors.danger : $status === 'PENDING' ? theme.colors.warning : theme.colors.text)};
+  color: ${({ $status, theme }) =>
+    $status === savingGroupReviewStatus.REJECTED
+      ? theme.colors.danger
+      : $status === savingGroupReviewStatus.PENDING
+        ? theme.colors.warning
+        : theme.colors.text};
   font-size: 22px;
   letter-spacing: -1px;
 `;
@@ -130,39 +141,55 @@ function formatAmount(amount) {
 
 function SavingGroupApplicationDetail({ application, isProcessing, onApprove, onReject, onBack }) {
   const [rejectReason, setRejectReason] = useState('');
-  const pending = application.status === 'PENDING';
+  // AI작성: 심사 상태와 유형 비교는 API 공통 코드를 재사용해 화면별 문자열 불일치를 막는다.
+  const pending = application.status === savingGroupReviewStatus.PENDING;
+  const deletion = application.type === savingGroupReviewType.DELETE;
 
   return (
     <>
-      <SummaryGrid aria-label="계모임 개설 신청 요약">
+      <SummaryGrid aria-label={`계모임 ${deletion ? '삭제' : '개설'} 신청 요약`}>
         <SummaryCard>
           <SummaryLabel>
             <FiCheckCircle size={14} aria-hidden="true" /> 신청 상태
           </SummaryLabel>
           <SummaryValue $status={application.status}>
-            {{ PENDING: '대기', APPROVED: '승인', REJECTED: '반려' }[application.status]}
+            {savingGroupReviewStatusLabel[application.status] || '상태 확인 필요'}
           </SummaryValue>
-          <SummaryDescription>개설 심사</SummaryDescription>
+          <SummaryDescription>{savingGroupReviewTypeLabel[application.type] || '유형 확인 필요'}</SummaryDescription>
         </SummaryCard>
         <SummaryCard>
           <SummaryLabel>
-            <FiUsers size={14} aria-hidden="true" /> 모집 인원
+            <FiUsers size={14} aria-hidden="true" /> {deletion ? '공동자금' : '모집 인원'}
           </SummaryLabel>
-          <SummaryValue>{application.maxMembers}명</SummaryValue>
-          <SummaryDescription>신청한 계모임 정원</SummaryDescription>
+          <SummaryValue>{deletion ? formatAmount(application.currentBalance) : `${application.maxMembers}명`}</SummaryValue>
+          <SummaryDescription>{deletion ? '잔액이 0원이어야 승인 가능' : '신청한 계모임 정원'}</SummaryDescription>
         </SummaryCard>
         <SummaryCard>
           <SummaryLabel>
-            <FiCalendar size={14} aria-hidden="true" /> 월 회비
+            <FiCalendar size={14} aria-hidden="true" /> {deletion ? '삭제 가능 상태' : '월 회비'}
           </SummaryLabel>
-          <SummaryValue>{formatAmount(application.duesAmount)}</SummaryValue>
-          <SummaryDescription>매월 {application.duesDay}일 납부</SummaryDescription>
+          <SummaryValue>
+            {deletion && (application.activeRound || application.pendingPayout)
+              ? '확인 필요'
+              : deletion
+                ? '가능'
+                : formatAmount(application.duesAmount)}
+          </SummaryValue>
+          <SummaryDescription>
+            {deletion
+              ? application.activeRound
+                ? '진행 중이거나 정지된 계모임'
+                : application.pendingPayout
+                  ? '미처리 출금 요청 존재'
+                  : '진행 회차·미처리 출금 없음'
+              : `매월 ${application.duesDay}일 납부`}
+          </SummaryDescription>
         </SummaryCard>
       </SummaryGrid>
 
       <DetailGrid>
         <Card>
-          <CardTitle>개설 신청 정보</CardTitle>
+          <CardTitle>{deletion ? '삭제 신청 정보' : '개설 신청 정보'}</CardTitle>
           <InformationList>
             <dt>계모임명</dt>
             <dd>{application.groupName}</dd>
@@ -170,23 +197,27 @@ function SavingGroupApplicationDetail({ application, isProcessing, onApprove, on
             <dd>{application.applicantName}</dd>
             <dt>활동 지역</dt>
             <dd>{application.regionName}</dd>
-            <dt>계모임 종류</dt>
-            <dd>{application.groupType}</dd>
-            <dt>신청일</dt>
-            <dd>
-              {application.appliedAt ? new Date(application.appliedAt).toLocaleDateString('ko-KR') : '날짜 확인 필요'}
-            </dd>
+            {!deletion && (
+              <>
+                <dt>계모임 종류</dt>
+                <dd>{application.groupType}</dd>
+                <dt>신청일</dt>
+                <dd>
+                  {application.appliedAt ? new Date(application.appliedAt).toLocaleDateString('ko-KR') : '날짜 확인 필요'}
+                </dd>
+              </>
+            )}
           </InformationList>
         </Card>
         <Card>
-          <CardTitle>계모임 소개</CardTitle>
-          <Description>{application.description}</Description>
-          {application.groupImagePath && <ReviewDescription>대표 이미지가 첨부되었습니다.</ReviewDescription>}
+          <CardTitle>{deletion ? '삭제 사유' : '계모임 소개'}</CardTitle>
+          <Description>{deletion ? application.requestReason : application.description}</Description>
+          {!deletion && application.groupImagePath && <ReviewDescription>대표 이미지가 첨부되었습니다.</ReviewDescription>}
         </Card>
       </DetailGrid>
 
       <ReviewCard>
-        <CardTitle>개설 심사 처리</CardTitle>
+        <CardTitle>{deletion ? '삭제 심사 처리' : '개설 심사 처리'}</CardTitle>
         {pending ? (
           <>
             <ReviewDescription>신청 내용을 확인한 뒤 승인하거나 반려 사유를 입력해 반려 처리하세요.</ReviewDescription>
