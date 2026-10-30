@@ -123,6 +123,7 @@
             restricted_until
         FROM member_feature_restriction
         WHERE member_id = #{memberId}
+          AND (restricted_until IS NULL OR restricted_until &gt; CURRENT_TIMESTAMP)
         ORDER BY restriction_scope
     </select>
 

@@ -22,6 +22,14 @@ function formatStatus(status) {
   return '확인 필요';
 }
 
+function formatRestrictionScope(scope) {
+  return {
+    CONTENT: '게시글·댓글',
+    CHAT: '채팅',
+    REPORT: '신고',
+  }[scope] || '확인 필요';
+}
+
 // AI작성: 관리자 화면에서도 개인정보 노출을 줄이기 위해 표시 직전에 마스킹한다.
 function maskName(value) {
   const name = String(value || '');
@@ -96,7 +104,14 @@ export async function getAdminMember(memberId, signal) {
         regionStatus: data.regionVerifiedAt ? '인증 완료' : '미인증',
         joinedGatherings: data.joinedGroupCount ?? 0,
         writtenPosts: data.writtenPostCount ?? 0,
-        suspendedUntil: data.suspendedUntil ? formatDate(data.suspendedUntil) : null,
+        // AI작성: 단일 계정 정지 시각 대신 현재 적용 중인 기능별 제한 목록을 화면 형식으로 변환한다.
+        restrictions: Array.isArray(data.restrictions)
+          ? data.restrictions.map((restriction) => ({
+              scope: restriction.restrictionScope,
+              scopeLabel: formatRestrictionScope(restriction.restrictionScope),
+              untilLabel: restriction.restrictedUntil ? formatDate(restriction.restrictedUntil) : '영구',
+            }))
+          : [],
       },
     };
   } catch (error) {
@@ -105,9 +120,13 @@ export async function getAdminMember(memberId, signal) {
   }
 }
 
-export async function restrictAdminMember(memberId, restrictionType, reason) {
+export async function restrictAdminMember(memberId, restrictionScope, restrictionType, reason) {
   try {
-    const response = await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction`, { restrictionType, reason });
+    const response = await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction`, {
+      restrictionScope,
+      restrictionType,
+      reason,
+    });
     // AI작성: HTTP 성공 상태만으로 처리 완료를 판단하지 않고 공통 성공 응답을 확인한다.
     if (!response.data?.success) {
       throw new Error('회원 이용 제한 응답을 확인할 수 없습니다.');
@@ -117,9 +136,12 @@ export async function restrictAdminMember(memberId, restrictionType, reason) {
   }
 }
 
-export async function releaseAdminMemberRestriction(memberId, reason) {
+export async function releaseAdminMemberRestriction(memberId, restrictionScope, reason) {
   try {
-    const response = await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction/release`, { reason });
+    const response = await client.patch(`/admin/members/${encodeURIComponent(memberId)}/restriction/release`, {
+      restrictionScope,
+      reason,
+    });
     // AI작성: HTTP 성공 상태만으로 처리 완료를 판단하지 않고 공통 성공 응답을 확인한다.
     if (!response.data?.success) {
       throw new Error('회원 이용 제한 해제 응답을 확인할 수 없습니다.');

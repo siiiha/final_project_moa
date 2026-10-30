@@ -70,6 +70,7 @@ function AdminMemberDetailPage() {
   const [member, setMember] = useState(null);
   const [detail, setDetail] = useState(null);
   const [action, setAction] = useState('이용 제한');
+  const [restrictionScope, setRestrictionScope] = useState('CONTENT');
   const [restrictionType, setRestrictionType] = useState('7_DAYS');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
@@ -86,7 +87,9 @@ function AdminMemberDetailPage() {
         const result = await getAdminMember(id, controller.signal);
         setMember(result.member);
         setDetail(result.detail);
-        setAction(result.member.accountStatus === 'SUSPENDED' ? '제한 해제' : '이용 제한');
+        setAction(result.detail.restrictions.some((restriction) => restriction.scope === 'CONTENT')
+          ? '제한 해제'
+          : '이용 제한');
       } catch (error) {
         if (error.code !== 'ERR_CANCELED') {
           setMember(null);
@@ -122,9 +125,9 @@ function AdminMemberDetailPage() {
     setErrorMessage('');
     try {
       if (action === '이용 제한') {
-        await restrictAdminMember(id, restrictionType, reason.trim());
+        await restrictAdminMember(id, restrictionScope, restrictionType, reason.trim());
       } else {
-        await releaseAdminMemberRestriction(id, reason.trim());
+        await releaseAdminMemberRestriction(id, restrictionScope, reason.trim());
       }
       setReason('');
       setConfirmOpen(false);
@@ -144,6 +147,19 @@ function AdminMemberDetailPage() {
     '30_DAYS': '30일',
     PERMANENT: '영구',
   }[restrictionType];
+  const restrictionScopeLabel = {
+    CONTENT: '게시글·댓글',
+    CHAT: '채팅',
+    REPORT: '신고',
+  }[restrictionScope];
+
+  // AI작성: 선택한 기능이 현재 제한 중인지에 따라 기본 처리 동작을 제한 또는 해제로 맞춘다.
+  const handleRestrictionScopeChange = (nextScope) => {
+    setRestrictionScope(nextScope);
+    setAction(detail.restrictions.some((restriction) => restriction.scope === nextScope)
+      ? '제한 해제'
+      : '이용 제한');
+  };
 
   if (loading || !member || !detail) {
     return (
@@ -171,12 +187,14 @@ function AdminMemberDetailPage() {
             member={member}
             detail={detail}
             action={action}
+            restrictionScope={restrictionScope}
             reason={reason}
             restrictionType={restrictionType}
             submitting={submitting}
             message={message}
             errorMessage={errorMessage}
             onActionChange={setAction}
+            onRestrictionScopeChange={handleRestrictionScopeChange}
             onReasonChange={setReason}
             onRestrictionTypeChange={setRestrictionType}
             onSubmit={handleStatusSubmit}
@@ -189,8 +207,8 @@ function AdminMemberDetailPage() {
           title={action === '이용 제한' ? '회원 이용 제한' : '회원 제한 해제'}
           description={
             action === '이용 제한'
-              ? `${member.name} 회원을 ${restrictionTypeLabel} 동안 제한합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
-              : `${member.name} 회원의 이용 제한을 해제합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
+              ? `${member.name} 회원의 ${restrictionScopeLabel} 기능을 ${restrictionTypeLabel} 동안 제한합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
+              : `${member.name} 회원의 ${restrictionScopeLabel} 기능 제한을 해제합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
           }
           confirmLabel={submitting ? '처리 중...' : action}
           confirmVariant={action === '이용 제한' ? 'danger' : 'primary'}
