@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 // AI작성: 신고 처리와 관리자 직접 처리에서 동일한 회원 제한 기간 계산 규칙을 제공한다.
 public class MemberRestrictionPolicy {
 
-    // AI작성: 기존 제한보다 짧아지지 않고 영구 제한이 기간제로 바뀌지 않도록 실제 종료 시각을 계산한다.
+    // AI작성: 기존 기간 제한에는 새 제한 기간을 누적하고, 영구 제한은 기간제로 바뀌지 않도록 종료 시각을 계산한다.
     public LocalDateTime calculateSuspendedUntil(
             String accountStatus,
             LocalDateTime currentSuspendedUntil,
@@ -25,12 +25,11 @@ public class MemberRestrictionPolicy {
             return null;
         }
 
-        LocalDateTime requestedUntil = requestedAt.plusDays(restrictionType.getDays());
-
-        // AI작성: 새 제한이 기존 제한보다 짧으면 현재 종료 시각을 유지한다.
-        if (currentSuspendedUntil != null && currentSuspendedUntil.isAfter(requestedUntil)) {
-            return currentSuspendedUntil;
-        }
-        return requestedUntil;
+        // AI작성: 아직 끝나지 않은 제한은 기존 종료 시각부터 새 기간을 더하고, 만료된 제한은 요청 시각부터 계산한다.
+        LocalDateTime restrictionBaseTime = currentSuspendedUntil != null
+                && currentSuspendedUntil.isAfter(requestedAt)
+                ? currentSuspendedUntil
+                : requestedAt;
+        return restrictionBaseTime.plusDays(restrictionType.getDays());
     }
 }
