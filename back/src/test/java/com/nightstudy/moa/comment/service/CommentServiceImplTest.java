@@ -15,6 +15,7 @@ import com.nightstudy.moa.comment.dto.CommentResponse;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
 import com.nightstudy.moa.comment.mapper.CommentMapper;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,10 @@ class CommentServiceImplTest {
 
     @Mock
     private PostMapper postMapper;
+
+    // AI작성: 댓글 변경 전에 수행되는 CONTENT 이용 제한 검사를 Mock으로 주입한다.
+    @Mock
+    private MemberFeatureRestrictionService restrictionService;
 
     @InjectMocks
     private CommentServiceImpl commentService;
