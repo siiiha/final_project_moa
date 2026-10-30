@@ -86,8 +86,8 @@ test('소모임 투표 목록은 취소 신호와 함께 GET 요청하고 목록
   const originalGet = client.get;
   const signal = new AbortController().signal;
   const votes = [
-    { title: '11월 정기 모임 날짜', status: 'OPEN', endsAt: '2026-11-02T18:00:00' },
-    { title: '식사 장소', status: 'CLOSED', endsAt: null },
+    { smallGroupVoteId: 11, title: '11월 정기 모임 날짜', status: 'OPEN', endsAt: '2026-11-02T18:00:00' },
+    { smallGroupVoteId: 12, title: '식사 장소', status: 'CLOSED', endsAt: null },
   ];
 
   try {
@@ -149,7 +149,24 @@ test('소모임 투표 목록은 알 수 없는 상태값을 INVALID_RESPONSE로
 
   try {
     client.get = async () => ({
-      data: { success: true, data: [{ title: '상태가 잘못된 응답', status: 'WAITING', endsAt: null }], meta: null, error: null },
+      data: { success: true, data: [{ smallGroupVoteId: 11, title: '상태가 잘못된 응답', status: 'WAITING', endsAt: null }], meta: null, error: null },
+    });
+
+    await assert.rejects(
+      getSmallGroupVotes(7),
+      (error) => error instanceof SmallGroupVoteListLoadError && error.code === 'INVALID_RESPONSE',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 목록은 상세 식별자가 없으면 INVALID_RESPONSE로 처리한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => ({
+      data: { success: true, data: [{ title: '식사 장소', status: 'OPEN', endsAt: null }], meta: null, error: null },
     });
 
     await assert.rejects(

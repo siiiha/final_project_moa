@@ -510,10 +510,11 @@
           AND g.deleted_at IS NULL
     </select>
 
-    <!-- AI작성: 투표 목록은 검색·상태 필터·페이징 없이 제목·상태·마감 시각만 등록 최신순으로 반환한다. -->
+    <!-- AI작성: 투표 목록은 상세 이동용 식별자와 제목·상태·마감 시각을 등록 최신순으로 반환한다. -->
     <select id="selectSmallGroupVoteList"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse">
-        SELECT title,
+        SELECT small_group_vote_id,
+               title,
                status,
                ends_at
         FROM small_group_vote

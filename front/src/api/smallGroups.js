@@ -387,14 +387,16 @@ export async function createSmallGroupVote(smallGroupId, request) {
   }
 }
 
-// AI작성: 투표 목록은 제목·OPEN/CLOSED 상태·마감 시각만 사용하며 마감 시각 미설정은 null로 보존한다.
+// AI작성: 투표 목록은 상세 이동용 식별자와 제목·OPEN/CLOSED 상태·마감 시각을 보존한다.
 export function toSmallGroupVoteListItem(item) {
+  const hasVoteId = typeof item?.smallGroupVoteId === 'number' || typeof item?.smallGroupVoteId === 'string';
   const hasValidEndsAt = item?.endsAt == null || typeof item.endsAt === 'string';
   const hasValidStatus = ['OPEN', 'CLOSED'].includes(item?.status);
-  if (typeof item?.title !== 'string' || !hasValidStatus || !hasValidEndsAt) {
+  if (!hasVoteId || typeof item?.title !== 'string' || !hasValidStatus || !hasValidEndsAt) {
     throw new SmallGroupVoteListLoadError('INVALID_RESPONSE', '투표 목록 응답을 확인하지 못했습니다.');
   }
   return {
+    smallGroupVoteId: item.smallGroupVoteId,
     title: item.title,
     status: item.status,
     endsAt: item.endsAt,
