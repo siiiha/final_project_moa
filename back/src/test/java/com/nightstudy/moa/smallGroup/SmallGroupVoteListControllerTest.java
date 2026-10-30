@@ -51,7 +51,7 @@ class SmallGroupVoteListControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].title").value("11월 정기 모임 날짜"))
-                .andExpect(jsonPath("$.data[0].createdAt").exists())
+                .andExpect(jsonPath("$.data[0].status").value("OPEN"))
                 .andExpect(jsonPath("$.data[0].endsAt").exists());
 
         verify(smallGroupService).getSmallGroupVotes(10L, 30L);
@@ -78,7 +78,7 @@ class SmallGroupVoteListControllerTest {
     private SmallGroupVoteListItemResponse voteListItem(String title) {
         SmallGroupVoteListItemResponse response = new SmallGroupVoteListItemResponse();
         response.setTitle(title);
-        response.setCreatedAt(LocalDateTime.of(2026, 10, 30, 10, 0));
+        response.setStatus("OPEN");
         response.setEndsAt(LocalDateTime.of(2026, 11, 2, 18, 0));
         return response;
     }

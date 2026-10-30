@@ -701,7 +701,7 @@ class SmallGroupServiceImplTest {
     private SmallGroupVoteListItemResponse voteListItem(String title) {
         SmallGroupVoteListItemResponse row = new SmallGroupVoteListItemResponse();
         row.setTitle(title);
-        row.setCreatedAt(LocalDateTime.of(2026, 10, 30, 10, 0));
+        row.setStatus("OPEN");
         row.setEndsAt(LocalDateTime.of(2026, 11, 2, 18, 0));
         return row;
     }
