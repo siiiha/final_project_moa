@@ -25,8 +25,14 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateCommand;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteMyParticipationResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionVoterNicknameRow;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -52,6 +58,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     private static final int VOTE_OPTION_MIN_LENGTH = 2;
     private static final int VOTE_OPTION_MAX_LENGTH = 12;
     private static final int MAX_OPEN_VOTE_COUNT = 5;
+    private static final long VOTE_CLOSED_VISIBLE_HOURS = 24L;
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final String ACTIVE_ACCOUNT_STATUS = "ACTIVE";
     private static final List<String> REGIONS = List.of(
@@ -82,21 +89,107 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
         }
-        validateSmallGroupVoteListAuthority(target.getGroupId(), memberId);
+        validateSmallGroupVoteMember(
+                target.getGroupId(), memberId, "SMALL_GROUP_VOTE_LIST_FORBIDDEN",
+                "승인된 소모임 회원만 투표 목록을 조회할 수 있습니다.");
         return smallGroupMapper.selectSmallGroupVoteList(smallGroupId);
     }
 
-    // AI작성: 탈퇴·대기·추방 관계와 OWNER·MEMBER 이외의 역할은 투표 목록을 볼 수 없다.
-    private void validateSmallGroupVoteListAuthority(Long groupId, Long memberId) {
+    // AI작성: 탈퇴·대기·추방 관계와 OWNER·MEMBER 이외의 역할은 투표 목록·상세를 볼 수 없다.
+    private void validateSmallGroupVoteMember(
+            Long groupId, Long memberId, String errorCode, String errorMessage) {
         List<SmallGroupMemberRelationRow> relations =
                 smallGroupMapper.selectSmallGroupMemberRelations(groupId, memberId);
         boolean isApprovedMember = relations.size() == 1
                 && "APPROVED".equals(relations.get(0).getMembershipStatus())
                 && List.of("OWNER", "MEMBER").contains(relations.get(0).getMemberRole());
         if (!isApprovedMember) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_LIST_FORBIDDEN",
-                    "승인된 소모임 회원만 투표 목록을 조회할 수 있습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, errorCode, errorMessage);
         }
+    }
+
+    // AI작성: 소속·권한·마감 공개 범위를 검증한 뒤 익명 여부와 참여 여부에 맞는 상세 정보만 조합한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SmallGroupVoteDetailResponse getSmallGroupVoteDetail(
+            Long smallGroupId, Long smallGroupVoteId, Long memberId) {
+        if (smallGroupId == null || smallGroupId <= 0 || smallGroupVoteId == null || smallGroupVoteId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 투표 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupVoteListTargetRow target = smallGroupMapper.selectSmallGroupVoteListTarget(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        validateSmallGroupVoteMember(
+                target.getGroupId(), memberId, "SMALL_GROUP_VOTE_DETAIL_FORBIDDEN",
+                "승인된 소모임 회원만 투표 상세를 조회할 수 있습니다.");
+
+        SmallGroupVoteDetailRow vote =
+                smallGroupMapper.selectSmallGroupVoteDetail(smallGroupId, smallGroupVoteId);
+        if (vote == null || isVoteClosedBeyondVisiblePeriod(vote, LocalDateTime.now(KOREA_ZONE_ID))) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_VOTE_NOT_FOUND", "투표를 찾을 수 없습니다.");
+        }
+
+        Long participationId = smallGroupMapper.selectSmallGroupVoteParticipationId(smallGroupVoteId, memberId);
+        List<Long> selectedOptionIds = participationId == null
+                ? List.of()
+                : smallGroupMapper.selectSmallGroupVoteSelectedOptionIds(participationId);
+        boolean participated = participationId != null;
+        Map<Long, List<String>> voterNicknamesByOptionId = !vote.isAnonymous() && participated
+                ? smallGroupMapper.selectSmallGroupVoteOptionVoterNicknames(smallGroupVoteId).stream()
+                        .collect(Collectors.groupingBy(
+                                SmallGroupVoteOptionVoterNicknameRow::getSmallGroupVoteOptionId,
+                                Collectors.mapping(
+                                        SmallGroupVoteOptionVoterNicknameRow::getVoterNickname,
+                                        Collectors.toList())))
+                : Map.of();
+        List<SmallGroupVoteOptionDetailResponse> options =
+                smallGroupMapper.selectSmallGroupVoteDetailOptions(smallGroupVoteId).stream()
+                        .map(option -> toSmallGroupVoteOptionDetailResponse(option, voterNicknamesByOptionId))
+                        .toList();
+
+        return new SmallGroupVoteDetailResponse(
+                vote.getSmallGroupVoteId(),
+                vote.getTitle(),
+                vote.getCreatorNickname(),
+                vote.isMultipleChoice(),
+                vote.isAnonymous(),
+                vote.getCreatedAt(),
+                vote.getEndsAt(),
+                isVoteClosed(vote, LocalDateTime.now(KOREA_ZONE_ID)) ? "CLOSED" : "OPEN",
+                smallGroupMapper.selectSmallGroupVoteParticipantCount(smallGroupVoteId),
+                new SmallGroupVoteMyParticipationResponse(participated, selectedOptionIds),
+                options);
+    }
+
+    // AI작성: 마감 시각 또는 명시적 종료 상태가 있으면 참여는 막고 결과 전용 상태로 반환한다.
+    private boolean isVoteClosed(SmallGroupVoteDetailRow vote, LocalDateTime now) {
+        return "CLOSED".equals(vote.getStatus())
+                || (vote.getEndsAt() != null && !vote.getEndsAt().isAfter(now));
+    }
+
+    // AI작성: 마감·종료 후 24시간만 결과를 유지하고 그 뒤에는 상세 대상에서 제외한다.
+    private boolean isVoteClosedBeyondVisiblePeriod(SmallGroupVoteDetailRow vote, LocalDateTime now) {
+        if (!isVoteClosed(vote, now)) {
+            return false;
+        }
+        LocalDateTime closedAt = vote.getClosedAt() != null ? vote.getClosedAt() : vote.getEndsAt();
+        return closedAt != null && closedAt.plusHours(VOTE_CLOSED_VISIBLE_HOURS).isBefore(now);
+    }
+
+    // AI작성: 익명·미참여 요청에는 빈 닉네임 목록만 반환해 보기별 득표 수는 유지하면서 개인정보를 숨긴다.
+    private SmallGroupVoteOptionDetailResponse toSmallGroupVoteOptionDetailResponse(
+            SmallGroupVoteOptionDetailRow option, Map<Long, List<String>> voterNicknamesByOptionId) {
+        return new SmallGroupVoteOptionDetailResponse(
+                option.getSmallGroupVoteOptionId(),
+                option.getContent(),
+                option.getDisplayOrder(),
+                option.getVoteCount(),
+                voterNicknamesByOptionId.getOrDefault(option.getSmallGroupVoteOptionId(), List.of()));
     }
 
     // AI작성: 소모임·개설자·승인 OWNER 관계를 잠근 뒤 검증된 투표와 보기를 한 트랜잭션으로 저장한다.

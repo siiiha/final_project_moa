@@ -8,6 +8,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
 import java.util.List;
 
@@ -44,4 +45,8 @@ public interface SmallGroupService {
 
     // AI작성: 승인된 소모임 OWNER 또는 MEMBER만 해당 소모임의 투표 목록을 조회한다.
     List<SmallGroupVoteListItemResponse> getSmallGroupVotes(Long smallGroupId, Long memberId);
+
+    // AI작성: 승인된 소모임 OWNER 또는 MEMBER만 소속 투표의 상세·결과를 정책 범위 안에서 조회한다.
+    SmallGroupVoteDetailResponse getSmallGroupVoteDetail(
+            Long smallGroupId, Long smallGroupVoteId, Long memberId);
 }
