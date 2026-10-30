@@ -93,6 +93,22 @@ CREATE TABLE IF NOT EXISTS `members` (
 	PRIMARY KEY (`member_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `member_feature_restriction` (
+    `member_id` BIGINT NOT NULL,
+    `restriction_scope` VARCHAR(30) NOT NULL,
+    `restricted_until` DATETIME NULL DEFAULT NULL,
+
+    PRIMARY KEY (`member_id`, `restriction_scope`),
+
+    CONSTRAINT `fk_member_feature_restriction_member`
+        FOREIGN KEY (`member_id`)
+        REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `chk_member_feature_restriction_scope`
+        CHECK (`restriction_scope` IN ('CONTENT', 'CHAT', 'REPORT'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS member_auth_session (
     session_id CHAR(36)
         CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -262,6 +278,7 @@ CREATE TABLE IF NOT EXISTS `restriction_history` (
     `member_id` BIGINT NULL,
     `saving_group_id` BIGINT NULL,
     `action` ENUM('RESTRICT', 'RELEASE') NOT NULL,
+    `restriction_scope` VARCHAR(30) NULL DEFAULT NULL,
     `restriction_type` ENUM('7_DAYS', '30_DAYS', 'PERMANENT') NULL,
     `reason` VARCHAR(500) NOT NULL,
     `restricted_until` DATETIME NULL,
@@ -333,6 +350,7 @@ CREATE TABLE IF NOT EXISTS small_group_vote (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL DEFAULT NULL,
 
     PRIMARY KEY (small_group_vote_id),
 
