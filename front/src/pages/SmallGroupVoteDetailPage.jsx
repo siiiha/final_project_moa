@@ -17,7 +17,7 @@ const Breadcrumb = styled.p`
 `;
 
 const Content = styled.main`
-  max-width: 720px;
+  max-width: 1120px;
   margin-top: 12px;
 `;
 
@@ -48,6 +48,11 @@ function SmallGroupVoteDetailPage() {
   const { smallGroupId, voteId } = useParams();
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
+  const [voteView, setVoteView] = useState({
+    voteId: null,
+    selectedOptionIds: [],
+    isResultOpen: false,
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,6 +92,44 @@ function SmallGroupVoteDetailPage() {
     'LOGIN_REQUIRED',
   ].includes(errorCode);
   const goToVoteList = () => navigate(`/small-groups/${smallGroupId}`);
+  const currentVote = current?.vote;
+  const selectedOptionIds = voteView.voteId === voteId
+    ? voteView.selectedOptionIds
+    : currentVote?.myParticipation.selectedOptionIds || [];
+  const isResultOpen = voteView.voteId === voteId && voteView.isResultOpen;
+
+  // AI작성: 참여 저장 API가 추가되기 전에는 선택 UI만 갱신하고 서버의 참여 정보는 바꾸지 않는다.
+  const handleSelectOption = (optionId) => {
+    if (!currentVote || currentVote.status === 'CLOSED' || currentVote.myParticipation.participated) return;
+
+    setVoteView((previous) => {
+      const previousIds = previous.voteId === voteId
+        ? previous.selectedOptionIds
+        : currentVote.myParticipation.selectedOptionIds;
+      const hasSelected = previousIds.includes(optionId);
+      const nextIds = currentVote.multipleChoice
+        ? (hasSelected ? previousIds.filter((id) => id !== optionId) : [...previousIds, optionId])
+        : [optionId];
+
+      return {
+        voteId,
+        selectedOptionIds: nextIds,
+        isResultOpen: false,
+      };
+    });
+  };
+
+  // AI작성: 결과 공개 여부는 상세 응답의 참여 여부만 기준으로 하며 별도 요청을 보내지 않는다.
+  const handleShowResults = () => {
+    if (!currentVote?.myParticipation.participated) return;
+    setVoteView((previous) => ({
+      voteId,
+      selectedOptionIds: previous.voteId === voteId
+        ? previous.selectedOptionIds
+        : currentVote.myParticipation.selectedOptionIds,
+      isResultOpen: true,
+    }));
+  };
 
   return (
     <Page>
@@ -103,7 +146,14 @@ function SmallGroupVoteDetailPage() {
             </Actions>
           </EmptyCard>
         ) : (
-          <SmallGroupVoteDetail vote={current.vote} onBack={goToVoteList} />
+          <SmallGroupVoteDetail
+            vote={currentVote}
+            onBack={goToVoteList}
+            selectedOptionIds={selectedOptionIds}
+            onSelectOption={handleSelectOption}
+            isResultOpen={isResultOpen}
+            onShowResults={handleShowResults}
+          />
         )}
       </Content>
     </Page>
