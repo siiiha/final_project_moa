@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.admin.mapper.AdminSmallGroupMapper">
+
+    <!-- AI작성: 삭제되지 않은 소모임을 잠가 동시에 들어온 운영정지·해제 요청을 직렬화한다. -->
+    <select id="selectRestrictionTargetForUpdate"
+            resultType="com.nightstudy.moa.admin.dto.AdminSmallGroupRestrictionTarget">
+        SELECT sg.small_group_id,
+               sg.status
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 가장 최근 이력으로 관리자 운영정지 상태인지 확인해 일반 상태 변경과 구분한다. -->
+    <select id="selectLatestRestrictionAction" resultType="string">
+        SELECT action
+        FROM restriction_history
+        WHERE small_group_id = #{smallGroupId}
+        ORDER BY restriction_history_id DESC
+        LIMIT 1
+    </select>
+
+    <!-- AI작성: 잠금 후 확인한 상태가 유지된 경우에만 다음 운영 상태로 변경한다. -->
+    <update id="updateSmallGroupStatus">
+        UPDATE small_group
+        SET status = #{nextStatus}
+        WHERE small_group_id = #{smallGroupId}
+          AND status = #{currentStatus}
+    </update>
+
+    <!-- AI작성: 기간 없는 소모임 운영정지·해제 사유를 기존 공통 제한 이력에 저장한다. -->
+    <insert id="insertRestrictionHistory">
+        INSERT INTO restriction_history (
+            member_id,
+            saving_group_id,
+            small_group_id,
+            action,
+            restriction_type,
+            reason,
+            restricted_until
+        ) VALUES (
+            NULL,
+            NULL,
+            #{smallGroupId},
+            #{action},
+            NULL,
+            #{reason},
+            NULL
+        )
+    </insert>
+
+</mapper>
