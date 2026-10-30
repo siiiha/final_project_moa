@@ -502,7 +502,7 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 - Spring Security와 JWT 필터가 인증한 회원 ID만 사용하며, 클라이언트는 회원 ID를 전달하지 않는다.
 - 삭제되지 않은 소모임의 `group_member`에서 `APPROVED` 상태인 `OWNER` 또는 `MEMBER`만 조회할 수 있다.
 - `PENDING`, `LEFT`, `EXPELLED`, 비회원, `MANAGER` 관계는 조회할 수 없다.
-- 투표 상세, 보기, 참여 여부, 참여자, 득표 수, 결과 공개 여부는 이 목록 API 범위에 포함하지 않는다.
+- 투표 상세, 보기, 참여 여부, 참여자, 득표 수, 결과 공개 여부는 목록 응답에 포함하지 않는다. 각 목록 항목의 `smallGroupVoteId`로 상세 API를 호출한다.
 
 ### 성공 응답
 
@@ -513,8 +513,9 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
   "success": true,
   "data": [
     {
+      "smallGroupVoteId": 11,
       "title": "11월 정기 모임 날짜",
-      "createdAt": "2026-10-30T10:00:00",
+      "status": "OPEN",
       "endsAt": "2026-11-02T18:00:00"
     }
   ],
@@ -523,7 +524,7 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 }
 ```
 
-- 목록 항목에는 `title`, `createdAt`, `endsAt`만 포함한다.
+- 목록 항목에는 상세 이동용 `smallGroupVoteId`, `title`, `status`, `endsAt`만 포함한다.
 - `endsAt`은 마감일을 설정하지 않은 투표인 경우 `null`일 수 있다.
 - 결과가 없으면 성공 응답의 `data: []`를 반환한다.
 
@@ -531,9 +532,10 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 
 - 기존 `small_group`, `groups`, `group_member`, `small_group_vote`와 `SmallGroupMapper`를 재사용한다. DB 마이그레이션, 상태값, 외부 연동, 의존성, Security 설정은 추가하지 않는다.
 - 소모임이 없거나 `groups.deleted_at`이 설정되면 목록을 반환하지 않는다.
-- 해당 `small_group_id`의 종료·진행 투표를 모두 `created_at DESC, small_group_vote_id DESC` 순으로 반환한다.
+- 해당 `small_group_id`의 진행 투표와 종료 후 24시간 이내 투표를 `created_at DESC, small_group_vote_id DESC` 순으로 반환한다.
 - 목록 조회 자체에는 `LIMIT`, 검색, 상태 조건, 페이지 조건을 적용하지 않는다.
 - 투표 생성 시에는 `closed_at IS NULL`인 진행 중 투표 수만 집계하며, 같은 소모임에서 5개 이상이면 새 투표를 생성할 수 없다. 종료된 투표(`closed_at IS NOT NULL`)는 이 한도에 포함하지 않는다.
+- **TODO:** 현재 목록 SQL의 24시간 제외 기준은 `closed_at`이다. `ends_at` 경과 투표도 정확히 같은 시점에 숨기려면 종료 처리에서 `closed_at`을 저장하거나, 목록 SQL에 마감 시각 기준을 함께 반영해야 한다.
 
 ### 오류
 
@@ -546,7 +548,7 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 
 ### 프런트 연결·검증
 
-- `getSmallGroupVotes(smallGroupId, { signal })`는 `GET /small-groups/{smallGroupId}/votes`를 호출하고, 제목·등록일·마감일 배열만 검증해 반환한다.
+- `getSmallGroupVotes(smallGroupId, { signal })`는 `GET /small-groups/{smallGroupId}/votes`를 호출하고, `smallGroupVoteId`·제목·상태·마감일 배열을 검증해 반환한다.
 - 소모임 상세의 투표 탭은 탭 선택 시에만 목록을 요청하고, 화면 전환 시 이전 요청을 취소한다.
 - 투표 생성 성공 뒤에는 목록을 다시 조회한다. 프런트에서 목록을 임의 정렬하거나 추가하지 않는다.
 - 탭에는 로딩, 재시도 가능한 오류, 빈 목록, 마감일 미설정 상태를 표시한다.
@@ -559,3 +561,92 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 3. 비회원, `PENDING`, `LEFT`, `EXPELLED`, `MANAGER`, 비로그인 계정으로 403 또는 401 응답을 확인한다.
 4. 없는·삭제 소모임의 404, 투표가 없는 승인 회원의 빈 배열을 확인한다.
 5. 브라우저에서 투표 탭의 로딩·오류 재시도·빈 목록·마감일 미설정·생성 후 목록 갱신을 확인한다.
+
+---
+
+## 소모임 투표 상세 조회 API
+
+### 범위
+
+- 엔드포인트: `GET /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}`
+- 두 식별자는 각각 `small_group.small_group_id`, `small_group_vote.small_group_vote_id`이며 1 이상이어야 한다.
+- 요청 본문과 쿼리 파라미터는 없다. JWT 필터가 저장한 `memberId`만 사용한다.
+- 삭제되지 않은 소모임의 승인 `OWNER` 또는 `MEMBER`만 조회할 수 있다. 비회원, `PENDING`, `REJECTED`, `LEFT`, `EXPELLED`, `MANAGER`는 조회할 수 없다.
+- 투표는 요청한 `smallGroupId`에 속해야 한다. 다른 소모임의 투표 ID는 존재하더라도 상세를 반환하지 않는다.
+- `status = CLOSED`이거나 `endsAt`이 지난 투표는 결과 조회 상태로 반환한다. 마감·종료 시각 후 24시간이 지나면 목록과 상세에서 숨긴다.
+- 투표 참여 저장, 선택 변경·취소, 제목·보기 수정, 삭제 API는 이 상세 조회 범위에 포함하지 않는다.
+
+### 성공 응답
+
+성공 시 기존 `ApiResponse`의 `data`에 아래 구조를 반환하며 `meta`는 `null`이다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "smallGroupVoteId": 11,
+    "title": "11월 모임 장소",
+    "creatorNickname": "모임장",
+    "multipleChoice": true,
+    "anonymous": false,
+    "createdAt": "2026-10-30T10:00:00",
+    "endsAt": "2026-10-31T18:00:00",
+    "status": "OPEN",
+    "participantCount": 2,
+    "myParticipation": {
+      "participated": true,
+      "selectedOptionIds": [101]
+    },
+    "options": [
+      {
+        "smallGroupVoteOptionId": 101,
+        "content": "한강공원",
+        "displayOrder": 1,
+        "voteCount": 2,
+        "voterNicknames": ["걷기좋아", "모아회원"]
+      }
+    ]
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+- `participantCount`는 저장된 투표 참여 이력 기준의 총 참여 회원 수다.
+- `myParticipation.participated`가 `false`이면 `selectedOptionIds`는 빈 배열이다.
+- `options`는 `displayOrder ASC` 순서이며, 선택자가 없는 보기도 `voteCount: 0`으로 포함한다.
+- 단일·복수 선택 여부와 관계없이 상세 조회는 이미 저장된 선택 보기 ID 목록을 그대로 반환한다.
+
+### 공개·익명 정책
+
+| 조건 | `voterNicknames` |
+| --- | --- |
+| 익명 투표 | 항상 빈 배열 |
+| 공개 투표, 미참여 요청자 | 항상 빈 배열 |
+| 공개 투표, 참여 완료 요청자 | 보기별 참여자 닉네임 목록 |
+
+투표 생성자를 포함해 익명 투표의 참여자 이름과 선택 내역은 반환하지 않는다. 항목별 득표 수는 익명 여부와 관계없이 반환한다.
+
+### 오류 응답
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증되지 않은 HTTP 요청 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 소모임 ID 또는 투표 ID가 0 이하·형식 오류 | `400 BAD_REQUEST` |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 없는 투표, 다른 소모임 투표, 삭제 투표, 마감 후 24시간 경과 투표 | `404 SMALL_GROUP_VOTE_NOT_FOUND` |
+| 승인된 `OWNER`·`MEMBER` 관계가 아님 | `403 SMALL_GROUP_VOTE_DETAIL_FORBIDDEN` |
+
+### 프런트 연결·검증
+
+- `getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, { signal })`는 GET 요청과 응답 구조를 검증하고 서버 오류 코드·메시지를 보존한다.
+- 목록의 `smallGroupVoteId`를 사용해 `/small-groups/{smallGroupId}/votes/{voteId}`로 이동한다.
+- 상세 페이지는 로딩·오류·재시도·존재하지 않는 투표 상태를 표시한다.
+- 상세 화면은 투표 참여 API를 호출하지 않는다. 참여 UI·저장은 별도 기능 범위에서 연결한다.
+
+### 테스트·수동 확인
+
+- Service 단위 테스트는 승인 OWNER/MEMBER, 비회원·대기·탈퇴·추방·MANAGER, 없는 소모임·투표, 다른 소모임 투표, 익명·공개 투표의 닉네임 범위, 마감 뒤 24시간 이내·경과 상태를 검증한다.
+- Controller 테스트는 JWT `memberId` 전달, 공통 응답, 잘못된 Path Variable, Service의 401·404 오류 보존을 검증한다.
+- 프런트 API 테스트는 상세 경로·취소 신호·필수 응답 필드·서버 오류 보존, 목록의 상세 식별자 보존을 검증한다.
+- 실제 MySQL·JWT 환경에서 소모임별 투표 격리, 승인 회원 권한, 종료 시각과 24시간 숨김 경계, 공개·익명 닉네임 공개 범위를 확인해야 한다.
