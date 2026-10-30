@@ -79,6 +79,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Long writePost(Long loginMemberId, PostCreateRequest request) {
+        validateContentAllowed(loginMemberId);
+
         int categoryCount =
                 postMapper.countCategoryById(request.getCategoryId());
 
@@ -111,6 +113,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Long editPost(Long postId, Long loginMemberId, PostEditRequest request) {
+        validateContentAllowed(loginMemberId);
+
         PostDto post = postMapper.selectPostDetail(postId);
         if (post == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "게시글을 찾을 수 없습니다.");
@@ -158,12 +162,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public void deletePost(Long postId, Long loginMemberId) {
-
-        // AI작성: CONTENT 제한 회원은 기존 게시글도 삭제할 수 없다.
-        restrictionService.validateAllowed(
-                loginMemberId,
-                MemberRestrictionScope.CONTENT
-        );
+        validateContentAllowed(loginMemberId);
 
         PostDto post = postMapper.selectPostDetail(postId);
 
@@ -192,5 +191,13 @@ public class PostServiceImpl implements PostService {
                     "게시글 삭제에 실패했습니다."
             );
         }
+    }
+
+    // AI작성: 게시글 작성·수정·삭제에서 사용하는 CONTENT 제한 검사를 한 곳에서 처리합니다.
+    private void validateContentAllowed(Long memberId) {
+        restrictionService.validateAllowed(
+                memberId,
+                MemberRestrictionScope.CONTENT
+        );
     }
 }
