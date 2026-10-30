@@ -98,10 +98,41 @@ public interface MemberMapper {
             @Param("profileImageUrl")  String profileImageUrl
     );
 
-    // AI작성: 이메일 인증을 통한 비밀번호 재설정 시 조회 당시 비밀번호가 유지된 활성 계정만 변경한다.
+    // 이메일 인증을 통한 비밀번호 재설정 시 조회 당시 비밀번호가 유지된 활성 계정만 변경
     int updatePasswordForReset(
             @Param("memberId") Long memberId,
             @Param("currentPasswordHash") String currentPasswordHash,
             @Param("newPasswordHash") String newPasswordHash
+    );
+
+    // 서버가 발급한 인증 요청 번호를 회원과 연결
+    int insertIdentityVerificationRequest(
+            @Param("identityVerificationId") String identityVerificationId,
+            @Param("memberId") Long memberId
+    );
+
+    // 해당 회원의 미사용·미만료 인증 요청인지 확인
+    int countAvailableIdentityVerificationRequest(
+            @Param("identityVerificationId") String identitVerificationId,
+            @Param("memberId") Long memberId
+    );
+
+    // 인증된 이름·생년월일·전화번호가 회원 정보와 일치하는지 확인
+    int countMemberIdentityMatch(
+            @Param("memberId") Long memberId,
+            @Param("name") String name,
+            @Param("birthDate") String birthDate,
+            @Param("phoneNumber") String phoneNumber
+    );
+
+    // 인증 요청 한 번만 사용 처리
+    int consumeIdentityVerificationRequest(
+            @Param("identityVerificationId") String identityVerificationId,
+            @Param("memberId") Long memberId
+    );
+
+    // 활성 회원의 본인인증 완료 시각 저장
+    int markIdentityVerified(
+            @Param("memberId") Long memberId
     );
 }
