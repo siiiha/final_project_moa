@@ -525,6 +525,88 @@
         ORDER BY created_at DESC, small_group_vote_id DESC
     </select>
 
+    <!-- AI작성: 상세 대상은 소모임·투표 조합과 삭제되지 않은 공통 모임·생성자·투표를 모두 확인한다. -->
+    <select id="selectSmallGroupVoteDetail"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailRow">
+        SELECT sgv.small_group_vote_id,
+               sgv.small_group_id,
+               sgv.creator_member_id,
+               creator.nickname AS creator_nickname,
+               sgv.title,
+               sgv.is_multiple_choice,
+               sgv.is_anonymous,
+               sgv.ends_at,
+               sgv.status,
+               sgv.closed_at,
+               sgv.created_at,
+               sgv.updated_at
+        FROM small_group_vote sgv
+        JOIN small_group sg ON sg.small_group_id = sgv.small_group_id
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN members creator ON creator.member_id = sgv.creator_member_id
+        WHERE sgv.small_group_id = #{smallGroupId}
+          AND sgv.small_group_vote_id = #{smallGroupVoteId}
+          AND sgv.deleted_at IS NULL
+          AND g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+    </select>
+
+    <!-- AI작성: 보기별 선택 행을 집계하되 선택 행이 없는 보기도 0표로 상세에 포함한다. -->
+    <select id="selectSmallGroupVoteDetailOptions"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailRow">
+        SELECT sgvo.small_group_vote_option_id,
+               sgvo.option_content AS content,
+               sgvo.display_order,
+               COUNT(sgvs.small_group_vote_participation_id) AS vote_count
+        FROM small_group_vote_option sgvo
+        LEFT JOIN small_group_vote_selection sgvs
+          ON sgvs.small_group_vote_option_id = sgvo.small_group_vote_option_id
+        WHERE sgvo.small_group_vote_id = #{smallGroupVoteId}
+        GROUP BY sgvo.small_group_vote_option_id,
+                 sgvo.option_content,
+                 sgvo.display_order
+        ORDER BY sgvo.display_order ASC, sgvo.small_group_vote_option_id ASC
+    </select>
+
+    <!-- AI작성: 투표별 참여 이력 행은 회원당 하나이므로 COUNT(*)로 참여 회원 수를 계산한다. -->
+    <select id="selectSmallGroupVoteParticipantCount" resultType="long">
+        SELECT COUNT(*)
+        FROM small_group_vote_participation
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+    </select>
+
+    <!-- AI작성: 유니크 제약이 보장한 회원별 참여 이력을 조회해 중복 참여 여부를 Service가 판단한다. -->
+    <select id="selectSmallGroupVoteParticipationId" resultType="long">
+        SELECT small_group_vote_participation_id
+        FROM small_group_vote_participation
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+          AND member_id = #{memberId}
+    </select>
+
+    <!-- AI작성: 로그인 회원의 참여 이력에 연결된 보기 ID만 조회해 다른 회원의 선택을 노출하지 않는다. -->
+    <select id="selectSmallGroupVoteSelectedOptionIds" resultType="long">
+        SELECT small_group_vote_option_id
+        FROM small_group_vote_selection
+        WHERE small_group_vote_participation_id = #{smallGroupVoteParticipationId}
+        ORDER BY small_group_vote_option_id ASC
+    </select>
+
+    <!-- AI작성: 익명 여부와 요청자 참여 여부는 Service가 확인한 뒤에만 이 공개 투표 닉네임 조회를 호출한다. -->
+    <select id="selectSmallGroupVoteOptionVoterNicknames"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionVoterNicknameRow">
+        SELECT sgvs.small_group_vote_option_id,
+               m.nickname AS voter_nickname
+        FROM small_group_vote_selection sgvs
+        JOIN small_group_vote_participation sgvp
+          ON sgvp.small_group_vote_participation_id = sgvs.small_group_vote_participation_id
+        JOIN members m ON m.member_id = sgvp.member_id
+        WHERE sgvp.small_group_vote_id = #{smallGroupVoteId}
+          AND m.deleted_at IS NULL
+        ORDER BY sgvs.small_group_vote_option_id ASC,
+                 sgvp.participated_at ASC,
+                 sgvp.small_group_vote_participation_id ASC
+    </select>
+
     <!-- AI작성: 공지 본문은 제외하고 작성 시각·ID 내림차순의 최근 4건만 공개 상세에 제공한다. -->
     <select id="selectRecentSmallGroupNotices"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
