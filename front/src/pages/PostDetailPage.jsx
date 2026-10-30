@@ -560,6 +560,8 @@ function PostDetailPage() {
           };
         })
       );
+      // AI작성: 삭제된 댓글은 목록에는 안내 문구로 남지만 댓글 수에서는 즉시 제외한다.
+      setCommentTotal((currentTotal) => Math.max(0, currentTotal - 1));
       // AI작성: 입력 또는 수정 중인 댓글이 삭제되면 남아 있는 입력 상태를 함께 정리합니다.
       if (replyingCommentId === deletingCommentId) {
         setReplyingCommentId(null);

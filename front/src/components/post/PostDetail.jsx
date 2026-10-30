@@ -162,6 +162,13 @@ const CommentInput = styled.textarea`
   }
 `;
 
+// AI작성: 댓글 입력창 높이만큼 버튼이 늘어나지 않도록 하단에 고정된 크기로 표시한다.
+const CommentSubmitButton = styled(Button)`
+  width: 76px;
+  min-width: 76px;
+  align-self: stretch;
+`;
+
 const CommentEditForm = styled.form`
   margin-top: 8px;
   display: grid;
@@ -372,9 +379,9 @@ function PostDetail({
             maxLength={500}
             placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
           />
-          <Button type="submit" $size="small" disabled={isSubmittingComment}>
+          <CommentSubmitButton type="submit" $size="small" disabled={isSubmittingComment}>
             {isSubmittingComment ? '등록 중...' : '등록'}
-          </Button>
+          </CommentSubmitButton>
         </CommentForm>
       </Comments>
     </>
