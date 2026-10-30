@@ -43,6 +43,17 @@ public class MemberProfileController {
 
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
+    // 로그인한 회원 본인의 활동 지역을 변경
+    @PutMapping("/me/region")
+    public ResponseEntity<ApiResponse<MemberProfileResponse>> updateMyRegion(
+            @RequestAttribute("memberId") Long memberId,
+            @Valid @RequestBody MemberRegionUpdateRequest request
+    ) {
+        MemberProfileResponse profile =
+                memberService.updateMyRegion(memberId, request);
+
+        return ResponseEntity.ok(ApiResponse.ok(profile));
+    }
 
     // 로그인한 회원의 비밀번호를 확인하고 회원정보 수정
     @PutMapping("/me")

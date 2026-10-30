@@ -21,7 +21,12 @@ public interface MemberService {
             Long memberId,
             RegionVerificationRequest request
     );
-    
+
+    MemberProfileResponse updateMyRegion(
+            Long memberId,
+            MemberRegionUpdateRequest request
+    );
+
     MemberProfileResponse updateMyProfile(
             Long memberId,
             MemberProfileUpdateRequest request

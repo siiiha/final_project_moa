@@ -170,7 +170,7 @@ public class KakaoApiClient {
             );
         }
 
-        // 법정동 응답 중 시·도와 시·군·구가 있는 항목을 사용
+        // 법정동 응답 중 읍·면·동명과 10자리 코드가 있는 항목을 사용
         return response.getDocuments().stream()
                 .filter(region -> region != null
                         && "B".equals(region.getRegionType())
@@ -178,7 +178,11 @@ public class KakaoApiClient {
                         && !region.getProvinceName().isBlank()
                         && ("세종특별자치시".equals(region.getProvinceName())
                         || (region.getDistrictName() != null
-                        && !region.getDistrictName().isBlank())))
+                        && !region.getDistrictName().isBlank()))
+                        && region.getTownName() != null
+                        && !region.getTownName().isBlank()
+                        && region.getLegalCode() != null
+                        && region.getLegalCode().matches("[0-9]{10}"))
                 .findFirst()
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.BAD_REQUEST,
