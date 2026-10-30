@@ -12,26 +12,26 @@ class MemberRestrictionPolicyTest {
 
     @Test
     void calculatesSevenAndThirtyDayRestrictions() {
-        assertThat(policy.calculateSuspendedUntil("ACTIVE", null, "7_DAYS", now))
+        assertThat(policy.calculateRestrictedUntil(false, null, "7_DAYS", now))
                 .isEqualTo(now.plusDays(7));
-        assertThat(policy.calculateSuspendedUntil("ACTIVE", null, "30_DAYS", now))
+        assertThat(policy.calculateRestrictedUntil(false, null, "30_DAYS", now))
                 .isEqualTo(now.plusDays(30));
     }
 
     @Test
     void accumulatesNewPeriodAfterExistingRestrictionAndKeepsPermanentRestriction() {
         LocalDateTime existing = now.plusDays(30);
-        assertThat(policy.calculateSuspendedUntil("SUSPENDED", existing, "7_DAYS", now))
+        assertThat(policy.calculateRestrictedUntil(true, existing, "7_DAYS", now))
                 .isEqualTo(existing.plusDays(7));
-        assertThat(policy.calculateSuspendedUntil("SUSPENDED", null, "7_DAYS", now)).isNull();
-        assertThat(policy.calculateSuspendedUntil("ACTIVE", null, "PERMANENT", now)).isNull();
+        assertThat(policy.calculateRestrictedUntil(true, null, "7_DAYS", now)).isNull();
+        assertThat(policy.calculateRestrictedUntil(false, null, "PERMANENT", now)).isNull();
     }
 
     @Test
     void calculatesNewRestrictionFromRequestTimeWhenExistingRestrictionExpired() {
         LocalDateTime expired = now.minusDays(1);
 
-        assertThat(policy.calculateSuspendedUntil("ACTIVE", expired, "7_DAYS", now))
+        assertThat(policy.calculateRestrictedUntil(true, expired, "7_DAYS", now))
                 .isEqualTo(now.plusDays(7));
     }
 }

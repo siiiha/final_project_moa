@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 public class MemberRestrictionPolicy {
 
     // AI작성: 기존 기간 제한에는 새 제한 기간을 누적하고, 영구 제한은 기간제로 바뀌지 않도록 종료 시각을 계산한다.
-    public LocalDateTime calculateSuspendedUntil(
-            String accountStatus,
-            LocalDateTime currentSuspendedUntil,
+    public LocalDateTime calculateRestrictedUntil(
+            boolean currentlyRestricted,
+            LocalDateTime currentRestrictedUntil,
             String restrictionTypeValue,
             LocalDateTime requestedAt
     ) {
@@ -20,15 +20,15 @@ public class MemberRestrictionPolicy {
             return null;
         }
 
-        // AI작성: 종료 시각이 없는 SUSPENDED 회원은 기간 제한을 다시 적용해도 영구 제한을 유지한다.
-        if ("SUSPENDED".equals(accountStatus) && currentSuspendedUntil == null) {
+        // AI작성: 현재 제한 행은 있지만 종료 시각이 없으면 영구 제한이므로 기간제로 바꾸지 않는다.
+        if (currentlyRestricted && currentRestrictedUntil == null) {
             return null;
         }
 
         // AI작성: 아직 끝나지 않은 제한은 기존 종료 시각부터 새 기간을 더하고, 만료된 제한은 요청 시각부터 계산한다.
-        LocalDateTime restrictionBaseTime = currentSuspendedUntil != null
-                && currentSuspendedUntil.isAfter(requestedAt)
-                ? currentSuspendedUntil
+        LocalDateTime restrictionBaseTime = currentRestrictedUntil != null
+                && currentRestrictedUntil.isAfter(requestedAt)
+                ? currentRestrictedUntil
                 : requestedAt;
         return restrictionBaseTime.plusDays(restrictionType.getDays());
     }

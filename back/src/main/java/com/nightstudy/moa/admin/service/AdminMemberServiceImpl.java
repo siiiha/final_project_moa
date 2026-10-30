@@ -6,10 +6,11 @@ import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionReleaseRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
+import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.dto.MemberRestrictionScope;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.service.AuthSessionService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -21,17 +22,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminMemberServiceImpl implements AdminMemberService {
     private final AdminMemberMapper adminMemberMapper;
     private final MemberRestrictionPolicy memberRestrictionPolicy;
-    private final AuthSessionService authSessionService;
 
-    // AI작성: 조회·상태 변경 Mapper와 공통 제한 정책, 기존 세션 폐기 기능을 재사용한다.
+    // AI작성: 조회·기능별 제한 저장 Mapper와 공통 제한 기간 정책을 재사용한다.
     public AdminMemberServiceImpl(
             AdminMemberMapper adminMemberMapper,
-            MemberRestrictionPolicy memberRestrictionPolicy,
-            AuthSessionService authSessionService
+            MemberRestrictionPolicy memberRestrictionPolicy
     ) {
         this.adminMemberMapper = adminMemberMapper;
         this.memberRestrictionPolicy = memberRestrictionPolicy;
-        this.authSessionService = authSessionService;
     }
 
     @Override
@@ -61,6 +59,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
                     "회원을 찾을 수 없습니다."
             );
         }
+        detail.setRestrictions(adminMemberMapper.selectMemberFeatureRestrictions(memberId));
         return detail;
     }
 
@@ -73,7 +72,8 @@ public class AdminMemberServiceImpl implements AdminMemberService {
             AdminMemberRestrictionRequest request
     ) {
         validateNotSelf(administratorId, memberId);
-        AdminMemberRestrictionTarget target = getRestrictionTarget(memberId);
+        MemberRestrictionScope restrictionScope = request.getRestrictionScope();
+        AdminMemberRestrictionTarget target = getRestrictionTarget(memberId, restrictionScope);
 
         if ("INACTIVE".equals(target.getAccountStatus())) {
             throw new ApiException(
@@ -83,28 +83,24 @@ public class AdminMemberServiceImpl implements AdminMemberService {
             );
         }
 
-        LocalDateTime restrictedUntil = memberRestrictionPolicy.calculateSuspendedUntil(
-                target.getAccountStatus(),
-                target.getSuspendedUntil(),
+        LocalDateTime restrictedUntil = memberRestrictionPolicy.calculateRestrictedUntil(
+                target.isCurrentlyRestricted(),
+                target.getRestrictedUntil(),
                 request.getRestrictionType(),
                 LocalDateTime.now()
         );
 
-        if (adminMemberMapper.updateMemberRestriction(memberId, restrictedUntil) != 1) {
-            throw restrictionConflict();
-        }
+        adminMemberMapper.upsertMemberRestriction(memberId, restrictionScope, restrictedUntil);
         if (adminMemberMapper.insertRestrictionHistory(
                 memberId,
-                "RESTRICT",
+                MemberRestrictionAction.RESTRICT,
                 request.getRestrictionType(),
+                restrictionScope,
                 request.getReason(),
                 restrictedUntil
         ) != 1) {
             throw restrictionConflict();
         }
-
-        // AI작성: 상태 확인으로 기존 JWT를 차단하면서 저장된 로그인 세션도 즉시 모두 폐기한다.
-        authSessionService.revokeAllSessions(memberId);
     }
 
     @Override
@@ -116,21 +112,23 @@ public class AdminMemberServiceImpl implements AdminMemberService {
             AdminMemberRestrictionReleaseRequest request
     ) {
         validateNotSelf(administratorId, memberId);
-        AdminMemberRestrictionTarget target = getRestrictionTarget(memberId);
+        MemberRestrictionScope restrictionScope = request.getRestrictionScope();
+        AdminMemberRestrictionTarget target = getRestrictionTarget(memberId, restrictionScope);
 
-        if (!"SUSPENDED".equals(target.getAccountStatus())) {
+        if (!target.isCurrentlyRestricted()) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
-                    "MEMBER_NOT_SUSPENDED",
-                    "이용 제한 상태인 회원만 제한을 해제할 수 있습니다."
+                    "MEMBER_FEATURE_NOT_RESTRICTED",
+                    "선택한 기능이 제한된 회원만 제한을 해제할 수 있습니다."
             );
         }
 
-        if (adminMemberMapper.releaseMemberRestriction(memberId) != 1
+        if (adminMemberMapper.releaseMemberRestriction(memberId, restrictionScope) != 1
                 || adminMemberMapper.insertRestrictionHistory(
                         memberId,
-                        "RELEASE",
+                        MemberRestrictionAction.RELEASE,
                         null,
+                        restrictionScope,
                         request.getReason(),
                         null
                 ) != 1) {
@@ -139,8 +137,14 @@ public class AdminMemberServiceImpl implements AdminMemberService {
     }
 
     // AI작성: 동시 요청에 사용될 잠긴 회원 정보를 조회하고 존재하지 않으면 404로 처리한다.
-    private AdminMemberRestrictionTarget getRestrictionTarget(Long memberId) {
-        AdminMemberRestrictionTarget target = adminMemberMapper.selectRestrictionTargetForUpdate(memberId);
+    private AdminMemberRestrictionTarget getRestrictionTarget(
+            Long memberId,
+            MemberRestrictionScope restrictionScope
+    ) {
+        AdminMemberRestrictionTarget target = adminMemberMapper.selectRestrictionTargetForUpdate(
+                memberId,
+                restrictionScope
+        );
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "회원을 찾을 수 없습니다.");
         }

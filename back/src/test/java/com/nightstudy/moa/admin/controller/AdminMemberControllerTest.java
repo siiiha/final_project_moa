@@ -88,7 +88,7 @@ class AdminMemberControllerTest {
                         .requestAttr("memberId", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"restrictionType":"7_DAYS","reason":"운영정책 위반"}
+                                {"restrictionScope":"CONTENT","restrictionType":"7_DAYS","reason":"운영정책 위반"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
@@ -100,7 +100,19 @@ class AdminMemberControllerTest {
                         .requestAttr("memberId", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"restrictionType":"ONE_DAY","reason":""}
+                                {"restrictionScope":"CONTENT","restrictionType":"ONE_DAY","reason":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void restrictMemberRejectsMissingScope() throws Exception {
+        mockMvc.perform(patch("/api/admin/members/2/restriction")
+                        .requestAttr("memberId", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"restrictionType":"7_DAYS","reason":"운영정책 위반"}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
@@ -112,7 +124,7 @@ class AdminMemberControllerTest {
                         .requestAttr("memberId", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"reason":""}
+                                {"restrictionScope":"CONTENT","reason":""}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));

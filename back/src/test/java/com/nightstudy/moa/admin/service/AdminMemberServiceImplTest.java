@@ -13,10 +13,13 @@ import com.nightstudy.moa.admin.dto.AdminMemberListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberListResult;
 import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionReleaseRequest;
+import com.nightstudy.moa.admin.dto.MemberRestrictionScope;
+import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
+import com.nightstudy.moa.admin.dto.AdminMemberFeatureRestrictionResponse;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.service.AuthSessionService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -33,9 +36,6 @@ class AdminMemberServiceImplTest {
 
     @Mock
     private MemberRestrictionPolicy memberRestrictionPolicy;
-
-    @Mock
-    private AuthSessionService authSessionService;
 
     @InjectMocks
     private AdminMemberServiceImpl adminMemberService;
@@ -74,8 +74,14 @@ class AdminMemberServiceImplTest {
         AdminMemberDetailResponse detail = new AdminMemberDetailResponse();
         detail.setMemberId(1L);
         when(adminMemberMapper.selectMemberDetail(1L)).thenReturn(detail);
+        AdminMemberFeatureRestrictionResponse restriction = new AdminMemberFeatureRestrictionResponse();
+        restriction.setRestrictionScope(MemberRestrictionScope.CONTENT);
+        when(adminMemberMapper.selectMemberFeatureRestrictions(1L)).thenReturn(List.of(restriction));
 
-        assertThat(adminMemberService.getMemberDetail(1L)).isSameAs(detail);
+        AdminMemberDetailResponse result = adminMemberService.getMemberDetail(1L);
+
+        assertThat(result).isSameAs(detail);
+        assertThat(result.getRestrictions()).containsExactly(restriction);
     }
 
     @Test
@@ -90,35 +96,73 @@ class AdminMemberServiceImplTest {
     }
 
     @Test
-    void restrictMemberUpdatesHistoryAndRevokesSessions() {
+    void restrictMemberUpsertsSelectedScopeAndSavesHistory() {
         AdminMemberRestrictionTarget target = new AdminMemberRestrictionTarget();
         target.setMemberId(2L);
         target.setAccountStatus("ACTIVE");
         LocalDateTime restrictedUntil = LocalDateTime.of(2026, 11, 5, 10, 0);
         AdminMemberRestrictionRequest request = new AdminMemberRestrictionRequest();
+        request.setRestrictionScope(MemberRestrictionScope.CONTENT);
         request.setRestrictionType("7_DAYS");
         request.setReason("운영정책 위반");
 
-        when(adminMemberMapper.selectRestrictionTargetForUpdate(2L)).thenReturn(target);
-        when(memberRestrictionPolicy.calculateSuspendedUntil(eq("ACTIVE"), eq(null), eq("7_DAYS"), any()))
+        when(adminMemberMapper.selectRestrictionTargetForUpdate(2L, MemberRestrictionScope.CONTENT))
+                .thenReturn(target);
+        when(memberRestrictionPolicy.calculateRestrictedUntil(eq(false), eq(null), eq("7_DAYS"), any()))
                 .thenReturn(restrictedUntil);
-        when(adminMemberMapper.updateMemberRestriction(2L, restrictedUntil)).thenReturn(1);
         when(adminMemberMapper.insertRestrictionHistory(
-                2L, "RESTRICT", "7_DAYS", "운영정책 위반", restrictedUntil
+                2L,
+                MemberRestrictionAction.RESTRICT,
+                "7_DAYS",
+                MemberRestrictionScope.CONTENT,
+                "운영정책 위반",
+                restrictedUntil
         )).thenReturn(1);
 
         adminMemberService.restrictMember(1L, 2L, request);
 
-        verify(authSessionService).revokeAllSessions(2L);
+        verify(adminMemberMapper).upsertMemberRestriction(
+                2L,
+                MemberRestrictionScope.CONTENT,
+                restrictedUntil
+        );
     }
 
     @Test
     void restrictMemberRejectsAdministratorSelfRestriction() {
         AdminMemberRestrictionRequest request = new AdminMemberRestrictionRequest();
+        request.setRestrictionScope(MemberRestrictionScope.CONTENT);
 
         assertThatThrownBy(() -> adminMemberService.restrictMember(1L, 1L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("ADMIN_SELF_RESTRICTION_NOT_ALLOWED"));
-        verify(adminMemberMapper, never()).selectRestrictionTargetForUpdate(1L);
+        verify(adminMemberMapper, never()).selectRestrictionTargetForUpdate(any(), any());
+    }
+
+    @Test
+    void releaseMemberRestrictionDeletesOnlySelectedScopeAndSavesHistory() {
+        AdminMemberRestrictionTarget target = new AdminMemberRestrictionTarget();
+        target.setMemberId(2L);
+        target.setAccountStatus("ACTIVE");
+        target.setRestrictionScope(MemberRestrictionScope.CHAT);
+        AdminMemberRestrictionReleaseRequest request = new AdminMemberRestrictionReleaseRequest();
+        request.setRestrictionScope(MemberRestrictionScope.CHAT);
+        request.setReason("관리자 재검토");
+
+        when(adminMemberMapper.selectRestrictionTargetForUpdate(2L, MemberRestrictionScope.CHAT))
+                .thenReturn(target);
+        when(adminMemberMapper.releaseMemberRestriction(2L, MemberRestrictionScope.CHAT)).thenReturn(1);
+        when(adminMemberMapper.insertRestrictionHistory(
+                2L,
+                MemberRestrictionAction.RELEASE,
+                null,
+                MemberRestrictionScope.CHAT,
+                "관리자 재검토",
+                null
+        )).thenReturn(1);
+
+        adminMemberService.releaseMemberRestriction(1L, 2L, request);
+
+        verify(adminMemberMapper).releaseMemberRestriction(2L, MemberRestrictionScope.CHAT);
     }
 }

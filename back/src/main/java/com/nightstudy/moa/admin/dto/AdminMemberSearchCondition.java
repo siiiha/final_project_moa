@@ -16,7 +16,7 @@ public class AdminMemberSearchCondition {
     @Size(max = 40, message = "검색어는 40자 이내로 입력해 주세요.")
     private String keyword;
 
-    @Pattern(regexp = "ACTIVE|SUSPENDED|INACTIVE", message = "회원 상태를 다시 선택해 주세요.")
+    @Pattern(regexp = "ACTIVE|INACTIVE", message = "회원 상태를 다시 선택해 주세요.")
     private String accountStatus;
 
     @Size(max = 100, message = "지역명은 100자 이내로 입력해 주세요.")

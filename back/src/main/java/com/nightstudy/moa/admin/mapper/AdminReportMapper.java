@@ -38,12 +38,6 @@ public interface AdminReportMapper {
     // AI작성: 신고 유형에 따라 회원, 게시글 작성자 또는 댓글 작성자를 찾는다.
     Long selectReportedMemberId(@Param("reportId") Long reportId);
 
-    // AI작성: 탈퇴 회원 제한 방지와 기존 제한 연장을 위해 현재 회원 상태를 확인한다.
-    String selectMemberAccountStatus(@Param("memberId") Long memberId);
-
-    // AI작성: 기존 제한이 새 제한보다 길거나 영구인지 판단하기 위한 종료 시각이다.
-    LocalDateTime selectMemberSuspendedUntil(@Param("memberId") Long memberId);
-
     // AI작성: PENDING 신고만 최종 상태로 변경하여 중복 처리를 한 번 더 방지한다.
     int updateReportProcess(
             @Param("reportId") Long reportId,
@@ -52,12 +46,4 @@ public interface AdminReportMapper {
             @Param("restrictedUntil") LocalDateTime restrictedUntil
     );
 
-    // AI작성: 계산된 종료 시각과 SUSPENDED 상태를 회원 정보에 함께 반영한다.
-    int updateMemberRestriction(
-            @Param("memberId") Long memberId,
-            @Param("suspendedUntil") LocalDateTime suspendedUntil
-    );
-
-    // AI작성: 종료 시각이 지난 기간제 제한 회원을 ACTIVE 상태로 일괄 변경한다.
-    int releaseExpiredMemberRestrictions();
 }

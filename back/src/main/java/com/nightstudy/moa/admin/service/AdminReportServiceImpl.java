@@ -6,6 +6,10 @@ import com.nightstudy.moa.admin.dto.AdminReportListResult;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
 import com.nightstudy.moa.admin.dto.AdminReportProcessRequest;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
+import com.nightstudy.moa.admin.dto.MemberRestrictionScope;
+import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -23,15 +27,18 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 관리자 신고 조회, 신고 상태 변경, 대상 회원 이용 제한 규칙을 처리한다.
 public class AdminReportServiceImpl implements AdminReportService {
     private final AdminReportMapper adminReportMapper;
+    private final AdminMemberMapper adminMemberMapper;
     private final MemberRestrictionPolicy memberRestrictionPolicy;
 
     // AI작성: 신고 조회와 상태 변경에 사용할 Mapper를 생성자 주입으로 전달받는다.
     @Autowired
     public AdminReportServiceImpl(
             AdminReportMapper adminReportMapper,
+            AdminMemberMapper adminMemberMapper,
             MemberRestrictionPolicy memberRestrictionPolicy
     ){
         this.adminReportMapper = adminReportMapper;
+        this.adminMemberMapper = adminMemberMapper;
         this.memberRestrictionPolicy = memberRestrictionPolicy;
     }
 
@@ -108,7 +115,11 @@ public class AdminReportServiceImpl implements AdminReportService {
         // AI작성: 반려는 신고 상태와 사유만 변경하고, 정상 처리일 때만 회원을 이용 제한한다.
         LocalDateTime restrictedUntil = null;
         if ("CONFIRMED".equals(request.getStatus())) {
-            restrictedUntil = applyMemberRestriction(reportId, request.getRestrictionType());
+            restrictedUntil = applyMemberRestriction(
+                    reportId,
+                    request.getRestrictionType(),
+                    request.getProcessReason()
+            );
         }
 
         int updatedCount = adminReportMapper.updateReportProcess(
@@ -132,7 +143,7 @@ public class AdminReportServiceImpl implements AdminReportService {
     // AI작성: 스케줄러가 호출하면 만료된 기간제 제한을 일괄 해제하고 처리 건수를 반환한다.
     // 서비스 단위의 DB변경이라 @Transactional을 붙였는데 UPDATE는 한 번만 일어나서... 삭제해도 무방합니다.
     public int releaseExpiredMemberRestrictions() {
-        return adminReportMapper.releaseExpiredMemberRestrictions();
+        return adminMemberMapper.deleteExpiredMemberRestrictions();
     }
 
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
@@ -160,7 +171,8 @@ public class AdminReportServiceImpl implements AdminReportService {
     // AI작성: 신고 사건에 기록된 제재 대상 회원에게 이용 제한을 적용한다.
     private LocalDateTime applyMemberRestriction(
             Long reportId,
-            String restrictionType
+            String restrictionType,
+            String reason
     ) {
         Long memberId = adminReportMapper.selectReportedMemberId(reportId);
         if (memberId == null) {
@@ -171,8 +183,12 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        String accountStatus = adminReportMapper.selectMemberAccountStatus(memberId);
-        if (accountStatus == null) {
+        MemberRestrictionScope restrictionScope = MemberRestrictionScope.CONTENT;
+        AdminMemberRestrictionTarget target = adminMemberMapper.selectRestrictionTargetForUpdate(
+                memberId,
+                restrictionScope
+        );
+        if (target == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "MEMBER_NOT_FOUND",
@@ -180,7 +196,7 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        if ("INACTIVE".equals(accountStatus)) {
+        if ("INACTIVE".equals(target.getAccountStatus())) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "INACTIVE_MEMBER_RESTRICTION_NOT_ALLOWED",
@@ -188,22 +204,30 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        //새로운 정지 종료 시점을 계산
-        LocalDateTime suspendedUntil = memberRestrictionPolicy.calculateSuspendedUntil(
-                accountStatus, //현재 회원 계정 상태
-                adminReportMapper.selectMemberSuspendedUntil(memberId), //현재 정지 종료 시점
-                restrictionType, //새로 적용할 이용 제한 유형
+        // AI작성: 게시글·댓글 신고 승인에는 CONTENT 범위를 적용하고 기존 제한 종료 시각부터 기간을 누적한다.
+        LocalDateTime restrictedUntil = memberRestrictionPolicy.calculateRestrictedUntil(
+                target.isCurrentlyRestricted(),
+                target.getRestrictedUntil(),
+                restrictionType,
                 LocalDateTime.now()
         );
 
-        if (adminReportMapper.updateMemberRestriction(memberId, suspendedUntil) != 1) {
+        adminMemberMapper.upsertMemberRestriction(memberId, restrictionScope, restrictedUntil);
+        if (adminMemberMapper.insertRestrictionHistory(
+                memberId,
+                MemberRestrictionAction.RESTRICT,
+                restrictionType,
+                restrictionScope,
+                reason,
+                restrictedUntil
+        ) != 1) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "MEMBER_RESTRICTION_FAILED",
                     "회원 이용 제한을 적용하지 못했습니다."
             );
         }
-        return suspendedUntil;
+        return restrictedUntil;
     }
 
 }
