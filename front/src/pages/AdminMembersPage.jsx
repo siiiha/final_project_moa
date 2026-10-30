@@ -52,6 +52,7 @@ function AdminMembersPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('전체');
   const [region, setRegion] = useState('전체');
+  const [restrictionScope, setRestrictionScope] = useState('');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [members, setMembers] = useState([]);
@@ -71,6 +72,7 @@ function AdminMembersPage() {
           keyword: submittedQuery,
           regionName: region === '전체' ? '' : region,
           accountStatus: statusMap[status] || '',
+          restrictionScope,
           page: currentPage,
           size: PAGE_SIZE,
           signal: controller.signal,
@@ -89,7 +91,7 @@ function AdminMembersPage() {
     }
     loadMembers();
     return () => controller.abort();
-  }, [currentPage, region, status, submittedQuery]);
+  }, [currentPage, region, restrictionScope, status, submittedQuery]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -122,6 +124,7 @@ function AdminMembersPage() {
               <AdminFilterBar
                 status={status}
                 region={region}
+                restrictionScope={restrictionScope}
                 query={query}
                 onStatusChange={(value) => {
                   setStatus(value);
@@ -129,6 +132,10 @@ function AdminMembersPage() {
                 }}
                 onRegionChange={(value) => {
                   setRegion(value);
+                  setCurrentPage(1);
+                }}
+                onRestrictionScopeChange={(value) => {
+                  setRestrictionScope(value);
                   setCurrentPage(1);
                 }}
                 onQueryChange={setQuery}

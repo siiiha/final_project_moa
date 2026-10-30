@@ -1,5 +1,6 @@
 package com.nightstudy.moa.admin.dto;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
@@ -21,6 +22,9 @@ public class AdminMemberSearchCondition {
 
     @Size(max = 100, message = "지역명은 100자 이내로 입력해 주세요.")
     private String regionName;
+
+    // AI작성: 현재 적용 중인 기능 제한 영역으로 관리자 회원 목록을 필터링합니다.
+    private MemberRestrictionScope restrictionScope;
 
     @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.")
     private int page = 1;

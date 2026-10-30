@@ -65,13 +65,14 @@ function mapMember(member) {
 }
 
 // AI작성: 관리자 회원 목록 API 응답을 기존 테이블 표시 형식으로 변환한다.
-export async function getAdminMembers({ keyword, regionName, accountStatus, page = 1, size = 10, signal } = {}) {
+export async function getAdminMembers({ keyword, regionName, accountStatus, restrictionScope, page = 1, size = 10, signal } = {}) {
   try {
     const response = await client.get('/admin/members', {
       params: {
         keyword: keyword || undefined,
         regionName: regionName || undefined,
         accountStatus: accountStatus || undefined,
+        restrictionScope: restrictionScope || undefined,
         page,
         size,
       },

@@ -68,7 +68,17 @@ const SearchButton = styled(Button)`
   }
 `;
 
-function AdminFilterBar({ status, region, query, onStatusChange, onRegionChange, onQueryChange, onSearch }) {
+function AdminFilterBar({
+  status,
+  region,
+  restrictionScope,
+  query,
+  onStatusChange,
+  onRegionChange,
+  onRestrictionScopeChange,
+  onQueryChange,
+  onSearch,
+}) {
   return (
     <Form onSubmit={onSearch}>
       <Control aria-label="회원 상태" value={status} onChange={(event) => onStatusChange(event.target.value)}>
@@ -85,6 +95,17 @@ function AdminFilterBar({ status, region, query, onStatusChange, onRegionChange,
             {item.name}
           </option>
         ))}
+      </Control>
+      {/* AI작성: 현재 적용 중인 회원 기능 제한 영역으로 목록을 필터링한다. */}
+      <Control
+        aria-label="이용 제한 영역"
+        value={restrictionScope}
+        onChange={(event) => onRestrictionScopeChange(event.target.value)}
+      >
+        <option value="">전체 제한 영역</option>
+        <option value="CONTENT">게시글·댓글</option>
+        <option value="CHAT">채팅</option>
+        <option value="REPORT">신고</option>
       </Control>
       <SearchInput
         value={query}

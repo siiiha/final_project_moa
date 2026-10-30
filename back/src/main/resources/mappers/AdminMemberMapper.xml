@@ -36,6 +36,19 @@
             <if test="regionName != null">
                 AND r.region_name LIKE CONCAT(#{regionName}, '%')
             </if>
+            <!-- AI작성: 만료되지 않은 현재 기능 제한이 선택 영역에 존재하는 회원만 조회한다. -->
+            <if test="restrictionScope != null">
+                AND EXISTS (
+                    SELECT 1
+                    FROM member_feature_restriction mfr
+                    WHERE mfr.member_id = m.member_id
+                      AND mfr.restriction_scope = #{restrictionScope}
+                      AND (
+                          mfr.restricted_until IS NULL
+                          OR mfr.restricted_until &gt; CURRENT_TIMESTAMP
+                      )
+                )
+            </if>
         </where>
     </sql>
 
