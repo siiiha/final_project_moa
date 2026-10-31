@@ -111,6 +111,20 @@ class SmallGroupSecurityIntegrationTest {
     }
 
     @Test
+    void smallGroupVoteParticipationApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/small-groups/1/votes/2/participations")
+                        .contentType("application/json")
+                        .content("{\"selectedOptionIds\":[101]}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void smallGroupVoteStatusApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/small-groups/1/votes/2/status"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void smallGroupJoinRequestApprovalApiRequiresAuthentication() throws Exception {
         mockMvc.perform(patch("/api/small-groups/1/join-requests/2/approve"))
                 .andExpect(status().isUnauthorized());

@@ -18,6 +18,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteParticipationRequest;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
 import jakarta.validation.Valid;
@@ -121,6 +122,27 @@ public class SmallGroupController {
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(
                 smallGroupService.getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, memberId));
+    }
+
+    // AI작성: JWT 회원 ID와 선택 보기만 전달하며 투표 가능 여부·선택 변경·저장은 Service 트랜잭션에서 처리한다.
+    @PostMapping("/{smallGroupId}/votes/{smallGroupVoteId}/participations")
+    public ApiResponse<Void> participateVote(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @Valid @RequestBody SmallGroupVoteParticipationRequest request,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.participateSmallGroupVote(smallGroupId, smallGroupVoteId, memberId, request);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 투표 완료 회원만 현황을 조회하도록 Service에 JWT 회원 ID와 경로 식별자를 전달한다.
+    @GetMapping("/{smallGroupId}/votes/{smallGroupVoteId}/status")
+    public ApiResponse<SmallGroupVoteDetailResponse> getVoteStatus(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(
+                smallGroupService.getSmallGroupVoteStatus(smallGroupId, smallGroupVoteId, memberId));
     }
 
     // AI작성: 승인자는 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
