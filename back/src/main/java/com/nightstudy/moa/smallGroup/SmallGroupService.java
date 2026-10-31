@@ -10,6 +10,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteParticipationRequest;
 import java.util.List;
 
 // AI작성: 소모임 공개 목록의 검색·필터 조회 계약이다.
@@ -48,5 +49,14 @@ public interface SmallGroupService {
 
     // AI작성: 승인된 소모임 OWNER 또는 MEMBER만 소속 투표의 상세·결과를 정책 범위 안에서 조회한다.
     SmallGroupVoteDetailResponse getSmallGroupVoteDetail(
+            Long smallGroupId, Long smallGroupVoteId, Long memberId);
+
+    // AI작성: 승인 회원의 최초 참여는 저장하고, 기존 참여자는 선택 변경이 있을 때만 이력을 갱신한다.
+    void participateSmallGroupVote(
+            Long smallGroupId, Long smallGroupVoteId, Long memberId,
+            SmallGroupVoteParticipationRequest request);
+
+    // AI작성: 참여 이력이 있는 승인 회원만 항목별 득표·참여자 정보를 조회한다.
+    SmallGroupVoteDetailResponse getSmallGroupVoteStatus(
             Long smallGroupId, Long smallGroupVoteId, Long memberId);
 }
