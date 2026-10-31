@@ -552,6 +552,41 @@
           AND creator.deleted_at IS NULL
     </select>
 
+    <!-- AI작성: 참여 처리에서는 동일 투표 행을 잠가 마감 시각 검증과 선택 이력 변경을 한 트랜잭션 기준으로 수행한다. -->
+    <select id="selectSmallGroupVoteDetailForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailRow">
+        SELECT sgv.small_group_vote_id,
+               sgv.small_group_id,
+               sgv.creator_member_id,
+               creator.nickname AS creator_nickname,
+               sgv.title,
+               sgv.is_multiple_choice,
+               sgv.is_anonymous,
+               sgv.ends_at,
+               sgv.status,
+               sgv.closed_at,
+               sgv.created_at,
+               sgv.updated_at
+        FROM small_group_vote sgv
+        JOIN small_group sg ON sg.small_group_id = sgv.small_group_id
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN members creator ON creator.member_id = sgv.creator_member_id
+        WHERE sgv.small_group_id = #{smallGroupId}
+          AND sgv.small_group_vote_id = #{smallGroupVoteId}
+          AND sgv.deleted_at IS NULL
+          AND g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 선택 수와 해당 투표 소속 여부 검증을 위해 보기 ID만 표시 순서대로 조회한다. -->
+    <select id="selectSmallGroupVoteOptionIds" resultType="long">
+        SELECT small_group_vote_option_id
+        FROM small_group_vote_option
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+        ORDER BY display_order ASC, small_group_vote_option_id ASC
+    </select>
+
     <!-- AI작성: 보기별 선택 행을 집계하되 선택 행이 없는 보기도 0표로 상세에 포함한다. -->
     <select id="selectSmallGroupVoteDetailOptions"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailRow">
@@ -583,6 +618,50 @@
         WHERE small_group_vote_id = #{smallGroupVoteId}
           AND member_id = #{memberId}
     </select>
+
+    <!-- AI작성: 기존 참여 행을 잠가 같은 회원의 동시에 들어온 선택 변경 요청을 직렬화한다. -->
+    <select id="selectSmallGroupVoteParticipationIdForUpdate" resultType="long">
+        SELECT small_group_vote_participation_id
+        FROM small_group_vote_participation
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+          AND member_id = #{memberId}
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 참여 시각은 DB 현재 시각으로 기록하며, 동일 투표·회원 유니크 제약은 최종 중복 방어로 유지한다. -->
+    <insert id="insertSmallGroupVoteParticipation">
+        INSERT INTO small_group_vote_participation (
+            small_group_vote_id,
+            member_id
+        ) VALUES (
+            #{smallGroupVoteId},
+            #{memberId}
+        )
+    </insert>
+
+    <!-- AI작성: Service가 소속과 중복을 검증한 보기 ID만 참여 이력과 일괄 연결한다. -->
+    <insert id="insertSmallGroupVoteSelections">
+        INSERT INTO small_group_vote_selection (
+            small_group_vote_participation_id,
+            small_group_vote_option_id
+        ) VALUES
+        <foreach collection="selectedOptionIds" item="selectedOptionId" separator=",">
+            (#{smallGroupVoteParticipationId}, #{selectedOptionId})
+        </foreach>
+    </insert>
+
+    <!-- AI작성: 선택 변경일 때만 이전 선택 연결 전체를 제거하고 같은 참여 이력에 새 선택을 저장한다. -->
+    <delete id="deleteSmallGroupVoteSelections">
+        DELETE FROM small_group_vote_selection
+        WHERE small_group_vote_participation_id = #{smallGroupVoteParticipationId}
+    </delete>
+
+    <!-- AI작성: 같은 선택을 다시 제출한 경우에는 호출하지 않아 최초 참여 시각을 보존한다. -->
+    <update id="updateSmallGroupVoteParticipationTime">
+        UPDATE small_group_vote_participation
+        SET participated_at = CURRENT_TIMESTAMP
+        WHERE small_group_vote_participation_id = #{smallGroupVoteParticipationId}
+    </update>
 
     <!-- AI작성: 로그인 회원의 참여 이력에 연결된 보기 ID만 조회해 다른 회원의 선택을 노출하지 않는다. -->
     <select id="selectSmallGroupVoteSelectedOptionIds" resultType="long">

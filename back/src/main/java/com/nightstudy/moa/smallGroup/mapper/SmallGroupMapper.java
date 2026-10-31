@@ -151,6 +151,14 @@ public interface SmallGroupMapper {
             @Param("smallGroupId") Long smallGroupId,
             @Param("smallGroupVoteId") Long smallGroupVoteId);
 
+    // AI작성: 참여 저장 중 투표 행을 잠가 마감·삭제·선택 변경과 동시 요청을 같은 기준으로 처리한다.
+    SmallGroupVoteDetailRow selectSmallGroupVoteDetailForUpdate(
+            @Param("smallGroupId") Long smallGroupId,
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
+    // AI작성: 요청한 보기 ID가 해당 투표에 모두 속하는지 검증할 수 있도록 소속 보기 ID만 반환한다.
+    List<Long> selectSmallGroupVoteOptionIds(@Param("smallGroupVoteId") Long smallGroupVoteId);
+
     // AI작성: 투표 상세의 보기를 표시 순서와 현재 득표 수로 함께 조회한다.
     List<SmallGroupVoteOptionDetailRow> selectSmallGroupVoteDetailOptions(
             @Param("smallGroupVoteId") Long smallGroupVoteId);
@@ -162,6 +170,27 @@ public interface SmallGroupMapper {
     Long selectSmallGroupVoteParticipationId(
             @Param("smallGroupVoteId") Long smallGroupVoteId,
             @Param("memberId") Long memberId);
+
+    // AI작성: 기존 참여 행을 잠가 선택 변경과 동시에 같은 회원의 이력이 중복 갱신되지 않게 한다.
+    Long selectSmallGroupVoteParticipationIdForUpdate(
+            @Param("smallGroupVoteId") Long smallGroupVoteId,
+            @Param("memberId") Long memberId);
+
+    // AI작성: 최초 참여 이력을 저장한 뒤 선택 연결을 추가한다.
+    int insertSmallGroupVoteParticipation(
+            @Param("smallGroupVoteId") Long smallGroupVoteId,
+            @Param("memberId") Long memberId);
+
+    // AI작성: 선택 보기 ID 목록을 한 참여 이력에 일괄 연결한다.
+    int insertSmallGroupVoteSelections(
+            @Param("smallGroupVoteParticipationId") Long smallGroupVoteParticipationId,
+            @Param("selectedOptionIds") List<Long> selectedOptionIds);
+
+    // AI작성: 선택 변경 시 기존 보기 연결만 제거하고 참여 이력 행은 유지한다.
+    int deleteSmallGroupVoteSelections(@Param("smallGroupVoteParticipationId") Long smallGroupVoteParticipationId);
+
+    // AI작성: 실제 선택이 달라진 재투표만 마지막 참여 시각을 갱신한다.
+    int updateSmallGroupVoteParticipationTime(@Param("smallGroupVoteParticipationId") Long smallGroupVoteParticipationId);
 
     // AI작성: 참여 이력에 연결된 선택 보기 ID만 반환해 내 선택 표시와 참여 API 후 재조회에 사용한다.
     List<Long> selectSmallGroupVoteSelectedOptionIds(
