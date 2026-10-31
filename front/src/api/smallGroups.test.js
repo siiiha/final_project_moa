@@ -5,6 +5,7 @@ import {
   createSmallGroup,
   createSmallGroupVote,
   getSmallGroupVoteDetail,
+  getSmallGroupVoteStatus,
   getSmallGroupVotes,
   fetchSmallGroupRegions,
   SmallGroupCreationError,
@@ -13,6 +14,8 @@ import {
   SmallGroupJoinRequestError,
   SmallGroupVoteCreateError,
   SmallGroupVoteDetailLoadError,
+  SmallGroupVoteParticipationError,
+  SmallGroupVoteStatusLoadError,
   SmallGroupVoteListLoadError,
   approveSmallGroupJoinRequest,
   rejectSmallGroupJoinRequest,
@@ -25,8 +28,97 @@ import {
   toSmallGroupCard,
   toSmallGroupDetail,
   toSmallGroupVoteDetail,
+  participateSmallGroupVote,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+test('소모임 투표 참여는 선택 보기 ID를 POST 본문으로 전송한다', async () => {
+  const originalPost = client.post;
+
+  try {
+    client.post = async (path, payload) => {
+      assert.equal(path, '/small-groups/7/votes/11/participations');
+      assert.deepEqual(payload, { selectedOptionIds: [101, 102] });
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+
+    await participateSmallGroupVote(7, 11, [101, 102]);
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+test('소모임 투표 참여는 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalPost = client.post;
+
+  try {
+    client.post = async () => {
+      const error = new Error('Closed');
+      error.response = {
+        data: {
+          success: false,
+          error: { code: 'SMALL_GROUP_VOTE_CLOSED', message: '마감된 투표에는 참여할 수 없습니다.' },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      participateSmallGroupVote(7, 11, [101]),
+      (error) => error instanceof SmallGroupVoteParticipationError
+        && error.code === 'SMALL_GROUP_VOTE_CLOSED'
+        && error.message === '마감된 투표에는 참여할 수 없습니다.',
+    );
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+test('소모임 투표 현황은 참여 완료 회원 전용 GET 요청과 상세 응답 검증을 사용한다', async () => {
+  const originalGet = client.get;
+  const signal = new AbortController().signal;
+  const detail = voteDetail();
+
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/small-groups/7/votes/11/status');
+      assert.deepEqual(options, { signal });
+      return { data: { success: true, data: detail, meta: null, error: null } };
+    };
+
+    assert.deepEqual(await getSmallGroupVoteStatus(7, 11, { signal }), detail);
+  } finally {
+    client.get = originalGet;
+  }
+});
+
+test('소모임 투표 현황은 미참여 회원 오류 코드를 보존한다', async () => {
+  const originalGet = client.get;
+
+  try {
+    client.get = async () => {
+      const error = new Error('Forbidden');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_VOTE_STATUS_FORBIDDEN',
+            message: '투표를 완료한 소모임 회원만 투표 현황을 조회할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      getSmallGroupVoteStatus(7, 11),
+      (error) => error instanceof SmallGroupVoteStatusLoadError
+        && error.code === 'SMALL_GROUP_VOTE_STATUS_FORBIDDEN',
+    );
+  } finally {
+    client.get = originalGet;
+  }
+});
 
 test('소모임 투표 상세는 두 ID와 취소 신호로 GET 요청하고 검증된 응답을 반환한다', async () => {
   const originalGet = client.get;

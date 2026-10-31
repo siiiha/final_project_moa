@@ -90,6 +90,24 @@ export class SmallGroupVoteDetailLoadError extends Error {
   }
 }
 
+// AI작성: 투표 참여·선택 변경 실패 코드를 상세 화면에 그대로 전달한다.
+export class SmallGroupVoteParticipationError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteParticipationError';
+    this.code = code;
+  }
+}
+
+// AI작성: 참여 완료 회원 전용 현황 조회 실패를 투표 상세 최초 조회 오류와 구분한다.
+export class SmallGroupVoteStatusLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteStatusLoadError';
+    this.code = code;
+  }
+}
+
 // AI작성: interest 기준 카테고리 목록 조회 실패를 생성·목록 오류와 구분한다.
 export class SmallGroupCategoryLoadError extends Error {
   constructor(code, message) {
@@ -199,6 +217,24 @@ function toSmallGroupVoteDetailLoadError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupVoteDetailLoadError(
     responseError?.code || 'SMALL_GROUP_VOTE_DETAIL_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteParticipationError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteParticipationError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteParticipationError(
+    responseError?.code || 'SMALL_GROUP_VOTE_PARTICIPATION_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteStatusLoadError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteStatusLoadError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteStatusLoadError(
+    responseError?.code || 'SMALL_GROUP_VOTE_STATUS_LOAD_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -463,6 +499,47 @@ export async function getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, { 
     return toSmallGroupVoteDetail(response.data.data);
   } catch (error) {
     throw toSmallGroupVoteDetailLoadError(error, '투표 상세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 선택 보기 ID만 전송하고 최초 참여·동일 선택·선택 변경 판단은 서버 트랜잭션에 맡긴다.
+export async function participateSmallGroupVote(smallGroupId, smallGroupVoteId, selectedOptionIds) {
+  try {
+    const response = await client.post(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}/participations`,
+      { selectedOptionIds },
+    );
+    if (!response.data?.success) {
+      throw new SmallGroupVoteParticipationError(
+        response.data?.error?.code || 'SMALL_GROUP_VOTE_PARTICIPATION_FAILED',
+        response.data?.error?.message || '투표 참여 처리에 실패했습니다.',
+      );
+    }
+  } catch (error) {
+    throw toSmallGroupVoteParticipationError(error, '투표 참여 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 참여 완료 회원 전용 현황은 상세와 같은 응답 형식을 검증해 결과 패널에 전달한다.
+export async function getSmallGroupVoteStatus(smallGroupId, smallGroupVoteId, { signal } = {}) {
+  try {
+    const response = await client.get(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}/status`,
+      { signal },
+    );
+    if (!response.data?.success || !response.data.data) {
+      throw new SmallGroupVoteStatusLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '투표 현황 응답을 확인하지 못했습니다.',
+      );
+    }
+    try {
+      return toSmallGroupVoteDetail(response.data.data);
+    } catch (error) {
+      throw new SmallGroupVoteStatusLoadError(error.code || 'INVALID_RESPONSE', error.message);
+    }
+  } catch (error) {
+    throw toSmallGroupVoteStatusLoadError(error, '투표 현황을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 
