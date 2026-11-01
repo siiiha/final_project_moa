@@ -156,6 +156,11 @@ public interface SmallGroupMapper {
             @Param("smallGroupId") Long smallGroupId,
             @Param("smallGroupVoteId") Long smallGroupVoteId);
 
+    // AI작성: 삭제 검증을 통과한 소속 투표 한 건만 논리 삭제하고 보기·참여·선택 이력은 보존한다.
+    int softDeleteSmallGroupVote(
+            @Param("smallGroupId") Long smallGroupId,
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
     // AI작성: 요청한 보기 ID가 해당 투표에 모두 속하는지 검증할 수 있도록 소속 보기 ID만 반환한다.
     List<Long> selectSmallGroupVoteOptionIds(@Param("smallGroupVoteId") Long smallGroupVoteId);
 

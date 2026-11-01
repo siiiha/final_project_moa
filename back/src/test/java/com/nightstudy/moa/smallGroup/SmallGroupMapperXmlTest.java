@@ -41,6 +41,7 @@ class SmallGroupMapperXmlTest {
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteList")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetail")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetailForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "softDeleteSmallGroupVote")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteOptionIds")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetailOptions")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteParticipantCount")).isTrue();

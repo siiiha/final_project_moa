@@ -496,6 +496,7 @@
         FROM small_group_vote
         WHERE small_group_id = #{smallGroupId}
           AND closed_at IS NULL
+          AND deleted_at IS NULL
         FOR UPDATE
     </select>
 
@@ -519,6 +520,7 @@
                ends_at
         FROM small_group_vote
         WHERE small_group_id = #{smallGroupId}
+          AND deleted_at IS NULL
         AND (
             closed_at IS NULL
             OR closed_at >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
@@ -578,6 +580,15 @@
           AND creator.deleted_at IS NULL
         FOR UPDATE
     </select>
+
+    <!-- AI작성: 투표 기본 행만 논리 삭제해 보기·참여·선택 이력은 외래키 관계 그대로 보존한다. -->
+    <update id="softDeleteSmallGroupVote">
+        UPDATE small_group_vote
+        SET deleted_at = CURRENT_TIMESTAMP()
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+          AND small_group_id = #{smallGroupId}
+          AND deleted_at IS NULL
+    </update>
 
     <!-- AI작성: 선택 수와 해당 투표 소속 여부 검증을 위해 보기 ID만 표시 순서대로 조회한다. -->
     <select id="selectSmallGroupVoteOptionIds" resultType="long">
