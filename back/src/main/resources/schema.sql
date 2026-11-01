@@ -73,14 +73,14 @@ CREATE TABLE IF NOT EXISTS `fee_payment` (
 
 CREATE TABLE IF NOT EXISTS `members` (
 	`member_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`region_id`	BIGINT	NOT NULL,
+	`region_id`	BIGINT NULL,
 	`email`	VARCHAR(40)	NULL,
 	`password_hash`	VARCHAR(255)	NULL,
 	`name`	VARCHAR(50)	NOT NULL,
 	`nickname`	VARCHAR(50)	NOT NULL,
-	`phone`	VARCHAR(20)	NOT NULL,
-	`birth_date`	DATE	NOT NULL,
-	`gender`	ENUM('MALE', 'FEMALE')	NOT NULL,
+	`phone`	VARCHAR(20) NULL,
+	`birth_date` DATE NULL,
+	`gender` ENUM('MALE', 'FEMALE')	 NULL,
 	`profile_img_url`	VARCHAR(500)	NULL,
 	`user_level`	VARCHAR(20)	NULL,
 	`system_role`	ENUM('USER',  'ADMIN')	NOT NULL	DEFAULT 'USER',

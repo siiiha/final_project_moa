@@ -146,4 +146,19 @@ public interface MemberMapper {
     int markIdentityVerified(
             @Param("memberId") Long memberId
     );
+
+    // 탈퇴 회원의 소셜 계정 연결을 삭제
+    int deleteMemberSocialAccounts(
+            @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 본인인증 요청 기록을 삭제
+    int deleteMemberIdentityRequests(
+            @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 이메일 인증 요청과 인증 토큰을 삭제
+    int deleteMemberEmailVerifications(
+            @Param("email") String email
+    );
 }
