@@ -32,12 +32,23 @@ function mapSavingGroup(group) {
 }
 
 // AI작성: 관리자 계모임 목록을 서버 검색·필터·페이징 조건으로 조회한다.
-export async function getAdminSavingGroups({ keyword, regionCode, status, page = 1, size = 8, signal } = {}) {
+export async function getAdminSavingGroups({
+  keyword,
+  provinceName,
+  districtName,
+  townName,
+  status,
+  page = 1,
+  size = 8,
+  signal,
+} = {}) {
   try {
     const response = await client.get('/admin/saving-groups', {
       params: {
         keyword: keyword || undefined,
-        regionCode: regionCode || undefined,
+        provinceName: provinceName || undefined,
+        districtName: districtName || undefined,
+        townName: townName || undefined,
         status: status || undefined,
         page,
         size,
