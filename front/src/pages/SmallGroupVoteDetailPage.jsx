@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { getSmallGroupVoteDetail } from '../api/smallGroups';
+import {
+  getSmallGroupVoteDetail,
+  getSmallGroupVoteStatus,
+  participateSmallGroupVote,
+} from '../api/smallGroups';
 import Button from '../components/common/Button';
 import SmallGroupVoteDetail from '../components/smallGroup/SmallGroupVoteDetail';
 
@@ -51,8 +55,10 @@ function SmallGroupVoteDetailPage() {
   const [voteView, setVoteView] = useState({
     voteId: null,
     selectedOptionIds: [],
-    isResultOpen: false,
   });
+  const [isVoteSubmitting, setIsVoteSubmitting] = useState(false);
+  const [voteActionError, setVoteActionError] = useState(null);
+  const [statusView, setStatusView] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -96,14 +102,14 @@ function SmallGroupVoteDetailPage() {
     state: { activeSmallGroupMenu: 'poll' },
   });
   const currentVote = current?.vote;
+  const currentStatus = statusView?.requestKey === requestKey ? statusView : null;
   const selectedOptionIds = voteView.voteId === voteId
     ? voteView.selectedOptionIds
     : currentVote?.myParticipation.selectedOptionIds || [];
-  const isResultOpen = voteView.voteId === voteId && voteView.isResultOpen;
 
-  // AI작성: 참여 저장 API가 추가되기 전에는 선택 UI만 갱신하고 서버의 참여 정보는 바꾸지 않는다.
+  // AI작성: 진행 중 투표는 기존 참여 회원도 선택을 바꿀 수 있으며, 저장 전 결과 패널은 닫아 오래된 현황을 숨긴다.
   const handleSelectOption = (optionId) => {
-    if (!currentVote || currentVote.status === 'CLOSED' || currentVote.myParticipation.participated) return;
+    if (!currentVote || currentVote.status === 'CLOSED' || isVoteSubmitting) return;
 
     setVoteView((previous) => {
       const previousIds = previous.voteId === voteId
@@ -117,21 +123,39 @@ function SmallGroupVoteDetailPage() {
       return {
         voteId,
         selectedOptionIds: nextIds,
-        isResultOpen: false,
       };
     });
+    setStatusView(null);
   };
 
-  // AI작성: 결과 공개 여부는 상세 응답의 참여 여부만 기준으로 하며 별도 요청을 보내지 않는다.
-  const handleShowResults = () => {
+  // AI작성: 선택 변경을 포함한 참여 요청 후 상세를 다시 읽어 서버가 확정한 내 선택·참여 여부를 반영한다.
+  const handleVoteSubmit = async () => {
+    if (!currentVote || selectedOptionIds.length === 0 || isVoteSubmitting) return;
+
+    setIsVoteSubmitting(true);
+    setVoteActionError(null);
+    try {
+      await participateSmallGroupVote(smallGroupId, voteId, selectedOptionIds);
+      setVoteView({ voteId, selectedOptionIds });
+      setStatusView(null);
+      setRetry((value) => value + 1);
+    } catch (error) {
+      setVoteActionError(error.message || '투표 참여 처리에 실패했습니다.');
+    } finally {
+      setIsVoteSubmitting(false);
+    }
+  };
+
+  // AI작성: 현황은 참여 완료 회원 전용 API에서 다시 읽어 마감 전에도 최신 득표 수와 닉네임을 표시한다.
+  const handleShowResults = async () => {
     if (!currentVote?.myParticipation.participated) return;
-    setVoteView((previous) => ({
-      voteId,
-      selectedOptionIds: previous.voteId === voteId
-        ? previous.selectedOptionIds
-        : currentVote.myParticipation.selectedOptionIds,
-      isResultOpen: true,
-    }));
+    setStatusView({ requestKey, loading: true });
+    try {
+      const vote = await getSmallGroupVoteStatus(smallGroupId, voteId);
+      setStatusView({ requestKey, vote });
+    } catch (error) {
+      setStatusView({ requestKey, error });
+    }
   };
 
   return (
@@ -154,8 +178,14 @@ function SmallGroupVoteDetailPage() {
             onBack={goToVoteList}
             selectedOptionIds={selectedOptionIds}
             onSelectOption={handleSelectOption}
-            isResultOpen={isResultOpen}
+            onSubmit={handleVoteSubmit}
+            isSubmitting={isVoteSubmitting}
+            isResultOpen={Boolean(currentStatus?.vote)}
+            resultVote={currentStatus?.vote}
+            isStatusLoading={Boolean(currentStatus?.loading)}
+            statusError={currentStatus?.error?.message}
             onShowResults={handleShowResults}
+            actionError={voteActionError}
           />
         )}
       </Content>
