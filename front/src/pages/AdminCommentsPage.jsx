@@ -80,8 +80,6 @@ function AdminCommentsPage() {
   const [comments, setComments] = useState([]);
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
-  const [region, setRegion] = useState('');
-  const [status, setStatus] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -101,8 +99,6 @@ function AdminCommentsPage() {
       try {
         const result = await getAdminComments({
           keyword: submittedQuery,
-          regionName: region,
-          status,
           page: currentPage,
           size: PAGE_SIZE,
           signal: controller.signal,
@@ -126,7 +122,7 @@ function AdminCommentsPage() {
 
     loadComments();
     return () => controller.abort();
-  }, [currentPage, region, status, submittedQuery, reloadKey]);
+  }, [currentPage, submittedQuery, reloadKey]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -175,17 +171,7 @@ function AdminCommentsPage() {
         <Content>
           <AdminCommentFilterBar
             query={query}
-            region={region}
-            status={status}
             onQueryChange={setQuery}
-            onRegionChange={(value) => {
-              setRegion(value);
-              setCurrentPage(1);
-            }}
-            onStatusChange={(value) => {
-              setStatus(value);
-              setCurrentPage(1);
-            }}
             onSearch={handleSearch}
           />
           {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
