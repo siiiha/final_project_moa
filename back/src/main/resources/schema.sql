@@ -459,6 +459,7 @@ CREATE TABLE IF NOT EXISTS `term` (
 	`version`	VARCHAR(20)	NOT NULL,
 	`content`	TEXT	NOT NULL,
 	`is_required`	BOOLEAN	NOT NULL,
+    `is_active` BOOLEAN NOT NULL DEFAULT TRUE,
 	PRIMARY KEY (`term_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
