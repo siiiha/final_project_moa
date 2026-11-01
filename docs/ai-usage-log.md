@@ -1,6 +1,16 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-11-01 — 소모임 투표 논리 삭제 API 및 화면 연동
+
+- 목적: 투표 작성자이면서 소모임 개설자·승인된 `OWNER`만 소속 투표를 삭제하고, 투표 보기·참여·선택 이력은 보존하도록 한다.
+- 사용자 확정: 경로는 `DELETE /api/small-groups/{smallGroupId}/votes/{voteId}`를 사용한다. `OPEN`, `CLOSED` 모두 삭제 가능하며 `small_group_vote.deleted_at`만 갱신한다. 이미 삭제됐거나 다른 소모임 투표는 존재를 구분하지 않고 `404 SMALL_GROUP_VOTE_NOT_FOUND`로 처리한다.
+- AI 작성: 기존 `SmallGroupVoteDetailRow`, 소모임·회원 잠금 조회 Mapper를 재사용해 논리 삭제 Mapper 계약, Service 트랜잭션과 권한 검증, Controller API·Security 테스트, React 삭제 요청 API·확인 화면을 추가했다. 삭제된 투표가 목록과 진행 중 투표 생성 한도에서 제외되도록 기존 SQL에도 `deleted_at IS NULL` 조건을 보완했다.
+- API·데이터: 삭제 권한은 투표 작성자, `groups.member_id` 개설자, 승인된 `OWNER` 관계가 모두 같은 로그인 회원일 때만 허용한다. `small_group_vote_option`, `small_group_vote_participation`, `small_group_vote_selection`은 삭제·수정하지 않는다. DB 마이그레이션, 상태값, 외부 연동, 의존성·Security 설정은 추가하지 않았다.
+- 검증: `git diff --check`와 프런트 `node --test src/api/smallGroups.test.js` 40개, `npm run lint`, `npm run build`를 통과했다. lint의 기존 경고와 번들 크기 경고는 유지됐다. 백엔드 Gradle 대상 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17·실제 MySQL·JWT 환경에서 작성자 OWNER의 OPEN·CLOSED 삭제, 일반 회원·다른 OWNER·MANAGER의 403, 없는·삭제 소모임과 다른 소모임·이미 삭제된 투표의 404, 보기·참여·선택 이력 보존, 삭제 후 목록 제외·생성 한도 반영을 E2E로 확인한다.
+- 개발자 코드 검토·수정: 대기 중.
+
 ## 2026-11-01 — 소모임 투표 참여·재투표 및 현황 조회
 
 - 목적: 승인된 소모임 회원이 상세 화면에서 보기를 선택해 투표하고, 참여 후 항목별 득표 수·공개 투표의 참여자 닉네임·참여 인원을 확인하도록 한다.

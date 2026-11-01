@@ -714,3 +714,50 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 - 마감 투표, 다른 소모임의 보기, 중복 보기, 비회원·탈퇴 회원의 참여 실패를 확인한다.
 - 참여 완료 회원의 공개·익명 투표 현황, 미참여 회원의 현황 조회 차단을 확인한다.
 - 실제 MySQL·JWT 환경에서 행 잠금과 동시 참여·선택 변경을 확인한다.
+
+---
+
+## 소모임 투표 삭제 API
+
+- 엔드포인트: `DELETE /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}`
+- 요청 본문·쿼리 파라미터는 없다.
+- JWT 필터가 저장한 `memberId`만 사용한다.
+- `{smallGroupId}`와 `{smallGroupVoteId}`는 모두 양수여야 한다.
+
+### 삭제 권한·상태 정책
+
+- 로그인 회원은 투표의 `creator_member_id`, 소모임 공통 모임의 개설자(`groups.member_id`), 승인된 `OWNER` 관계가 모두 동일해야 한다.
+- `OPEN`, `CLOSED` 상태 모두 삭제할 수 있다. 마감 시각과 참여 이력 유무는 삭제 제한 조건이 아니다.
+- `small_group_vote.deleted_at`만 현재 시각으로 갱신하는 논리 삭제를 사용한다.
+- `small_group_vote_option`, `small_group_vote_participation`, `small_group_vote_selection`은 삭제하거나 수정하지 않아 기존 보기·참여·선택 이력을 보존한다.
+- 논리 삭제된 투표는 목록·상세·참여 대상에서 제외되며, 진행 중 투표 5개 생성 한도에도 포함하지 않는다.
+
+### 성공 응답
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 오류 응답
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증되지 않은 HTTP 요청 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 소모임 ID 또는 투표 ID가 0 이하·형식 오류 | `400 BAD_REQUEST` |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 없는 투표, 다른 소모임 투표, 이미 삭제된 투표 | `404 SMALL_GROUP_VOTE_NOT_FOUND` |
+| 투표 작성자가 아니거나 개설자·승인 OWNER 관계가 아님 | `403 SMALL_GROUP_VOTE_DELETE_FORBIDDEN` |
+| 잠금 검증 후 논리 삭제 갱신 실패 | `500 SMALL_GROUP_VOTE_DELETE_FAILED` |
+
+### 프런트 연결·검증
+
+- `deleteSmallGroupVote(smallGroupId, smallGroupVoteId)`는 DELETE 요청을 보내고 서버 오류 코드·메시지를 보존한다.
+- 소모임 상세 API에서 `myRole`이 `OWNER`인 경우에만 투표 상세의 삭제 버튼을 표시한다. 투표 작성자 여부는 서버가 최종 검증한다.
+- 삭제 확인 모달에서 성공하면 투표 목록으로 돌아가며, 목록 재조회 시 삭제 투표는 표시되지 않는다.
+- Service 테스트는 OPEN·CLOSED 삭제, 권한 없음, 없는 소모임·투표, 다른 소모임 투표와 이미 삭제된 투표를 검증한다.
+- 실제 MySQL·JWT 환경에서 보기·참여·선택 이력 보존과 목록 제외, 삭제 후 생성 한도 반영을 확인한다.
