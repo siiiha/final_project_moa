@@ -4,6 +4,7 @@ import client from './client.js';
 import {
   createSmallGroup,
   createSmallGroupVote,
+  deleteSmallGroupVote,
   getSmallGroupVoteDetail,
   getSmallGroupVoteStatus,
   getSmallGroupVotes,
@@ -13,6 +14,7 @@ import {
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
   SmallGroupVoteCreateError,
+  SmallGroupVoteDeleteError,
   SmallGroupVoteDetailLoadError,
   SmallGroupVoteParticipationError,
   SmallGroupVoteStatusLoadError,
@@ -31,6 +33,75 @@ import {
   participateSmallGroupVote,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+test('소모임 투표 삭제는 두 식별자로 DELETE 요청을 전송한다', async () => {
+  const originalDelete = client.delete;
+
+  try {
+    client.delete = async (path) => {
+      assert.equal(path, '/small-groups/7/votes/11');
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+
+    await deleteSmallGroupVote(7, 11);
+  } finally {
+    client.delete = originalDelete;
+  }
+});
+
+test('소모임 투표 삭제는 서버 오류 코드와 메시지를 보존한다', async () => {
+  const originalDelete = client.delete;
+
+  try {
+    client.delete = async () => {
+      const error = new Error('Forbidden');
+      error.response = {
+        data: {
+          success: false,
+          error: {
+            code: 'SMALL_GROUP_VOTE_DELETE_FORBIDDEN',
+            message: '투표 작성자인 소모임 개설자만 투표를 삭제할 수 있습니다.',
+          },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      deleteSmallGroupVote(7, 11),
+      (error) => error instanceof SmallGroupVoteDeleteError
+        && error.code === 'SMALL_GROUP_VOTE_DELETE_FORBIDDEN'
+        && error.message === '투표 작성자인 소모임 개설자만 투표를 삭제할 수 있습니다.',
+    );
+  } finally {
+    client.delete = originalDelete;
+  }
+});
+
+test('소모임 투표 삭제는 이미 삭제됐거나 다른 소모임 투표의 NOT_FOUND 오류를 보존한다', async () => {
+  const originalDelete = client.delete;
+
+  try {
+    client.delete = async () => {
+      const error = new Error('Not Found');
+      error.response = {
+        data: {
+          success: false,
+          error: { code: 'SMALL_GROUP_VOTE_NOT_FOUND', message: '투표를 찾을 수 없습니다.' },
+        },
+      };
+      throw error;
+    };
+
+    await assert.rejects(
+      deleteSmallGroupVote(7, 11),
+      (error) => error instanceof SmallGroupVoteDeleteError
+        && error.code === 'SMALL_GROUP_VOTE_NOT_FOUND',
+    );
+  } finally {
+    client.delete = originalDelete;
+  }
+});
 
 test('소모임 투표 참여는 선택 보기 ID를 POST 본문으로 전송한다', async () => {
   const originalPost = client.post;

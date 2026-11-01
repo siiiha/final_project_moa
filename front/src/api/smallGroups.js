@@ -90,6 +90,15 @@ export class SmallGroupVoteDetailLoadError extends Error {
   }
 }
 
+// AI작성: 소모임 투표 삭제 실패 코드와 메시지를 목록·상세 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupVoteDeleteError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteDeleteError';
+    this.code = code;
+  }
+}
+
 // AI작성: 투표 참여·선택 변경 실패 코드를 상세 화면에 그대로 전달한다.
 export class SmallGroupVoteParticipationError extends Error {
   constructor(code, message) {
@@ -217,6 +226,15 @@ function toSmallGroupVoteDetailLoadError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupVoteDetailLoadError(
     responseError?.code || 'SMALL_GROUP_VOTE_DETAIL_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteDeleteError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteDeleteError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteDeleteError(
+    responseError?.code || 'SMALL_GROUP_VOTE_DELETE_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -499,6 +517,23 @@ export async function getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, { 
     return toSmallGroupVoteDetail(response.data.data);
   } catch (error) {
     throw toSmallGroupVoteDetailLoadError(error, '투표 상세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 삭제 권한과 대상 소속은 서버가 JWT·경로 식별자로 판단하므로 클라이언트는 두 ID만 전달한다.
+export async function deleteSmallGroupVote(smallGroupId, smallGroupVoteId) {
+  try {
+    const response = await client.delete(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}`,
+    );
+    if (!response.data?.success) {
+      throw new SmallGroupVoteDeleteError(
+        response.data?.error?.code || 'SMALL_GROUP_VOTE_DELETE_FAILED',
+        response.data?.error?.message || '투표를 삭제하지 못했습니다.',
+      );
+    }
+  } catch (error) {
+    throw toSmallGroupVoteDeleteError(error, '투표를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 
