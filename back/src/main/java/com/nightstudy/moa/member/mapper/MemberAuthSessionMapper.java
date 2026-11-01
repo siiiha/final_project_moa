@@ -46,13 +46,14 @@ public interface MemberAuthSessionMapper {
             @Param("memberId") Long memberId
     );
 
-    // 세션 유효기간과 현재 회원 상태·권한을 함께 검사
+    // AI작성: 세션·회원 상태와 로그아웃한 access token 여부를 한 번에 검사한다.
 
     int countActiveSession(
             @Param("sessionId") String sessionId,
             @Param("memberId") Long memberId,
             @Param("systemRole")  String systemRole,
-            @Param("nowMs") long nowMs
+            @Param("nowMs") long nowMs,
+            @Param("tokenId") String tokenId
     );
 }
 

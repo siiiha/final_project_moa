@@ -1,6 +1,5 @@
 package com.nightstudy.moa.common.auth;
 
-import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import com.nightstudy.moa.member.service.AuthSessionService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -23,18 +22,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final SecurityErrorResponseWriter errorResponseWriter;
-    private final RevokedTokenMapper revokedTokenMapper;
     private final AuthSessionService authSessionService;
 
     public JwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
             SecurityErrorResponseWriter errorResponseWriter,
-            RevokedTokenMapper revokedTokenMapper,
             AuthSessionService authSessionService
     ) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.errorResponseWriter = errorResponseWriter;
-        this.revokedTokenMapper = revokedTokenMapper;
         this.authSessionService = authSessionService;
     }
 
@@ -97,16 +93,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throw new IllegalArgumentException("잘못된 토큰 정보");
             }
 
-            // AI작성: 기존 로그아웃 토큰 차단 기록을 재사용한다.
-            if (revokedTokenMapper.countByTokenId(tokenId) > 0) {
-                throw new IllegalArgumentException("로그아웃한 토큰");
-            }
-
-            // AI작성: 회원 상태와 세션을 함께 검사해 탈퇴·정지 회원 및 폐기·만료된 세션을 차단한다.
+            // AI작성: 폐기 토큰·회원 상태·세션을 한 번의 DB 조회로 검사해 원격 DB 왕복을 줄인다.
             if (!authSessionService.isAccessAllowed(
                     memberId,
                     systemRole,
-                    sessionId
+                    sessionId,
+                    tokenId
             )) {
                 throw new IllegalArgumentException("유효하지 않은 로그인 세션");
             }

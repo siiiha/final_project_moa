@@ -210,10 +210,13 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     public boolean isAccessAllowed(
             Long memberId,
             String systemRole,
-            String sessionId
+            String sessionId,
+            String tokenId
     ) {
         if (memberId == null || memberId <= 0
-                || !isValidRole(systemRole)) {
+                || !isValidRole(systemRole)
+                || tokenId == null
+                || tokenId.isBlank()) {
             return false;
         }
 
@@ -228,7 +231,8 @@ public class AuthSessionServiceImpl implements AuthSessionService {
                 sessionId,
                 memberId,
                 systemRole,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                tokenId
         ) == 1;
     }
 
