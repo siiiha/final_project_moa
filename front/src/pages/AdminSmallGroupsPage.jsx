@@ -5,7 +5,7 @@ import SmallGroupTable from '../components/admin/SmallGroupTable';
 import AdminSidebar from '../components/layout/AdminSidebar';
 import { adminMenuItems } from '../mocks/admin';
 import client from '../api/client';
-import { smallGroupRegionOptions } from '../api/smallGroups';
+import { getMemberRegions } from '../api/member';
 import ConfirmModal from '../components/common/ConfirmModal';
 
 const Page = styled.div`
@@ -105,7 +105,10 @@ const ErrorMessage = styled.p`
 function AdminSmallGroupsPage() {
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState('전체');
-  const [region, setRegion] = useState('전체');
+  const [regions, setRegions] = useState([]);
+  const [province, setProvince] = useState('');
+  const [district, setDistrict] = useState('');
+  const [town, setTown] = useState('');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -121,17 +124,24 @@ function AdminSmallGroupsPage() {
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
+    getMemberRegions().then((items) => {
+      if (Array.isArray(items)) setRegions(items);
+    }).catch(() => setRegions([]));
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     async function loadGroups() {
       setLoading(true);
       setErrorMessage('');
       try {
-        const regionCode = smallGroupRegionOptions.find((item) => item.name === region)?.code;
         const response = await client.get('/admin/small-groups', {
           params: {
             keyword: submittedQuery || undefined,
-            regionCode,
+            provinceName: province || undefined,
+            districtName: district || undefined,
+            townName: town || undefined,
             page: currentPage,
           },
           signal: controller.signal,
@@ -168,7 +178,7 @@ function AdminSmallGroupsPage() {
 
     loadGroups();
     return () => controller.abort();
-  }, [currentPage, region, reloadKey, submittedQuery]);
+  }, [currentPage, district, province, reloadKey, submittedQuery, town]);
 
   const activeCount = groups.filter((group) => group.statusCode === 'ACTIVE').length;
   const suspendedCount = groups.filter((group) => group.statusCode === 'RESTRICTED').length;
@@ -255,14 +265,28 @@ function AdminSmallGroupsPage() {
             filter={
               <SmallGroupFilterBar
                 status={status}
-                region={region}
+                province={province}
+                district={district}
+                town={town}
+                regions={regions}
                 query={query}
                 onStatusChange={(value) => {
                   setStatus(value);
                   setCurrentPage(1);
                 }}
-                onRegionChange={(value) => {
-                  setRegion(value);
+                onProvinceChange={(value) => {
+                  setProvince(value);
+                  setDistrict('');
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onDistrictChange={(value) => {
+                  setDistrict(value);
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onTownChange={(value) => {
+                  setTown(value);
                   setCurrentPage(1);
                 }}
                 onQueryChange={setQuery}

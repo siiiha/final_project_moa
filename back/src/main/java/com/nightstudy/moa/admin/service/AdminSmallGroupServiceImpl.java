@@ -3,15 +3,14 @@ package com.nightstudy.moa.admin.service;
 import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupListResult;
+import com.nightstudy.moa.admin.dto.AdminSmallGroupSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupRestrictionTarget;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupStatus;
 import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminSmallGroupMapper;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.common.dto.PageMeta;
-import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberCount;
-import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.util.List;
 import java.util.Map;
@@ -24,8 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 소모임 운영 상태 변경과 관리자 제한 이력을 하나의 트랜잭션으로 처리한다.
 public class AdminSmallGroupServiceImpl implements AdminSmallGroupService {
     private static final int PAGE_SIZE = 8;
-    private static final List<String> REGIONS = List.of(
-            "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final AdminSmallGroupMapper adminSmallGroupMapper;
     private final SmallGroupMapper smallGroupMapper;
 
@@ -39,17 +36,15 @@ public class AdminSmallGroupServiceImpl implements AdminSmallGroupService {
 
     @Override
     @Transactional(readOnly = true)
-    public AdminSmallGroupListResult getSmallGroupList(SmallGroupSearchCondition request) {
-        String regionName = request.getRegionCode() == null ? null
-                : REGIONS.get(Integer.parseInt(request.getRegionCode()) - 1);
-        SmallGroupListCondition condition = new SmallGroupListCondition(
-                escapeKeyword(request.getKeyword()), regionName, request.getLikeCategory(), 0, PAGE_SIZE);
+    public AdminSmallGroupListResult getSmallGroupList(AdminSmallGroupSearchCondition condition) {
+        condition.setKeywordPattern(escapeKeyword(condition.getKeyword()));
         int total = adminSmallGroupMapper.selectSmallGroupCount(condition);
-        PageMeta pageMeta = PageMeta.of(request.getPage(), PAGE_SIZE, total);
+        PageMeta pageMeta = PageMeta.of(condition.getPage(), PAGE_SIZE, total);
         if (pageMeta.getPage() > pageMeta.getTotalPages()) {
             return new AdminSmallGroupListResult(List.of(), pageMeta);
         }
         condition.setOffset(pageMeta.getOffset());
+        condition.setLimit(pageMeta.getSize());
         List<AdminSmallGroupListItemResponse> smallGroups = adminSmallGroupMapper.selectSmallGroupList(condition);
         Map<Long, Long> memberCounts = smallGroups.isEmpty() ? Map.of()
                 : smallGroupMapper.selectApprovedMemberCounts(

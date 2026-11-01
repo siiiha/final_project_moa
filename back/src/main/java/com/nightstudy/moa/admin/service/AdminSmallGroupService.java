@@ -2,11 +2,11 @@ package com.nightstudy.moa.admin.service;
 
 import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupListResult;
-import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminSmallGroupSearchCondition;
 
 // AI작성: 관리자 소모임 운영정지와 해제 기능의 공개 계약을 정의한다.
 public interface AdminSmallGroupService {
-    AdminSmallGroupListResult getSmallGroupList(SmallGroupSearchCondition condition);
+    AdminSmallGroupListResult getSmallGroupList(AdminSmallGroupSearchCondition condition);
 
     void restrictSmallGroup(Long smallGroupId, AdminGroupRestrictionRequest request);
 
