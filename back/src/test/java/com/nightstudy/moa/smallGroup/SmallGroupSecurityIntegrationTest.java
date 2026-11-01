@@ -2,6 +2,7 @@ package com.nightstudy.moa.smallGroup;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -121,6 +122,12 @@ class SmallGroupSecurityIntegrationTest {
     @Test
     void smallGroupVoteStatusApiRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/small-groups/1/votes/2/status"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void smallGroupVoteDeleteApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(delete("/api/small-groups/1/votes/2"))
                 .andExpect(status().isUnauthorized());
     }
 

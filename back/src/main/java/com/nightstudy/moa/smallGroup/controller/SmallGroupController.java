@@ -25,6 +25,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -143,6 +144,16 @@ public class SmallGroupController {
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(
                 smallGroupService.getSmallGroupVoteStatus(smallGroupId, smallGroupVoteId, memberId));
+    }
+
+    // AI작성: 삭제 요청은 JWT 회원 ID와 경로 식별자만 Service에 전달하고 소속·권한·삭제 상태 판단은 Service가 처리한다.
+    @DeleteMapping("/{smallGroupId}/votes/{smallGroupVoteId}")
+    public ApiResponse<Void> deleteVote(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.deleteSmallGroupVote(smallGroupId, smallGroupVoteId, memberId);
+        return ApiResponse.ok(null);
     }
 
     // AI작성: 승인자는 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.
