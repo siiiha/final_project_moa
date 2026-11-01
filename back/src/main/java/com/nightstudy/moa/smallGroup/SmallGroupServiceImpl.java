@@ -185,6 +185,52 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 options);
     }
 
+    // AI작성: 소모임·투표·OWNER 관계를 잠근 뒤 투표 기본 행만 논리 삭제해 참여·선택 이력을 보존한다.
+    @Override
+    @Transactional
+    public void deleteSmallGroupVote(Long smallGroupId, Long smallGroupVoteId, Long memberId) {
+        if (smallGroupId == null || smallGroupId <= 0 || smallGroupVoteId == null || smallGroupVoteId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 투표 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+
+        SmallGroupVoteDetailRow vote =
+                smallGroupMapper.selectSmallGroupVoteDetailForUpdate(smallGroupId, smallGroupVoteId);
+        if (vote == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_VOTE_NOT_FOUND", "투표를 찾을 수 없습니다.");
+        }
+        validateSmallGroupVoteDeleteAuthority(target, vote, memberId);
+
+        if (smallGroupMapper.softDeleteSmallGroupVote(smallGroupId, smallGroupVoteId) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_DELETE_FAILED",
+                    "투표 삭제 처리에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 투표 작성자 본인과 groups 개설자·승인 OWNER가 모두 같은 회원일 때만 삭제를 허용한다.
+    private void validateSmallGroupVoteDeleteAuthority(
+            SmallGroupJoinTargetRow target, SmallGroupVoteDetailRow vote, Long memberId) {
+        if (!Objects.equals(memberId, vote.getCreatorMemberId())
+                || !Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_DELETE_FORBIDDEN",
+                    "투표 작성자인 소모임 개설자만 투표를 삭제할 수 있습니다.");
+        }
+        SmallGroupMemberRelationRow relation =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (relation == null || !"OWNER".equals(relation.getMemberRole())
+                || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_DELETE_FORBIDDEN",
+                    "승인된 소모임 개설자만 투표를 삭제할 수 있습니다.");
+        }
+    }
+
     // AI작성: 소모임·회원·투표를 잠근 상태에서 최초 참여 저장 또는 선택 변경만 원자적으로 처리한다.
     @Override
     @Transactional
