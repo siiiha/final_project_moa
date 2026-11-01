@@ -4,6 +4,7 @@ import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminSmallGroupSummaryResponse;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupRestrictionTarget;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupStatus;
 import com.nightstudy.moa.admin.dto.RestrictionAction;
@@ -32,6 +33,12 @@ public class AdminSmallGroupServiceImpl implements AdminSmallGroupService {
     ) {
         this.adminSmallGroupMapper = adminSmallGroupMapper;
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminSmallGroupSummaryResponse getSmallGroupSummary() {
+        return adminSmallGroupMapper.selectSmallGroupSummary();
     }
 
     @Override

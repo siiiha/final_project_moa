@@ -112,8 +112,8 @@ function AdminSmallGroupsPage() {
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [summary, setSummary] = useState({ totalSmallGroups: 0, activeSmallGroups: 0, restrictedSmallGroups: 0 });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [actionTarget, setActionTarget] = useState(null);
@@ -128,6 +128,21 @@ function AdminSmallGroupsPage() {
       if (Array.isArray(items)) setRegions(items);
     }).catch(() => setRegions([]));
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    client.get('/admin/small-groups/summary', { signal: controller.signal }).then((response) => {
+      if (!response.data?.success || !response.data.data) {
+        throw new Error('소모임 현황 응답을 확인할 수 없습니다.');
+      }
+      setSummary(response.data.data);
+    }).catch((error) => {
+      if (error.code !== 'ERR_CANCELED') {
+        setSummary({ totalSmallGroups: 0, activeSmallGroups: 0, restrictedSmallGroups: 0 });
+      }
+    });
+    return () => controller.abort();
+  }, [reloadKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -162,12 +177,10 @@ function AdminSmallGroupsPage() {
           status: group.status === 'ACTIVE' ? '활동중' : group.status === 'RESTRICTED' ? '정지' : '-',
           statusCode: group.status,
         })));
-        setTotalCount(response.data.meta.total || 0);
         setTotalPages(response.data.meta.totalPages || 0);
       } catch (error) {
         if (error.code !== 'ERR_CANCELED') {
           setGroups([]);
-          setTotalCount(0);
           setTotalPages(0);
           setErrorMessage(error.message || '소모임 목록을 불러오지 못했습니다.');
         }
@@ -179,9 +192,6 @@ function AdminSmallGroupsPage() {
     loadGroups();
     return () => controller.abort();
   }, [currentPage, district, province, reloadKey, submittedQuery, town]);
-
-  const activeCount = groups.filter((group) => group.statusCode === 'ACTIVE').length;
-  const suspendedCount = groups.filter((group) => group.statusCode === 'RESTRICTED').length;
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -239,18 +249,18 @@ function AdminSmallGroupsPage() {
           <SummaryGrid aria-label="소모임 현황 요약">
             <SummaryCard>
               <SummaryLabel>전체 소모임</SummaryLabel>
-              <SummaryValue>{totalCount}개</SummaryValue>
-              <SummaryDescription>검색 조건에 해당하는 소모임</SummaryDescription>
+              <SummaryValue>{summary.totalSmallGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>서비스에 등록된 소모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>활동 중</SummaryLabel>
-              <SummaryValue>{activeCount}개</SummaryValue>
+              <SummaryValue>{summary.activeSmallGroups.toLocaleString()}개</SummaryValue>
               <SummaryDescription>정상 운영 중인 소모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>이용 제한</SummaryLabel>
-              <SummaryValue $danger>{suspendedCount}개</SummaryValue>
-              <SummaryDescription>현재 정지된 소모임</SummaryDescription>
+              <SummaryValue $danger>{summary.restrictedSmallGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>현재 관리자 제한 중인 소모임</SummaryDescription>
             </SummaryCard>
           </SummaryGrid>
           <SmallGroupTable

@@ -4,6 +4,7 @@ import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSmallGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminSmallGroupSummaryResponse;
 import com.nightstudy.moa.admin.service.AdminSmallGroupService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
@@ -31,6 +32,12 @@ public class AdminSmallGroupController {
     ) {
         this.smallGroupService = smallGroupService;
         this.adminSmallGroupService = adminSmallGroupService;
+    }
+
+    @GetMapping("/summary")
+    // AI작성: 목록 필터와 무관하게 전체 소모임 운영 현황을 집계해 반환한다.
+    public ApiResponse<AdminSmallGroupSummaryResponse> getSmallGroupSummary() {
+        return ApiResponse.ok(adminSmallGroupService.getSmallGroupSummary());
     }
 
     @GetMapping

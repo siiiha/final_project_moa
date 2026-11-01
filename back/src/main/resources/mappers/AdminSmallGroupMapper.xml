@@ -5,6 +5,19 @@
 
 <mapper namespace="com.nightstudy.moa.admin.mapper.AdminSmallGroupMapper">
 
+    <!-- AI작성: 목록에 표시 가능한 삭제되지 않은 소모임의 전체·활동·제한 상태를 한 번에 집계한다. -->
+    <select id="selectSmallGroupSummary"
+            resultType="com.nightstudy.moa.admin.dto.AdminSmallGroupSummaryResponse">
+        SELECT COUNT(*) AS total_small_groups,
+               COALESCE(SUM(CASE WHEN sg.status = 'ACTIVE' THEN 1 ELSE 0 END), 0) AS active_small_groups,
+               COALESCE(SUM(CASE WHEN sg.status = 'RESTRICTED' THEN 1 ELSE 0 END), 0) AS restricted_small_groups
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN members creator ON creator.member_id = g.member_id
+        WHERE g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+    </select>
+
     <sql id="adminSmallGroupListWhere">
         WHERE g.deleted_at IS NULL
           AND creator.deleted_at IS NULL
