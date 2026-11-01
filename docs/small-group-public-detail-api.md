@@ -650,3 +650,67 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 - Controller 테스트는 JWT `memberId` 전달, 공통 응답, 잘못된 Path Variable, Service의 401·404 오류 보존을 검증한다.
 - 프런트 API 테스트는 상세 경로·취소 신호·필수 응답 필드·서버 오류 보존, 목록의 상세 식별자 보존을 검증한다.
 - 실제 MySQL·JWT 환경에서 소모임별 투표 격리, 승인 회원 권한, 종료 시각과 24시간 숨김 경계, 공개·익명 닉네임 공개 범위를 확인해야 한다.
+
+---
+
+## 소모임 투표 참여·현황 조회 API
+
+### 투표 참여
+
+- 엔드포인트: `POST /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/participations`
+- JWT 필터가 저장한 `memberId`만 사용하며, 승인된 `OWNER` 또는 `MEMBER`만 참여할 수 있다.
+- `PENDING`, `REJECTED`, `LEFT`, `EXPELLED`, `MANAGER`, 비회원은 참여할 수 없다.
+- 삭제된 소모임·투표, 다른 소모임의 투표, `CLOSED` 상태 또는 마감 시각이 지난 투표는 참여할 수 없다.
+- 단일 선택은 정확히 한 개, 복수 선택은 한 개 이상이며 해당 투표의 전체 보기 수 이하를 선택해야 한다.
+- 중복 보기 ID 또는 해당 투표에 속하지 않는 보기 ID는 허용하지 않는다.
+
+#### 요청 본문
+
+```json
+{
+  "selectedOptionIds": [101, 102]
+}
+```
+
+#### 성공 응답
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+- 최초 참여는 `small_group_vote_participation`과 `small_group_vote_selection`에 저장한다.
+- 기존 참여자가 같은 보기를 다시 전송하면 성공 응답만 반환하고 DB 이력과 참여 시각은 바꾸지 않는다.
+- 기존 참여자가 다른 보기를 전송하면 이전 선택을 교체하고 `participated_at`을 갱신한다.
+
+### 투표 현황 조회
+
+- 엔드포인트: `GET /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/status`
+- 승인된 `OWNER` 또는 `MEMBER` 중 해당 투표의 참여 이력이 있는 회원만 조회할 수 있다.
+- 마감 전에는 화면에서 `현황 보기`, 마감 후에는 `결과 보기`로 표시한다. 두 경우 모두 참여 완료 회원은 조회할 수 있다.
+- 성공 응답은 기존 투표 상세 조회와 같은 `SmallGroupVoteDetailResponse` 구조를 반환한다.
+- `participantCount`는 해당 투표의 참여 이력 수이며 화면에는 `N명 참여`로 표시한다.
+- 공개 투표는 참여 완료 회원에게 보기별 참여자 닉네임을 반환한다. 익명 투표는 생성자·운영자를 포함해 닉네임과 선택 내역을 반환하지 않는다.
+
+### 오류 응답
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증되지 않은 요청 | `401 LOGIN_REQUIRED` |
+| 잘못된 소모임·투표·보기 식별자 또는 선택 수 | `400 BAD_REQUEST` 및 세부 오류 코드 |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 없는·삭제 투표 또는 다른 소모임 투표 | `404 SMALL_GROUP_VOTE_NOT_FOUND` |
+| 마감·종료 투표 참여 | `409 SMALL_GROUP_VOTE_CLOSED` |
+| 승인 회원이 아닌 참여 요청 | `403 SMALL_GROUP_VOTE_PARTICIPATION_FORBIDDEN` |
+| 참여 이력이 없는 현황 요청 | `403 SMALL_GROUP_VOTE_STATUS_FORBIDDEN` |
+
+### 검증 항목
+
+- 최초 참여, 단일·복수 선택, 같은 선택 재요청, 선택 변경 재투표를 확인한다.
+- 마감 투표, 다른 소모임의 보기, 중복 보기, 비회원·탈퇴 회원의 참여 실패를 확인한다.
+- 참여 완료 회원의 공개·익명 투표 현황, 미참여 회원의 현황 조회 차단을 확인한다.
+- 실제 MySQL·JWT 환경에서 행 잠금과 동시 참여·선택 변경을 확인한다.

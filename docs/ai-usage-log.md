@@ -1,6 +1,15 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-11-01 — 소모임 투표 참여·재투표 및 현황 조회
+
+- 목적: 승인된 소모임 회원이 상세 화면에서 보기를 선택해 투표하고, 참여 후 항목별 득표 수·공개 투표의 참여자 닉네임·참여 인원을 확인하도록 한다.
+- 사용자 확정: 단일 선택은 1개, 복수 선택은 1개 이상 전체 보기 수 이하로 제한한다. 같은 선택으로 재요청하면 DB를 바꾸지 않고 성공 처리하며, 선택을 바꾸면 기존 선택을 교체한다. 마감 전에는 `현황 보기`, 마감 후에는 `결과 보기`를 표시한다. 익명 투표는 생성자·운영자를 포함해 닉네임을 숨긴다.
+- AI 작성: 기존 `small_group_vote_participation`, `small_group_vote_selection`을 재사용하는 참여 요청 DTO·Mapper SQL·Service 트랜잭션·Controller API·React 요청 API와 상세 화면 연결을 추가했다. 별도 DB 마이그레이션, 의존성, Security 설정은 추가하지 않았다.
+- API·데이터: `POST /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/participations`는 최초 참여를 저장하고, 같은 선택은 무변경 성공 처리하며, 달라진 선택만 교체하고 참여 시각을 갱신한다. `GET /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/status`는 참여 이력이 있는 승인 OWNER·MEMBER만 기존 상세 응답 구조로 반환한다.
+- 검증: 프런트 `node --test src/api/smallGroups.test.js` 37개 및 `npm run build`를 통과했다. `npm run lint`는 이번 변경과 무관한 기존 경고 10건만 보고했다. 백엔드 Gradle 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17과 실제 MySQL·JWT 환경에서 참여 행 잠금, 동일 선택 무변경, 선택 변경, 마감 경계, 공개·익명 닉네임 노출과 비회원·미참여 회원의 401·403 응답을 확인한다.
+
 ## 2026-10-30 — 소모임 투표 상세 조회 및 목록-상세 화면 연동
 
 - 목적: 승인된 소모임 OWNER·MEMBER가 자기 소모임 투표의 결과와 참여 상태를 안전하게 조회하고, 투표 목록에서 상세 화면으로 이동하도록 구현했다.
