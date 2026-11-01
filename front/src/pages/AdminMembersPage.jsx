@@ -5,8 +5,9 @@ import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminFilterBar from '../components/admin/AdminFilterBar';
 import AdminMemberTable from '../components/admin/AdminMemberTable';
 import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMenuItems, adminSummaryStats } from '../mocks/admin';
+import { adminMenuItems } from '../mocks/admin';
 import { getAdminMembers } from '../api/adminMembers';
+import { getAdminDashboardSummary } from '../api/adminDashboard';
 
 const PAGE_SIZE = 10;
 
@@ -60,6 +61,25 @@ function AdminMembersPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [dashboardStats, setDashboardStats] = useState([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getAdminDashboardSummary({ signal: controller.signal }).then((summary) => {
+      // AI작성: API 집계값을 기존 대시보드 카드 표시 형식으로 변환한다.
+      setDashboardStats([
+        { id: 'total', label: '전체 회원', value: `${summary.totalMembers.toLocaleString()}명`, description: '탈퇴하지 않은 회원 기준', tone: 'primary' },
+        { id: 'active', label: '활성 회원', value: `${summary.activeMembers.toLocaleString()}명`, description: '현재 ACTIVE 계정 기준', tone: 'success' },
+        { id: 'new', label: '신규 가입', value: `${summary.newMembersThisMonth.toLocaleString()}명`, description: '이번 달 가입 회원', tone: 'neutral' },
+        { id: 'suspended', label: '관리 필요 회원', value: `${summary.managedMembers.toLocaleString()}명`, description: '휴면 및 제재 계정 기준', tone: 'danger' },
+      ]);
+    }).catch((error) => {
+      if (error.code !== 'ERR_CANCELED') setDashboardStats([]);
+    });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -112,7 +132,7 @@ function AdminMembersPage() {
       <Grid>
         <AdminSidebar items={adminMenuItems} activeItem="members" />
         <main>
-          <AdminDashboard stats={adminSummaryStats} />
+          <AdminDashboard stats={dashboardStats} />
           <AdminMemberTable
             members={members}
             loading={loading}

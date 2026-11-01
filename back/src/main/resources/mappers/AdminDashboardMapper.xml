@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.admin.mapper.AdminDashboardMapper">
+    <!-- AI작성: 탈퇴 회원은 제외하고 현재 ACTIVE, 이번 달 가입, 관리 필요 계정을 한 번에 집계한다. -->
+    <select id="selectDashboardSummary"
+            resultType="com.nightstudy.moa.admin.dto.AdminDashboardSummaryResponse">
+        SELECT COUNT(*) AS total_members,
+               COALESCE(SUM(CASE WHEN account_status = 'ACTIVE' THEN 1 ELSE 0 END), 0) AS active_members,
+               COALESCE(SUM(CASE
+                   WHEN created_at &gt;= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
+                    AND created_at &lt; DATE_ADD(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 1 MONTH)
+                   THEN 1 ELSE 0 END), 0) AS new_members_this_month,
+               COALESCE(SUM(CASE WHEN account_status IN ('SUSPENDED', 'INACTIVE') THEN 1 ELSE 0 END), 0)
+                   AS managed_members
+        FROM members
+        WHERE deleted_at IS NULL
+    </select>
+</mapper>
