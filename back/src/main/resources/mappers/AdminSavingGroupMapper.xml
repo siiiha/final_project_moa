@@ -17,7 +17,9 @@
                 AND (g.group_name LIKE #{keywordPattern} ESCAPE '!'
                     OR g.description LIKE #{keywordPattern} ESCAPE '!')
             </if>
-            <if test="regionName != null">AND r.region_name = #{regionName}</if>
+            <if test="provinceName != null">AND r.province_name = #{provinceName}</if>
+            <if test="districtName != null">AND r.district_name = #{districtName}</if>
+            <if test="townName != null">AND r.town_name = #{townName}</if>
             <if test="status != null">AND sg.status = #{status}</if>
         </where>
     </sql>

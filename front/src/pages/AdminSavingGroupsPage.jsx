@@ -10,7 +10,7 @@ import {
   releaseAdminSavingGroupRestriction,
   restrictAdminSavingGroup,
 } from '../api/adminSavingGroups';
-import { savingGroupRegionOptions } from '../api/savingGroups';
+import { getMemberRegions } from '../api/member';
 
 const PAGE_SIZE = 8;
 
@@ -111,7 +111,10 @@ const ErrorMessage = styled.p`
 function AdminSavingGroupsPage() {
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState('전체');
-  const [region, setRegion] = useState('전체');
+  const [regions, setRegions] = useState([]);
+  const [province, setProvince] = useState('');
+  const [district, setDistrict] = useState('');
+  const [town, setTown] = useState('');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -126,17 +129,23 @@ function AdminSavingGroupsPage() {
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
+    getMemberRegions().then((items) => {
+      if (Array.isArray(items)) setRegions(items);
+    }).catch(() => setRegions([]));
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     async function loadGroups() {
       setLoading(true);
       setErrorMessage('');
       try {
         const statusMap = { 심사중: '00', 모집중: '01', 활동중: '02', 정지: '03', 종료: '04' };
-        // AI작성: 필터의 지역명과 API가 요구하는 지역 코드를 공통 지역 목록으로 연결한다.
-        const regionCode = savingGroupRegionOptions.find((item) => item.name === region)?.code || '';
         const result = await getAdminSavingGroups({
           keyword: submittedQuery,
-          regionCode,
+          provinceName: province,
+          districtName: district,
+          townName: town,
           status: statusMap[status] || '',
           page: currentPage,
           size: PAGE_SIZE,
@@ -156,7 +165,7 @@ function AdminSavingGroupsPage() {
     }
     loadGroups();
     return () => controller.abort();
-  }, [currentPage, region, reloadKey, status, submittedQuery]);
+  }, [currentPage, district, province, reloadKey, status, submittedQuery, town]);
 
   const activeCount = groups.filter((group) => group.status === '활동중').length;
   const suspendedCount = groups.filter((group) => group.status === '정지').length;
@@ -235,14 +244,28 @@ function AdminSavingGroupsPage() {
             filter={
               <SavingGroupFilterBar
                 status={status}
-                region={region}
+                province={province}
+                district={district}
+                town={town}
+                regions={regions}
                 query={query}
                 onStatusChange={(value) => {
                   setStatus(value);
                   setCurrentPage(1);
                 }}
-                onRegionChange={(value) => {
-                  setRegion(value);
+                onProvinceChange={(value) => {
+                  setProvince(value);
+                  setDistrict('');
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onDistrictChange={(value) => {
+                  setDistrict(value);
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onTownChange={(value) => {
+                  setTown(value);
                   setCurrentPage(1);
                 }}
                 onQueryChange={setQuery}
