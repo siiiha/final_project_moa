@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import {
+  deleteSmallGroupVote,
+  getSmallGroupDetail,
   getSmallGroupVoteDetail,
   getSmallGroupVoteStatus,
   participateSmallGroupVote,
 } from '../api/smallGroups';
 import Button from '../components/common/Button';
+import ConfirmModal from '../components/common/ConfirmModal';
 import SmallGroupVoteDetail from '../components/smallGroup/SmallGroupVoteDetail';
 
 const Page = styled.div`
@@ -59,6 +62,10 @@ function SmallGroupVoteDetailPage() {
   const [isVoteSubmitting, setIsVoteSubmitting] = useState(false);
   const [voteActionError, setVoteActionError] = useState(null);
   const [statusView, setStatusView] = useState(null);
+  const [groupRole, setGroupRole] = useState(null);
+  const [isVoteDeleteModalOpen, setIsVoteDeleteModalOpen] = useState(false);
+  const [isVoteDeleting, setIsVoteDeleting] = useState(false);
+  const [voteDeleteError, setVoteDeleteError] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,6 +85,25 @@ function SmallGroupVoteDetailPage() {
       controller.abort();
     };
   }, [smallGroupId, voteId, retry]);
+
+  // AI작성: 직접 상세 URL로 진입한 OWNER도 삭제 버튼을 확인할 수 있도록 소모임 관계 정보를 별도로 조회한다.
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    getSmallGroupDetail(smallGroupId, { signal: controller.signal })
+      .then((group) => {
+        if (active) setGroupRole({ smallGroupId, myRole: group.myRole });
+      })
+      .catch(() => {
+        if (active && !controller.signal.aborted) setGroupRole({ smallGroupId, myRole: null });
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [smallGroupId]);
 
   const requestKey = `${smallGroupId}:${voteId}:${retry}`;
   const current = result?.requestKey === requestKey ? result : null;
@@ -102,6 +128,7 @@ function SmallGroupVoteDetailPage() {
     state: { activeSmallGroupMenu: 'poll' },
   });
   const currentVote = current?.vote;
+  const canDeleteVote = groupRole?.smallGroupId === smallGroupId && groupRole.myRole === 'OWNER';
   const currentStatus = statusView?.requestKey === requestKey ? statusView : null;
   const selectedOptionIds = voteView.voteId === voteId
     ? voteView.selectedOptionIds
@@ -158,6 +185,23 @@ function SmallGroupVoteDetailPage() {
     }
   };
 
+  // AI작성: 확인 뒤에만 삭제 API를 호출하고, 성공 시 논리 삭제된 투표가 제외된 목록으로 돌아간다.
+  const handleVoteDeleteConfirm = async () => {
+    if (!currentVote || !canDeleteVote || isVoteDeleting) return;
+
+    setIsVoteDeleting(true);
+    try {
+      await deleteSmallGroupVote(smallGroupId, voteId);
+      setIsVoteDeleteModalOpen(false);
+      goToVoteList();
+    } catch (error) {
+      setIsVoteDeleteModalOpen(false);
+      setVoteDeleteError(error.message || '투표를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsVoteDeleting(false);
+    }
+  };
+
   return (
     <Page>
       <Breadcrumb>소모임 &gt; 소모임 메인 &gt; 투표 상세</Breadcrumb>
@@ -186,9 +230,34 @@ function SmallGroupVoteDetailPage() {
             statusError={currentStatus?.error?.message}
             onShowResults={handleShowResults}
             actionError={voteActionError}
+            canDelete={canDeleteVote}
+            onDelete={() => setIsVoteDeleteModalOpen(true)}
+            isDeleting={isVoteDeleting}
           />
         )}
       </Content>
+      {isVoteDeleteModalOpen && currentVote && (
+        <ConfirmModal
+          title="투표 삭제"
+          description={`'${currentVote.title}' 투표를 삭제하시겠어요? 삭제된 투표는 다시 되돌릴 수 없습니다.`}
+          confirmLabel="투표 삭제"
+          confirmVariant="danger"
+          cancelFirst
+          isBusy={isVoteDeleting}
+          onConfirm={handleVoteDeleteConfirm}
+          onCancel={() => setIsVoteDeleteModalOpen(false)}
+        />
+      )}
+      {voteDeleteError && (
+        <ConfirmModal
+          title="투표 삭제 실패"
+          description={voteDeleteError}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setVoteDeleteError(null)}
+          onCancel={() => setVoteDeleteError(null)}
+        />
+      )}
     </Page>
   );
 }

@@ -57,6 +57,20 @@ const Status = styled.span`
   white-space: nowrap;
 `;
 
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const DeleteButton = styled(Button)`
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 11px;
+`;
+
 const Meta = styled.div`
   margin-top: 10px;
   display: flex;
@@ -262,6 +276,7 @@ function formatDateTime(value) {
 function SmallGroupVoteDetail({
   vote, onBack, selectedOptionIds, onSelectOption, onSubmit, isSubmitting,
   isResultOpen, resultVote, isStatusLoading, statusError, onShowResults, actionError,
+  canDelete, onDelete, isDeleting,
 }) {
   const isClosed = vote.status === 'CLOSED';
   const selectedOptionIdSet = new Set(selectedOptionIds);
@@ -279,7 +294,19 @@ function SmallGroupVoteDetail({
         <VotePanel>
           <Header>
             <Title>{vote.title}</Title>
-            <Status $closed={isClosed}>{isClosed ? '마감' : '진행 중'}</Status>
+            <HeaderActions>
+              <Status $closed={isClosed}>{isClosed ? '마감' : '진행 중'}</Status>
+              {canDelete && (
+                <DeleteButton
+                  type="button"
+                  $variant="danger"
+                  onClick={onDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? '삭제 중...' : '투표 삭제'}
+                </DeleteButton>
+              )}
+            </HeaderActions>
           </Header>
           <Meta>
             <span><FiUsers size={13} aria-hidden="true" /> 작성자 {vote.creatorNickname}</span>
