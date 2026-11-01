@@ -8,6 +8,7 @@ import AdminSidebar from '../components/layout/AdminSidebar';
 import { adminMenuItems } from '../mocks/admin';
 import { getAdminMembers } from '../api/adminMembers';
 import { getAdminDashboardSummary } from '../api/adminDashboard';
+import { getMemberRegions } from '../api/member';
 
 const PAGE_SIZE = 10;
 
@@ -52,7 +53,10 @@ const Grid = styled.div`
 function AdminMembersPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('전체');
-  const [region, setRegion] = useState('전체');
+  const [regions, setRegions] = useState([]);
+  const [province, setProvince] = useState('');
+  const [district, setDistrict] = useState('');
+  const [town, setTown] = useState('');
   const [restrictionScope, setRestrictionScope] = useState('');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
@@ -62,6 +66,12 @@ function AdminMembersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
   const [dashboardStats, setDashboardStats] = useState([]);
+
+  useEffect(() => {
+    getMemberRegions().then((items) => {
+      if (Array.isArray(items)) setRegions(items);
+    }).catch(() => setRegions([]));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -90,7 +100,9 @@ function AdminMembersPage() {
         const statusMap = { 정상: 'ACTIVE', 제재: 'SUSPENDED', 탈퇴: 'INACTIVE' };
         const result = await getAdminMembers({
           keyword: submittedQuery,
-          regionName: region === '전체' ? '' : region,
+          provinceName: province,
+          districtName: district,
+          townName: town,
           accountStatus: statusMap[status] || '',
           restrictionScope,
           page: currentPage,
@@ -111,7 +123,7 @@ function AdminMembersPage() {
     }
     loadMembers();
     return () => controller.abort();
-  }, [currentPage, region, restrictionScope, status, submittedQuery]);
+  }, [currentPage, district, province, restrictionScope, status, submittedQuery, town]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -143,15 +155,29 @@ function AdminMembersPage() {
             filter={
               <AdminFilterBar
                 status={status}
-                region={region}
+                province={province}
+                district={district}
+                town={town}
+                regions={regions}
                 restrictionScope={restrictionScope}
                 query={query}
                 onStatusChange={(value) => {
                   setStatus(value);
                   setCurrentPage(1);
                 }}
-                onRegionChange={(value) => {
-                  setRegion(value);
+                onProvinceChange={(value) => {
+                  setProvince(value);
+                  setDistrict('');
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onDistrictChange={(value) => {
+                  setDistrict(value);
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onTownChange={(value) => {
+                  setTown(value);
                   setCurrentPage(1);
                 }}
                 onRestrictionScopeChange={(value) => {

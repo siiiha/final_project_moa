@@ -20,8 +20,14 @@ public class AdminMemberSearchCondition {
     @Pattern(regexp = "ACTIVE|INACTIVE", message = "회원 상태를 다시 선택해 주세요.")
     private String accountStatus;
 
-    @Size(max = 100, message = "지역명은 100자 이내로 입력해 주세요.")
-    private String regionName;
+    @Size(max = 30, message = "시·도 지역명을 다시 선택해 주세요.")
+    private String provinceName;
+
+    @Size(max = 50, message = "시·군·구 지역명을 다시 선택해 주세요.")
+    private String districtName;
+
+    @Size(max = 50, message = "읍·면·동 지역명을 다시 선택해 주세요.")
+    private String townName;
 
     // AI작성: 현재 적용 중인 기능 제한 영역으로 관리자 회원 목록을 필터링합니다.
     private MemberRestrictionScope restrictionScope;
@@ -38,5 +44,13 @@ public class AdminMemberSearchCondition {
 
     public void setKeyword(String keyword) {
         this.keyword = keyword == null || keyword.strip().isEmpty() ? null : keyword.strip();
+    }
+
+    public void setProvinceName(String provinceName) { this.provinceName = normalize(provinceName); }
+    public void setDistrictName(String districtName) { this.districtName = normalize(districtName); }
+    public void setTownName(String townName) { this.townName = normalize(townName); }
+
+    private String normalize(String value) {
+        return value == null || value.strip().isEmpty() ? null : value.strip();
     }
 }

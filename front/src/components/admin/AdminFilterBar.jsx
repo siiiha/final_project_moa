@@ -1,12 +1,12 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
-import { savingGroupRegionOptions } from '../../api/savingGroups';
 
 const Form = styled.form`
   padding: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   background: ${({ theme }) => theme.colors.background};
   border-radius: ${({ theme }) => theme.radius.sm};
 
@@ -70,15 +70,25 @@ const SearchButton = styled(Button)`
 
 function AdminFilterBar({
   status,
-  region,
+  province,
+  district,
+  town,
+  regions,
   restrictionScope,
   query,
   onStatusChange,
-  onRegionChange,
+  onProvinceChange,
+  onDistrictChange,
+  onTownChange,
   onRestrictionScopeChange,
   onQueryChange,
   onSearch,
 }) {
+  const provinces = [...new Set(regions.map((region) => region.provinceName))];
+  const districts = regions.filter((region) => region.provinceName === province && !region.townName);
+  const towns = regions.filter((region) => region.provinceName === province
+    && region.districtName === district && region.townName);
+
   return (
     <Form onSubmit={onSearch}>
       <Control aria-label="회원 상태" value={status} onChange={(event) => onStatusChange(event.target.value)}>
@@ -87,14 +97,17 @@ function AdminFilterBar({
         <option value="제재">제재</option>
         <option value="탈퇴">탈퇴</option>
       </Control>
-      <Control aria-label="활동 지역" value={region} onChange={(event) => onRegionChange(event.target.value)}>
-        <option value="전체">전체 지역</option>
-        {/* AI작성: 관리자 회원 필터도 기존 서비스 지역 목록을 재사용한다. */}
-        {savingGroupRegionOptions.map((item) => (
-          <option key={item.code} value={item.name}>
-            {item.name}
-          </option>
-        ))}
+      <Control aria-label="가입 시·도" value={province} onChange={(event) => onProvinceChange(event.target.value)}>
+        <option value="">시·도 전체</option>
+        {provinces.map((item) => <option key={item} value={item}>{item}</option>)}
+      </Control>
+      <Control aria-label="가입 시·군·구" value={district} onChange={(event) => onDistrictChange(event.target.value)} disabled={!province}>
+        <option value="">시·군·구 전체</option>
+        {districts.map((item) => <option key={item.regionId} value={item.districtName}>{item.districtName || '시·군·구 전체'}</option>)}
+      </Control>
+      <Control aria-label="가입 읍·면·동" value={town} onChange={(event) => onTownChange(event.target.value)} disabled={!district}>
+        <option value="">읍·면·동 전체</option>
+        {towns.map((item) => <option key={item.regionId} value={item.townName}>{item.townName}</option>)}
       </Control>
       {/* AI작성: 현재 적용 중인 회원 기능 제한 영역으로 목록을 필터링한다. */}
       <Control
