@@ -3,7 +3,7 @@ import Button from '../common/Button';
 
 const Form = styled.form`
   display: grid;
-  grid-template-columns: minmax(220px, 1.65fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  grid-template-columns: minmax(150px, 1fr) 142px 112px 112px auto;
   align-items: end;
   gap: 12px 16px;
 
