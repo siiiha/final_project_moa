@@ -47,6 +47,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI()
                 .substring(request.getContextPath().length());
 
+        // AI작성: 공개 목록은 로그인 회원별 데이터를 사용하지 않으므로 인증 DB 조회를 건너뛴다.
+        if ("GET".equals(request.getMethod())
+                && ("/api/saving-groups".equals(path)
+                || "/api/small-groups".equals(path)
+                || "/api/community/list".equals(path)
+                || path.matches("^/api/post/\\d+/comments$"))) {
+            return true;
+        }
+
         // AI작성: 이 두 API는 Controller에서 쿠키와 요청 출처를 검증한다.
         return "POST".equals(request.getMethod())
                 && ("/api/auth/refresh".equals(path)
