@@ -4,6 +4,7 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupSummaryResponse;
 import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionTarget;
 import com.nightstudy.moa.admin.dto.RestrictionAction;
@@ -35,6 +36,12 @@ public class AdminSavingGroupServiceImpl implements AdminSavingGroupService {
         this.adminSavingGroupMapper = adminSavingGroupMapper;
         this.savingGroupMapper = savingGroupMapper;
         this.savingGroupService = savingGroupService;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminSavingGroupSummaryResponse getSavingGroupSummary() {
+        return adminSavingGroupMapper.selectSavingGroupSummary();
     }
 
     @Override

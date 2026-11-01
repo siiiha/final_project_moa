@@ -7,6 +7,7 @@ import { adminMenuItems } from '../mocks/admin';
 import ConfirmModal from '../components/common/ConfirmModal';
 import {
   getAdminSavingGroups,
+  getAdminSavingGroupSummary,
   releaseAdminSavingGroupRestriction,
   restrictAdminSavingGroup,
 } from '../api/adminSavingGroups';
@@ -119,6 +120,7 @@ function AdminSavingGroupsPage() {
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [summary, setSummary] = useState({ totalSavingGroups: 0, activeSavingGroups: 0, restrictedSavingGroups: 0 });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [actionTarget, setActionTarget] = useState(null);
@@ -133,6 +135,16 @@ function AdminSavingGroupsPage() {
       if (Array.isArray(items)) setRegions(items);
     }).catch(() => setRegions([]));
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAdminSavingGroupSummary({ signal: controller.signal }).then(setSummary).catch((error) => {
+      if (error.code !== 'ERR_CANCELED') {
+        setSummary({ totalSavingGroups: 0, activeSavingGroups: 0, restrictedSavingGroups: 0 });
+      }
+    });
+    return () => controller.abort();
+  }, [reloadKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -166,9 +178,6 @@ function AdminSavingGroupsPage() {
     loadGroups();
     return () => controller.abort();
   }, [currentPage, district, province, reloadKey, status, submittedQuery, town]);
-
-  const activeCount = groups.filter((group) => group.status === '활동중').length;
-  const suspendedCount = groups.filter((group) => group.status === '정지').length;
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -218,18 +227,18 @@ function AdminSavingGroupsPage() {
           <SummaryGrid aria-label="계모임 현황 요약">
             <SummaryCard>
               <SummaryLabel>전체 계모임</SummaryLabel>
-              <SummaryValue>{pageMeta.total}개</SummaryValue>
-              <SummaryDescription>검색 조건에 해당하는 계모임</SummaryDescription>
+              <SummaryValue>{summary.totalSavingGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>서비스에 등록된 계모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>활동 중</SummaryLabel>
-              <SummaryValue>{activeCount}개</SummaryValue>
-              <SummaryDescription>현재 페이지 기준</SummaryDescription>
+              <SummaryValue>{summary.activeSavingGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>정상 운영 중인 계모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>이용 제한</SummaryLabel>
-              <SummaryValue $danger>{suspendedCount}개</SummaryValue>
-              <SummaryDescription>현재 페이지 기준 관리자 제한</SummaryDescription>
+              <SummaryValue $danger>{summary.restrictedSavingGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>현재 관리자 제한 중인 계모임</SummaryDescription>
             </SummaryCard>
           </SummaryGrid>
           <SavingGroupTable

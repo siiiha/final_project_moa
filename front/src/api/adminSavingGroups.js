@@ -31,6 +31,20 @@ function mapSavingGroup(group) {
   };
 }
 
+// AI작성: 관리자 계모임 관리 화면의 전체 운영 현황을 목록 필터와 분리해 조회한다.
+export async function getAdminSavingGroupSummary({ signal } = {}) {
+  try {
+    const response = await client.get('/admin/saving-groups/summary', { signal });
+    if (!response.data?.success || !response.data.data) {
+      throw new Error(response.data?.error?.message || '계모임 현황 응답을 확인할 수 없습니다.');
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    throw toAdminSavingGroupError(error, '계모임 현황을 불러오지 못했습니다.');
+  }
+}
+
 // AI작성: 관리자 계모임 목록을 서버 검색·필터·페이징 조건으로 조회한다.
 export async function getAdminSavingGroups({
   keyword,

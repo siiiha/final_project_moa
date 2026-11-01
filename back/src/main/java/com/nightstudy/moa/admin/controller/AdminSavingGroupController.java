@@ -4,6 +4,7 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupSummaryResponse;
 import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.service.AdminSavingGroupService;
 import com.nightstudy.moa.common.dto.ApiResponse;
@@ -28,6 +29,12 @@ public class AdminSavingGroupController {
 
     public AdminSavingGroupController(AdminSavingGroupService adminSavingGroupService) {
         this.adminSavingGroupService = adminSavingGroupService;
+    }
+
+    @GetMapping("/summary")
+    // AI작성: 목록 필터와 무관하게 전체 계모임 운영 현황을 집계해 반환한다.
+    public ApiResponse<AdminSavingGroupSummaryResponse> getSavingGroupSummary() {
+        return ApiResponse.ok(adminSavingGroupService.getSavingGroupSummary());
     }
 
     @GetMapping
