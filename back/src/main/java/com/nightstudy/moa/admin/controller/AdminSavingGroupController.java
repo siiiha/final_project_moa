@@ -4,7 +4,8 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
-import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupSummaryResponse;
+import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.service.AdminSavingGroupService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -30,6 +31,12 @@ public class AdminSavingGroupController {
         this.adminSavingGroupService = adminSavingGroupService;
     }
 
+    @GetMapping("/summary")
+    // AI작성: 목록 필터와 무관하게 전체 계모임 운영 현황을 집계해 반환한다.
+    public ApiResponse<AdminSavingGroupSummaryResponse> getSavingGroupSummary() {
+        return ApiResponse.ok(adminSavingGroupService.getSavingGroupSummary());
+    }
+
     @GetMapping
     public ApiResponse<List<AdminSavingGroupListItemResponse>> getSavingGroupList(
             @Valid @ModelAttribute AdminSavingGroupSearchCondition condition
@@ -49,7 +56,7 @@ public class AdminSavingGroupController {
     // AI작성: 기간 없이 관리자 사유를 기록하고 진행 중 계모임을 활동 정지한다.
     public ApiResponse<Void> restrictSavingGroup(
             @PathVariable Long savingGroupId,
-            @Valid @RequestBody AdminSavingGroupRestrictionRequest request
+            @Valid @RequestBody AdminGroupRestrictionRequest request
     ) {
         adminSavingGroupService.restrictSavingGroup(savingGroupId, request);
         return ApiResponse.ok(null);
@@ -59,7 +66,7 @@ public class AdminSavingGroupController {
     // AI작성: 미해제 관리자 제한 이력이 있는 계모임만 정상 진행 상태로 복구한다.
     public ApiResponse<Void> releaseSavingGroupRestriction(
             @PathVariable Long savingGroupId,
-            @Valid @RequestBody AdminSavingGroupRestrictionRequest request
+            @Valid @RequestBody AdminGroupRestrictionRequest request
     ) {
         adminSavingGroupService.releaseSavingGroupRestriction(savingGroupId, request);
         return ApiResponse.ok(null);

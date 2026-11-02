@@ -6,9 +6,10 @@ import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportListResult;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
+import com.nightstudy.moa.admin.dto.AdminReportTargetResponse;
 import com.nightstudy.moa.admin.dto.AdminReportProcessRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
-import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
@@ -84,8 +85,15 @@ public class AdminReportServiceImpl implements AdminReportService {
 
         List<AdminReportSubmissionResponse> submissions =
                 adminReportMapper.selectReportSubmissions(caseId);
+        // AI작성: 회원 신고는 대상 콘텐츠가 없으므로 null을, 게시글·댓글 신고는 실제 원문을 반환합니다.
+        AdminReportTargetResponse targetContent =
+                adminReportMapper.selectReportTargetContent(caseId);
 
-        AdminReportDetailResponse result = new AdminReportDetailResponse(reportCase, submissions);
+        AdminReportDetailResponse result = new AdminReportDetailResponse(
+                reportCase,
+                targetContent,
+                submissions
+        );
         return result;
     }
 
@@ -93,8 +101,8 @@ public class AdminReportServiceImpl implements AdminReportService {
     @Transactional
     public void processReport(Long reportId, AdminReportProcessRequest request) {
         // AI작성: 같은 신고의 동시·중복 처리를 막기 위해 신고 행을 먼저 잠근다.
-        String reportStatus = adminReportMapper.selectReportStatusForUpdate(reportId);
-        if (reportStatus == null) {
+        AdminReportListItemResponse report = adminReportMapper.selectReportForUpdate(reportId);
+        if (report == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "REPORT_NOT_FOUND",
@@ -102,7 +110,7 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        if (!"PENDING".equals(reportStatus)) {
+        if (!"PENDING".equals(report.getStatus())) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "REPORT_ALREADY_PROCESSED",
@@ -111,6 +119,7 @@ public class AdminReportServiceImpl implements AdminReportService {
         }
 
         validateProcessRequest(request);
+        validateContentDeletionRequest(report.getReportType(), request);
 
         // AI작성: 반려는 신고 상태와 사유만 변경하고, 정상 처리일 때만 회원을 이용 제한한다.
         LocalDateTime restrictedUntil = null;
@@ -121,14 +130,14 @@ public class AdminReportServiceImpl implements AdminReportService {
                     request.getRestrictionType(),
                     request.getProcessReason()
             );
+            deleteReportedContentIfRequested(reportId, report.getReportType(), request.getDeleteTargetContent());
         }
 
         int updatedCount = adminReportMapper.updateReportProcess(
                 reportId,
                 request.getStatus(),
                 request.getProcessReason(),
-                restrictedUntil,
-                request.getRestrictionScope()
+                restrictedUntil
         );
 
         if (updatedCount != 1) {
@@ -168,6 +177,33 @@ public class AdminReportServiceImpl implements AdminReportService {
                     "RESTRICTION_NOT_ALLOWED",
                     "반려 처리에는 이용 제한 범위와 기간을 입력할 수 없습니다."
             );
+        }
+    }
+
+    // AI작성: 콘텐츠 삭제는 승인된 게시글·댓글 신고에서만 선택할 수 있도록 제한합니다.
+    private void validateContentDeletionRequest(String reportType, AdminReportProcessRequest request) {
+        if (!Boolean.TRUE.equals(request.getDeleteTargetContent())) {
+            return;
+        }
+        if (!"CONFIRMED".equals(request.getStatus())
+                || !("POST".equals(reportType) || "COMMENT".equals(reportType))) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "REPORT_CONTENT_DELETE_NOT_ALLOWED",
+                    "게시글 또는 댓글 신고를 승인할 때만 신고 콘텐츠를 삭제할 수 있습니다."
+            );
+        }
+    }
+
+    // AI작성: 이미 삭제된 콘텐츠는 신고 처리를 막지 않고, 공개 중인 대상만 소프트 삭제합니다.
+    private void deleteReportedContentIfRequested(Long reportId, String reportType, Boolean deleteTargetContent) {
+        if (!Boolean.TRUE.equals(deleteTargetContent)) {
+            return;
+        }
+        if ("POST".equals(reportType)) {
+            adminReportMapper.deleteReportedPost(reportId);
+        } else if ("COMMENT".equals(reportType)) {
+            adminReportMapper.deleteReportedComment(reportId);
         }
     }
 
@@ -218,7 +254,7 @@ public class AdminReportServiceImpl implements AdminReportService {
         adminMemberMapper.upsertMemberRestriction(memberId, restrictionScope, restrictedUntil);
         if (adminMemberMapper.insertRestrictionHistory(
                 memberId,
-                MemberRestrictionAction.RESTRICT,
+                RestrictionAction.RESTRICT,
                 restrictionType,
                 restrictionScope,
                 reason,

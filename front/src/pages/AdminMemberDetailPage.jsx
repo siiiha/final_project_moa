@@ -4,50 +4,17 @@ import styled from 'styled-components';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import AdminMemberDetail from '../components/admin/AdminMemberDetail';
-import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMenuItems } from '../mocks/admin';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import {
   getAdminMember,
   releaseAdminMemberRestriction,
   restrictAdminMember,
 } from '../api/adminMembers';
 
-const Page = styled.div`
+const LoadingPage = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
   margin: 0 auto;
   padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
 `;
 
 const EmptyCard = styled.section`
@@ -163,26 +130,24 @@ function AdminMemberDetailPage() {
 
   if (loading || !member || !detail) {
     return (
-      <Page>
+      <LoadingPage>
         <EmptyCard>
           <p>{loading ? '회원 정보를 불러오는 중입니다.' : errorMessage || '존재하지 않는 회원입니다.'}</p>
           <Button type="button" $variant="secondary" onClick={() => navigate('/admin/members')}>
             회원 목록으로
           </Button>
         </EmptyCard>
-      </Page>
+      </LoadingPage>
     );
   }
 
   return (
-    <Page>
-      <Heading>
-        <h1>회원 상세</h1>
-        <p>{member.name} 회원의 정보와 이용 상태를 관리하세요.</p>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="members" />
-        <main>
+    <>
+      <AdminPageLayout
+        title="회원 상세"
+        description={`${member.name} 회원의 정보와 이용 상태를 관리하세요.`}
+        activeItem="members"
+      >
           <AdminMemberDetail
             member={member}
             detail={detail}
@@ -200,8 +165,7 @@ function AdminMemberDetailPage() {
             onSubmit={handleStatusSubmit}
             onBack={() => navigate('/admin/members')}
           />
-        </main>
-      </Grid>
+      </AdminPageLayout>
       {confirmOpen && (
         <ConfirmModal
           title={action === '이용 제한' ? '회원 이용 제한' : '회원 제한 해제'}
@@ -218,7 +182,7 @@ function AdminMemberDetailPage() {
           onCancel={() => !submitting && setConfirmOpen(false)}
         />
       )}
-    </Page>
+    </>
   );
 }
 

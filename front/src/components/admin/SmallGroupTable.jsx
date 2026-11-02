@@ -182,7 +182,17 @@ function getPageNumbers(currentPage, totalPages) {
   return Array.from({ length }, (_, index) => start + index);
 }
 
-function SmallGroupTable({ groups, filter, currentPage, totalPages, onPageChange, onStatusAction }) {
+function SmallGroupTable({
+  groups,
+  filter,
+  currentPage,
+  totalPages,
+  onPageChange,
+  onStatusAction,
+  loading,
+  errorMessage,
+  submitting,
+}) {
   return (
     <Card>
       <Header>
@@ -204,14 +214,17 @@ function SmallGroupTable({ groups, filter, currentPage, totalPages, onPageChange
             </tr>
           </thead>
           <tbody>
-            {groups.length === 0 ? (
+            {loading || errorMessage || groups.length === 0 ? (
               <tr>
-                <Empty colSpan="7">검색 조건에 맞는 소모임이 없습니다.</Empty>
+                <Empty colSpan="7">
+                  {loading ? '소모임 목록을 불러오는 중입니다.' : errorMessage || '검색 조건에 맞는 소모임이 없습니다.'}
+                </Empty>
               </tr>
             ) : (
               groups.map((group) => {
-                const isActive = group.status === '활동중';
-                const actionLabel = isActive ? '이용 제한' : '제한 해제';
+                const canRestrict = group.statusCode === 'ACTIVE';
+                const canRelease = group.statusCode === 'RESTRICTED';
+                const actionLabel = canRelease ? '제한 해제' : '이용 제한';
 
                 return (
                   <tr key={group.id}>
@@ -226,13 +239,16 @@ function SmallGroupTable({ groups, filter, currentPage, totalPages, onPageChange
                       <Status $status={group.status}>{group.status}</Status>
                     </td>
                     <td data-label="관리">
-                      <ActionButton
-                        type="button"
-                        $variant={isActive ? 'danger' : 'primary'}
-                        onClick={() => onStatusAction(group.id)}
-                      >
-                        {actionLabel}
-                      </ActionButton>
+                      {canRestrict || canRelease ? (
+                        <ActionButton
+                          type="button"
+                          $variant={canRestrict ? 'danger' : 'primary'}
+                          onClick={() => onStatusAction(group)}
+                          disabled={submitting}
+                        >
+                          {actionLabel}
+                        </ActionButton>
+                      ) : '-'}
                     </td>
                   </tr>
                 );
@@ -240,7 +256,7 @@ function SmallGroupTable({ groups, filter, currentPage, totalPages, onPageChange
             )}
           </tbody>
         </Table>
-        {totalPages > 1 && (
+        {!loading && !errorMessage && totalPages > 1 && (
           <Pagination aria-label="소모임 목록 페이지">
             <PageButton
               type="button"

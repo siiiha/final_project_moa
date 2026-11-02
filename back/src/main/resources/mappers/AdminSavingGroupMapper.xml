@@ -5,6 +5,26 @@
 
 <mapper namespace="com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper">
 
+    <!-- AI작성: 삭제되지 않은 계모임의 전체·활동 중·관리자 제한 상태를 한 번에 집계한다. -->
+    <select id="selectSavingGroupSummary"
+            resultType="com.nightstudy.moa.admin.dto.AdminSavingGroupSummaryResponse">
+        SELECT COUNT(*) AS total_saving_groups,
+               COALESCE(SUM(CASE WHEN sg.status = '02' THEN 1 ELSE 0 END), 0) AS active_saving_groups,
+               COALESCE(SUM(CASE
+                   WHEN sg.status = '03'
+                    AND (
+                        SELECT rh.action
+                        FROM restriction_history rh
+                        WHERE rh.saving_group_id = sg.saving_group_id
+                        ORDER BY rh.restriction_history_id DESC
+                        LIMIT 1
+                    ) = 'RESTRICT'
+                   THEN 1 ELSE 0 END), 0) AS restricted_saving_groups
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE g.deleted_at IS NULL
+    </select>
+
     <!-- AI작성: 관리자는 공개 여부와 관계없이 삭제되지 않은 모든 상태의 계모임을 조회한다. -->
     <sql id="adminSavingGroupFromWhere">
         FROM saving_group sg
@@ -17,7 +37,9 @@
                 AND (g.group_name LIKE #{keywordPattern} ESCAPE '!'
                     OR g.description LIKE #{keywordPattern} ESCAPE '!')
             </if>
-            <if test="regionName != null">AND r.region_name = #{regionName}</if>
+            <if test="provinceName != null">AND r.province_name = #{provinceName}</if>
+            <if test="districtName != null">AND r.district_name = #{districtName}</if>
+            <if test="townName != null">AND r.town_name = #{townName}</if>
             <if test="status != null">AND sg.status = #{status}</if>
         </where>
     </sql>

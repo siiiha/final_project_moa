@@ -113,6 +113,7 @@ const RejectLabel = styled.label`
   font-weight: 700;
   textarea {
     min-height: 92px;
+    resize: none;
   }
 `;
 const Actions = styled.div`

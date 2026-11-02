@@ -4,8 +4,10 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
-import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupSummaryResponse;
+import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionTarget;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -34,6 +36,12 @@ public class AdminSavingGroupServiceImpl implements AdminSavingGroupService {
         this.adminSavingGroupMapper = adminSavingGroupMapper;
         this.savingGroupMapper = savingGroupMapper;
         this.savingGroupService = savingGroupService;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminSavingGroupSummaryResponse getSavingGroupSummary() {
+        return adminSavingGroupMapper.selectSavingGroupSummary();
     }
 
     @Override
@@ -79,7 +87,7 @@ public class AdminSavingGroupServiceImpl implements AdminSavingGroupService {
     // AI작성: 진행 중 상태를 잠근 뒤 기존 상태 전환 로직과 공통 이력 테이블을 같은 트랜잭션에서 사용한다.
     public void restrictSavingGroup(
             Long savingGroupId,
-            AdminSavingGroupRestrictionRequest request
+            AdminGroupRestrictionRequest request
     ) {
         AdminSavingGroupRestrictionTarget target = getRestrictionTarget(savingGroupId);
         if (!"02".equals(target.getStatus())) {
@@ -92,7 +100,7 @@ public class AdminSavingGroupServiceImpl implements AdminSavingGroupService {
 
         // AI작성: 기존 전환 기능을 재사용해 상태 변경과 보류 중인 회비 설정 정지를 함께 처리한다.
         savingGroupService.changeSavingGroupStatus(target.getGroupId(), "03");
-        insertRestrictionHistory(savingGroupId, "RESTRICT", request.getReason());
+        insertRestrictionHistory(savingGroupId, RestrictionAction.RESTRICT, request.getReason());
     }
 
     @Override
@@ -100,11 +108,12 @@ public class AdminSavingGroupServiceImpl implements AdminSavingGroupService {
     // AI작성: 최근 이력이 RESTRICT인 관리자 제한 계모임만 해제해 일반 일시정지를 잘못 복구하지 않는다.
     public void releaseSavingGroupRestriction(
             Long savingGroupId,
-            AdminSavingGroupRestrictionRequest request
+            AdminGroupRestrictionRequest request
     ) {
         AdminSavingGroupRestrictionTarget target = getRestrictionTarget(savingGroupId);
         if (!"03".equals(target.getStatus())
-                || !"RESTRICT".equals(adminSavingGroupMapper.selectLatestRestrictionAction(savingGroupId))) {
+                || !RestrictionAction.RESTRICT.name().equals(
+                        adminSavingGroupMapper.selectLatestRestrictionAction(savingGroupId))) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "SAVING_GROUP_NOT_ADMIN_RESTRICTED",
@@ -114,7 +123,7 @@ public class AdminSavingGroupServiceImpl implements AdminSavingGroupService {
 
         // AI작성: 기존 전환 기능을 재사용해 보류했던 회비 설정 일정도 정상적으로 재계산한다.
         savingGroupService.changeSavingGroupStatus(target.getGroupId(), "02");
-        insertRestrictionHistory(savingGroupId, "RELEASE", request.getReason());
+        insertRestrictionHistory(savingGroupId, RestrictionAction.RELEASE, request.getReason());
     }
 
     private AdminSavingGroupRestrictionTarget getRestrictionTarget(Long savingGroupId) {
@@ -130,7 +139,11 @@ public class AdminSavingGroupServiceImpl implements AdminSavingGroupService {
         return target;
     }
 
-    private void insertRestrictionHistory(Long savingGroupId, String action, String reason) {
+    private void insertRestrictionHistory(
+            Long savingGroupId,
+            RestrictionAction action,
+            String reason
+    ) {
         if (adminSavingGroupMapper.insertRestrictionHistory(savingGroupId, action, reason) != 1) {
             throw new ApiException(
                     HttpStatus.CONFLICT,

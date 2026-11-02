@@ -6,7 +6,7 @@ import com.nightstudy.moa.admin.dto.AdminMemberListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
 import com.nightstudy.moa.admin.dto.AdminMemberFeatureRestrictionResponse;
-import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
@@ -54,7 +54,7 @@ public interface AdminMemberMapper {
     // AI작성: 직접 제한 또는 해제의 유형·사유·종료 시각을 이력 테이블에 저장한다.
     int insertRestrictionHistory(
             @Param("memberId") Long memberId,
-            @Param("action") MemberRestrictionAction action,
+            @Param("action") RestrictionAction action,
             @Param("restrictionType") String restrictionType,
             @Param("restrictionScope") MemberRestrictionScope restrictionScope,
             @Param("reason") String reason,

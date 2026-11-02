@@ -3,45 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import SavingGroupApplicationDetail from '../components/admin/SavingGroupApplicationDetail';
-import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMenuItems } from '../mocks/admin';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import {
   approveSavingGroupCreationApplication,
   getSavingGroupCreationApplication,
   rejectSavingGroupCreationApplication,
 } from '../api/savingGroups';
 
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-const Heading = styled.div`
-  margin-left: 218px;
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-`;
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
-`;
 const MessageCard = styled.section`
   padding: 42px 20px;
   text-align: center;
@@ -112,14 +80,11 @@ function AdminSavingGroupApplicationDetailPage() {
   };
 
   return (
-    <Page>
-      <Heading>
-        <h1>계모임 심사 상세</h1>
-        <p>개설 또는 삭제 신청 내용을 확인하고 심사 처리하세요.</p>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="gathering-review" />
-        <main>
+    <AdminPageLayout
+      title="계모임 심사 상세"
+      description="개설 또는 삭제 신청 내용을 확인하고 심사 처리하세요."
+      activeItem="gathering-review"
+    >
           {loading ? (
             <p role="status">심사 상세를 불러오는 중입니다.</p>
           ) : error && !application ? (
@@ -146,9 +111,7 @@ function AdminSavingGroupApplicationDetailPage() {
               />
             </>
           ) : null}
-        </main>
-      </Grid>
-    </Page>
+    </AdminPageLayout>
   );
 }
 

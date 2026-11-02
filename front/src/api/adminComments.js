@@ -1,4 +1,5 @@
 import client from './client.js';
+import { formatAdminDate } from './adminFormatters.js';
 
 function toAdminCommentError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
@@ -6,20 +7,6 @@ function toAdminCommentError(error, fallbackMessage) {
   failure.name = 'AdminCommentError';
   failure.code = responseError?.code || 'ADMIN_COMMENT_LIST_FAILED';
   return failure;
-}
-
-function formatDate(value) {
-  if (!value) return '날짜 확인 필요';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
-  return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-    .format(date)
-    .replace(/\.\s?/g, '.')
-    .replace(/\.$/, '');
 }
 
 function formatCommentStatus(status) {
@@ -55,7 +42,7 @@ export async function getAdminComments({ keyword, regionName, status, page = 1, 
         author: comment.writerNickname,
         postTitle: comment.postTitle,
         status: formatCommentStatus(comment.status),
-        date: formatDate(comment.createdAt),
+        date: formatAdminDate(comment.createdAt),
       })),
       meta: response.data.meta,
     };

@@ -1,9 +1,10 @@
 import styled from 'styled-components';
+import { ADMIN_REPORT_STATUS_OPTIONS, ADMIN_REPORT_TYPE_OPTIONS } from '../../api/adminReportOptions';
 import Button from '../common/Button';
 
 const Form = styled.form`
   display: grid;
-  grid-template-columns: minmax(220px, 1.65fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  grid-template-columns: minmax(150px, 1fr) 142px 112px 112px auto;
   align-items: end;
   gap: 12px 16px;
 
@@ -94,13 +95,19 @@ function AdminReportFilterBar({ query, searchType, reportType, status, onQueryCh
       <Field>
         신고 유형
         <Select value={reportType} onChange={(event) => onReportTypeChange(event.target.value)} aria-label="신고 유형">
-          <option value="">전체 유형</option><option value="BOARD_POST">게시글</option><option value="BOARD_COMMENT">댓글</option><option value="BOARD_MEMBER">회원</option><option value="MEETING">모임</option><option value="MEETING_MEMBER">모임 회원</option>
+          <option value="">전체 유형</option>
+          {ADMIN_REPORT_TYPE_OPTIONS.filter((option) => option.filterable).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </Select>
       </Field>
       <Field>
         처리 상태
         <Select value={status} onChange={(event) => onStatusChange(event.target.value)} aria-label="신고 처리 상태">
-          <option value="">전체</option><option value="PENDING">대기</option><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option>
+          <option value="">전체</option>
+          {ADMIN_REPORT_STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </Select>
       </Field>
       <SearchButton type="submit">검색</SearchButton>

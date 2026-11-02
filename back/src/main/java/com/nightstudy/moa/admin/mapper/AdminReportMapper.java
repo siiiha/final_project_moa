@@ -1,9 +1,9 @@
 package com.nightstudy.moa.admin.mapper;
 
-import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
+import com.nightstudy.moa.admin.dto.AdminReportTargetResponse;
 import java.util.List;
 import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Mapper;
@@ -28,24 +28,34 @@ public interface AdminReportMapper {
             @Param("caseId") Long caseId
     );
 
+    // AI작성: 신고 사건의 게시글·댓글 원문을 삭제 여부와 관계없이 조회합니다.
+    AdminReportTargetResponse selectReportTargetContent(
+            @Param("caseId") Long caseId
+    );
+
     // AI작성: 해당 사건에 접수된 신고자별 상세 내용을 조회한다.
     List<AdminReportSubmissionResponse> selectReportSubmissions(
             @Param("caseId") Long caseId
     );
 
-    // AI작성: 중복 처리를 막기 위해 처리 대상 신고 행을 잠금 조회한다.
-    String selectReportStatusForUpdate(@Param("reportId") Long reportId);
+    // AI작성: 중복 처리를 막고 콘텐츠 유형을 확인하기 위해 처리 대상 신고 사건을 잠금 조회한다.
+    AdminReportListItemResponse selectReportForUpdate(@Param("reportId") Long reportId);
 
     // AI작성: 신고 유형에 따라 회원, 게시글 작성자 또는 댓글 작성자를 찾는다.
     Long selectReportedMemberId(@Param("reportId") Long reportId);
+
+    // AI작성: 승인 시 관리자가 선택한 신고 게시글을 소프트 삭제한다.
+    int deleteReportedPost(@Param("reportId") Long reportId);
+
+    // AI작성: 승인 시 관리자가 선택한 신고 댓글을 소프트 삭제한다.
+    int deleteReportedComment(@Param("reportId") Long reportId);
 
     // AI작성: PENDING 신고만 최종 상태로 변경하여 중복 처리를 한 번 더 방지한다.
     int updateReportProcess(
             @Param("reportId") Long reportId,
             @Param("status") String status,
             @Param("processReason") String processReason,
-            @Param("restrictedUntil") LocalDateTime restrictedUntil,
-            @Param("restrictionScope") MemberRestrictionScope restrictionScope
+            @Param("restrictedUntil") LocalDateTime restrictedUntil
     );
 
 }

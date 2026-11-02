@@ -1,4 +1,10 @@
 import client from './client.js';
+import { formatAdminDate } from './adminFormatters.js';
+import {
+  ADMIN_REPORT_STATUS_OPTIONS,
+  ADMIN_REPORT_TYPE_OPTIONS,
+  findAdminReportOptionLabel,
+} from './adminReportOptions.js';
 
 function toAdminReportError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
@@ -8,24 +14,12 @@ function toAdminReportError(error, fallbackMessage) {
   return failure;
 }
 
-function formatDate(value) {
-  if (!value) return '날짜 확인 필요';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
-  return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).format(date).replace(/\.\s?/g, '.').replace(/\.$/, '');
-}
-
 function formatReportType(value) {
-  return {
-    BOARD_POST: '게시글', BOARD_COMMENT: '댓글', BOARD_MEMBER: '회원',
-    MEETING: '모임', MEETING_MEMBER: '모임 회원',
-  }[value] || '유형 확인 필요';
+  return findAdminReportOptionLabel(ADMIN_REPORT_TYPE_OPTIONS, value, '유형 확인 필요');
 }
 
 function formatReportStatus(value) {
-  return { PENDING: '대기', CONFIRMED: '승인', REJECTED: '반려' }[value] || '상태 확인 필요';
+  return findAdminReportOptionLabel(ADMIN_REPORT_STATUS_OPTIONS, value, '상태 확인 필요');
 }
 
 // AI작성: 서버의 기능 제한 범위를 관리자 화면에서 이해하기 쉬운 문구로 변환한다.
@@ -44,9 +38,13 @@ function mapReport(item) {
     status: formatReportStatus(item.status),
     statusCode: item.status,
     processReason: item.processReason || '',
-    createdAt: formatDate(item.createdAt),
-    processedAt: item.processedAt ? formatDate(item.processedAt) : '-',
-    restrictedUntil: item.restrictedUntil ? formatDate(item.restrictedUntil) : '-',
+    createdAt: formatAdminDate(item.createdAt, { includeTime: true }),
+    processedAt: item.processedAt
+      ? formatAdminDate(item.processedAt, { includeTime: true })
+      : '-',
+    restrictedUntil: item.restrictedUntil
+      ? formatAdminDate(item.restrictedUntil, { includeTime: true })
+      : '-',
     restrictionScope: formatRestrictionScope(item.restrictionScope),
   };
 }
@@ -83,15 +81,25 @@ export async function getAdminReport(caseId, signal) {
       throw new Error('신고 상세 응답을 확인할 수 없습니다.');
     }
     const report = mapReport(response.data.data.reportCase);
+    const targetContent = response.data.data.targetContent;
     return {
       report: {
         ...report,
+        // AI작성: 게시글·댓글 신고일 때 관리자 상세 화면에서 검토할 실제 원문을 보존한다.
+        targetContent: targetContent ? {
+          id: targetContent.targetId,
+          postId: targetContent.postId,
+          postTitle: targetContent.postTitle || '',
+          content: targetContent.content || '',
+          writer: targetContent.writerNickname || '작성자 확인 필요',
+          deleted: Boolean(targetContent.deleted),
+        } : null,
         processId: response.data.data.submissions[0]?.reportId || null,
         submissions: response.data.data.submissions.map((submission) => ({
           id: submission.reportId,
           reporter: submission.reporterNickname || '신고자 확인 필요',
           reason: submission.reason || '신고 사유 없음',
-          reportedAt: formatDate(submission.reportedAt),
+          reportedAt: formatAdminDate(submission.reportedAt, { includeTime: true }),
           hasEvidence: Boolean(submission.evidenceFiles),
         })),
       },
