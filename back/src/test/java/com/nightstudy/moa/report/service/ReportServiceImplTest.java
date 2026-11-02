@@ -34,7 +34,7 @@ class ReportServiceImplTest {
     void createReportCreatesCaseAndSubmission() {
         ReportCreateRequest request = request(ReportType.POST, 10L);
         when(reportMapper.selectReportTarget(ReportType.POST, 10L))
-                .thenReturn(target(10L, 2L));
+                .thenReturn(target(2L));
         when(reportMapper.selectPendingCaseId(ReportType.POST, 10L)).thenReturn(null);
         when(reportMapper.insertReportCase(any(ReportCaseRecord.class))).thenAnswer(invocation -> {
             ReportCaseRecord reportCase = invocation.getArgument(0);
@@ -74,7 +74,7 @@ class ReportServiceImplTest {
     void createReportRejectsSelfReport() {
         ReportCreateRequest request = request(ReportType.MEMBER, 1L);
         when(reportMapper.selectReportTarget(ReportType.MEMBER, 1L))
-                .thenReturn(target(1L, 1L));
+                .thenReturn(target(1L));
 
         assertThatThrownBy(() -> reportService.createReport(1L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
@@ -85,7 +85,7 @@ class ReportServiceImplTest {
     void createReportRejectsDuplicateReporterTarget() {
         ReportCreateRequest request = request(ReportType.POST, 10L);
         when(reportMapper.selectReportTarget(ReportType.POST, 10L))
-                .thenReturn(target(10L, 2L));
+                .thenReturn(target(2L));
         when(reportMapper.countReporterTarget(1L, ReportType.POST, 10L)).thenReturn(1);
 
         assertThatThrownBy(() -> reportService.createReport(1L, request))
@@ -101,9 +101,8 @@ class ReportServiceImplTest {
         return request;
     }
 
-    private ReportTarget target(Long targetId, Long reportedMemberId) {
+    private ReportTarget target(Long reportedMemberId) {
         ReportTarget target = new ReportTarget();
-        target.setTargetId(targetId);
         target.setReportedMemberId(reportedMemberId);
         return target;
     }
