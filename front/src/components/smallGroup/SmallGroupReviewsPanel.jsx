@@ -134,9 +134,7 @@ function SmallGroupReviewsPanel({ smallGroupId }) {
         </Status>
       ) : result.items.length === 0 ? (
         <Status role="status">아직 등록된 후기가 없습니다.</Status>
-      ) : !hasNext ? (
-        <Status role="status">모든 후기를 확인했습니다.</Status>
-      ) : !supportsObserver ? (
+      ) : hasNext && !supportsObserver ? (
         <Status><Button type="button" disabled={!canLoadMore} onClick={() => setPage((previous) => previous + 1)}>후기 더 보기</Button></Status>
       ) : null}
       <div ref={sentinel} aria-hidden="true" style={{ height: 1 }} />

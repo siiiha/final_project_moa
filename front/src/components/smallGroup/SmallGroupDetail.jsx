@@ -276,6 +276,21 @@ const SettingsContent = styled.div`
   margin-top: 16px;
 `;
 
+// AI작성: 안내와 후기 목록을 같은 카드에 배치하고 본문은 왼쪽 정렬로 읽기 쉽게 표시한다.
+const ReviewCard = styled(Placeholder)`
+  padding: 24px 20px;
+  color: ${({ theme }) => theme.colors.text};
+  text-align: left;
+`;
+
+const ReviewNotice = styled.p`
+  margin: 0 0 12px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 16px;
+  line-height: 1.6;
+  text-align: center;
+`;
+
 const JoinRequestsContent = styled.div`
   margin-top: 16px;
 `;
@@ -568,11 +583,13 @@ function SmallGroupDetail({
               <Button type="button" onClick={() => setReviewModalGroupId(smallGroupId)}>후기 작성</Button>
             )}
           </PollHeading>
-          <Placeholder role="status">
-            {reviewRestriction || (reviewResult?.smallGroupId === smallGroupId
-              ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
-          </Placeholder>
-          <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}:${reviewListVersion}`} smallGroupId={smallGroupId} />
+          <ReviewCard aria-label="소모임 후기">
+            <ReviewNotice role="status">
+              {reviewRestriction || (reviewResult?.smallGroupId === smallGroupId
+                ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
+            </ReviewNotice>
+            <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}:${reviewListVersion}`} smallGroupId={smallGroupId} />
+          </ReviewCard>
           {!reviewRestriction && reviewModalGroupId === smallGroupId && (
             <SmallGroupReviewCreateModal
               key={smallGroupId}
