@@ -1,5 +1,66 @@
 import client from './client.js';
 
+// AI작성: 공개 후기 목록의 서버 오류 코드와 메시지를 화면에 전달한다.
+export class SmallGroupReviewListLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupReviewListLoadError';
+    this.code = code;
+  }
+}
+
+// AI작성: 목록 식별자와 표시 정보만 반환해 작성자 회원 ID 등 불필요한 정보는 전달하지 않는다.
+export function toSmallGroupReviewListItem(item) {
+  const validId = (Number.isSafeInteger(item?.smallGroupReviewId) && item.smallGroupReviewId > 0)
+    || (typeof item?.smallGroupReviewId === 'string' && /^[1-9]\d*$/.test(item.smallGroupReviewId));
+  if (!validId || typeof item?.writerNickname !== 'string' || typeof item?.content !== 'string'
+    || typeof item?.createdAt !== 'string' || !item.createdAt
+    || !Number.isFinite(item?.rating) || item.rating < 0 || item.rating > 5
+    || !Number.isInteger(item.rating * 2)) {
+    throw new SmallGroupReviewListLoadError('INVALID_RESPONSE', '후기 목록 응답을 확인하지 못했습니다.');
+  }
+  return {
+    smallGroupReviewId: item.smallGroupReviewId,
+    writerNickname: item.writerNickname,
+    content: item.content,
+    createdAt: item.createdAt,
+    rating: item.rating,
+  };
+}
+
+// AI작성: 검색·필터·크기 없이 페이지와 취소 신호만 전달하고 서버 최신순 목록을 그대로 유지한다.
+export async function getSmallGroupReviews(smallGroupId, { page = 1, signal } = {}) {
+  try {
+    const response = await client.get(`/small-groups/${encodeURIComponent(smallGroupId)}/reviews`, {
+      params: { page },
+      signal,
+    });
+    const { data, meta } = response.data || {};
+    if (!response.data?.success || !Array.isArray(data) || !meta
+      || !Number.isInteger(meta.page) || meta.page < 1 || meta.size !== 8
+      || !Number.isInteger(meta.total) || meta.total < 0
+      || !Number.isInteger(meta.totalPages) || meta.totalPages < 0) {
+      throw new SmallGroupReviewListLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '후기 목록 응답을 확인하지 못했습니다.',
+      );
+    }
+    return {
+      items: data.map(toSmallGroupReviewListItem),
+      totalElements: meta.total,
+      totalPages: meta.totalPages,
+      currentPage: meta.page,
+      pageSize: meta.size,
+    };
+  } catch (error) {
+    if (error instanceof SmallGroupReviewListLoadError || error.code === 'ERR_CANCELED') throw error;
+    throw new SmallGroupReviewListLoadError(
+      error.response?.data?.error?.code || 'SMALL_GROUP_REVIEW_LIST_LOAD_FAILED',
+      error.response?.data?.error?.message || '후기 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    );
+  }
+}
+
 // AI작성: 후기 등록의 서버 오류 코드를 보존해 중복 등록과 재시도 가능한 실패를 구분한다.
 export class SmallGroupReviewCreateError extends Error {
   constructor(code, message) {
