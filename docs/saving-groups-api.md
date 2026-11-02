@@ -308,6 +308,14 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 이 검증은 client.post를 대체한 단위 테스트이며 브라우저 선택 초기화·실제 HTTP·DB 저장 성공을 검증한 것은 아니다.
 브라우저에서는 지역을 변경한 뒤 Network의 POST `/api/saving-group` Form Data에서 regionName이 최종 선택값 하나인지 확인해야 한다.
 
+<!-- AI작성: 5단계 서버 지역 검증은 기존 regionName 요청·region_id 저장 계약을 유지한다. -->
+5단계: 서버는 regionName의 앞뒤 공백을 제거하고 region에서 상위 지역 정보를 함께 조회한다.
+시·도와 시·군·구 정보가 있는 구 또는 동 행만 허용한다. 세종특별자치시는 districtName이 빈 문자열인 행도 허용한다.
+지역 누락·존재하지 않는 이름·중복 이름·상위 정보 누락·세종 이외의 빈 구 이름은 HTTP 400 `REGION_NOT_FOUND`로 거절한다.
+구 미지정 여부는 저장된 지역 행으로 판단하며, 별도 시·구·동 입력 조합은 받지 않는다. region 테이블의 계층 데이터 정확성은 전제다.
+클라이언트가 보낸 regionId는 저장에 사용하지 않고 조회된 ID로 덮어쓴다. 동을 선택하지 않아도 구 행의 ID를 groups.region_id에 저장한다.
+기존 생성 트랜잭션·관리자 심사·상세 조회 구조와 DB 스키마는 유지한다.
+
 `POST /api/saving-group`은 `multipart/form-data`로 아래 필드를 받는다.
 
 | 필드 | 타입 | 필수 | 검증 |

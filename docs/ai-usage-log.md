@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+<!-- AI작성: 계모임 개설 지역 선택 5단계 서버 검증·저장 작업을 기록한다. -->
+## 2026-11-03 — 계모임 개설 서버 지역 검증 (5단계)
+
+- 목적·승인: 사용자 요청에 따라 구 또는 동 단위 지역만 개설 요청에 저장하도록 서버 검증을 추가했다.
+- AI 제안·작성: SavingGroupMapper에 selectCreationRegionsByName을 추가하고 기존 MemberRegionDto로 지역 ID·상위 정보를 조회한다. Service에서 이름 공백 제거, 단일 행 여부, 시·구 정보 필수, 세종의 빈 구 예외를 검증한다. 입력 regionId는 신뢰하지 않고 조회된 ID로 덮어쓴다. 기존 메서드명·API 필드·저장 SQL·트랜잭션·DB 스키마는 유지한다.
+- 변경 파일: back/src/main/java/com/nightstudy/moa/savingGroup/service/SavingGroupCreationServiceImpl.java, back/src/main/java/com/nightstudy/moa/savingGroup/mapper/SavingGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml, back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupCreationServiceImplTest.java, docs/saving-groups-api.md, 본 기록.
+- 테스트 작성: 구·동·세종 구/동 정상 저장과 클라이언트 지역 ID 덮어쓰기, 존재하지 않는 지역·중복 이름·광역 지역만 선택·상위 정보 누락·구 공백·ID 누락·지역명 누락 거절을 검증하도록 추가했다.
+- 실행 결과: Gradle 테스트는 기본 실행에서 캐시 잠금 접근 거부, 권한 재시도 후 Java 17 toolchain 부재로 컴파일 전에 중단됐다. 테스트 통과·Java 컴파일·MyBatis 실행·실제 DB 저장은 확인하지 못했다. Mapper XML 파싱과 git diff --check는 통과했다. 의존성·도구 설치·프로젝트 설정 변경은 하지 않았다.
+- Postman 검증 방법: 인증된 multipart POST /api/saving-group에서 DB에 등록된 구 이름·동 이름·세종 이름은 정상 신청, 시 이름만·지역 누락·존재하지 않는 이름은 400인지 확인한다. regionId를 다른 값으로 보내도 저장된 groups.region_id가 선택 지역의 실제 ID인지 확인한다. 이 검증은 미실행이다.
+- 개발자 검토·수정: 검토 대기. 실제 지역 데이터의 상위 정보 정확성·중복 이름 여부를 확인해야 한다. 관리자 승인 후 상세 지역 표시는 6단계다. 커밋 미수행.
+
 <!-- AI작성: 계모임 생성 요청 지역 전달 4단계의 작업·검증 결과를 기록한다. -->
 ## 2026-11-03 — 계모임 개설 요청 지역 전달 (4단계)
 

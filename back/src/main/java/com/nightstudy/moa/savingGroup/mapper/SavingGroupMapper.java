@@ -16,6 +16,9 @@ public interface SavingGroupMapper {
                                                   @Param("memberId") Long memberId);
     int insertSavingGroupCreationApproval(@Param("groupId") Long groupId);
     Long selectRegionIdByName(@Param("regionName") String regionName);
+    // AI작성: 기존 지역 DTO로 구·동 소속 정보를 조회하며 중복 지역명도 서비스에서 검증한다.
+    List<com.nightstudy.moa.member.dto.region.MemberRegionDto> selectCreationRegionsByName(
+            @Param("regionName") String regionName);
     boolean existsMember(@Param("memberId") Long memberId);
     int selectSavingGroupCreationApplicationCount(SavingGroupCreationApplicationListCondition condition);
     List<SavingGroupCreationApplicationListItemResponse> selectSavingGroupCreationApplications(
