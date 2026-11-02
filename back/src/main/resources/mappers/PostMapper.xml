@@ -130,6 +130,17 @@
         AND deleted_at IS NULL
     </select>
 
+    <select id="selectActivePostIdForUpdate"
+            parameterType="long"
+            resultType="long">
+        <!-- AI작성: 댓글 저장이 끝날 때까지 활성 게시글 행을 잠가 동시 삭제 후 댓글이 저장되는 상황을 막습니다. -->
+        SELECT post_id
+        FROM post
+        WHERE post_id = #{postId}
+        AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
     <update id="editPost">
         UPDATE post
         SET category_id = #{request.categoryId},

@@ -44,7 +44,7 @@ class CommentServiceImplTest {
     @Test
     // AI작성: 댓글의 앞뒤 공백을 제거해 저장하고 생성된 댓글을 반환하는지 확인한다.
     void insertCommentReturnsCreatedComment() {
-        when(postMapper.countPostById(1L)).thenReturn(1);
+        when(postMapper.selectActivePostIdForUpdate(1L)).thenReturn(1L);
         doAnswer(invocation -> {
             CommentDto comment = invocation.getArgument(0);
             assertThat(comment.getContent()).isEqualTo("댓글");
@@ -65,8 +65,8 @@ class CommentServiceImplTest {
     void insertReplyTrimsContent() {
         CommentDto parent = comment(10L, 1L, null, "원댓글");
         CommentDto savedReply = comment(11L, 1L, 10L, "대댓글");
-        when(postMapper.countPostById(1L)).thenReturn(1);
-        when(commentMapper.selectCommentById(10L)).thenReturn(parent);
+        when(postMapper.selectActivePostIdForUpdate(1L)).thenReturn(1L);
+        when(commentMapper.selectActiveCommentForUpdate(1L, 10L)).thenReturn(parent);
         doAnswer(invocation -> {
             CommentDto reply = invocation.getArgument(0);
             assertThat(reply.getContent()).isEqualTo("대댓글");
@@ -83,7 +83,7 @@ class CommentServiceImplTest {
     @Test
     // AI작성: 존재하지 않거나 삭제된 게시글에는 댓글을 등록하지 않는지 확인한다.
     void insertCommentRejectsMissingPost() {
-        when(postMapper.countPostById(999L)).thenReturn(0);
+        when(postMapper.selectActivePostIdForUpdate(999L)).thenReturn(null);
 
         assertThatThrownBy(() -> commentService.insertComment(999L, 2L, "댓글"))
                 .isInstanceOfSatisfying(ApiException.class, exception ->

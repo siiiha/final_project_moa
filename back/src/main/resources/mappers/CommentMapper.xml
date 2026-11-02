@@ -27,6 +27,18 @@
         AND deleted_at IS NULL
     </select>
 
+    <select id="selectActiveCommentForUpdate"
+            resultType="com.nightstudy.moa.comment.dto.CommentDto">
+        <!-- AI작성: 대댓글 저장이 끝날 때까지 원댓글 행을 잠가 동시 삭제 후 대댓글이 저장되는 상황을 막습니다. -->
+        SELECT comment_id, post_id, writer_id AS member_id, parent_id, content,
+               created_at, updated_at
+        FROM comment
+        WHERE comment_id = #{commentId}
+        AND post_id = #{postId}
+        AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
     <select id="selectCommentCountByPostId"
             parameterType="long"
             resultType="int">
