@@ -10,6 +10,9 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
@@ -50,6 +53,17 @@ public class SmallGroupController {
             SmallGroupService smallGroupService) {
         this.smallGroupCreationService = smallGroupCreationService;
         this.smallGroupService = smallGroupService;
+    }
+
+    // AI작성: 공개 조회는 인증 회원 ID를 선택적으로 전달하고 소모임 존재·MANAGER 제한·페이징은 Service에서 처리한다.
+    @GetMapping("/{smallGroupId}/reviews")
+    public ApiResponse<List<SmallGroupReviewListItemResponse>> getReviews(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute SmallGroupReviewSearchCondition condition) {
+        SmallGroupReviewListResponse result =
+                smallGroupService.getSmallGroupReviews(smallGroupId, memberId, condition);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
 
     // AI작성: JWT 회원 ID와 검증된 입력값만 전달하고 후기 등록 조건은 Service에서 판단한다.

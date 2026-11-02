@@ -133,6 +133,11 @@ public class SecurityConfig {
                                 new RegexRequestMatcher("^/api/small-groups/\\d+$", HttpMethod.GET.name())
                         ).permitAll()
 
+                        // AI작성: 후기 목록 GET만 공개하며 같은 경로의 POST 등록은 기존 인증 정책을 유지한다.
+                        .requestMatchers(
+                                new RegexRequestMatcher("^/api/small-groups/\\d+/reviews$", HttpMethod.GET.name())
+                        ).permitAll()
+
                         .requestMatchers(
                                 "/api/admin/**"
                         ).hasRole("ADMIN")
