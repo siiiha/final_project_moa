@@ -2,49 +2,10 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import SmallGroupFilterBar from '../components/admin/SmallGroupFilterBar';
 import SmallGroupTable from '../components/admin/SmallGroupTable';
-import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMenuItems } from '../mocks/admin';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import client from '../api/client';
 import { getMemberRegions } from '../api/member';
 import ConfirmModal from '../components/common/ConfirmModal';
-
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
-`;
 
 const SummaryGrid = styled.section`
   display: grid;
@@ -238,14 +199,12 @@ function AdminSmallGroupsPage() {
   };
 
   return (
-    <Page>
-      <Heading>
-        <h1>소모임 관리</h1>
-        <p>서비스에서 운영 중인 소모임의 활동 현황과 이용 상태를 관리하세요.</p>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="groups" />
-        <main>
+    <>
+      <AdminPageLayout
+        title="소모임 관리"
+        description="서비스에서 운영 중인 소모임의 활동 현황과 이용 상태를 관리하세요."
+        activeItem="groups"
+      >
           <SummaryGrid aria-label="소모임 현황 요약">
             <SummaryCard>
               <SummaryLabel>전체 소모임</SummaryLabel>
@@ -304,8 +263,7 @@ function AdminSmallGroupsPage() {
               />
             }
           />
-        </main>
-      </Grid>
+      </AdminPageLayout>
       {actionTarget && (
         <ConfirmModal
           title={actionTarget.statusCode === 'RESTRICTED' ? '소모임 제한 해제' : '소모임 이용 제한'}
@@ -338,7 +296,7 @@ function AdminSmallGroupsPage() {
           onCancel={() => setNotice('')}
         />
       )}
-    </Page>
+    </>
   );
 }
 

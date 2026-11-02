@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import AdminSidebar from '../components/layout/AdminSidebar';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import SavingGroupFilterBar from '../components/admin/SavingGroupFilterBar';
 import SavingGroupTable from '../components/admin/SavingGroupTable';
-import { adminMenuItems } from '../mocks/admin';
 import ConfirmModal from '../components/common/ConfirmModal';
 import {
   getAdminSavingGroups,
@@ -14,44 +13,6 @@ import {
 import { getMemberRegions } from '../api/member';
 
 const PAGE_SIZE = 8;
-
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
-`;
 
 const SummaryGrid = styled.section`
   display: grid;
@@ -216,14 +177,12 @@ function AdminSavingGroupsPage() {
   };
 
   return (
-    <Page>
-      <Heading>
-        <h1>계모임 관리</h1>
-        <p>서비스에서 운영 중인 계모임의 활동 현황과 이용 상태를 관리하세요.</p>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="gatherings" />
-        <main>
+    <>
+      <AdminPageLayout
+        title="계모임 관리"
+        description="서비스에서 운영 중인 계모임의 활동 현황과 이용 상태를 관리하세요."
+        activeItem="gatherings"
+      >
           <SummaryGrid aria-label="계모임 현황 요약">
             <SummaryCard>
               <SummaryLabel>전체 계모임</SummaryLabel>
@@ -282,8 +241,7 @@ function AdminSavingGroupsPage() {
               />
             }
           />
-        </main>
-      </Grid>
+      </AdminPageLayout>
       {actionTarget && (
         <ConfirmModal
           title={actionTarget.adminRestricted ? '계모임 제한 해제' : '계모임 이용 제한'}
@@ -316,7 +274,7 @@ function AdminSavingGroupsPage() {
           onCancel={() => setNotice('')}
         />
       )}
-    </Page>
+    </>
   );
 }
 

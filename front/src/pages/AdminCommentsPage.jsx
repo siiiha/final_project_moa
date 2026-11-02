@@ -4,67 +4,15 @@ import AdminCommentFilterBar from '../components/admin/AdminCommentFilterBar';
 import AdminCommentTable from '../components/admin/AdminCommentTable';
 import Badge from '../components/common/Badge';
 import ConfirmModal from '../components/common/ConfirmModal';
-import AdminSidebar from '../components/layout/AdminSidebar';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import { deleteAdminComment, getAdminComments } from '../api/adminComments';
-import { adminMenuItems } from '../mocks/admin';
 
 const PAGE_SIZE = 10;
-
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-`;
 
 const AdminBadge = styled(Badge)`
   flex: 0 0 auto;
   color: ${({ theme }) => theme.colors.secondaryText};
   background: ${({ theme }) => theme.colors.border};
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const Content = styled.main`
-  padding-top: 4px;
 `;
 
 const ErrorMessage = styled.p`
@@ -158,17 +106,14 @@ function AdminCommentsPage() {
   };
 
   return (
-    <Page>
-      <Heading>
-        <div>
-          <h1>댓글 관리</h1>
-          <p>검색과 상세 조회를 통해 서비스 운영 현황을 확인하세요.</p>
-        </div>
-        <AdminBadge>관리자 전용</AdminBadge>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="comments" />
-        <Content>
+    <>
+      <AdminPageLayout
+        title="댓글 관리"
+        description="검색과 상세 조회를 통해 서비스 운영 현황을 확인하세요."
+        activeItem="comments"
+        headingAddon={<AdminBadge>관리자 전용</AdminBadge>}
+        contentPaddingTop
+      >
           <AdminCommentFilterBar
             query={query}
             onQueryChange={setQuery}
@@ -185,8 +130,7 @@ function AdminCommentsPage() {
             loading={loading}
             deleting={deleting}
           />
-        </Content>
-      </Grid>
+      </AdminPageLayout>
       {deleteTarget && (
         <ConfirmModal
           title="댓글 삭제"
@@ -218,7 +162,7 @@ function AdminCommentsPage() {
           onCancel={() => setNotice(null)}
         />
       )}
-    </Page>
+    </>
   );
 }
 

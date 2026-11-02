@@ -1,4 +1,5 @@
 import client from './client.js';
+import { formatAdminDate } from './adminFormatters.js';
 
 function toAdminMemberError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
@@ -6,13 +7,6 @@ function toAdminMemberError(error, fallbackMessage) {
   failure.name = 'AdminMemberError';
   failure.code = responseError?.code || 'ADMIN_MEMBER_REQUEST_FAILED';
   return failure;
-}
-
-function formatDate(value) {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return new Intl.DateTimeFormat('ko-KR').format(date);
 }
 
 function formatStatus(status, hasActiveRestriction = false) {
@@ -65,7 +59,7 @@ function mapMember(member) {
     email: maskEmail(member.email),
     region: member.regionName,
     verified: member.identityVerifiedAt && member.regionVerifiedAt ? '인증 완료' : '인증 필요',
-    joinedAt: formatDate(member.createdAt),
+    joinedAt: formatAdminDate(member.createdAt, { fallback: '-', compact: false }),
     // AI작성: 계정 이용 정지를 우선 표시하고 ACTIVE 회원의 기능 제한은 제재로 구분한다.
     status: formatStatus(member.accountStatus, restrictionScopes.length > 0),
     accountStatus: member.accountStatus,
@@ -133,7 +127,9 @@ export async function getAdminMember(memberId, signal) {
           ? data.restrictions.map((restriction) => ({
               scope: restriction.restrictionScope,
               scopeLabel: formatRestrictionScope(restriction.restrictionScope),
-              untilLabel: restriction.restrictedUntil ? formatDate(restriction.restrictedUntil) : '영구',
+              untilLabel: restriction.restrictedUntil
+                ? formatAdminDate(restriction.restrictedUntil, { fallback: '-', compact: false })
+                : '영구',
             }))
           : [],
       },

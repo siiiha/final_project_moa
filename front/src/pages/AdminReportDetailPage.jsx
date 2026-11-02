@@ -2,30 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import AdminReportDetail from '../components/admin/AdminReportDetail';
-import AdminSidebar from '../components/layout/AdminSidebar';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import { getAdminReport, processAdminReport } from '../api/adminReports';
-import { adminMenuItems } from '../mocks/admin';
-
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-  h1 { color: ${({ theme }) => theme.colors.text}; font-size: 26px; font-weight: 800; letter-spacing: -1.35px; }
-  p { margin-top: 5px; color: ${({ theme }) => theme.colors.muted}; font-size: 12px; }
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) { margin-left: 0; }
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) { grid-template-columns: 1fr; }
-`;
 
 const Message = styled.p`
   padding: 24px;
@@ -108,10 +86,13 @@ function AdminReportDetailPage() {
   }
 
   return (
-    <Page>
-      <Heading><h1>회원 신고 상세</h1><p>신고 내용을 검토하고 처리 결과를 기록하세요.</p></Heading>
-      <Grid><AdminSidebar items={adminMenuItems} activeItem="reports" /><main>{content}</main></Grid>
-    </Page>
+    <AdminPageLayout
+      title="회원 신고 상세"
+      description="신고 내용을 검토하고 처리 결과를 기록하세요."
+      activeItem="reports"
+    >
+      {content}
+    </AdminPageLayout>
   );
 }
 export default AdminReportDetailPage;

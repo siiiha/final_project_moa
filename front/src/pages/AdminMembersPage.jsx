@@ -1,54 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styled from 'styled-components';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AdminFilterBar from '../components/admin/AdminFilterBar';
 import AdminMemberTable from '../components/admin/AdminMemberTable';
-import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMenuItems } from '../mocks/admin';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import { getAdminMembers } from '../api/adminMembers';
 import { getAdminDashboardSummary } from '../api/adminDashboard';
 import { getMemberRegions } from '../api/member';
 
 const PAGE_SIZE = 10;
-
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
-`;
 
 function AdminMembersPage() {
   const navigate = useNavigate();
@@ -144,14 +104,11 @@ function AdminMembersPage() {
   };
 
   return (
-    <Page>
-      <Heading>
-        <h1>관리자 대시보드</h1>
-        <p>서비스 회원 현황을 확인하고 회원 정보를 관리하세요.</p>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="members" />
-        <main>
+    <AdminPageLayout
+      title="관리자 대시보드"
+      description="서비스 회원 현황을 확인하고 회원 정보를 관리하세요."
+      activeItem="members"
+    >
           <AdminDashboard stats={dashboardStats} />
           <AdminMemberTable
             members={members}
@@ -198,9 +155,7 @@ function AdminMembersPage() {
             }
             onViewMember={handleViewMember}
           />
-        </main>
-      </Grid>
-    </Page>
+    </AdminPageLayout>
   );
 }
 

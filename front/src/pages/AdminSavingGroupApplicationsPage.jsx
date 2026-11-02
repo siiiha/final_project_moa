@@ -1,49 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styled from 'styled-components';
 import SavingGroupApplicationFilterBar from '../components/admin/SavingGroupApplicationFilterBar';
 import SavingGroupApplicationTable from '../components/admin/SavingGroupApplicationTable';
-import AdminSidebar from '../components/layout/AdminSidebar';
-import { adminMenuItems } from '../mocks/admin';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import { getSavingGroupCreationApplications } from '../api/savingGroups';
-
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
-`;
 
 function AdminSavingGroupApplicationsPage() {
   const navigate = useNavigate();
@@ -94,14 +54,11 @@ function AdminSavingGroupApplicationsPage() {
   };
 
   return (
-    <Page>
-      <Heading>
-        <h1>계모임 심사 목록</h1>
-        <p>계모임 개설·삭제 신청 내역을 확인하고 심사 상태를 관리하세요.</p>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="gathering-review" />
-        <main>
+    <AdminPageLayout
+      title="계모임 심사 목록"
+      description="계모임 개설·삭제 신청 내역을 확인하고 심사 상태를 관리하세요."
+      activeItem="gathering-review"
+    >
           {loading ? (
             <p role="status">심사 목록을 불러오는 중입니다.</p>
           ) : result.error ? (
@@ -137,9 +94,7 @@ function AdminSavingGroupApplicationsPage() {
               }
             />
           )}
-        </main>
-      </Grid>
-    </Page>
+    </AdminPageLayout>
   );
 }
 

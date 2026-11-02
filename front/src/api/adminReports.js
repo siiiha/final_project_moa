@@ -1,4 +1,5 @@
 import client from './client.js';
+import { formatAdminDate } from './adminFormatters.js';
 
 function toAdminReportError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
@@ -6,15 +7,6 @@ function toAdminReportError(error, fallbackMessage) {
   failure.name = 'AdminReportError';
   failure.code = responseError?.code || 'ADMIN_REPORT_REQUEST_FAILED';
   return failure;
-}
-
-function formatDate(value) {
-  if (!value) return '날짜 확인 필요';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
-  return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).format(date).replace(/\.\s?/g, '.').replace(/\.$/, '');
 }
 
 function formatReportType(value) {
@@ -44,9 +36,13 @@ function mapReport(item) {
     status: formatReportStatus(item.status),
     statusCode: item.status,
     processReason: item.processReason || '',
-    createdAt: formatDate(item.createdAt),
-    processedAt: item.processedAt ? formatDate(item.processedAt) : '-',
-    restrictedUntil: item.restrictedUntil ? formatDate(item.restrictedUntil) : '-',
+    createdAt: formatAdminDate(item.createdAt, { includeTime: true }),
+    processedAt: item.processedAt
+      ? formatAdminDate(item.processedAt, { includeTime: true })
+      : '-',
+    restrictedUntil: item.restrictedUntil
+      ? formatAdminDate(item.restrictedUntil, { includeTime: true })
+      : '-',
     restrictionScope: formatRestrictionScope(item.restrictionScope),
   };
 }
@@ -101,7 +97,7 @@ export async function getAdminReport(caseId, signal) {
           id: submission.reportId,
           reporter: submission.reporterNickname || '신고자 확인 필요',
           reason: submission.reason || '신고 사유 없음',
-          reportedAt: formatDate(submission.reportedAt),
+          reportedAt: formatAdminDate(submission.reportedAt, { includeTime: true }),
           hasEvidence: Boolean(submission.evidenceFiles),
         })),
       },
