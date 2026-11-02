@@ -171,10 +171,11 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
     setErrorMessage('');
     try {
       await createSmallGroupReview(smallGroupId, { rating: score, content });
-      onRegistered('후기가 등록되었습니다. 소모임 후기는 한 번만 작성할 수 있습니다.');
+      // AI작성: 실제 저장 성공 여부를 전달해 중복 등록 안내와 목록 갱신을 구분한다.
+      onRegistered('후기가 등록되었습니다. 소모임 후기는 한 번만 작성할 수 있습니다.', { created: true });
     } catch (error) {
       if (error.code === 'SMALL_GROUP_REVIEW_ALREADY_EXISTS') {
-        onRegistered('이미 후기를 등록한 소모임입니다. 후기는 한 번만 작성할 수 있습니다.');
+        onRegistered('이미 후기를 등록한 소모임입니다. 후기는 한 번만 작성할 수 있습니다.', { created: false });
       } else {
         setErrorMessage(error.message || '후기를 등록하지 못했습니다. 다시 시도해 주세요.');
       }

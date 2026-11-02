@@ -439,6 +439,8 @@ function SmallGroupDetail({
   // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
   const [reviewModalGroupId, setReviewModalGroupId] = useState(null);
   const [reviewResult, setReviewResult] = useState(null);
+  // AI작성: 실제 등록 성공 때만 목록을 다시 마운트해 이전 요청을 취소하고 첫 페이지부터 재조회한다.
+  const [reviewListVersion, setReviewListVersion] = useState(0);
   const closeReviewModal = useCallback(() => setReviewModalGroupId(null), [setReviewModalGroupId]);
   const [reviewNow, setReviewNow] = useState(() => new Date());
   // AI작성: 페이지를 오래 열어 두어도 모임 다음 날에는 작성 버튼이 활성화되도록 한국 날짜를 갱신한다.
@@ -570,14 +572,15 @@ function SmallGroupDetail({
             {reviewRestriction || (reviewResult?.smallGroupId === smallGroupId
               ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
           </Placeholder>
-          <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}`} smallGroupId={smallGroupId} />
+          <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}:${reviewListVersion}`} smallGroupId={smallGroupId} />
           {!reviewRestriction && reviewModalGroupId === smallGroupId && (
             <SmallGroupReviewCreateModal
               key={smallGroupId}
               smallGroupId={smallGroupId}
               onClose={closeReviewModal}
-              onRegistered={(message) => {
+              onRegistered={(message, { created }) => {
                 setReviewResult({ smallGroupId, message });
+                if (created) setReviewListVersion((previous) => previous + 1);
                 closeReviewModal();
               }}
             />
