@@ -1,6 +1,7 @@
 package com.nightstudy.moa.report.dto;
 
-// AI작성: 1차 회원 신고에서 허용하는 게시글·댓글·회원 대상을 제한한다.
+// AI작성: 신고 유형 문자열의 중복과 불일치를 방지하기 위해 게시글·댓글·회원 유형을 공통 Enum으로 관리한다.
+// AI작성: ReportMapper.xml에서도 문자열이 아닌 이 Enum 값을 직접 비교한다.
 public enum ReportType {
     POST,
     COMMENT,
