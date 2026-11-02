@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `fee_payment` (
 CREATE TABLE IF NOT EXISTS `members` (
 	`member_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`region_id`	BIGINT	NOT NULL,
-	`email`	VARCHAR(40)	NOT NULL,
+	`email`	VARCHAR(40)	NULL,
 	`password_hash`	VARCHAR(255)	NULL,
 	`name`	VARCHAR(50)	NOT NULL,
 	`nickname`	VARCHAR(50)	NOT NULL,
@@ -277,6 +277,7 @@ CREATE TABLE IF NOT EXISTS `restriction_history` (
     `restriction_history_id` BIGINT NOT NULL AUTO_INCREMENT,
     `member_id` BIGINT NULL,
     `saving_group_id` BIGINT NULL,
+    `small_group_id` BIGINT NULL,
     `action` ENUM('RESTRICT', 'RELEASE') NOT NULL,
     `restriction_scope` VARCHAR(30) NULL DEFAULT NULL,
     `restriction_type` ENUM('7_DAYS', '30_DAYS', 'PERMANENT') NULL,
@@ -288,9 +289,9 @@ CREATE TABLE IF NOT EXISTS `restriction_history` (
 
     CONSTRAINT `chk_restriction_history_target`
     CHECK (
-(`member_id` IS NOT NULL AND `saving_group_id` IS NULL)
-    OR
-(`member_id` IS NULL AND `saving_group_id` IS NOT NULL)
+(`member_id` IS NOT NULL)
+    + (`saving_group_id` IS NOT NULL)
+    + (`small_group_id` IS NOT NULL) = 1
     ),
 
     CONSTRAINT `fk_restriction_history_member`
@@ -331,8 +332,51 @@ CREATE TABLE IF NOT EXISTS `small_group` (
     `like_category` VARCHAR(50) NULL,
     `meet_date` DATE NULL,
     `location` VARCHAR(40) NULL,
+    `status` ENUM('ACTIVE', 'RESTRICTED') NOT NULL DEFAULT 'ACTIVE',
     PRIMARY KEY (`small_group_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `restriction_history`
+    ADD CONSTRAINT `fk_restriction_history_small_group`
+        FOREIGN KEY (`small_group_id`)
+            REFERENCES `small_group` (`small_group_id`);
+
+-- 소모임별 회원당 후기 한 건과 별점·내용을 검증
+CREATE TABLE IF NOT EXISTS small_group_review (
+    small_group_review_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_id BIGINT NOT NULL,
+    writer_id BIGINT NOT NULL,
+    rating DECIMAL(2,1) NOT NULL,
+    content VARCHAR(30) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL,
+
+    PRIMARY KEY (small_group_review_id),
+
+    UNIQUE KEY uq_small_group_review_group_writer
+        (small_group_id, writer_id),
+
+    CONSTRAINT fk_small_group_review_small_group
+        FOREIGN KEY (small_group_id)
+        REFERENCES small_group (small_group_id),
+
+    CONSTRAINT fK_small_group_review_writer
+        FOREIGN key (writer_id)
+        REFERENCES members (member_id),
+
+    CONSTRAINT chk_small_group_review_rating
+        CHECK (
+            rating BETWEEN 0.0 AND 5.0
+            AND MOD(rating * 10, 5) = 0
+            ),
+
+    CONSTRAINT chk_small_group_review_content
+        CHECK (
+            CHAR_LENGTH(content) BETWEEN 1 AND 30
+            AND CHAR_LENGTH(TRIM(content)) > 0
+        )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci;
 
 -- 소모임 투표의 기본 정보와 종료 이력을 저장
@@ -458,11 +502,12 @@ CREATE TABLE IF NOT EXISTS `term` (
 CREATE TABLE IF NOT EXISTS `report_case` (
     `case_id` BIGINT NOT NULL AUTO_INCREMENT,
     `report_type` ENUM(
-        'BOARD_POST',
-        'BOARD_COMMENT',
-        'BOARD_MEMBER',
-        'MEETING',
-        'MEETING_MEMBER'
+        'POST',
+        'COMMENT',
+        'MEMBER',
+        'GROUP',
+        'GROUP_MEMBER',
+        'CHAT_MESSAGE'
 ) NOT NULL,
 `target_id` BIGINT NOT NULL,
 `reported_member_id` BIGINT NOT NULL,
@@ -523,10 +568,16 @@ CREATE TABLE IF NOT EXISTS `email_verification` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `region` (
-	`region_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`region_name`	VARCHAR(100)	NOT NULL,
-	PRIMARY KEY (`region_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `region_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `region_name` VARCHAR(100) NOT NULL,
+    `province_name` VARCHAR(30) NULL,
+    `district_name` VARCHAR(50) NULL,
+    `legal_code` VARCHAR(10) NULL,
+    `town_name` VARCHAR(50) NULL,
+    PRIMARY KEY (`region_id`),
+    UNIQUE KEY `uq_region_legal_code` (`legal_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `meeting_round` (
 	`round_id`	BIGINT	NOT NULL AUTO_INCREMENT,

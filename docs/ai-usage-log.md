@@ -1,6 +1,26 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+## 2026-10-30 — 소모임 투표 상세 조회 및 목록-상세 화면 연동
+
+- 목적: 승인된 소모임 OWNER·MEMBER가 자기 소모임 투표의 결과와 참여 상태를 안전하게 조회하고, 투표 목록에서 상세 화면으로 이동하도록 구현했다.
+- 사용자 확정: 투표 생성자는 OWNER만 가능하다. 상세 조회와 참여는 승인 OWNER·MEMBER로 제한한다. 복수 선택과 익명 투표를 지원하며, 익명 투표는 생성자를 포함해 누구도 참여자 이름·선택을 볼 수 없다. 공개 투표도 참여 완료한 회원에게만 보기별 닉네임을 공개한다. 마감 투표는 참여할 수 없고 결과는 24시간 동안 조회한 뒤 목록·상세에서 숨긴다.
+- AI 작성: 투표 상세 응답·내 참여·보기·Mapper 내부 DTO, MyBatis 상세·보기·득표·참여·닉네임 조회 계약, Service 권한·소속·마감·공개 범위 조합, GET Controller와 Service·Controller 테스트, React 상세 요청 API·응답 검증·오류 보존, 상세 페이지·표시 컴포넌트, 목록의 `smallGroupVoteId` 응답과 상세 라우트·클릭 이동을 작성했다.
+- API·데이터: `GET /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}`는 기존 `ApiResponse` 형식을 사용한다. 기존 투표·보기·참여·선택 테이블과 Mapper를 재사용했다. 삭제 투표 제외를 위한 `small_group_vote.deleted_at`은 별도 0단계 작업의 선행 조건이며, 이 작업에서는 외부 API·의존성·Security 설정을 변경하지 않았다.
+- 검증: `git diff --check`를 통과했다. 프런트 `node --test src/api/smallGroups.test.js` 33개, `npm run build`를 통과했다. `npm run lint`는 이번 변경과 무관한 기존 경고만 반환했다. 백엔드 Gradle 대상 테스트는 실행을 시도했으나 현재 환경에서 Java 17 toolchain을 찾지 못해 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17 환경에서 `SmallGroupVoteDetailServiceTest`, `SmallGroupVoteDetailControllerTest`, `SmallGroupVoteListControllerTest`, `SmallGroupMapperXmlTest`를 실행한다. 실제 MySQL·JWT로 소모임별 투표 격리, 삭제 투표, 마감 후 24시간 경계, 익명·공개 닉네임 범위와 목록에서 상세 이동을 확인한다.
+- 개발자 코드 검토·수정: 대기 중. 투표 참여 저장, 선택 변경·취소, 투표 수정·삭제, 종료 처리와 알림은 별도 요구사항으로 구현한다.
+
+## 2026-10-30 — 소모임 투표 목록 조회 API 및 투표 탭 연동
+
+- 목적: 승인된 소모임 회원이 해당 소모임의 투표 제목·등록일·마감일을 검색·필터·페이징 없이 조회하고, 상세 화면의 투표 탭에서 확인하게 한다.
+- 사용자 확정: 경로는 `GET /api/small-groups/{smallGroupId}/votes`이며, 승인된 `OWNER`·`MEMBER`만 조회할 수 있다. 목록에는 제목·등록일·마감일만 포함하고, 결과·보기·참여 정보는 포함하지 않는다. 투표 생성 한도는 `closed_at IS NULL`인 진행 중 투표 5개이며 종료된 투표는 한도에 포함하지 않는다.
+- AI 작성: 투표 목록 응답·대상 DTO, MyBatis 대상·목록 조회 계약과 XML 파싱 검증, Service의 소모임 존재·승인 회원 검증, GET Controller와 Controller·Security 테스트, React 목록 요청·응답 검증·단위 테스트, 투표 탭의 로딩·오류 재시도·빈 목록·생성 후 재조회 UI를 작성했다.
+- API·데이터: 기존 `small_group`, `groups`, `group_member`, `small_group_vote`와 `SmallGroupMapper`를 재사용했다. 목록은 `created_at DESC, small_group_vote_id DESC` 순으로 `title`, `createdAt`, `endsAt`만 반환하며 빈 결과는 성공 배열이다. DB 마이그레이션, 상태값, 외부 연동, 의존성, Security 설정은 변경하지 않았다.
+- 검증: `git diff --check`를 통과했다. 프런트 `node --test src/api/smallGroups.test.js`는 29개 테스트가 통과했다. 백엔드 Gradle 대상 테스트와 Mapper XML 테스트는 실행을 시도했으나 현재 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 미검증: `npm run build`는 이번 변경과 무관하게 `VerificationPage.jsx`의 `@portone/browser-sdk/v2` import를 해석하지 못해 실패했다. 실제 MySQL·JWT 환경에서 소모임별 격리, 승인 회원 권한, `closed_at` 기준 진행 중 투표 5개 제한과 종료 투표 제외를 확인해야 한다. 브라우저에서 투표 탭의 목록·오류·빈 상태·생성 후 갱신도 직접 확인해야 한다.
+- 개발자 코드 검토·수정: 대기 중. 투표 상세, 보기·참여·결과, 마감 처리, 결과 공개와 알림은 후속 요구사항 확정 후 구현한다.
+
 ## 2026-10-29 — 소모임 개설자 가입 신청 거절 API 및 화면 연동
 
 - 목적: 소모임 개설자가 본인이 개설한 소모임의 대기 가입 신청만 거절하고, OWNER 신청 목록 화면에서 실제 처리 결과를 확인하게 한다.
@@ -368,3 +388,68 @@
 - 개발자 확인 필요: 백엔드 재시작 후 Aiven Valkey TLS 연결, 로그인·로그아웃·공개 목록·장애 대체 동작과
   실제 API 응답 시간 및 MyBatis 인증 SQL 호출 여부를 확인한다.
 - 상세 기록: [인증 조회 성능 개선 기록](auth-performance-improvement.md)
+## 2026-10-28 — 관리자 전체 댓글 목록 API 및 화면 연결
+
+- 목적: 관리자가 전체 댓글을 검색·작성자 지역·공개/삭제 상태로 필터링하고 페이징 조회할 수 있게 한다.
+- AI 제안·작성: `GET /api/admin/comments` 요청 DTO·응답 DTO·Service·MyBatis 조회 SQL을 추가하고, 기존 게시글별 댓글 조회·삭제 URL은 유지했다. 프론트 관리자 댓글 화면은 Mock 대신 실제 API와 로딩·오류·빈 상태를 사용한다.
+- 사용자 확정: 댓글 숨김·공개 기능은 제외하고 `deleted_at` 기준의 `VISIBLE`/`DELETED` 필터만 제공한다. 댓글 삭제 버튼 API 연결은 후속 작업으로 분리한다.
+- DB·의존성·외부 서비스 변경: 없음.
+- 검증: 관리자 댓글 Controller·Service 테스트 통과, `npm run build` 통과. Vite 청크 크기 경고는 기존 빌드 구조의 비차단 경고이다.
+- 개발자 검토: MySQL 실제 데이터로 검색·지역·공개/삭제 필터와 페이지 전환을 확인해야 한다.
+
+## 2026-10-28 — 관리자 댓글 삭제 화면 연결
+
+- 목적: 관리자 댓글 목록의 삭제 버튼을 기존 백엔드 소프트 삭제 API와 연결한다.
+- AI 제안·작성: 게시글·댓글 번호를 사용하는 삭제 API 함수, 기존 `ConfirmModal` 확인 창, 요청 중 중복 제출 차단, 성공·실패 안내, 성공 후 현재 필터·페이지 재조회를 연결했다.
+- 사용자 확정: 댓글 숨김·공개는 구현하지 않고 기존 `deleted_at` 기반 삭제만 제공한다.
+- DB·의존성·외부 서비스 변경: 없음.
+- 검증: 기존 관리자 댓글 Controller·Service 삭제 테스트 통과, `npm run build` 통과, `npm run lint` 통과. 린트의 기존 경고 7건은 이번 작업과 관계없다.
+- 개발자 검토: 브라우저에서 삭제 확인·취소·성공·이미 삭제된 댓글 재요청 흐름을 확인해야 한다.
+
+## 2026-10-29 — 관리자 회원 이용 제한·해제 및 실제 API 연결
+
+- 목적: 관리자가 회원 상세에서 7일·30일·영구 제한과 제한 해제를 처리하고 회원 목록·상세 Mock을 실제 API로 교체한다.
+- AI 제안·작성: 기존 신고 제재의 기간 계산을 `MemberRestrictionPolicy`로 공통화하고, 직접 제한·해제 상태 변경과 `restriction_history` 이력 저장을 하나의 트랜잭션으로 처리했다. 인증된 관리자 번호로 본인 제한을 막고 기존 `AuthSessionService`로 대상 회원의 로그인 세션을 폐기한다.
+- AI 제안·작성: 프론트 회원 목록·상세 API 모듈, 검색·상태·지역·페이징, 제한 기간 선택, 필수 사유, 중복 제출 방지, 성공 후 상세 재조회, 로딩·오류·빈 상태를 연결했다.
+- DB·의존성·외부 서비스 변경: 없음. 기존 `members.account_status`, `members.suspended_until`, `restriction_history`를 재사용했다.
+- 검증: 백엔드 `compileJava`, 프론트 `npm run build`, `npm run lint` 통과. 전체 백엔드 테스트는 기존 `SmallGroupSecurityIntegrationTest` 생성자 인자 불일치로 테스트 소스 컴파일 단계에서 중단된다.
+- 개발자 검토: MySQL 연결 환경에서 직접 제한·해제 이력과 기존 JWT·재발급 차단을 Postman 및 브라우저로 최종 확인해야 한다.
+
+## 2026-10-29 — 관리자 계모임 이용 제한·해제 및 실제 API 연결
+
+- 목적: 관리자가 진행 중인 계모임을 기간 없이 활동 정지하고 문제 해결 후 해제하며, 관리자 계모임 Mock 화면을 실제 API로 교체한다.
+- 사용자 확정: 기존 `02(진행 중) ↔ 03(일시정지)` 상태를 재사용하고, 최근 `restriction_history`가 미해제 `RESTRICT`인 경우에만 관리자 제한 해제를 허용한다.
+- AI 제안·작성: 기존 `SavingGroupService.changeSavingGroupStatus`를 재사용해 회비 설정 보류·재개 로직의 중복을 피하고, 상태 변경과 제한·해제 사유 저장을 하나의 트랜잭션으로 처리했다. 계모임은 기간제가 아니므로 `restriction_type`과 `restricted_until`은 NULL로 저장한다.
+- AI 제안·작성: 공개 목록·상세의 기존 `01/02` 조회 조건을 유지하고 가입 관리·계원 추방·설정 조회의 `03` 상태 활동을 차단했다. 프론트에는 실제 목록 API, 서버 페이징·필터, 사유 입력 모달, 중복 제출 방지, 성공 후 재조회를 연결했다.
+- DB·의존성·외부 서비스 변경: 없음. 기존 `saving_group.status`와 `restriction_history`를 재사용했다.
+- 검증: 백엔드 `compileJava`, 프론트 `npm run lint`, `npm run build`, `git diff --check` 통과. 린트의 기존 경고 8건은 이번 작업과 관계없다.
+- 개발자 검토: 실제 DB에서 제한·해제 이력과 일반 일시정지 해제 거부, 제한 상태의 일반 사용자 접근·활동 차단을 확인해야 한다.
+
+## 2026-10-29 — 계모임 삭제 심사
+
+- 목적: 계주가 사유와 함께 삭제 심사를 신청하고, 관리자가 목록·상세에서 승인 또는 반려하도록 연결한다.
+- 사용자 확정: 새 테이블·컬럼 없이 기존 `meeting_approval(type='DELETE')`, `saving_group.status`, 거래·출금 원장, `groups.deleted_at`을 재사용한다.
+- AI 제안·작성: 계주 권한 및 중복 신청 검증, 관리자 유형 필터, 승인 시 진행 상태·공동자금·미처리 출금 재검사, 트랜잭션 기반 심사 갱신·소프트 삭제, 프론트 신청 모달과 관리자 심사 화면을 구현했다.
+- AI 제안·작성: 계주 탈퇴 후에도 DELETE 심사를 유지하되 신청자 이름을 `탈퇴한 회원`으로 마스킹하고, 중복 승인·반려 및 상태 변경·소프트 삭제 실패 경로를 관리자 서비스 테스트로 보강했다.
+- DB·의존성·외부 서비스 변경: 없음.
+- 검증: 백엔드 `compileJava`, `processResources`, `git diff --check` 통과, 프론트 `npm run build` 및 `npm run lint` 통과. 백엔드 테스트는 기존 `SmallGroupSecurityIntegrationTest` 생성자 인자 불일치로 테스트 소스 컴파일 단계에서 중단된다.
+- 개발자 검토: 실제 DB에서 0원/잔액 존재, 상태 01/02/03/04, PENDING·APPROVED 출금 요청, 승인 후 일반 조회 제외를 확인해야 한다.
+
+## 2026-10-30 — 회원 기능별 제한 및 신고 승인 범위 선택
+
+- 목적: 계정 정지와 커뮤니티 기능 제한을 분리하고, 관리자 직접 제한과 신고 승인에서 CONTENT·CHAT·REPORT 범위를 선택해 독립적으로 제한한다.
+- 사용자 확정: 현재 제한은 `member_feature_restriction`, 과거 이력은 `restriction_history`에 저장하며 로그인과 조회 기능은 허용한다.
+- AI 제안·작성: 기능 범위·액션 Enum, 범위별 제한 UPSERT·해제·만료 정리, 공통 기간 누적 정책, 신고 승인 범위 선택과 조합 검증, 관리자 상세의 제한 목록, 프론트 신고 처리 영역 선택을 구현했다.
+- DB 변경 필요: `member_feature_restriction` 테이블과 `restriction_history.restriction_scope`, `report_case.restriction_scope` 컬럼이 필요하지만 DB 담당자 반영 전이므로 `schema.sql`은 수정하지 않았다.
+- 검증: 관리자 관련 백엔드 테스트 통과, Mapper XML 파싱 및 프론트 `npm run lint`, `npm run build` 통과. 린트의 기존 경고와 Vite 청크 크기 경고는 이번 변경과 관계없는 비차단 경고이다.
+- 개발자 검토: DB 마이그레이션 후 신고 승인 범위별 제한과 관리자 직접 제한·해제, 만료 정리를 실제 MySQL 및 브라우저에서 확인해야 한다.
+
+## 2026-10-30 — 회원 기능별 제한 실제 적용 및 관리자 목록 표시
+
+- 목적: 계정 로그인을 차단하지 않고 `CONTENT`, `CHAT`, `REPORT` 영역별 제한을 독립적으로 관리하며, 구현된 콘텐츠 기능에 실제 제한을 적용한다.
+- 사용자 확정: `CONTENT` 제한 회원은 게시글·댓글 조회는 가능하지만 작성·수정·삭제는 할 수 없다. 채팅과 일반 회원 신고 접수는 해당 기능 구현 브랜치에서 각각 제한 검사를 연결한다.
+- AI 제안·작성: `MemberFeatureRestrictionService`의 공통 제한 검사를 게시글·댓글 Service에서 재사용하고, 각 Service 내부의 반복 호출은 `validateContentAllowed` 메서드로 정리했다. 현재 제한은 `member_feature_restriction`의 회원·영역 행 존재 여부와 `restricted_until`로 판정한다.
+- AI 제안·작성: 관리자 회원 목록에 활성 제한 영역 필터와 현재 제한 영역 표시를 추가했다. 목록 SQL은 `EXISTS`로 필터링하고, 표시 데이터는 상관 서브쿼리의 `GROUP_CONCAT`으로 함께 조회해 중복 목록 행과 회원별 추가 조회를 방지했다.
+- DB 변경 필요: `member_feature_restriction` 테이블과 관련 제한 범위 컬럼은 DB 담당자 반영이 필요하며, 이번 작업에서는 `schema.sql`을 수정하지 않았다.
+- 검증: 백엔드 `compileJava`와 기능 제한 Service 단위 테스트가 통과했다. 프론트 변경 파일은 Vite 변환을 통과했으나 전체 빌드는 기존 `VerificationPage.jsx`의 `@portone/browser-sdk/v2` 의존성 누락으로 중단됐다.
+- 개발자 검토: DB 반영 후 `CONTENT` 기간·영구 제한 상태에서 게시글·댓글 작성·수정·삭제 차단과 조회 허용, 만료 후 재허용, 관리자 목록의 영역별 필터·표시를 실제 MySQL 및 브라우저에서 확인해야 한다.

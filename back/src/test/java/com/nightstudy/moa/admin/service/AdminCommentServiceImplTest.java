@@ -3,8 +3,12 @@ package com.nightstudy.moa.admin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
+import com.nightstudy.moa.admin.dto.AdminCommentListItemResponse;
+import com.nightstudy.moa.admin.dto.AdminCommentListResult;
+import com.nightstudy.moa.admin.dto.AdminCommentSearchCondition;
 import com.nightstudy.moa.admin.mapper.AdminCommentMapper;
 import com.nightstudy.moa.comment.dto.CommentListResult;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
@@ -32,6 +36,37 @@ class AdminCommentServiceImplTest {
 
     @InjectMocks
     private AdminCommentServiceImpl adminCommentService;
+
+    @Test
+    // AI작성: 전체 댓글 개수로 페이징을 계산하고 현재 페이지 목록을 조회한다.
+    void getAdminCommentListReturnsItemsAndPageMeta() {
+        AdminCommentSearchCondition condition = new AdminCommentSearchCondition();
+        condition.setPage(2);
+        condition.setSize(10);
+        AdminCommentListItemResponse comment = new AdminCommentListItemResponse();
+        comment.setCommentId(11L);
+        when(adminCommentMapper.selectAdminCommentCount(condition)).thenReturn(11);
+        when(adminCommentMapper.selectAdminCommentList(condition)).thenReturn(List.of(comment));
+
+        AdminCommentListResult result = adminCommentService.getAdminCommentList(condition);
+
+        assertThat(result.getComments()).containsExactly(comment);
+        assertThat(result.getPageMeta().getTotalPages()).isEqualTo(2);
+        assertThat(condition.getOffset()).isEqualTo(10);
+        assertThat(condition.getLimit()).isEqualTo(10);
+    }
+
+    @Test
+    // AI작성: 조회 결과가 없으면 불필요한 목록 SQL을 실행하지 않는다.
+    void getAdminCommentListReturnsEmptyWithoutListQuery() {
+        AdminCommentSearchCondition condition = new AdminCommentSearchCondition();
+        when(adminCommentMapper.selectAdminCommentCount(condition)).thenReturn(0);
+
+        AdminCommentListResult result = adminCommentService.getAdminCommentList(condition);
+
+        assertThat(result.getComments()).isEmpty();
+        verify(adminCommentMapper, never()).selectAdminCommentList(condition);
+    }
 
     @Test
     // AI작성: 관리자 댓글 조회가 기존 댓글 조회 결과를 그대로 재사용하는지 확인한다.

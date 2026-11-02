@@ -1,11 +1,15 @@
 package com.nightstudy.moa.admin.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.admin.dto.AdminReportDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportListResult;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
 import com.nightstudy.moa.admin.dto.AdminReportProcessRequest;
+import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
+import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -23,11 +27,19 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 관리자 신고 조회, 신고 상태 변경, 대상 회원 이용 제한 규칙을 처리한다.
 public class AdminReportServiceImpl implements AdminReportService {
     private final AdminReportMapper adminReportMapper;
+    private final AdminMemberMapper adminMemberMapper;
+    private final MemberRestrictionPolicy memberRestrictionPolicy;
 
     // AI작성: 신고 조회와 상태 변경에 사용할 Mapper를 생성자 주입으로 전달받는다.
     @Autowired
-    public AdminReportServiceImpl(AdminReportMapper adminReportMapper){
+    public AdminReportServiceImpl(
+            AdminReportMapper adminReportMapper,
+            AdminMemberMapper adminMemberMapper,
+            MemberRestrictionPolicy memberRestrictionPolicy
+    ){
         this.adminReportMapper = adminReportMapper;
+        this.adminMemberMapper = adminMemberMapper;
+        this.memberRestrictionPolicy = memberRestrictionPolicy;
     }
 
     @Override
@@ -103,14 +115,20 @@ public class AdminReportServiceImpl implements AdminReportService {
         // AI작성: 반려는 신고 상태와 사유만 변경하고, 정상 처리일 때만 회원을 이용 제한한다.
         LocalDateTime restrictedUntil = null;
         if ("CONFIRMED".equals(request.getStatus())) {
-            restrictedUntil = applyMemberRestriction(reportId, request.getRestrictionType());
+            restrictedUntil = applyMemberRestriction(
+                    reportId,
+                    request.getRestrictionScope(),
+                    request.getRestrictionType(),
+                    request.getProcessReason()
+            );
         }
 
         int updatedCount = adminReportMapper.updateReportProcess(
                 reportId,
                 request.getStatus(),
                 request.getProcessReason(),
-                restrictedUntil
+                restrictedUntil,
+                request.getRestrictionScope()
         );
 
         if (updatedCount != 1) {
@@ -127,34 +145,39 @@ public class AdminReportServiceImpl implements AdminReportService {
     // AI작성: 스케줄러가 호출하면 만료된 기간제 제한을 일괄 해제하고 처리 건수를 반환한다.
     // 서비스 단위의 DB변경이라 @Transactional을 붙였는데 UPDATE는 한 번만 일어나서... 삭제해도 무방합니다.
     public int releaseExpiredMemberRestrictions() {
-        return adminReportMapper.releaseExpiredMemberRestrictions();
+        return adminMemberMapper.deleteExpiredMemberRestrictions();
     }
 
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
     private void validateProcessRequest(AdminReportProcessRequest request) {
         boolean confirmed = "CONFIRMED".equals(request.getStatus());
-        boolean hasRestriction = request.getRestrictionType() != null
-                && !request.getRestrictionType().isBlank();
+        boolean hasRestrictionType = request.getRestrictionType() != null;
+        boolean hasRestrictionScope = request.getRestrictionScope() != null;
 
-        if (confirmed && !hasRestriction) {
+        if (confirmed && (!hasRestrictionType || !hasRestrictionScope)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_REQUIRED",
-                    "신고를 처리하려면 이용 제한 값을 선택해야 합니다."
+                    "신고를 승인하려면 이용 제한 범위와 기간을 선택해야 합니다."
             );
         }
 
-        if (!confirmed && hasRestriction) {
+        if (!confirmed && (hasRestrictionType || hasRestrictionScope)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_NOT_ALLOWED",
-                    "반려 처리에는 이용 제한 값을 입력할 수 없습니다."
+                    "반려 처리에는 이용 제한 범위와 기간을 입력할 수 없습니다."
             );
         }
     }
 
     // AI작성: 신고 사건에 기록된 제재 대상 회원에게 이용 제한을 적용한다.
-    private LocalDateTime applyMemberRestriction(Long reportId, String restrictionType) {
+    private LocalDateTime applyMemberRestriction(
+            Long reportId,
+            MemberRestrictionScope restrictionScope,
+            String restrictionType,
+            String reason
+    ) {
         Long memberId = adminReportMapper.selectReportedMemberId(reportId);
         if (memberId == null) {
             throw new ApiException(
@@ -164,8 +187,11 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        String accountStatus = adminReportMapper.selectMemberAccountStatus(memberId);
-        if (accountStatus == null) {
+        AdminMemberRestrictionTarget target = adminMemberMapper.selectRestrictionTargetForUpdate(
+                memberId,
+                restrictionScope
+        );
+        if (target == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "MEMBER_NOT_FOUND",
@@ -173,7 +199,7 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        if ("INACTIVE".equals(accountStatus)) {
+        if ("INACTIVE".equals(target.getAccountStatus())) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "INACTIVE_MEMBER_RESTRICTION_NOT_ALLOWED",
@@ -181,66 +207,30 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        //새로운 정지 종료 시점을 계산
-        LocalDateTime suspendedUntil = calculateSuspendedUntil(
-                accountStatus, //현재 회원 계정 상태
-                adminReportMapper.selectMemberSuspendedUntil(memberId), //현재 정지 종료 시점
-                restrictionType //새로 적용할 이용 제한 유형
+        // AI작성: 관리자가 선택한 기능 범위의 기존 제한 종료 시각부터 새 제한 기간을 누적한다.
+        LocalDateTime restrictedUntil = memberRestrictionPolicy.calculateRestrictedUntil(
+                target.isCurrentlyRestricted(),
+                target.getRestrictedUntil(),
+                restrictionType,
+                LocalDateTime.now()
         );
 
-        if (adminReportMapper.updateMemberRestriction(memberId, suspendedUntil) != 1) {
+        adminMemberMapper.upsertMemberRestriction(memberId, restrictionScope, restrictedUntil);
+        if (adminMemberMapper.insertRestrictionHistory(
+                memberId,
+                MemberRestrictionAction.RESTRICT,
+                restrictionType,
+                restrictionScope,
+                reason,
+                restrictedUntil
+        ) != 1) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "MEMBER_RESTRICTION_FAILED",
                     "회원 이용 제한을 적용하지 못했습니다."
             );
         }
-        return suspendedUntil;
+        return restrictedUntil;
     }
 
-    // AI작성: 기존 제재보다 짧아지지 않도록 새 종료 시각과 기존 종료 시각을 비교한다.
-    private LocalDateTime calculateSuspendedUntil(
-            String accountStatus,
-            LocalDateTime currentSuspendedUntil,
-            String restrictionType
-    ) {
-        // AI작성: SUSPENDED 상태에서 종료 시각 NULL은 영구 제한을 뜻한다.
-        // 영구 정지 요청인가?
-        if ("PERMANENT".equals(restrictionType)) {
-            return null;
-        }
-
-        // 이미 영구 정지된 회원인가?
-        if ("SUSPENDED".equals(accountStatus) && currentSuspendedUntil == null) {
-            return null;
-        }
-
-        // 정지 기간
-        long restrictionDays;
-
-        // AI작성: 알 수 없는 제한 유형이 기본 30일로 처리되지 않도록 허용값을 명시적으로 구분한다.
-        if ("7_DAYS".equals(restrictionType)) {
-            restrictionDays = 7;
-        } else if ("30_DAYS".equals(restrictionType)) {
-            restrictionDays = 30;
-        } else {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_RESTRICTION_TYPE",
-                    "올바른 이용 제한 기간을 선택해 주세요."
-            );
-        }
-
-        // 새로운 정지 종료 시점 계산
-        LocalDateTime requestedUntil =
-                LocalDateTime.now().plusDays(restrictionDays);
-
-        // 기존 정지 종료 시점이 더 늦으면 기존 기간을 유지
-        if (currentSuspendedUntil != null
-                && currentSuspendedUntil.isAfter(requestedUntil)) {
-            return currentSuspendedUntil;
-        }
-
-        return requestedUntil;
-        }
 }

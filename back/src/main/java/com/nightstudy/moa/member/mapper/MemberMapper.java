@@ -1,12 +1,11 @@
 package com.nightstudy.moa.member.mapper;
 
-import com.nightstudy.moa.member.dto.MemberInsertDto;
+import com.nightstudy.moa.member.dto.*;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import com.nightstudy.moa.member.dto.MemberLoginDto;
-import com.nightstudy.moa.member.dto.MemberTermDto;
+
 import java.util.List;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.MemberRegionDto;
 
 @Mapper
 public interface MemberMapper {
@@ -14,6 +13,18 @@ public interface MemberMapper {
     int countByEmail(@Param("email") String email);
 
     int countRegionById(@Param("regionId") Long regionId);
+    List<MemberRegionDto> findRegions();
+
+    int markRegionVerified(
+            @Param("memberId") Long memberId,
+            @Param("regionId") Long regionId
+    );
+
+    // 회원의 활동 지역을 변경하고 기존 지역 인증을 초기화
+    int updateMemberRegion(
+            @Param("memberId") Long memberId,
+            @Param("regionId") Long regionId
+    );
 
     int insertMember(MemberInsertDto member);
 

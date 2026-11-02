@@ -58,7 +58,24 @@ function SocialLoginCallbackPage() {
           throw new Error('소셜 로그인 결과를 확인할 수 없습니다.');
         }
 
-        // AI작성: 팝업이면 원래 모아 화면에 결과를 전달한다.
+        // AI작성: 신규 회원은 현재 인증 창 안에서 추가 가입을 진행한다.
+        if (validSignup) {
+          clearToken();
+
+          sessionStorage.setItem(
+            'moa-social-signup',
+            JSON.stringify({
+              signupToken: result.signupToken,
+              provider,
+              expiresAt: Date.now() + 10 * 60 * 1000,
+            }),
+          );
+
+          navigate('/member/join?social=1', { replace: true });
+          return;
+        }
+
+        // AI작성: 기존 회원은 로그인 결과를 원래 모아 화면에 전달한다.
         if (window.opener && !window.opener.closed) {
           window.opener.postMessage(
             {
@@ -67,22 +84,6 @@ function SocialLoginCallbackPage() {
             },
             window.location.origin,
           );
-          return;
-        }
-
-        // AI작성: 일반 창에서 진행한 신규 사용자는 추가 가입으로 이동한다.
-        if (validSignup) {
-          clearToken();
-
-          sessionStorage.setItem(
-            'moa-social-signup',
-            JSON.stringify({
-              signupToken: result.signupToken,
-              expiresAt: Date.now() + 10 * 60 * 1000,
-            }),
-          );
-
-          navigate('/member/join?social=1', { replace: true });
           return;
         }
 

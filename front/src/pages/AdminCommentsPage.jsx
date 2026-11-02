@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import AdminCommentFilterBar from '../components/admin/AdminCommentFilterBar';
 import AdminCommentTable from '../components/admin/AdminCommentTable';
 import Badge from '../components/common/Badge';
+import ConfirmModal from '../components/common/ConfirmModal';
 import AdminSidebar from '../components/layout/AdminSidebar';
+import { deleteAdminComment, getAdminComments } from '../api/adminComments';
 import { adminMenuItems } from '../mocks/admin';
-import { adminComments } from '../mocks/adminComments';
 
 const PAGE_SIZE = 10;
 
@@ -67,33 +67,66 @@ const Content = styled.main`
   padding-top: 4px;
 `;
 
+const ErrorMessage = styled.p`
+  margin-top: 16px;
+  padding: 14px 16px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 13px;
+`;
+
 function AdminCommentsPage() {
-  const navigate = useNavigate();
-  const [comments, setComments] = useState(adminComments);
+  const [comments, setComments] = useState([]);
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
-  const [region, setRegion] = useState('전체');
-  const [status, setStatus] = useState('전체');
+  const [region, setRegion] = useState('');
+  const [status, setStatus] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const filteredComments = useMemo(() => {
-    const normalizedQuery = submittedQuery.trim().toLowerCase();
+  useEffect(() => {
+    const controller = new AbortController();
 
-    return comments.filter((comment) => {
-      const matchesQuery =
-        !normalizedQuery ||
-        comment.content.toLowerCase().includes(normalizedQuery) ||
-        comment.author.toLowerCase().includes(normalizedQuery) ||
-        comment.postTitle.toLowerCase().includes(normalizedQuery);
-      const matchesRegion = region === '전체' || comment.region.startsWith(region);
-      const matchesStatus = status === '전체' || comment.status === status;
+    async function loadComments() {
+      setLoading(true);
+      setErrorMessage('');
+      try {
+        const result = await getAdminComments({
+          keyword: submittedQuery,
+          regionName: region,
+          status,
+          page: currentPage,
+          size: PAGE_SIZE,
+          signal: controller.signal,
+        });
+        setComments(result.items);
+        setPageMeta(result.meta);
+        // AI작성: 마지막 페이지의 마지막 댓글이 삭제된 경우 유효한 이전 페이지를 다시 조회한다.
+        if (result.meta.totalPages > 0 && currentPage > result.meta.totalPages) {
+          setCurrentPage(result.meta.totalPages);
+        }
+      } catch (error) {
+        if (error.code !== 'ERR_CANCELED') {
+          setComments([]);
+          setPageMeta({ total: 0, totalPages: 0 });
+          setErrorMessage(error.message);
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
 
-      return matchesQuery && matchesRegion && matchesStatus;
-    });
-  }, [comments, region, status, submittedQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredComments.length / PAGE_SIZE));
-  const pageComments = filteredComments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    loadComments();
+    return () => controller.abort();
+  }, [currentPage, region, status, submittedQuery, reloadKey]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -101,53 +134,31 @@ function AdminCommentsPage() {
     setCurrentPage(1);
   };
 
-  const handleToggleHidden = (commentId) => {
-    // TODO: Spring Boot 관리자 댓글 숨김·공개 API 요청 후 댓글 목록을 갱신합니다.
-    setComments((currentComments) =>
-      currentComments.map((comment) =>
-        comment.id === commentId ? { ...comment, status: comment.status === '공개' ? '숨김' : '공개' } : comment
-      )
-    );
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || deleting) return;
+
+    setDeleting(true);
+    setDeleteErrorMessage('');
+    try {
+      await deleteAdminComment(deleteTarget.postId, deleteTarget.id);
+      setDeleteTarget(null);
+      setNotice({
+        title: '댓글 삭제 완료',
+        message: '댓글을 삭제했습니다.',
+      });
+      // AI작성: 서버의 삭제 상태와 페이징 개수를 반영하도록 현재 조건을 다시 조회한다.
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      // AI작성: 삭제 대상을 유지해 일시적인 오류 후 바로 다시 시도할 수 있게 한다.
+      setDeleteErrorMessage(error.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
-  const handleDelete = (commentId) => {
-    // TODO: Spring Boot 관리자 댓글 삭제 API 요청 후 댓글 목록을 갱신합니다.
-    setComments((currentComments) => currentComments.filter((comment) => comment.id !== commentId));
-    setCurrentPage(1);
-  };
-
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'members') {
-      navigate('/admin/members');
-      return;
-    }
-
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
-    }
-
-    if (menuId === 'gathering-review') {
-      navigate('/admin/saving-groups/applications');
-      return;
-    }
-
-    if (menuId === 'groups') {
-      navigate('/admin/small-groups');
-      return;
-    }
-
-    if (menuId === 'posts') {
-      navigate('/admin/posts');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
+  const handleDeleteRequest = (comment) => {
+    setDeleteErrorMessage('');
+    setDeleteTarget(comment);
   };
 
   return (
@@ -160,7 +171,7 @@ function AdminCommentsPage() {
         <AdminBadge>관리자 전용</AdminBadge>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="comments" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="comments" />
         <Content>
           <AdminCommentFilterBar
             query={query}
@@ -177,17 +188,50 @@ function AdminCommentsPage() {
             }}
             onSearch={handleSearch}
           />
+          {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
           <AdminCommentTable
-            comments={pageComments}
-            totalCount={filteredComments.length}
+            comments={comments}
+            totalCount={pageMeta.total}
             currentPage={currentPage}
-            totalPages={totalPages}
+            totalPages={pageMeta.totalPages}
             onPageChange={setCurrentPage}
-            onToggleHidden={handleToggleHidden}
-            onDelete={handleDelete}
+            onDelete={handleDeleteRequest}
+            loading={loading}
+            deleting={deleting}
           />
         </Content>
       </Grid>
+      {deleteTarget && (
+        <ConfirmModal
+          title="댓글 삭제"
+          description={
+            deleteErrorMessage
+              ? `삭제하지 못했습니다. ${deleteErrorMessage} 다시 시도하거나 취소하세요.`
+              : '이 댓글을 삭제하시겠습니까? 삭제된 댓글은 내용이 숨겨집니다.'
+          }
+          confirmLabel={deleting ? '삭제 중...' : '댓글 삭제'}
+          confirmVariant="danger"
+          cancelFirst
+          isBusy={deleting}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => {
+            if (!deleting) {
+              setDeleteErrorMessage('');
+              setDeleteTarget(null);
+            }
+          }}
+        />
+      )}
+      {notice && (
+        <ConfirmModal
+          title={notice.title}
+          description={notice.message}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setNotice(null)}
+          onCancel={() => setNotice(null)}
+        />
+      )}
     </Page>
   );
 }

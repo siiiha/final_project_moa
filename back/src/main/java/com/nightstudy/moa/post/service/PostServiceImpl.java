@@ -1,5 +1,7 @@
 package com.nightstudy.moa.post.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.dto.PostDto;
@@ -18,11 +20,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class PostServiceImpl implements PostService {
     private final PostMapper postMapper;
+    private final MemberFeatureRestrictionService restrictionService;
 
 
     @Autowired
-    public PostServiceImpl(PostMapper postMapper) {
+    public PostServiceImpl(
+            PostMapper postMapper,
+            MemberFeatureRestrictionService restrictionService
+    ) {
         this.postMapper = postMapper;
+        this.restrictionService = restrictionService;
     }
 
     @Override
@@ -72,6 +79,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Long writePost(Long loginMemberId, PostCreateRequest request) {
+        validateContentAllowed(loginMemberId);
+
         int categoryCount =
                 postMapper.countCategoryById(request.getCategoryId());
 
@@ -104,6 +113,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Long editPost(Long postId, Long loginMemberId, PostEditRequest request) {
+        validateContentAllowed(loginMemberId);
+
         PostDto post = postMapper.selectPostDetail(postId);
         if (post == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "게시글을 찾을 수 없습니다.");
@@ -148,8 +159,11 @@ public class PostServiceImpl implements PostService {
         return postId;
     }
 
+
     @Override
     public void deletePost(Long postId, Long loginMemberId) {
+        validateContentAllowed(loginMemberId);
+
         PostDto post = postMapper.selectPostDetail(postId);
 
         if (post == null) {
@@ -177,5 +191,13 @@ public class PostServiceImpl implements PostService {
                     "게시글 삭제에 실패했습니다."
             );
         }
+    }
+
+    // AI작성: 게시글 작성·수정·삭제에서 사용하는 CONTENT 제한 검사를 한 곳에서 처리합니다.
+    private void validateContentAllowed(Long memberId) {
+        restrictionService.validateAllowed(
+                memberId,
+                MemberRestrictionScope.CONTENT
+        );
     }
 }
