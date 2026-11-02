@@ -1,6 +1,8 @@
 package com.nightstudy.moa.report.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.report.dto.MemberReportRecord;
+import com.nightstudy.moa.report.dto.ReportCaseRecord;
 import com.nightstudy.moa.report.dto.ReportCreateRequest;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.mapper.ReportMapper;
@@ -45,23 +47,29 @@ public class ReportServiceImpl implements ReportService {
         Long caseId = reportMapper.selectPendingCaseId(
                 request.getReportType(), request.getTargetId());
         if (caseId == null) {
-            if (reportMapper.insertReportCase(
+            ReportCaseRecord reportCase = new ReportCaseRecord(
                     request.getReportType(),
                     request.getTargetId(),
-                    target.getReportedMemberId()) != 1) {
+                    target.getReportedMemberId()
+            );
+            if (reportMapper.insertReportCase(reportCase) != 1
+                    || reportCase.getCaseId() == null) {
                 throw saveFailedException();
             }
-            caseId = reportMapper.selectLastInsertId();
+            caseId = reportCase.getCaseId();
         }
 
+        MemberReportRecord memberReport = new MemberReportRecord(
+                caseId, reporterId, request.getReason());
         try {
-            if (reportMapper.insertMemberReport(caseId, reporterId, request.getReason()) != 1) {
+            if (reportMapper.insertMemberReport(memberReport) != 1
+                    || memberReport.getReportId() == null) {
                 throw saveFailedException();
             }
         } catch (DuplicateKeyException e) {
             throw duplicateReportException();
         }
-        return reportMapper.selectLastInsertId();
+        return memberReport.getReportId();
     }
 
     private ApiException duplicateReportException() {

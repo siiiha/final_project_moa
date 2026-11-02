@@ -62,17 +62,19 @@
         FOR UPDATE
     </select>
 
-    <insert id="insertReportCase">
+    <insert id="insertReportCase"
+            useGeneratedKeys="true"
+            keyProperty="caseId"
+            keyColumn="case_id">
         INSERT INTO report_case (report_type, target_id, reported_member_id)
         VALUES (#{reportType}, #{targetId}, #{reportedMemberId})
     </insert>
 
-    <insert id="insertMemberReport">
+    <insert id="insertMemberReport"
+            useGeneratedKeys="true"
+            keyProperty="reportId"
+            keyColumn="report_id">
         INSERT INTO member_report (case_id, reporter_id, reason)
         VALUES (#{caseId}, #{reporterId}, #{reason})
     </insert>
-
-    <select id="selectLastInsertId" resultType="long">
-        SELECT LAST_INSERT_ID()
-    </select>
 </mapper>

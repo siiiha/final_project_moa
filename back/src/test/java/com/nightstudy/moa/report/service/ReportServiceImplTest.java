@@ -2,11 +2,15 @@ package com.nightstudy.moa.report.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.report.dto.MemberReportRecord;
+import com.nightstudy.moa.report.dto.ReportCaseRecord;
 import com.nightstudy.moa.report.dto.ReportCreateRequest;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.dto.ReportType;
@@ -32,16 +36,28 @@ class ReportServiceImplTest {
         when(reportMapper.selectReportTarget(ReportType.POST, 10L))
                 .thenReturn(target(10L, 2L));
         when(reportMapper.selectPendingCaseId(ReportType.POST, 10L)).thenReturn(null);
-        when(reportMapper.insertReportCase(ReportType.POST, 10L, 2L)).thenReturn(1);
-        when(reportMapper.selectLastInsertId()).thenReturn(100L, 200L);
-        when(reportMapper.insertMemberReport(100L, 1L, "광고성 게시글입니다."))
-                .thenReturn(1);
+        when(reportMapper.insertReportCase(any(ReportCaseRecord.class))).thenAnswer(invocation -> {
+            ReportCaseRecord reportCase = invocation.getArgument(0);
+            reportCase.setCaseId(100L);
+            return 1;
+        });
+        when(reportMapper.insertMemberReport(any(MemberReportRecord.class))).thenAnswer(invocation -> {
+            MemberReportRecord memberReport = invocation.getArgument(0);
+            memberReport.setReportId(200L);
+            return 1;
+        });
 
         Long reportId = reportService.createReport(1L, request);
 
         assertThat(reportId).isEqualTo(200L);
-        verify(reportMapper).insertReportCase(ReportType.POST, 10L, 2L);
-        verify(reportMapper).insertMemberReport(100L, 1L, "광고성 게시글입니다.");
+        verify(reportMapper).insertReportCase(argThat(reportCase ->
+                reportCase.getReportType() == ReportType.POST
+                        && reportCase.getTargetId().equals(10L)
+                        && reportCase.getReportedMemberId().equals(2L)));
+        verify(reportMapper).insertMemberReport(argThat(memberReport ->
+                memberReport.getCaseId().equals(100L)
+                        && memberReport.getReporterId().equals(1L)
+                        && memberReport.getReason().equals("광고성 게시글입니다.")));
     }
 
     @Test
@@ -51,7 +67,7 @@ class ReportServiceImplTest {
         assertThatThrownBy(() -> reportService.createReport(1L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("REPORT_TARGET_NOT_FOUND"));
-        verify(reportMapper, never()).insertMemberReport(10L, 1L, request.getReason());
+        verify(reportMapper, never()).insertMemberReport(any(MemberReportRecord.class));
     }
 
     @Test

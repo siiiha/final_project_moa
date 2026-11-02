@@ -1,5 +1,7 @@
 package com.nightstudy.moa.report.mapper;
 
+import com.nightstudy.moa.report.dto.MemberReportRecord;
+import com.nightstudy.moa.report.dto.ReportCaseRecord;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.dto.ReportType;
 import org.apache.ibatis.annotations.Mapper;
@@ -24,17 +26,7 @@ public interface ReportMapper {
             @Param("targetId") Long targetId
     );
 
-    int insertReportCase(
-            @Param("reportType") ReportType reportType,
-            @Param("targetId") Long targetId,
-            @Param("reportedMemberId") Long reportedMemberId
-    );
+    int insertReportCase(ReportCaseRecord reportCase);
 
-    int insertMemberReport(
-            @Param("caseId") Long caseId,
-            @Param("reporterId") Long reporterId,
-            @Param("reason") String reason
-    );
-
-    Long selectLastInsertId();
+    int insertMemberReport(MemberReportRecord memberReport);
 }
