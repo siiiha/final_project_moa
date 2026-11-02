@@ -12,6 +12,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
@@ -30,6 +32,17 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
+    // AI작성: 삭제되지 않은 소모임·개설자를 대상으로 모임 행을 잠가 등록 조건을 조회한다.
+    SmallGroupReviewCreateTargetRow selectSmallGroupReviewCreateTargetForUpdate(
+            @Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 회원 관계는 기존 selectSmallGroupMembershipForUpdate를 재사용하고 후기 중복만 별도 확인한다.
+    Long selectSmallGroupReviewId(
+            @Param("smallGroupId") Long smallGroupId, @Param("writerId") Long writerId);
+
+    // AI작성: 검증된 후기를 한 건 저장하고 생성 키를 command.smallGroupReviewId에 설정한다.
+    int insertSmallGroupReview(@Param("command") SmallGroupReviewCreateCommand command);
+
     List<SmallGroupRegionResponse> selectSmallGroupRegions();
 
     List<SmallGroupCategoryResponse> selectSmallGroupCategories();
