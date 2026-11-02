@@ -1,5 +1,6 @@
 package com.nightstudy.moa.member.service;
 
+import com.nightstudy.moa.common.auth.AuthStateCache;
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.MemberAuthSessionDto;
@@ -15,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -28,6 +31,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationTokenProvider tokenProvider;
     private final LogoutService logoutService;
+    private final AuthStateCache authStateCache;
     private final long refreshExpirationMs;
 
     public AuthSessionServiceImpl(
@@ -35,6 +39,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             JwtTokenProvider jwtTokenProvider,
             EmailVerificationTokenProvider tokenProvider,
             LogoutService logoutService,
+            AuthStateCache authStateCache,
             @Value("${jwt.refresh-expiration-ms:604800000}")
             long refreshExpirationMs
     ) {
@@ -49,6 +54,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.tokenProvider = tokenProvider;
         this.logoutService = logoutService;
+        this.authStateCache = authStateCache;
         this.refreshExpirationMs = refreshExpirationMs;
     }
 
@@ -81,7 +87,10 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             throw new IllegalStateException("로그인 세션 저장에 실패했습니다.");
         }
 
-        return issueTokens(session, member);
+        MemberAuthTokenDto tokens = issueTokens(session, member);
+        cacheSessionAfterCommit(session, member.getSystemRole());
+
+        return tokens;
     }
 
     // 세션 폐기 예외가 발생해도 폐기 기록은 DB에 유지
@@ -141,7 +150,10 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         }
 
         // 토큰을 교체해도 최초 로그인 세션의 만료 시각은 연장하지 않음
-        return issueTokens(session, member);
+        MemberAuthTokenDto tokens = issueTokens(session, member);
+        cacheSessionAfterCommit(session, member.getSystemRole());
+
+        return tokens;
     }
 
     // access token이 만료됐어도 refresh token 세션은 로그아웃할 수 있음
@@ -172,6 +184,13 @@ public class AuthSessionServiceImpl implements AuthSessionService {
 
         // 서로 다른 세션이 전달돼도 항상 같은 순서로 잠금
         for (String sessionId : sessionIds) {
+            // AI작성: DB 폐기 전에 캐시를 먼저 삭제해, 커밋 직후 오래된 캐시가 인증에 쓰이지 않게 한다.
+            if (!authStateCache.removeSession(sessionId)) {
+                throw new IllegalStateException(
+                        "로그아웃 세션 캐시 삭제에 실패했습니다."
+                );
+            }
+
             MemberAuthSessionDto session =
                     sessionMapper.findSessionForUpdate(sessionId);
 
@@ -202,6 +221,13 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             throw new IllegalArgumentException("유효한 회원 번호가 필요합니다.");
         }
 
+        // AI작성: 비밀번호 변경 후 기존 캐시가 남아 인증되는 일을 막기 위해 DB 폐기보다 먼저 삭제한다.
+        if (!authStateCache.removeMemberSessions(memberId)) {
+            throw new IllegalStateException(
+                    "회원 세션 캐시 삭제에 실패했습니다."
+            );
+        }
+
         sessionMapper.revokeAllSessionsByMemberId(memberId);
     }
 
@@ -210,10 +236,15 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     public boolean isAccessAllowed(
             Long memberId,
             String systemRole,
-            String sessionId
+            String sessionId,
+            String tokenId,
+            long accessTokenExpiresAtMs
     ) {
         if (memberId == null || memberId <= 0
-                || !isValidRole(systemRole)) {
+                || !isValidRole(systemRole)
+                || tokenId == null
+                || tokenId.isBlank()
+                || accessTokenExpiresAtMs <= System.currentTimeMillis()) {
             return false;
         }
 
@@ -224,12 +255,50 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             return false;
         }
 
-        return sessionMapper.countActiveSession(
+        AuthStateCache.CacheLookup<Boolean> revokedToken =
+                authStateCache.findRevokedToken(tokenId);
+
+        if (revokedToken.isHit()
+                && Boolean.TRUE.equals(revokedToken.value())) {
+            return false;
+        }
+
+        // AI작성: Valkey 장애가 감지되면 캐시 값을 신뢰하지 않고 MySQL 단일 인증 조회로 대체한다.
+        if (revokedToken.status()
+                != AuthStateCache.CacheLookup.Status.UNAVAILABLE) {
+            AuthStateCache.CacheLookup<AuthStateCache.SessionState>
+                    cachedSession = authStateCache.findSession(sessionId);
+
+            if (cachedSession.isHit()
+                    && isCachedSessionAllowed(
+                    cachedSession.value(),
+                    memberId,
+                    systemRole,
+                    sessionId
+            )) {
+                return true;
+            }
+        }
+
+        boolean allowed = sessionMapper.countActiveSession(
                 sessionId,
                 memberId,
                 systemRole,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                tokenId
         ) == 1;
+
+        // AI작성: 캐시 미스는 기존 MySQL 인증 결과로 복구하고, 현재 Access Token 만료 시각까지 보관한다.
+        if (allowed) {
+            authStateCache.saveSession(new AuthStateCache.SessionState(
+                    sessionId,
+                    memberId,
+                    systemRole,
+                    accessTokenExpiresAtMs
+            ));
+        }
+
+        return allowed;
     }
 
     // 난수 생성·SHA-256 해시 변환은 기존 유틸리티를 재사용
@@ -258,6 +327,48 @@ public class AuthSessionServiceImpl implements AuthSessionService {
                 refreshToken,
                 session.getExpiresAtMs()
         );
+    }
+
+    private void cacheSessionAfterCommit(
+            MemberAuthSessionDto session,
+            String systemRole
+    ) {
+        AuthStateCache.SessionState sessionState =
+                new AuthStateCache.SessionState(
+                        session.getSessionId(),
+                        session.getMemberId(),
+                        systemRole,
+                        session.getExpiresAtMs()
+                );
+
+        // AI작성: DB 트랜잭션이 실패했는데 인증 캐시만 남는 일을 막기 위해 커밋 후 저장한다.
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            authStateCache.saveSession(sessionState);
+                        }
+                    }
+            );
+            return;
+        }
+
+        authStateCache.saveSession(sessionState);
+    }
+
+    private boolean isCachedSessionAllowed(
+            AuthStateCache.SessionState cachedSession,
+            Long memberId,
+            String systemRole,
+            String sessionId
+    ) {
+        return cachedSession != null
+                && sessionId.equals(cachedSession.sessionId())
+                && memberId.equals(cachedSession.memberId())
+                && systemRole.equals(cachedSession.systemRole())
+                && cachedSession.expiresAtMs() > System.currentTimeMillis();
     }
 
     private boolean isActiveMember(SocialLoginMemberDto member) {

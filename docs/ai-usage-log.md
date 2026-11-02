@@ -372,6 +372,22 @@
 - 참고: https://developers.naver.com/docs/login/devguide/devguide.md 의 사용자 재인증 절, https://developers.kakao.com/docs/ko/kakaologin/rest-api 의 prompt 설명.
 - 개발자 검토: 최종 확인 대기. DB·외부 앱 설정·의존성 변경 없음.
 
+## 2026-11-02 — Valkey 기반 인증 조회 성능 개선
+
+- 목적: 원격 Aiven MySQL을 사용하는 보호 API의 반복 인증 조회를 줄이고, 공개 목록 API의 불필요한 인증 DB 조회를 제거한다.
+- AI 제안·작성: 공개 목록 API JWT 필터 제외, 세션·회원 상태·폐기 토큰 MySQL 단일 조회,
+  Aiven Valkey 연결 의존성, 인증 캐시 계약·구현, 로그인·재발급 캐시 저장, 로그아웃·전체 세션 폐기 캐시 무효화,
+  Valkey 우선 인증과 MySQL 대체, 단위 테스트 및 성능 개선 기록 문서.
+- 보안 정책: MySQL은 원본 저장소로 유지하고 Refresh Token 원문·비밀번호는 Valkey에 저장하지 않는다.
+  Valkey 읽기 장애는 MySQL 단일 인증 조회로 대체한다. 로그아웃·전체 세션 폐기에서 캐시 무효화에 실패하면
+  오래된 캐시 허용을 막기 위해 요청을 실패 처리한다.
+- 의존성 변경: `spring-boot-starter-data-redis` 추가. Aiven Valkey의 Host·Port·User·Password는
+  IntelliJ 환경변수로만 설정하며 비밀번호는 코드·Git·문서에 기록하지 않는다.
+- 검증: `git diff --check` 통과. `AuthSessionServiceImplTest`에 캐시 적중·캐시 미스·폐기 토큰·장애 대체를 추가했다.
+  Gradle 테스트는 Wrapper 잠금 파일 접근 거부로 실행 결과를 확보하지 못했다.
+- 개발자 확인 필요: 백엔드 재시작 후 Aiven Valkey TLS 연결, 로그인·로그아웃·공개 목록·장애 대체 동작과
+  실제 API 응답 시간 및 MyBatis 인증 SQL 호출 여부를 확인한다.
+- 상세 기록: [인증 조회 성능 개선 기록](auth-performance-improvement.md)
 ## 2026-10-28 — 관리자 전체 댓글 목록 API 및 화면 연결
 
 - 목적: 관리자가 전체 댓글을 검색·작성자 지역·공개/삭제 상태로 필터링하고 페이징 조회할 수 있게 한다.
