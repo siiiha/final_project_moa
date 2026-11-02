@@ -303,6 +303,11 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
               </TypeOption>
             </TypeOptions>
           </TypeField>
+          {/* AI작성: 첫 줄은 이름·종류·모집 인원, 둘째 줄은 시·구·동 순서로 배치한다. */}
+          <Field>
+            모집 인원
+            <Input name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명" />
+          </Field>
           <Field>
             활동 지역 시·도 (필수)
             <Select required value={province} disabled={regionUnavailable || isSubmitting}
@@ -339,10 +344,6 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
             </Select>
           </Field>
           <Field>
-            월 회비
-            <Input name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000" />
-          </Field>
-          <Field>
             납부일
             <Select name="duesDay" required defaultValue="">
               <option value="" disabled>
@@ -356,8 +357,8 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
             </Select>
           </Field>
           <Field>
-            모집 인원
-            <Input name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명" />
+            월 회비
+            <Input name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000" />
           </Field>
         </FieldGrid>
         {/* AI작성: 지역 조회 상태를 안내하고 입력한 다른 내용을 유지한 채 재시도한다. */}
