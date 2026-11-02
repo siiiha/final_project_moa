@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
+import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
 
 const Profile = styled.section`
   padding: 6px 0 0;
@@ -276,12 +278,132 @@ const JoinRequestsContent = styled.div`
   margin-top: 16px;
 `;
 
+const PollContent = styled.section`
+  margin-top: 16px;
+  position: relative;
+`;
+
+const PollHeading = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const PollTitle = styled.h2`
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+`;
+
+const VoteCreateButton = styled(Button)`
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
+`;
+
+const VoteTable = styled.div`
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
+const VoteRow = styled.div`
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px 160px;
+  gap: 8px;
+  color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
+  background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
+  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
+  font-size: 11px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr) 66px 132px;
+    padding: 10px 8px;
+    gap: 4px;
+    font-size: 10px;
+  }
+`;
+
+const VoteItem = styled.button`
+  width: 100%;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px 160px;
+  gap: 8px;
+  color: ${({ theme }) => theme.colors.text};
+  text-align: left;
+  background: ${({ theme }) => theme.colors.white};
+  border: 0;
+  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
+  cursor: pointer;
+  font-size: 11px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primarySoft};
+  }
+
+  &:focus-visible {
+    outline: 3px solid rgba(23, 107, 91, 0.22);
+    outline-offset: -3px;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr) 66px 132px;
+    padding: 10px 8px;
+    gap: 4px;
+    font-size: 10px;
+  }
+`;
+
+const VoteStatusCell = styled.div`
+  min-width: 0;
+`;
+
+const VoteStatusBadge = styled.span`
+  padding: 4px 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ $closed, theme }) => ($closed ? theme.colors.muted : theme.colors.primary)};
+  background: ${({ $closed, theme }) => ($closed ? theme.colors.background : theme.colors.primarySoft)};
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
 function formatDate(value) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric',
+  }).format(date);
+}
+
+// AI작성: 투표 목록의 마감 시각은 날짜뿐 아니라 시·분까지 표시해 마감 여부를 명확히 한다.
+function formatDateTime(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
   }).format(date);
 }
 
@@ -295,6 +417,9 @@ function SmallGroupDetail({
   isSettingsLoading,
   isSettingsSaving,
   settingsErrorMessage,
+  votes = [],
+  isVoteLoading,
+  voteErrorMessage,
   onMenuChange,
   onSettingsSubmit,
   onSettingsCancel,
@@ -302,8 +427,13 @@ function SmallGroupDetail({
   onDelete,
   onJoinRequest,
   isJoinSubmitting,
+  onCreateVote,
+  isVoteCreating,
+  onRetryVotes,
+  onVoteDetail,
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
+  const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
   // AI작성: 이미 승인된 OWNER·MEMBER는 재신청할 수 없으므로 상세 화면에서 버튼을 노출하지 않는다.
   const canRequestJoin = !['OWNER', 'MEMBER'].includes(myRole);
   // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
@@ -352,7 +482,61 @@ function SmallGroupDetail({
         <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>
 
-      {currentMenu === 'settings' ? (
+      {currentMenu === 'poll' ? (
+        <PollContent>
+          <PollHeading>
+            <PollTitle>투표 목록</PollTitle>
+            {myRole === 'OWNER' && (
+              <VoteCreateButton type="button" onClick={() => setIsVoteCreateModalOpen(true)}>
+                투표 생성
+              </VoteCreateButton>
+            )}
+          </PollHeading>
+          {isVoteLoading ? (
+            <Placeholder role="status">투표 목록을 불러오는 중입니다.</Placeholder>
+          ) : voteErrorMessage ? (
+            <Placeholder role="alert">
+              <p>{voteErrorMessage}</p>
+              <Button type="button" onClick={onRetryVotes}>다시 시도</Button>
+            </Placeholder>
+          ) : votes.length === 0 ? (
+            <Placeholder>등록된 투표가 없습니다.</Placeholder>
+          ) : (
+            <VoteTable aria-label="소모임 투표 목록">
+              <VoteRow $header>
+                <span>투표명</span><span>상태</span><span>마감시각</span>
+              </VoteRow>
+              {votes.map((vote, index) => (
+                <VoteItem
+                  key={vote.smallGroupVoteId}
+                  type="button"
+                  $last={index === votes.length - 1}
+                  onClick={() => onVoteDetail(vote.smallGroupVoteId)}
+                  aria-label={`${vote.title} 투표 상세 보기`}
+                >
+                  <span>{vote.title}</span>
+                  <VoteStatusCell>
+                    <VoteStatusBadge $closed={vote.status === 'CLOSED'}>
+                      {vote.status === 'CLOSED' ? '종료' : '진행 중'}
+                    </VoteStatusBadge>
+                  </VoteStatusCell>
+                  <span>{formatDateTime(vote.endsAt) || '마감시각 미설정'}</span>
+                </VoteItem>
+              ))}
+            </VoteTable>
+          )}
+          {isVoteCreateModalOpen && (
+            <SmallGroupVoteCreateModal
+              isSubmitting={isVoteCreating}
+              onClose={() => setIsVoteCreateModalOpen(false)}
+              onSubmit={async (request) => {
+                await onCreateVote(request);
+                setIsVoteCreateModalOpen(false);
+              }}
+            />
+          )}
+        </PollContent>
+      ) : currentMenu === 'settings' ? (
         <SettingsContent>
           {isSettingsLoading ? (
             <Placeholder role="status">소모임 설정 정보를 불러오는 중입니다.</Placeholder>

@@ -40,10 +40,11 @@
     <select id="selectTotalCommentCountByPostId"
             parameterType="long"
             resultType="int">
-        <!-- AI작성: 삭제 흔적을 포함한 원댓글과 대댓글 전체 개수를 화면에 제공합니다. -->
+        <!-- AI작성: 화면의 댓글 수에는 삭제되지 않은 원댓글과 대댓글만 포함합니다. -->
         SELECT COUNT(*)
         FROM comment
         WHERE post_id = #{postId}
+        AND deleted_at IS NULL
     </select>
 
     <select id="selectCommentListByPostId"

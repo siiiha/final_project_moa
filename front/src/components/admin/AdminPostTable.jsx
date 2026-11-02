@@ -53,19 +53,19 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 16%;
+    width: 18%;
   }
   th:nth-child(2) {
-    width: 43%;
+    width: 47%;
   }
   th:nth-child(3) {
-    width: 13%;
+    width: 15%;
   }
   th:nth-child(4) {
-    width: 11%;
+    width: 12%;
   }
   th:nth-child(5) {
-    width: 17%;
+    width: 8%;
     text-align: right;
   }
 
@@ -173,11 +173,20 @@ const Empty = styled.p`
   text-align: center;
 `;
 
-function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onToggleHidden, onDelete }) {
+function getPageNumbers(currentPage, totalPages) {
+  // AI작성: 많은 게시글 데이터에서도 페이지 버튼이 과도하게 늘어나지 않도록 다섯 개만 표시한다.
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const length = Math.min(5, totalPages - start + 1);
+  return Array.from({ length }, (_, index) => start + index);
+}
+
+function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onDelete, loading }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
-      {posts.length ? (
+      {loading ? (
+        <Empty role="status">게시글 목록을 불러오는 중입니다.</Empty>
+      ) : posts.length ? (
         <>
           <TableWrap>
             <Table>
@@ -200,12 +209,12 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                       <PostTitle>{post.title}</PostTitle>
                     </td>
                     <td data-label="작성자">{post.author}</td>
-                    <td data-label="작성일">{post.date.slice(5)}</td>
+                    <td data-label="작성일">
+                      {/* AI작성: 게시글 작성 시점의 연도와 날짜 안내 문구가 잘리지 않도록 전체 값을 표시한다. */}
+                      {post.date}
+                    </td>
                     <td data-label="관리">
                       <ActionArea>
-                        <ActionButton type="button" $variant="secondary" onClick={() => onToggleHidden(post.id)}>
-                          {post.status === '공개' ? '숨김' : '공개'}
-                        </ActionButton>
                         <ActionButton type="button" $variant="danger" onClick={() => onDelete(post.id)}>
                           삭제
                         </ActionButton>
@@ -218,7 +227,16 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
           </TableWrap>
           {totalPages > 1 && (
             <Pagination aria-label="관리자 게시글 목록 페이지">
-              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <PageButton
+                type="button"
+                $active={false}
+                disabled={currentPage === 1}
+                onClick={() => onPageChange(currentPage - 1)}
+                aria-label="이전 페이지"
+              >
+                이전
+              </PageButton>
+              {getPageNumbers(currentPage, totalPages).map((page) => (
                 <PageButton
                   key={page}
                   type="button"
@@ -229,6 +247,15 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                   {page}
                 </PageButton>
               ))}
+              <PageButton
+                type="button"
+                $active={false}
+                disabled={currentPage === totalPages}
+                onClick={() => onPageChange(currentPage + 1)}
+                aria-label="다음 페이지"
+              >
+                다음
+              </PageButton>
             </Pagination>
           )}
         </>

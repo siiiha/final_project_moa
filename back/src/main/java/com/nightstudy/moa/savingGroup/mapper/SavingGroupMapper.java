@@ -156,6 +156,20 @@ public interface SavingGroupMapper {
 
     // AI작성: 물리 삭제 대신 아직 삭제되지 않은 공통 모임 행에 삭제 시각만 기록한다.
     int softDeleteSavingGroup(@Param("groupId") Long groupId);
+    // AI작성: 같은 계모임의 미처리 삭제 심사 중복 여부를 확인한다.
+    int countPendingSavingGroupDeletionApplication(@Param("groupId") Long groupId);
+    // AI작성: 계주의 필수 삭제 사유를 공통 심사 테이블에 저장한다.
+    int insertSavingGroupDeletionApplication(
+            @Param("groupId") Long groupId, @Param("reason") String reason);
+    // AI작성: 공동계좌 거래의 입금·출금 합계로 현재 공동자금을 계산한다.
+    java.math.BigDecimal selectSavingGroupBalance(@Param("groupId") Long groupId);
+    // AI작성: 진행 또는 정지 상태의 계모임인지 삭제 승인 직전에 확인한다.
+    boolean existsActiveSavingGroup(@Param("groupId") Long groupId);
+    // AI작성: 완료·반려되지 않은 출금 요청이 남았는지 확인한다.
+    boolean existsPendingPayout(@Param("groupId") Long groupId);
+    int approveSavingGroupDeletionApplication(@Param("approvalId") Long approvalId);
+    int rejectSavingGroupDeletionApplication(
+            @Param("approvalId") Long approvalId, @Param("rejectReason") String rejectReason);
     // AI작성: 자진 탈퇴는 잠금 조회로 확인한 본인의 승인 관계 한 건만 LEFT 상태로 전환한다.
     int leaveApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,
                                        @Param("groupId") Long groupId);

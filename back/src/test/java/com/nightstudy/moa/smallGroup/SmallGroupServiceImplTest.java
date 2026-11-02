@@ -20,6 +20,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsDetailUpdate;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -46,6 +48,81 @@ class SmallGroupServiceImplTest {
 
     @InjectMocks
     private SmallGroupServiceImpl smallGroupService;
+
+    @Test
+    void getSmallGroupVotesReturnsRowsForApprovedOwner() {
+        mockVoteListAccess("OWNER", "APPROVED");
+        SmallGroupVoteListItemResponse row = voteListItem("11월 정기 모임 날짜");
+        when(smallGroupMapper.selectSmallGroupVoteList(SMALL_GROUP_ID)).thenReturn(List.of(row));
+
+        List<SmallGroupVoteListItemResponse> response =
+                smallGroupService.getSmallGroupVotes(SMALL_GROUP_ID, MEMBER_ID);
+
+        assertThat(response).containsExactly(row);
+        verify(smallGroupMapper).selectSmallGroupVoteList(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void getSmallGroupVotesAllowsApprovedMemberAndReturnsEmptyList() {
+        mockVoteListAccess("MEMBER", "APPROVED");
+        when(smallGroupMapper.selectSmallGroupVoteList(SMALL_GROUP_ID)).thenReturn(List.of());
+
+        List<SmallGroupVoteListItemResponse> response =
+                smallGroupService.getSmallGroupVotes(SMALL_GROUP_ID, MEMBER_ID);
+
+        assertThat(response).isEmpty();
+        verify(smallGroupMapper).selectSmallGroupVoteList(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void getSmallGroupVotesRejectsNonMemberAndInactiveMemberships() {
+        for (SmallGroupMemberRelationRow relation : List.of(
+                relation("MEMBER", "PENDING"),
+                relation("MEMBER", "LEFT"),
+                relation("MEMBER", "EXPELLED"),
+                relation("MANAGER", "APPROVED"))) {
+            when(smallGroupMapper.selectSmallGroupVoteListTarget(SMALL_GROUP_ID))
+                    .thenReturn(voteListTarget());
+            when(smallGroupMapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID))
+                    .thenReturn(List.of(relation));
+
+            ApiException exception = catchThrowableOfType(
+                    () -> smallGroupService.getSmallGroupVotes(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+            assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_VOTE_LIST_FORBIDDEN");
+        }
+
+        when(smallGroupMapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID)).thenReturn(List.of());
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupVotes(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_VOTE_LIST_FORBIDDEN");
+        verify(smallGroupMapper, never()).selectSmallGroupVoteList(SMALL_GROUP_ID);
+    }
+
+    @Test
+    void getSmallGroupVotesRejectsMissingSmallGroupAndUnauthenticatedUser() {
+        when(smallGroupMapper.selectSmallGroupVoteListTarget(SMALL_GROUP_ID)).thenReturn(null);
+
+        ApiException missingGroupException = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupVotes(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+        ApiException unauthenticatedException = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupVotes(SMALL_GROUP_ID, null), ApiException.class);
+
+        assertThat(missingGroupException.getCode()).isEqualTo("SMALL_GROUP_NOT_FOUND");
+        assertThat(unauthenticatedException.getCode()).isEqualTo("UNAUTHORIZED");
+        verify(smallGroupMapper, never()).selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID);
+    }
+
+    @Test
+    void getSmallGroupVotesRejectsNonPositiveSmallGroupId() {
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.getSmallGroupVotes(0L, MEMBER_ID), ApiException.class);
+
+        assertThat(exception.getCode()).isEqualTo("BAD_REQUEST");
+        verify(smallGroupMapper, never()).selectSmallGroupVoteListTarget(SMALL_GROUP_ID);
+    }
 
     @Test
     void getSmallGroupJoinRequestsReturnsPagedRowsForApprovedCreator() {
@@ -605,6 +682,28 @@ class SmallGroupServiceImplTest {
         SmallGroupMemberRelationRow row = new SmallGroupMemberRelationRow();
         row.setMemberRole(memberRole);
         row.setMembershipStatus(membershipStatus);
+        return row;
+    }
+
+    private void mockVoteListAccess(String memberRole, String membershipStatus) {
+        when(smallGroupMapper.selectSmallGroupVoteListTarget(SMALL_GROUP_ID)).thenReturn(voteListTarget());
+        when(smallGroupMapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID))
+                .thenReturn(List.of(relation(memberRole, membershipStatus)));
+    }
+
+    private SmallGroupVoteListTargetRow voteListTarget() {
+        SmallGroupVoteListTargetRow row = new SmallGroupVoteListTargetRow();
+        row.setSmallGroupId(SMALL_GROUP_ID);
+        row.setGroupId(GROUP_ID);
+        return row;
+    }
+
+    private SmallGroupVoteListItemResponse voteListItem(String title) {
+        SmallGroupVoteListItemResponse row = new SmallGroupVoteListItemResponse();
+        row.setSmallGroupVoteId(101L);
+        row.setTitle(title);
+        row.setStatus("OPEN");
+        row.setEndsAt(LocalDateTime.of(2026, 11, 2, 18, 0));
         return row;
     }
 

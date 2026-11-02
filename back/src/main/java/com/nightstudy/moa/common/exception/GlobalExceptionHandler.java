@@ -1,6 +1,7 @@
 package com.nightstudy.moa.common.exception;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import jakarta.validation.ConstraintViolationException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -8,9 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
@@ -53,6 +54,30 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest()
                 .body(ApiResponse.fail("BAD_REQUEST", message));
+    }
+
+    // AI작성: @Validated 메서드의 경로 변수 제약 위반을 500이 아닌 공통 400 응답으로 변환합니다.
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(
+            ConstraintViolationException e
+    ) {
+        String message = e.getConstraintViolations()
+                .stream()
+                .map(violation -> violation.getMessage())
+                .distinct()
+                .collect(Collectors.joining(" "));
+
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.fail("BAD_REQUEST", message));
+    }
+
+    // AI작성: Spring MVC가 직접 검증한 경로 변수·요청 파라미터 제약 위반도 공통 400 응답으로 처리합니다.
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandlerMethodValidation(
+            HandlerMethodValidationException e
+    ) {
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.fail("BAD_REQUEST", "요청 값이 올바르지 않습니다."));
     }
 
     // 그 밖의 모든 예외 → 500. 원인은 서버 로그에만 남기고 응답에는 노출하지 않는다.

@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.post.dto.PostDto;
 import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
@@ -27,6 +28,10 @@ class PostServiceImplTest {
 
     @Mock
     private PostMapper postMapper;
+
+    // AI작성: 게시글 변경 전에 수행되는 CONTENT 이용 제한 검사를 Mock으로 주입한다.
+    @Mock
+    private MemberFeatureRestrictionService restrictionService;
 
     @InjectMocks
     private PostServiceImpl postService;

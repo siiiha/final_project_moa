@@ -1,13 +1,12 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import SmallGroupFilterBar from '../components/admin/SmallGroupFilterBar';
 import SmallGroupTable from '../components/admin/SmallGroupTable';
 import AdminSidebar from '../components/layout/AdminSidebar';
 import { adminMenuItems } from '../mocks/admin';
-import { adminSmallGroups } from '../mocks/adminSmallGroups';
-
-const PAGE_SIZE = 8;
+import client from '../api/client';
+import { getMemberRegions } from '../api/member';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -86,31 +85,113 @@ const SummaryDescription = styled.p`
   font-size: 10px;
 `;
 
+const ReasonInput = styled.textarea`
+  width: 100%;
+  min-height: 110px;
+  padding: 11px;
+  resize: none;
+  color: ${({ theme }) => theme.colors.text};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font: inherit;
+`;
+
+const ErrorMessage = styled.p`
+  margin-top: 10px;
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 12px;
+`;
+
 function AdminSmallGroupsPage() {
-  const navigate = useNavigate();
-  const [groups, setGroups] = useState(adminSmallGroups);
+  const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState('전체');
-  const [region, setRegion] = useState('전체');
+  const [regions, setRegions] = useState([]);
+  const [province, setProvince] = useState('');
+  const [district, setDistrict] = useState('');
+  const [town, setTown] = useState('');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [summary, setSummary] = useState({ totalSmallGroups: 0, activeSmallGroups: 0, restrictedSmallGroups: 0 });
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [actionTarget, setActionTarget] = useState(null);
+  const [reason, setReason] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [notice, setNotice] = useState('');
 
-  const filteredGroups = useMemo(() => {
-    const normalizedQuery = submittedQuery.trim().toLowerCase();
+  useEffect(() => {
+    getMemberRegions().then((items) => {
+      if (Array.isArray(items)) setRegions(items);
+    }).catch(() => setRegions([]));
+  }, []);
 
-    return groups.filter((group) => {
-      const matchesStatus = status === '전체' || group.status === status;
-      const matchesRegion = region === '전체' || group.region.startsWith(region);
-      const matchesQuery = !normalizedQuery || group.name.toLowerCase().includes(normalizedQuery);
-
-      return matchesStatus && matchesRegion && matchesQuery;
+  useEffect(() => {
+    const controller = new AbortController();
+    client.get('/admin/small-groups/summary', { signal: controller.signal }).then((response) => {
+      if (!response.data?.success || !response.data.data) {
+        throw new Error('소모임 현황 응답을 확인할 수 없습니다.');
+      }
+      setSummary(response.data.data);
+    }).catch((error) => {
+      if (error.code !== 'ERR_CANCELED') {
+        setSummary({ totalSmallGroups: 0, activeSmallGroups: 0, restrictedSmallGroups: 0 });
+      }
     });
-  }, [groups, region, status, submittedQuery]);
+    return () => controller.abort();
+  }, [reloadKey]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
-  const pageGroups = filteredGroups.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const activeCount = groups.filter((group) => group.status === '활동중').length;
-  const suspendedCount = groups.filter((group) => group.status === '정지').length;
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadGroups() {
+      setLoading(true);
+      setErrorMessage('');
+      try {
+        const response = await client.get('/admin/small-groups', {
+          params: {
+            keyword: submittedQuery || undefined,
+            provinceName: province || undefined,
+            districtName: district || undefined,
+            townName: town || undefined,
+            page: currentPage,
+          },
+          signal: controller.signal,
+        });
+
+        if (!response.data?.success || !Array.isArray(response.data.data) || !response.data.meta) {
+          throw new Error('소모임 목록 응답을 확인할 수 없습니다.');
+        }
+
+        // AI작성: 관리자 전용 목록 응답의 모임장·운영 상태를 화면 표시값으로 변환한다.
+        setGroups(response.data.data.map((group) => ({
+          id: group.smallGroupId,
+          name: group.groupName,
+          category: group.likeCategory || '-',
+          leader: group.creatorNickname || '-',
+          region: group.regionName,
+          participants: group.memberCount ?? 0,
+          status: group.status === 'ACTIVE' ? '활동중' : group.status === 'RESTRICTED' ? '정지' : '-',
+          statusCode: group.status,
+        })));
+        setTotalPages(response.data.meta.totalPages || 0);
+      } catch (error) {
+        if (error.code !== 'ERR_CANCELED') {
+          setGroups([]);
+          setTotalPages(0);
+          setErrorMessage(error.message || '소모임 목록을 불러오지 못했습니다.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+
+    loadGroups();
+    return () => controller.abort();
+  }, [currentPage, district, province, reloadKey, submittedQuery, town]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -118,48 +199,42 @@ function AdminSmallGroupsPage() {
     setCurrentPage(1);
   };
 
-  const handleStatusAction = (groupId) => {
-    // TODO: Spring Boot 소모임 이용 제한·제한 해제 API 요청 후 소모임 목록을 갱신합니다.
-    setGroups((currentGroups) =>
-      currentGroups.map((group) =>
-        group.id === groupId ? { ...group, status: group.status === '활동중' ? '정지' : '활동중' } : group
-      )
-    );
-    setCurrentPage(1);
+  const handleStatusAction = (group) => {
+    setReason('');
+    setActionError('');
+    setActionTarget(group);
   };
 
-  const handleMenuSelect = (menuId) => {
-    if (menuId === 'members') {
-      navigate('/admin/members');
+  const handleActionConfirm = async () => {
+    if (!actionTarget || submitting) return;
+    if (!reason.trim()) {
+      setActionError('처리 사유를 입력해주세요.');
       return;
     }
 
-    if (menuId === 'gatherings') {
-      navigate('/admin/saving-groups');
-      return;
+    setSubmitting(true);
+    setActionError('');
+    try {
+      const actionPath = actionTarget.statusCode === 'RESTRICTED'
+        ? 'restriction/release'
+        : 'restriction';
+      const response = await client.patch(
+        `/admin/small-groups/${encodeURIComponent(actionTarget.id)}/${actionPath}`,
+        { reason: reason.trim() },
+      );
+      if (!response.data?.success) {
+        throw new Error('소모임 이용 상태 변경 응답을 확인할 수 없습니다.');
+      }
+      setNotice(actionTarget.statusCode === 'RESTRICTED'
+        ? '소모임 이용 제한을 해제했습니다.'
+        : '소모임 이용을 제한했습니다.');
+      setActionTarget(null);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setActionError(error.response?.data?.error?.message || error.message || '소모임 이용 상태를 변경하지 못했습니다.');
+    } finally {
+      setSubmitting(false);
     }
-
-    if (menuId === 'gathering-review') {
-      navigate('/admin/saving-groups/applications');
-      return;
-    }
-
-    if (menuId === 'posts') {
-      navigate('/admin/posts');
-      return;
-    }
-
-    if (menuId === 'comments') {
-      navigate('/admin/comments');
-      return;
-    }
-
-    if (menuId === 'reports') {
-      navigate('/admin/reposts');
-      return;
-    }
-
-    // TODO: Spring Boot 관리자 기능 및 각 관리자 화면이 준비되면 선택한 메뉴의 라우트로 이동합니다.
   };
 
   return (
@@ -169,42 +244,59 @@ function AdminSmallGroupsPage() {
         <p>서비스에서 운영 중인 소모임의 활동 현황과 이용 상태를 관리하세요.</p>
       </Heading>
       <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="groups" onSelect={handleMenuSelect} />
+        <AdminSidebar items={adminMenuItems} activeItem="groups" />
         <main>
           <SummaryGrid aria-label="소모임 현황 요약">
             <SummaryCard>
               <SummaryLabel>전체 소모임</SummaryLabel>
-              <SummaryValue>{groups.length}개</SummaryValue>
+              <SummaryValue>{summary.totalSmallGroups.toLocaleString()}개</SummaryValue>
               <SummaryDescription>서비스에 등록된 소모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>활동 중</SummaryLabel>
-              <SummaryValue>{activeCount}개</SummaryValue>
+              <SummaryValue>{summary.activeSmallGroups.toLocaleString()}개</SummaryValue>
               <SummaryDescription>정상 운영 중인 소모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>이용 제한</SummaryLabel>
-              <SummaryValue $danger>{suspendedCount}개</SummaryValue>
-              <SummaryDescription>현재 정지된 소모임</SummaryDescription>
+              <SummaryValue $danger>{summary.restrictedSmallGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>현재 관리자 제한 중인 소모임</SummaryDescription>
             </SummaryCard>
           </SummaryGrid>
           <SmallGroupTable
-            groups={pageGroups}
+            groups={groups}
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={setCurrentPage}
             onStatusAction={handleStatusAction}
+            loading={loading}
+            errorMessage={errorMessage}
+            submitting={submitting}
             filter={
               <SmallGroupFilterBar
                 status={status}
-                region={region}
+                province={province}
+                district={district}
+                town={town}
+                regions={regions}
                 query={query}
                 onStatusChange={(value) => {
                   setStatus(value);
                   setCurrentPage(1);
                 }}
-                onRegionChange={(value) => {
-                  setRegion(value);
+                onProvinceChange={(value) => {
+                  setProvince(value);
+                  setDistrict('');
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onDistrictChange={(value) => {
+                  setDistrict(value);
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onTownChange={(value) => {
+                  setTown(value);
                   setCurrentPage(1);
                 }}
                 onQueryChange={setQuery}
@@ -214,6 +306,38 @@ function AdminSmallGroupsPage() {
           />
         </main>
       </Grid>
+      {actionTarget && (
+        <ConfirmModal
+          title={actionTarget.statusCode === 'RESTRICTED' ? '소모임 제한 해제' : '소모임 이용 제한'}
+          description={`${actionTarget.name}의 처리 사유를 입력해주세요.`}
+          confirmLabel={submitting ? '처리 중...' : actionTarget.statusCode === 'RESTRICTED' ? '제한 해제' : '이용 제한'}
+          confirmVariant={actionTarget.statusCode === 'RESTRICTED' ? 'primary' : 'danger'}
+          cancelFirst
+          isBusy={submitting}
+          onConfirm={handleActionConfirm}
+          onCancel={() => !submitting && setActionTarget(null)}
+        >
+          <ReasonInput
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={500}
+            disabled={submitting}
+            placeholder="처리 사유를 입력해주세요"
+            aria-label="소모임 처리 사유"
+          />
+          {actionError && <ErrorMessage role="alert">{actionError}</ErrorMessage>}
+        </ConfirmModal>
+      )}
+      {notice && (
+        <ConfirmModal
+          title="처리 완료"
+          description={notice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setNotice('')}
+          onCancel={() => setNotice('')}
+        />
+      )}
     </Page>
   );
 }

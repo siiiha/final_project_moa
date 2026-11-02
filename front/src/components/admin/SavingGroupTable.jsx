@@ -172,7 +172,24 @@ const Empty = styled.td`
   text-align: center !important;
 `;
 
-function SavingGroupTable({ groups, filter, currentPage, totalPages, onPageChange, onStatusAction }) {
+function getPageNumbers(currentPage, totalPages) {
+  // AI작성: 많은 계모임 데이터에서도 페이지 버튼이 과도하게 늘어나지 않도록 다섯 개만 표시한다.
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const length = Math.min(5, totalPages - start + 1);
+  return Array.from({ length }, (_, index) => start + index);
+}
+
+function SavingGroupTable({
+  groups,
+  filter,
+  currentPage,
+  totalPages,
+  onPageChange,
+  onStatusAction,
+  loading,
+  errorMessage,
+  submitting,
+}) {
   return (
     <Card>
       <Header>
@@ -193,14 +210,17 @@ function SavingGroupTable({ groups, filter, currentPage, totalPages, onPageChang
             </tr>
           </thead>
           <tbody>
-            {groups.length === 0 ? (
+            {loading || errorMessage || groups.length === 0 ? (
               <tr>
-                <Empty colSpan="6">검색 조건에 맞는 계모임이 없습니다.</Empty>
+                <Empty colSpan="6">
+                  {loading ? '계모임 목록을 불러오는 중입니다.' : errorMessage || '검색 조건에 맞는 계모임이 없습니다.'}
+                </Empty>
               </tr>
             ) : (
               groups.map((group) => {
-                const isActive = group.status === '활동중';
-                const actionLabel = isActive ? '이용 제한' : '제한 해제';
+                const canRestrict = group.statusCode === '02';
+                const canRelease = group.statusCode === '03' && group.adminRestricted;
+                const actionLabel = canRelease ? '제한 해제' : '이용 제한';
 
                 return (
                   <tr key={group.id}>
@@ -214,13 +234,18 @@ function SavingGroupTable({ groups, filter, currentPage, totalPages, onPageChang
                       <Status $status={group.status}>{group.status}</Status>
                     </td>
                     <td data-label="관리">
-                      <ActionButton
-                        type="button"
-                        $variant={isActive ? 'danger' : 'primary'}
-                        onClick={() => onStatusAction(group.id)}
-                      >
-                        {actionLabel}
-                      </ActionButton>
+                      {canRestrict || canRelease ? (
+                        <ActionButton
+                          type="button"
+                          $variant={canRestrict ? 'danger' : 'primary'}
+                          onClick={() => onStatusAction(group)}
+                          disabled={submitting}
+                        >
+                          {actionLabel}
+                        </ActionButton>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                   </tr>
                 );
@@ -228,9 +253,18 @@ function SavingGroupTable({ groups, filter, currentPage, totalPages, onPageChang
             )}
           </tbody>
         </Table>
-        {totalPages > 1 && (
+        {!loading && !errorMessage && totalPages > 1 && (
           <Pagination aria-label="계모임 목록 페이지">
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+            <PageButton
+              type="button"
+              $active={false}
+              disabled={currentPage === 1}
+              onClick={() => onPageChange(currentPage - 1)}
+              aria-label="이전 페이지"
+            >
+              이전
+            </PageButton>
+            {getPageNumbers(currentPage, totalPages).map((page) => (
               <PageButton
                 key={page}
                 type="button"
@@ -241,6 +275,15 @@ function SavingGroupTable({ groups, filter, currentPage, totalPages, onPageChang
                 {page}
               </PageButton>
             ))}
+            <PageButton
+              type="button"
+              $active={false}
+              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(currentPage + 1)}
+              aria-label="다음 페이지"
+            >
+              다음
+            </PageButton>
           </Pagination>
         )}
       </TableArea>

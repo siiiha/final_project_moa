@@ -19,6 +19,9 @@ public class SavingGroupCreationApplicationSearchCondition {
     @Pattern(regexp = "PENDING|APPROVED|REJECTED", message = "심사 상태를 다시 선택해 주세요.")
     private String status;
 
+    @Pattern(regexp = "CREATE|DELETE", message = "심사 유형을 다시 선택해 주세요.")
+    private String type;
+
     @NotNull(message = "페이지 번호를 올바르게 입력해 주세요.")
     @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.")
     private Integer page = 1;

@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { savingGroupReviewStatus, savingGroupReviewType } from '../../api/savingGroups';
 import Button from '../common/Button';
 
 const Form = styled.form`
@@ -63,14 +64,21 @@ const SearchButton = styled(Button)`
   }
 `;
 
-function SavingGroupApplicationFilterBar({ status, query, onStatusChange, onQueryChange, onSearch }) {
+function SavingGroupApplicationFilterBar({ type, status, query, onTypeChange, onStatusChange, onQueryChange, onSearch }) {
   return (
     <Form onSubmit={onSearch}>
+      {/* AI작성: 화면 문구와 무관하게 option 값은 백엔드가 검증하는 심사 유형 코드를 그대로 사용한다. */}
+      <Control aria-label="심사 유형" value={type} onChange={(event) => onTypeChange(event.target.value)}>
+        <option value="">전체 유형</option>
+        <option value={savingGroupReviewType.CREATE}>개설 심사</option>
+        <option value={savingGroupReviewType.DELETE}>삭제 심사</option>
+      </Control>
+      {/* AI작성: 심사 상태도 API 코드로 유지해 페이지에서 한글값을 다시 변환하는 중복을 없앤다. */}
       <Control aria-label="심사 상태" value={status} onChange={(event) => onStatusChange(event.target.value)}>
-        <option value="전체">전체 상태</option>
-        <option value="대기">대기</option>
-        <option value="승인">승인</option>
-        <option value="반려">반려</option>
+        <option value="">전체 상태</option>
+        <option value={savingGroupReviewStatus.PENDING}>대기</option>
+        <option value={savingGroupReviewStatus.APPROVED}>승인</option>
+        <option value={savingGroupReviewStatus.REJECTED}>반려</option>
       </Control>
       <SearchInput
         value={query}
