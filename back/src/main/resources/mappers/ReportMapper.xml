@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.report.mapper.ReportMapper">
+    <!-- AI작성: 신고 유형별로 삭제되지 않은 대상과 제재 대상 회원을 조회한다. -->
+    <select id="selectReportTarget"
+            resultType="com.nightstudy.moa.report.dto.ReportTarget">
+        <choose>
+            <when test="reportType.name() == 'POST'">
+                SELECT p.post_id AS target_id, p.writer_id AS reported_member_id
+                FROM post p
+                JOIN members m ON m.member_id = p.writer_id
+                WHERE p.post_id = #{targetId}
+                  AND p.deleted_at IS NULL
+                  AND m.deleted_at IS NULL
+            </when>
+            <when test="reportType.name() == 'COMMENT'">
+                SELECT c.comment_id AS target_id, c.writer_id AS reported_member_id
+                FROM comment c
+                JOIN members m ON m.member_id = c.writer_id
+                WHERE c.comment_id = #{targetId}
+                  AND c.deleted_at IS NULL
+                  AND m.deleted_at IS NULL
+            </when>
+            <otherwise>
+                SELECT m.member_id AS target_id, m.member_id AS reported_member_id
+                FROM members m
+                WHERE m.member_id = #{targetId}
+                  AND m.deleted_at IS NULL
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- AI작성: 처리 상태와 관계없이 같은 회원의 동일 대상 중복 신고를 차단한다. -->
+    <select id="countReporterTarget" resultType="int">
+        SELECT COUNT(*)
+        FROM member_report mr
+        JOIN report_case rc ON rc.case_id = mr.case_id
+        WHERE mr.reporter_id = #{reporterId}
+          AND rc.report_type = #{reportType}
+          AND rc.target_id = #{targetId}
+    </select>
+
+    <select id="selectPendingCaseId" resultType="long">
+        SELECT case_id
+        FROM report_case
+        WHERE report_type = #{reportType}
+          AND target_id = #{targetId}
+          AND status = 'PENDING'
+        ORDER BY case_id DESC
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <insert id="insertReportCase">
+        INSERT INTO report_case (report_type, target_id, reported_member_id)
+        VALUES (#{reportType}, #{targetId}, #{reportedMemberId})
+    </insert>
+
+    <insert id="insertMemberReport">
+        INSERT INTO member_report (case_id, reporter_id, reason)
+        VALUES (#{caseId}, #{reporterId}, #{reason})
+    </insert>
+
+    <select id="selectLastInsertId" resultType="long">
+        SELECT LAST_INSERT_ID()
+    </select>
+</mapper>
