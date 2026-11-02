@@ -26,13 +26,18 @@
                   AND m.deleted_at IS NULL
                 FOR UPDATE
             </when>
-            <otherwise>
+            <when test="reportType.name() == 'MEMBER'">
                 SELECT m.member_id AS target_id, m.member_id AS reported_member_id
                 FROM members m
                 WHERE m.member_id = #{targetId}
                   AND m.deleted_at IS NULL
                 FOR UPDATE
-            </otherwise>ㅂ
+            </when>
+            <!-- AI작성: 추후 추가된 신고 유형을 회원 신고로 잘못 처리하지 않는다. -->
+            <otherwise>
+                SELECT NULL AS target_id, NULL AS reported_member_id
+                WHERE 1 = 0
+            </otherwise>
         </choose>
     </select>
 
