@@ -1,6 +1,16 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+<!-- AI작성: 계모임 개설 지역 선택 3단계 작업과 검증 결과를 기록한다. -->
+## 2026-11-03 — 계모임 개설 지역 선택 (3단계)
+
+- 목적·승인: 사용자 승인에 따라 시·구 필수, 동 선택 및 세종 전체 선택을 개설 화면에 적용했다.
+- AI 제안·작성: SavingGroupApplicationPage.jsx에서 getMemberRegions를 재사용해 지역 로딩·실패·빈 목록·재시도를 처리하고 이전 요청 응답을 무시한다. SavingGroupApplicationForm.jsx에서 시 변경 시 구·동, 구 변경 시 동을 초기화한다. 상위 선택 전 하위 선택을 비활성화하고 시·구에 required를 적용한다. 최종 구 또는 동의 regionName을 기존 FormData에 전달한다. 동 데이터가 없으면 구 단위 신청을 허용한다.
+- 변경 파일: front/src/pages/SavingGroupApplicationPage.jsx, front/src/components/savingGroup/SavingGroupApplicationForm.jsx, docs/saving-groups-api.md, 본 기록.
+- 검증: 변경 화면 두 파일 oxlint 통과, npm run build 통과(500kB 초과 번들 경고). 브라우저·실제 API·DB 검증은 미실행이다.
+- 브라우저 검증 방법: 필수 지역 미선택 제출 차단, 시 변경 시 구·동 초기화, 구 변경 시 동 초기화, 동 미선택 허용, 세종 전체 선택, 지역 조회 실패 후 재시도를 확인한다. Network에서 최종 선택 지역만 regionName에 포함되는지 확인한다.
+- 개발자 검토·수정: 검토 대기. 서버 지역 검증 강화 및 관리자 승인 후 상세 지역 확인은 후속 단계다. 동 선택에는 실제 지역 API의 동 데이터가 필요하다. DB·서버·의존성 변경 없음. 커밋은 수행하지 않았다.
+
 <!-- AI작성: 사용자 승인 범위의 선택 장소 현재 위치 길찾기 구현과 검증을 기록한다. -->
 ## 2026-11-02 — 선택 장소의 현재 위치 기반 카카오맵 길찾기
 
