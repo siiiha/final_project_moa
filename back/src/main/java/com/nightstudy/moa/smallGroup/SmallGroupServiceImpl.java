@@ -38,6 +38,9 @@ import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateCommand;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateTargetRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListCondition;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewSearchCondition;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -78,6 +81,41 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    // AI작성: 공개 상세와 같은 소모임·관계 조회를 재사용하며 등록 권한이나 모임 날짜로 목록을 제한하지 않는다.
+    @Override
+    @Transactional(readOnly = true)
+    public SmallGroupReviewListResponse getSmallGroupReviews(
+            Long smallGroupId, Long memberId, SmallGroupReviewSearchCondition request) {
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        if (request == null || request.getPage() == null || request.getPage() < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지 번호는 1 이상이어야 합니다.");
+        }
+        if (memberId != null && memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupDetailRow target = smallGroupMapper.selectSmallGroupDetail(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 소모임이 없습니다.");
+        }
+        // AI작성: 승인 여부는 조회 조건으로 쓰지 않고 MANAGER·중복·미정의 역할만 기존 상세 정책으로 검증한다.
+        if (memberId != null) {
+            resolveMemberRole(target.getGroupId(), memberId);
+        }
+
+        SmallGroupReviewListCondition condition = new SmallGroupReviewListCondition(smallGroupId, 0);
+        int total = smallGroupMapper.selectSmallGroupReviewCount(condition);
+        PageMeta pageMeta = PageMeta.of(request.getPage(), condition.getLimit(), total);
+        // AI작성: 빈 결과·범위 초과는 offset 계산 전에 반환해 큰 페이지 번호의 정수 오버플로도 방지한다.
+        if (pageMeta.getPage() > pageMeta.getTotalPages()) {
+            return new SmallGroupReviewListResponse(List.of(), pageMeta);
+        }
+        condition.setOffset(pageMeta.getOffset());
+        return new SmallGroupReviewListResponse(smallGroupMapper.selectSmallGroupReviewList(condition), pageMeta);
     }
 
     // AI작성: 소모임·회원 관계를 잠가 권한·날짜·중복을 검증한 뒤 같은 트랜잭션에서 저장한다.
