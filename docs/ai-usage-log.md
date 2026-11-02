@@ -1,6 +1,85 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+<!-- AI작성: 사용자 승인 범위의 선택 장소 현재 위치 길찾기 구현과 검증을 기록한다. -->
+## 2026-11-02 — 선택 장소의 현재 위치 기반 카카오맵 길찾기
+
+- 사용자 요청: 카드의 장소 상세 보기 (새 창)를 현 위치에서 길찾기로 바꾸고 카카오맵 길찾기를 연다. 기존에 제시한 1단계 작업과 문서 갱신 범위로 진행하며 커밋명 추천을 요청했다.
+- AI 제안·작성: SmallGroupPlacesPanel.jsx에서 클릭할 때마다 현재 위치를 확인하고 선택 장소와 함께 공식 출발지→도착지 길찾기 URL로 이동하도록 구현했다. 기존 위치 옵션·500m 정확도 기준·좌표 범위를 재사용하고 장소명은 URL 인코딩한다.
+- 새 창: 클릭 시 about:blank를 확보해 비동기 팝업 차단을 피하고 opener 분리·no-referrer를 설정했다. 팝업 차단 시 위치를 수집하지 않는다. 위치 권한 거부·조회 실패·시간 초과·정확도 미달·창 닫힘·동기 오류 시 대기 창을 닫고 안내한다.
+- 상태 처리: 버튼 비활성화와 ref로 중복 실행을 방지한다. 선택 장소·검색·페이지·위치 해제·탭·소모임·계정 전환과 언마운트 후의 늦은 콜백은 외부 이동을 실행하지 않는다. 출발 좌표를 상태·DB·로그·persist 저장소에 추가하지 않는다.
+- 변경 범위: 제품 코드 1파일과 docs/small-group-places-api.md, 본 기록. 기존 placeUrl 응답 DTO는 유지하며 신규 API·SDK·키·환경 변수·백엔드·DB 변경은 없다. 공지 화면의 저장된 모임 장소 길찾기는 후속 작업이다.
+- 검증: lint·build 통과, 기존 lint·번들 크기 경고 유지. 가상 위치·지도·새 창 객체로 헤드리스 Chrome 1280px 데스크톱과 390px 모바일 각각 26개 시나리오를 통과했다. 좌표 순서·인코딩·중복 실행·팝업 차단·권한/정확도 실패·창 닫힘·오래된 콜백 취소를 확인했다. 실제 사용자 위치 수집·외부 API·카카오맵 이동 없이 검증했고 임시 파일·서버는 정리했다.
+- 개발자 검토: 실제 브라우저에서 위치 허용 후 출발지·목적지 반영과 팝업 차단 안내를 최종 확인해야 한다. 이번 기록은 실제 위치·외부 카카오맵 연동 검증 완료를 뜻하지 않는다.
+
+<!-- AI작성: 기존 장소 검색 기능의 후속 UI 개선 요청과 검증을 기록한다. -->
+## 2026-11-02 — 소모임 장소 찾기 목록·지도 UI 개선
+
+- 사용자 요청: 네이버지도와 비슷한 탐색 구성을 적용하되 모아 프로젝트의 디자인을 따른다.
+- AI 제안·작성: SmallGroupPlacesPanel.jsx 한 코드 파일에 상단 검색창·필터, 왼쪽 번호 목록과 오른쪽 선택 장소 지도·상세 카드, 모바일 지도 우선 배치, 선택 결과 강조를 구성했다. 프로젝트 테마·Button·react-icons와 기존 RegionMap을 재사용했다.
+- 선택 상태는 화면에서만 유지하고 첫 결과를 기본 선택하며 새 검색·페이지 변경·초기화 시 선택을 재설정한다. 기존 인증·검색·위치 이용·권한·저장 정책은 유지한다. 실제 사용자 좌표 대신 선택 장소의 좌표만 지도에 전달한다.
+- 신규 지도 API·SDK·패키지·키·환경 변수·DB 변경은 없다. 기존 지도 컴포넌트와 기존 설정을 그대로 사용한다.
+- 검증: 장소 검색 프론트 API 테스트 5건, 전체 lint·build 통과. 기존 lint·번들 크기 경고는 남아 있다. 별도 임시 Chrome 프로필에서 가상 검색·지도 객체로 1280px 데스크톱과 390px 모바일 각각 14개 UI 시나리오를 통과하고 캡처를 확인했다. 실제 외부 API·실제 위치는 사용하지 않았다. 임시 검증 파일·서버는 제거했다.
+- 문서: docs/small-group-places-api.md의 재사용 구성·화면 흐름·UI 검증 결과를 마지막에 갱신했다.
+- 개발자 검토: 실제 기존 카카오 지도 설정에서의 지도 표시와 실제 계정·권한 동작은 개발자의 최종 확인이 필요하다. 길찾기는 기존 TODO로 유지한다.
+
+<!-- AI작성: 사용자 요청에 따라 마지막 단계에서 장소 검색 1~8단계 작업·검증을 모아 기록한다. -->
+## 2026-11-02 — 소모임 장소 검색 1~9단계
+
+- 목적·사용자 확정: 기존 회원 위치 API를 재사용해 승인된 소모임 OWNER·MEMBER만 장소를 검색한다. 현재 위치·반경·거리순과 화면을 포함하고 빈 결과는 오류로 처리한다. 길찾기·장소 저장·DB 변경은 제외한다. 문서화는 마지막 단계에 한 번에 진행하고 단계별 로컬 커밋을 요청받았다.
+- 1단계(`af98364`, 사용자 커밋): 검색 요청·외부/공개 응답 DTO, Service 인터페이스, 검색어 100자·좌표/반경/정렬 조합 Validation 테스트를 추가했다.
+- 2단계(`508e1b0`): 기존 KakaoApiClient의 RestClient·REST 키·타임아웃·ApiException으로 장소 검색을 추가했다. 검색어 인코딩과 선택적 좌표 전달, 외부 실패·응답 검증을 Mock 서버로 확인했다.
+- 3단계(`8664589`): SmallGroupPlaceServiceImpl에 기존 상세/회원 관계 Mapper 기반 접근 검증, 외부 호출, 장소 데이터 변환·안전한 상세 링크·빈 결과 오류 처리를 추가했다. 외부 호출 중 DB 잠금은 유지하지 않는다.
+- 4단계(`d0d15d4`): Service 단위 테스트로 승인 OWNER·MEMBER, 미승인·탈퇴·미가입·MANAGER·중복 관계, 빈 결과, 외부 실패·응답 이상을 확인했다.
+- 5단계(`af51c9a`): GET /api/small-groups/places를 별도 Controller에 추가했다. JWT 회원 ID·허용 필드 바인딩·공통 ApiResponse와 no-store를 적용했고 기존 보안 설정은 변경하지 않았다.
+- 6단계(`8f4c78e`): 기존 SecurityFilterChain·JWT 세션 Mock을 포함해 인증·입력 바인딩·공통 오류·개인정보 미노출을 검증했다.
+- 7단계(`b5ae1de`): 기존 프론트 인증 client에 searchSmallGroupPlaces를 추가하고 허용 조건만 전달하며 서버 오류·취소·응답 필드를 검증했다. 신규 요청 API 테스트를 추가했다.
+- 8단계(`7d05817`): SmallGroupPlacesPanel과 상세 탭 연결을 추가했다. 기존 directions 식별자를 유지하며 문구는 장소 찾기로 변경했다. 위치 사용 목적 안내·명시적 요청·정확도 500m 기준·반경/정렬·페이지·오류/재시도·요청 취소와 모임/역할/계정 변경 시 상태 초기화를 구현했다.
+- 9단계: docs/small-group-places-api.md에 계약·화면 흐름·검증·길찾기 TODO를 작성하고 기존 상세 API 탭 문서와 본 기록을 갱신했다.
+- 재사용: KakaoApiClient, KakaoOAuthProperties, 기존 HTTP Client·인증 키·환경 변수, SmallGroupMapper 상세·관계 조회, SecurityConfig·JWT·AuthSessionService, ApiResponse·ApiException·공통 Validation/예외 처리, 프론트 client·테마·버튼·회원 위치 요청 옵션, 기존 JUnit·Mockito·MockMvc·Spring Test·Node 테스트 도구.
+- 검증: 기존 설치 JDK 17을 실행 옵션으로 지정했다. 장소 검색 요청 28건·Client 9건·Service 24건·보안 포함 Controller 24건, 합계 85건 통과. 프론트 관련 API 테스트 58건과 lint·build 통과. 기존 lint·번들 크기 경고는 남아 있다.
+- 회귀 확인: 전체 소모임+Client 330건 중 기존 테스트 17건이 실패했다. 시작 커밋 af98364를 별도 임시 폴더로 내보내 소모임 273건을 실행했으며 동일한 17건 실패를 클래스·테스트 이름 기준으로 대조했다. 관련 없는 코드나 테스트는 수정하지 않았다.
+- 화면 검증: Computer Use 앱 제어 승인이 시간 초과되어 UI 입력은 수행하지 못했다. 기존 Chrome의 별도 임시 프로필·가상 Client/위치 응답으로 검색·빈 결과·외부 오류·위치 거부/해제·페이지·요청 경합·모임/계정/권한 전환 등 17개 시나리오를 확인했다. 390px 모바일에서도 통과하고 캡처를 확인했다. 실제 외부 API·실제 키·실제 위치를 사용하지 않았고 임시 화면·서버는 제거했다.
+- 개발자 검토·수정: 개발자의 코드 검토와 실제 계정·DB·브라우저 위치 권한 검증은 아직 미완료다. 이 기록은 개발자 승인이나 실제 외부 연동 성공을 뜻하지 않는다.
+- 남은 TODO: 길찾기 별도 설계, 기존 location 문자열만 있는 목적지 데이터 제약 확인, 기존 회귀 실패 17건 별도 정리. 새 의존성·SDK·키·환경 변수·DB 변경은 없다.
+
+<!-- AI작성: 사용자 요청에 따라 마지막 문서화 단계에서 1~8단계 이력을 모아 기록한다. -->
+## 2026-11-02 — 소모임 모임원 후기 등록 1~8단계
+
+- 목적: 승인된 소모임 일반 모임원이 개설자를 제외하고 후기 1건을 등록하는 API를 단계별로 구현한다.
+- 사용자 확정: 별도 후기 테이블, 별점 0~5점·0.5 단위, 코멘트 필수·1~30자, 회원당 소모임별 1회, 모임 다음 날부터 허용, meet_date NULL 시 제한, 기존 MANAGER 403 유지. 문서화는 마지막 단계에 모아서 진행한다.
+- 1단계: 후기 테이블 PK·FK·회원별 UNIQUE·별점·코멘트 CHECK 설계를 작성했다. 사용자가 DB 담당자 반영으로 결정하여 다운로드 폴더에 `소모임_후기_테이블_추가_요청.md`를 전달용으로 작성했다. 현재 저장소 schema.sql에는 후기 테이블 정의가 없고 실제 DB 적용 여부도 확인되지 않았다.
+- 2단계: SmallGroupReviewCreateRequest·CreateCommand·CreateTargetRow와 기존 SmallGroupMapper에 등록 대상 잠금 조회·후기 ID 조회·INSERT 계약을 추가했다. 요청 별점은 BigDecimal과 Validation으로 검증한다.
+- 3단계: 기존 SmallGroupMapper.xml에 해당 SQL 3개를 추가했다. 기존 회원 관계 잠금 조회를 재사용하며 저장 시 생성 키를 반환한다.
+- 4단계: SmallGroupService·Impl에 트랜잭션 기반 인증·존재·일반 승인 회원·개설자·MANAGER·한국 날짜·중복·입력값 검증과 저장을 추가했다. DB 중복 오류를 동일한 409 업무 오류로 변환한다.
+- 5단계: SmallGroupReviewCreateServiceTest에 정상 등록, 권한·상태·날짜·중복·입력값 및 저장 실패 테스트를 추가했다.
+- 6단계: 기존 SmallGroupController에 POST /api/small-groups/{smallGroupId}/reviews를 추가했다. JWT 회원 ID와 검증한 본문만 전달하며 HTTP 200 ApiResponse<Long>으로 생성 후기 ID를 반환한다.
+- 7단계: SmallGroupReviewCreateControllerTest를 추가하고 기존 SmallGroupSecurityIntegrationTest·SmallGroupMapperXmlTest에 인증 차단·statement·생성 키 파싱 검증을 추가했다.
+- 8단계: docs/small-group-public-detail-api.md에 확정 정책, 요청·응답, 오류 코드, DB·저장 모델, 테스트 범위, 재실행 명령과 Postman 검증 절차를 기록했다. 운영 코드·schema.sql은 이 단계에서 수정하지 않았다.
+- 검증 결과: 단계별 git diff --check 및 XML 정적 파싱·statement ID·생성 키 매핑 확인 통과. Gradle compileJava와 대상 테스트 실행은 Java 17 toolchain 부재로 컴파일 전에 중단되었다. JUnit 테스트 실행·통과 결과, 실제 MySQL DDL·INSERT·동시성, 발급 JWT 성공 흐름, Postman·브라우저 검증은 미확인이다.
+- 남은 확인: DB 담당자의 최종 테이블·제약·schema.sql·ERD 반영, Java 17 환경 대상 테스트 실행, 실제 인증·DB 통합 확인. 프론트 작성 화면의 코멘트 검증은 후속 범위다.
+- 개발자 검토·수정: 단계별 구현 요청·정책 승인은 받았으며 최종 코드·동작 검토 완료 여부는 확인되지 않았다.
+- 외부 서비스·의존성: 외부 API 호출·설정 변경·추가 패키지 설치·공용 DB 변경 없음. AI가 커밋을 실행하지 않았다.
+
+## 2026-11-01 — 소모임 투표 논리 삭제 API 및 화면 연동
+
+- 목적: 투표 작성자이면서 소모임 개설자·승인된 `OWNER`만 소속 투표를 삭제하고, 투표 보기·참여·선택 이력은 보존하도록 한다.
+- 사용자 확정: 경로는 `DELETE /api/small-groups/{smallGroupId}/votes/{voteId}`를 사용한다. `OPEN`, `CLOSED` 모두 삭제 가능하며 `small_group_vote.deleted_at`만 갱신한다. 이미 삭제됐거나 다른 소모임 투표는 존재를 구분하지 않고 `404 SMALL_GROUP_VOTE_NOT_FOUND`로 처리한다.
+- AI 작성: 기존 `SmallGroupVoteDetailRow`, 소모임·회원 잠금 조회 Mapper를 재사용해 논리 삭제 Mapper 계약, Service 트랜잭션과 권한 검증, Controller API·Security 테스트, React 삭제 요청 API·확인 화면을 추가했다. 삭제된 투표가 목록과 진행 중 투표 생성 한도에서 제외되도록 기존 SQL에도 `deleted_at IS NULL` 조건을 보완했다.
+- API·데이터: 삭제 권한은 투표 작성자, `groups.member_id` 개설자, 승인된 `OWNER` 관계가 모두 같은 로그인 회원일 때만 허용한다. `small_group_vote_option`, `small_group_vote_participation`, `small_group_vote_selection`은 삭제·수정하지 않는다. DB 마이그레이션, 상태값, 외부 연동, 의존성·Security 설정은 추가하지 않았다.
+- 검증: `git diff --check`와 프런트 `node --test src/api/smallGroups.test.js` 40개, `npm run lint`, `npm run build`를 통과했다. lint의 기존 경고와 번들 크기 경고는 유지됐다. 백엔드 Gradle 대상 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17·실제 MySQL·JWT 환경에서 작성자 OWNER의 OPEN·CLOSED 삭제, 일반 회원·다른 OWNER·MANAGER의 403, 없는·삭제 소모임과 다른 소모임·이미 삭제된 투표의 404, 보기·참여·선택 이력 보존, 삭제 후 목록 제외·생성 한도 반영을 E2E로 확인한다.
+- 개발자 코드 검토·수정: 대기 중.
+
+## 2026-11-01 — 소모임 투표 참여·재투표 및 현황 조회
+
+- 목적: 승인된 소모임 회원이 상세 화면에서 보기를 선택해 투표하고, 참여 후 항목별 득표 수·공개 투표의 참여자 닉네임·참여 인원을 확인하도록 한다.
+- 사용자 확정: 단일 선택은 1개, 복수 선택은 1개 이상 전체 보기 수 이하로 제한한다. 같은 선택으로 재요청하면 DB를 바꾸지 않고 성공 처리하며, 선택을 바꾸면 기존 선택을 교체한다. 마감 전에는 `현황 보기`, 마감 후에는 `결과 보기`를 표시한다. 익명 투표는 생성자·운영자를 포함해 닉네임을 숨긴다.
+- AI 작성: 기존 `small_group_vote_participation`, `small_group_vote_selection`을 재사용하는 참여 요청 DTO·Mapper SQL·Service 트랜잭션·Controller API·React 요청 API와 상세 화면 연결을 추가했다. 별도 DB 마이그레이션, 의존성, Security 설정은 추가하지 않았다.
+- API·데이터: `POST /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/participations`는 최초 참여를 저장하고, 같은 선택은 무변경 성공 처리하며, 달라진 선택만 교체하고 참여 시각을 갱신한다. `GET /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/status`는 참여 이력이 있는 승인 OWNER·MEMBER만 기존 상세 응답 구조로 반환한다.
+- 검증: 프런트 `node --test src/api/smallGroups.test.js` 37개 및 `npm run build`를 통과했다. `npm run lint`는 이번 변경과 무관한 기존 경고 10건만 보고했다. 백엔드 Gradle 테스트는 현재 실행 환경에 Java 17 toolchain이 없어 테스트 컴파일 전에 중단됐다.
+- 직접 확인 필요: Java 17과 실제 MySQL·JWT 환경에서 참여 행 잠금, 동일 선택 무변경, 선택 변경, 마감 경계, 공개·익명 닉네임 노출과 비회원·미참여 회원의 401·403 응답을 확인한다.
+
 ## 2026-10-30 — 소모임 투표 상세 조회 및 목록-상세 화면 연동
 
 - 목적: 승인된 소모임 OWNER·MEMBER가 자기 소모임 투표의 결과와 참여 상태를 안전하게 조회하고, 투표 목록에서 상세 화면으로 이동하도록 구현했다.
@@ -506,3 +585,25 @@
 - 기존 정책 유지: 미완성 채팅 신고의 `CHAT_MESSAGE`는 응답 표시와 백엔드 조회를 지원하지만 관리자 필터에는 노출하지 않는다.
 - DB·API·의존성 변경: 없음. 요청 파라미터의 기존 문자열 코드는 그대로 유지된다.
 - 검증: 프론트 변경 파일 `oxlint`, 백엔드 `compileJava`, `git diff --check`를 확인했다. 기능 테스트는 실행하지 않았다.
+
+<!-- AI작성: 사용자 요청에 따라 후기 목록 작업 이력을 마지막 문서화 단계에서 일괄 기록한다. -->
+## 2026-11-02 — 소모임 후기 목록 조회 1~10단계 및 Mapper 누락 복구
+
+- 목적: 모든 사용자가 소모임 후기를 최신순으로 읽고 8개 단위로 스크롤 조회하도록 기존 등록 기능에 목록을 연결한다.
+- 사용자 확정: 비로그인·비회원·미승인도 공개 조회, MANAGER 차단, 닉네임·내용·작성일·별점 표시, 검색·필터 없음, 삭제 후기 제외 및 관리자 숨김 정책은 별도 확정. 문서는 마지막 단계에 모아서 작성한다.
+- 1단계 AI작성: SmallGroupReviewSearchCondition(page 기본 1, NotNull·Min), ListCondition(대상 소모임·offset·고정 limit 8), ListItemResponse(공개 항목·BigDecimal 별점), ListResponse(items·PageMeta), Mapper 건수·목록 계약을 추가했다.
+- 2단계 AI작성: SmallGroupMapper.xml에서 동일 소모임 조건의 건수·목록 SQL, 닉네임 LEFT JOIN, 작성일·후기 ID 내림차순 및 LIMIT을 구현하고 기존 XML 파싱 테스트에 statement 확인을 추가했다.
+- 3단계 AI작성: Service 인터페이스·구현체에 읽기 트랜잭션의 getSmallGroupReviews를 추가했다. 기존 상세·회원 관계 조회로 소모임 존재와 MANAGER·중복·미정의 역할을 검증한다. 승인·작성 가능 날짜로 조회를 제한하지 않으며 범위 초과는 offset 계산 전 빈 목록을 반환한다.
+- 4단계 AI작성: 목록 Service 테스트에 페이지 조건·메타·공개 조회·MANAGER 차단·관계 오류·잘못된 입력을 검증하는 사례를 추가했다. 삭제된 대상은 Mapper가 null을 반환하는 경우로 검증하며 실제 DB SQL 검증은 아니다.
+- 5~6단계 AI작성: GET 목록 Controller·정확한 숫자 경로의 공개 Security 설정·Controller 테스트·비로그인 Security 테스트를 추가했다. 기존 POST 인증 필수 테스트를 유지한다. 목록 ID의 Positive는 공통 예외 처리와의 호환 문제로 제거하고 Service 범위 검증·업무 예외 응답을 사용하도록 조정했다.
+- 7단계 AI작성: smallGroups.js에 getSmallGroupReviews·오류 클래스·공개 항목 변환을 추가하고 기존 API 테스트에 목록 테스트 6개를 추가했다. 페이지·signal만 전달하며 서버 오류·요청 취소를 보존하고 작성자 ID를 제외한다.
+- 8단계 AI작성: SmallGroupReviewsPanel을 추가하고 비회원 후기 탭을 공개했다. 하단 감지 추가 조회·중복 요청 및 ID 방지·취소·빈 상태·오류 재시도·마지막 안내·미지원 환경 더 보기 버튼을 처리했다. 기존 작성 버튼·모달 조건은 유지했다.
+- 9단계 AI작성: 기존 등록 모달 콜백에 created 여부를 전달했다. 실제 저장 성공 시에만 목록 key를 변경해 첫 페이지부터 재조회하고, 중복 등록은 완료 안내만 표시하도록 연결했다.
+- 후속 복구 AI작성: DTO 4개는 존재하지만 Mapper import·조회 선언 2개가 누락된 것을 재확인해 SmallGroupMapper.java 한 파일에서 복구했다. Service 호출·XML 이름과 일치함을 확인했다.
+- 10단계 AI작성: docs/small-group-public-detail-api.md의 공개 탭·보안 경로·기존 등록 범위 설명을 갱신하고 목록 요청·응답·권한·처리 구조·화면 흐름·검증·TODO를 추가했다. 본 기록을 포함해 문서 2개만 수정했다.
+- 최종 실행 검증: front의 node --test src/api/smallGroups.test.js 51개 통과, npm run build 통과(번들 크기 경고). git diff --check 통과. 이전 화면 단계의 신규 패널·등록 연동 파일 린트 통과, 기존 메뉴 파일의 Fast Refresh 경고는 별도 남아 있다.
+- 백엔드 실행 제한: 후기 등록·목록 Service/Controller 및 Security·Mapper XML 테스트 총 6개 클래스를 지정해 gradlew test --offline을 시도했으나 Java 17 toolchain 부재로 컴파일 전에 중단됐다. 통과 여부는 확인하지 못했다.
+- 미실행 검증: 실제 DB·발급 JWT·Postman·브라우저 동작은 확인하지 않았다. 상세 수동 절차는 API 문서의 후기 목록 절에 기록했다.
+- 개발자 검토·수정: 단계별 커밋은 사용자 수행. 최종 정책·동작 검토 대기. DB 담당자 테이블 적용 및 삭제 정책 확정, Java 17 환경 테스트, 스크롤·등록 후 갱신을 검토해야 한다.
+- 남은 사항: 전달 DDL에는 삭제 컬럼이 없어 SQL 삭제 제외 조건은 미구현이며 물리 삭제만 자연스럽게 제외된다. 신고·비공개 숨김과 계정 삭제 작성자 닉네임 처리는 별도 정책이 필요하다. offset 방식의 동시 등록·삭제 시 페이지 구성 변화는 남아 있다.
+- DB·의존성·외부 서비스 변경: 없음. 후기 테이블 schema.sql·ERD·실제 DB 반영은 DB 담당자 작업이다. 기존 컴파일 환경과 공통 설정을 임의 변경하지 않았다.

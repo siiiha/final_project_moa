@@ -50,7 +50,8 @@ const MenuButton = styled.button`
 
 const commonMenuItems = [
   { id: 'notice', label: '공지' },
-  { id: 'directions', label: '길찾기' },
+  // AI작성: 기존 탭 식별자는 유지하고 이번 구현 범위인 장소 검색으로 문구만 변경한다.
+  { id: 'directions', label: '장소 찾기' },
   { id: 'poll', label: '투표' },
   { id: 'review', label: '후기' },
 ];
@@ -60,10 +61,11 @@ const ownerMenuItems = [
   { id: 'joinRequests', label: '신청 목록' },
 ];
 
-// AI작성: 공개 상세는 공지만, 승인 MEMBER·OWNER는 확정된 역할 범위의 탭만 표시한다.
+// AI작성: 비회원도 공지·후기를 조회하며 MANAGER는 기존 접근 차단 정책에 따라 탭을 제공하지 않는다.
 export function getSmallGroupMenuItems(myRole) {
+  if (myRole === 'MANAGER') return [];
   if (myRole === 'OWNER') return [...commonMenuItems, ...ownerMenuItems];
-  return myRole === 'MEMBER' ? commonMenuItems : commonMenuItems.slice(0, 1);
+  return myRole === 'MEMBER' ? commonMenuItems : commonMenuItems.filter((item) => ['notice', 'review'].includes(item.id));
 }
 
 function SmallGroupMenuTabs({ myRole, activeMenu, onMenuChange }) {

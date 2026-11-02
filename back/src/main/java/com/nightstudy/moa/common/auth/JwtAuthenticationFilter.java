@@ -1,7 +1,7 @@
 package com.nightstudy.moa.common.auth;
 
 import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
-import com.nightstudy.moa.member.service.AuthSessionService;
+import com.nightstudy.moa.member.service.auth.AuthSessionService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -97,7 +97,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (!authSessionService.isAccessAllowed(
                     memberId,
                     systemRole,
-                    sessionId
+                    sessionId,
+                    tokenId,
+                    claims.getExpiration().getTime()
             )) {
                 throw new IllegalArgumentException("유효하지 않은 로그인 세션");
             }

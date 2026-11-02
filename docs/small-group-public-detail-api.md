@@ -1,5 +1,5 @@
-<!-- AI작성: 기존 소모임 구현과 사용자 확정 정책을 기준으로 작성한 상세·설정·가입 신청·투표 API 설계 문서입니다. -->
-# 소모임 상세·설정·가입 신청·투표 API 설계
+<!-- AI작성: 기존 소모임 구현과 사용자 확정 정책을 기준으로 작성한 상세·설정·가입 신청·투표·후기 API 설계 문서입니다. -->
+# 소모임 상세·설정·가입 신청·투표·후기 API 설계
 
 ## 범위
 
@@ -69,18 +69,23 @@
 
 ## 보안 경로
 
-Spring Security에서 숫자 ID의 `GET /api/small-groups/{id}`만 공개한다. 소모임 생성, 지역·카테고리 목록 등 다른 `/api/small-groups/**` 경로에는 기존 보안 정책을 그대로 적용한다.
+Spring Security에서 소모임 전체 목록, 숫자 ID의 `GET /api/small-groups/{id}`, `GET /api/small-groups/{smallGroupId}/reviews`를 공개한다. 같은 후기 경로의 POST 등록과 설정·투표·가입 신청 등 보호 경로에는 기존 인증 정책을 적용한다. 인증 헤더가 있으면 공개 경로에서도 JWT·세션 검증을 수행한다.
 
 ## 상세 화면 탭
 
 | 조회자 역할 | 노출 탭 |
 | --- | --- |
-| 비로그인·비회원 | 공지 |
-| `MEMBER` | 공지, 길찾기, 투표, 후기 |
+| 비로그인·비회원·미승인·모임 탈퇴 회원 | 공지, 후기 |
+| `MEMBER` | 공지, 장소 찾기, 투표, 후기 |
 | `OWNER` | MEMBER 탭, 설정, 신청 목록 |
 | `MANAGER` | API에서 403 처리하므로 화면을 표시하지 않음 |
 
 비회원에게도 모임 날짜와 장소를 포함한 기본 상세 정보를 노출한다.
+
+<!-- AI작성: 장소 검색 구현에 맞춰 탭 문구와 후속 기능 범위를 갱신한다. -->
+장소 찾기는 승인된 OWNER·MEMBER만 사용할 수 있으며 내부 탭 식별자 `directions`를 유지한다.
+검색 계약과 위치 이용 흐름은 [소모임 장소 검색 API와 화면](small-group-places-api.md)을 따른다.
+길찾기와 검색 결과의 모임 장소 저장은 후속 작업이다.
 
 ## 데이터와 검증
 
@@ -650,3 +655,342 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 - Controller 테스트는 JWT `memberId` 전달, 공통 응답, 잘못된 Path Variable, Service의 401·404 오류 보존을 검증한다.
 - 프런트 API 테스트는 상세 경로·취소 신호·필수 응답 필드·서버 오류 보존, 목록의 상세 식별자 보존을 검증한다.
 - 실제 MySQL·JWT 환경에서 소모임별 투표 격리, 승인 회원 권한, 종료 시각과 24시간 숨김 경계, 공개·익명 닉네임 공개 범위를 확인해야 한다.
+
+---
+
+## 소모임 투표 참여·현황 조회 API
+
+### 투표 참여
+
+- 엔드포인트: `POST /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/participations`
+- JWT 필터가 저장한 `memberId`만 사용하며, 승인된 `OWNER` 또는 `MEMBER`만 참여할 수 있다.
+- `PENDING`, `REJECTED`, `LEFT`, `EXPELLED`, `MANAGER`, 비회원은 참여할 수 없다.
+- 삭제된 소모임·투표, 다른 소모임의 투표, `CLOSED` 상태 또는 마감 시각이 지난 투표는 참여할 수 없다.
+- 단일 선택은 정확히 한 개, 복수 선택은 한 개 이상이며 해당 투표의 전체 보기 수 이하를 선택해야 한다.
+- 중복 보기 ID 또는 해당 투표에 속하지 않는 보기 ID는 허용하지 않는다.
+
+#### 요청 본문
+
+```json
+{
+  "selectedOptionIds": [101, 102]
+}
+```
+
+#### 성공 응답
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+- 최초 참여는 `small_group_vote_participation`과 `small_group_vote_selection`에 저장한다.
+- 기존 참여자가 같은 보기를 다시 전송하면 성공 응답만 반환하고 DB 이력과 참여 시각은 바꾸지 않는다.
+- 기존 참여자가 다른 보기를 전송하면 이전 선택을 교체하고 `participated_at`을 갱신한다.
+
+### 투표 현황 조회
+
+- 엔드포인트: `GET /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}/status`
+- 승인된 `OWNER` 또는 `MEMBER` 중 해당 투표의 참여 이력이 있는 회원만 조회할 수 있다.
+- 마감 전에는 화면에서 `현황 보기`, 마감 후에는 `결과 보기`로 표시한다. 두 경우 모두 참여 완료 회원은 조회할 수 있다.
+- 성공 응답은 기존 투표 상세 조회와 같은 `SmallGroupVoteDetailResponse` 구조를 반환한다.
+- `participantCount`는 해당 투표의 참여 이력 수이며 화면에는 `N명 참여`로 표시한다.
+- 공개 투표는 참여 완료 회원에게 보기별 참여자 닉네임을 반환한다. 익명 투표는 생성자·운영자를 포함해 닉네임과 선택 내역을 반환하지 않는다.
+
+### 오류 응답
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증되지 않은 요청 | `401 LOGIN_REQUIRED` |
+| 잘못된 소모임·투표·보기 식별자 또는 선택 수 | `400 BAD_REQUEST` 및 세부 오류 코드 |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 없는·삭제 투표 또는 다른 소모임 투표 | `404 SMALL_GROUP_VOTE_NOT_FOUND` |
+| 마감·종료 투표 참여 | `409 SMALL_GROUP_VOTE_CLOSED` |
+| 승인 회원이 아닌 참여 요청 | `403 SMALL_GROUP_VOTE_PARTICIPATION_FORBIDDEN` |
+| 참여 이력이 없는 현황 요청 | `403 SMALL_GROUP_VOTE_STATUS_FORBIDDEN` |
+
+### 검증 항목
+
+- 최초 참여, 단일·복수 선택, 같은 선택 재요청, 선택 변경 재투표를 확인한다.
+- 마감 투표, 다른 소모임의 보기, 중복 보기, 비회원·탈퇴 회원의 참여 실패를 확인한다.
+- 참여 완료 회원의 공개·익명 투표 현황, 미참여 회원의 현황 조회 차단을 확인한다.
+- 실제 MySQL·JWT 환경에서 행 잠금과 동시 참여·선택 변경을 확인한다.
+
+---
+
+## 소모임 투표 삭제 API
+
+- 엔드포인트: `DELETE /api/small-groups/{smallGroupId}/votes/{smallGroupVoteId}`
+- 요청 본문·쿼리 파라미터는 없다.
+- JWT 필터가 저장한 `memberId`만 사용한다.
+- `{smallGroupId}`와 `{smallGroupVoteId}`는 모두 양수여야 한다.
+
+### 삭제 권한·상태 정책
+
+- 로그인 회원은 투표의 `creator_member_id`, 소모임 공통 모임의 개설자(`groups.member_id`), 승인된 `OWNER` 관계가 모두 동일해야 한다.
+- `OPEN`, `CLOSED` 상태 모두 삭제할 수 있다. 마감 시각과 참여 이력 유무는 삭제 제한 조건이 아니다.
+- `small_group_vote.deleted_at`만 현재 시각으로 갱신하는 논리 삭제를 사용한다.
+- `small_group_vote_option`, `small_group_vote_participation`, `small_group_vote_selection`은 삭제하거나 수정하지 않아 기존 보기·참여·선택 이력을 보존한다.
+- 논리 삭제된 투표는 목록·상세·참여 대상에서 제외되며, 진행 중 투표 5개 생성 한도에도 포함하지 않는다.
+
+### 성공 응답
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 오류 응답
+
+| 상황 | 응답 |
+| --- | --- |
+| 인증되지 않은 HTTP 요청 | `401 LOGIN_REQUIRED` — Spring Security 공통 응답 |
+| 소모임 ID 또는 투표 ID가 0 이하·형식 오류 | `400 BAD_REQUEST` |
+| 없는·삭제 소모임 | `404 SMALL_GROUP_NOT_FOUND` |
+| 없는 투표, 다른 소모임 투표, 이미 삭제된 투표 | `404 SMALL_GROUP_VOTE_NOT_FOUND` |
+| 투표 작성자가 아니거나 개설자·승인 OWNER 관계가 아님 | `403 SMALL_GROUP_VOTE_DELETE_FORBIDDEN` |
+| 잠금 검증 후 논리 삭제 갱신 실패 | `500 SMALL_GROUP_VOTE_DELETE_FAILED` |
+
+### 프런트 연결·검증
+
+- `deleteSmallGroupVote(smallGroupId, smallGroupVoteId)`는 DELETE 요청을 보내고 서버 오류 코드·메시지를 보존한다.
+- 소모임 상세 API에서 `myRole`이 `OWNER`인 경우에만 투표 상세의 삭제 버튼을 표시한다. 투표 작성자 여부는 서버가 최종 검증한다.
+- 삭제 확인 모달에서 성공하면 투표 목록으로 돌아가며, 목록 재조회 시 삭제 투표는 표시되지 않는다.
+- Service 테스트는 OPEN·CLOSED 삭제, 권한 없음, 없는 소모임·투표, 다른 소모임 투표와 이미 삭제된 투표를 검증한다.
+- 실제 MySQL·JWT 환경에서 보기·참여·선택 이력 보존과 목록 제외, 삭제 후 생성 한도 반영을 확인한다.
+
+---
+
+<!-- AI작성: 사용자 확정 정책 및 2~7단계 실제 구현을 기준으로 후기 등록 API와 DB·저장 모델을 정리한다. -->
+## 소모임 후기 등록 API
+
+### 구현 범위와 선행 조건
+
+- 엔드포인트: `POST /api/small-groups/{smallGroupId}/reviews`
+- `{smallGroupId}`는 `small_group.small_group_id`이며 양수다. `groups.group_id`와 구분한다.
+- DTO·Mapper/XML·Service·Controller 및 테스트 코드는 추가되어 있다. 컴파일·테스트 통과와 실제 DB 적용 완료를 의미하지 않는다.
+- 프론트 작성 모달과 공개 후기 목록을 구현했다. 작성 화면도 별점 0~5점·0.5 단위 및 코멘트 필수·1~30자를 검증한다. 후기 상세·수정·삭제·신고·댓글 기능은 포함하지 않는다.
+- 후기 테이블은 DB 담당자가 반영한다. 현재 저장소 `schema.sql`에는 `small_group_review`가 없으며 실제 DB 반영 여부도 확인되지 않았다. 테이블·제약 반영 후 API를 사용해야 한다.
+- 신규 의존성·마이그레이션 도구·외부 API 연동은 추가하지 않는다.
+
+### 인증 및 요청
+
+`Authorization: Bearer <access-token>`과 `Content-Type: application/json`을 사용한다. 기존 Spring Security·JWT 필터가 검증하고 요청 속성에 저장한 `memberId`만 작성자로 사용하며 본문에서 작성자 ID를 받지 않는다.
+
+```json
+{
+  "rating": 4.5,
+  "content": "함께해서 즐거웠어요"
+}
+```
+
+| 필드 | Java 타입 | 필수 | 검증 |
+| --- | --- | --- | --- |
+| rating | BigDecimal | 예 | 0~5점, 0.5 단위. 0·0.5·1·…·5 허용 |
+| content | String | 예 | 공백 문자열 불가, 원문 길이 1~30자 |
+
+요청 DTO는 `SmallGroupReviewCreateRequest`다. `@NotNull`, `@DecimalMin`, `@DecimalMax`, `@AssertTrue`로 별점을, `@NotBlank`, `@Size`로 코멘트를 검증한다. Service 직접 호출도 같은 정책으로 방어한다. 코멘트는 앞뒤 공백을 제거하지 않고 저장한다. 현재 Java Validation과 Service 길이 검사는 UTF-16 코드 단위 기준이므로 이모지 등 일부 문자는 화면상 글자 수와 다를 수 있다. 별점을 DB가 반올림하기 전에 원본 값의 단위를 검사한다. 평점 외 이미지·제목·공개 범위 등 추가 필드는 사용하지 않는다.
+
+### 등록 정책 및 처리 순서
+
+Service `createSmallGroupReview`가 하나의 트랜잭션에서 아래를 처리한다. Controller는 요청 바인딩·Validation·인증 회원 ID 전달·응답만 담당한다.
+
+1. 인증 회원 ID, 소모임 ID 및 입력값을 검증한다.
+2. `selectSmallGroupReviewCreateTargetForUpdate`로 소모임·공통 모임·개설자 연결 행을 잠금 조회한다. 삭제된 공통 모임 또는 삭제된 개설자는 조회 대상에서 제외한다.
+3. `groups.member_id`와 요청자가 같으면 개설자 작성 금지로 거절한다. 관계 역할이 잘못 저장되어 있어도 개설자는 허용하지 않는다.
+4. 기존 `selectSmallGroupMembershipForUpdate`로 해당 `group_id`와 인증 회원의 관계를 잠금 조회한다. `MANAGER`는 상태와 무관하게 기존 403 제한을 적용한다. 정확히 `MEMBER`·`APPROVED`인 관계만 허용한다. 비회원, OWNER 관계, PENDING·REJECTED·LEFT·EXPELLED는 거절한다.
+5. `meet_date`가 NULL이면 거절한다. `Asia/Seoul` 기준 오늘보다 모임 날짜가 이전일 때만 허용하므로 모임 당일·미래는 거절하고 다음 날부터 허용한다. 별도의 참석 이력·활동 종료 조건은 추가하지 않는다.
+6. `selectSmallGroupReviewId`로 같은 소모임·작성자의 기존 후기를 확인한다. 기존 후기나 INSERT 시 DB UNIQUE 위반은 동일한 중복 오류로 처리한다.
+7. `SmallGroupReviewCreateCommand`에 경로 소모임 ID, 인증 작성자 ID, 별점·코멘트를 설정하고 저장한다. 저장 건수 1건 및 생성 ID를 확인한 뒤 후기 ID를 반환한다.
+
+### 성공 응답
+
+기존 일반 게시글 등록과 같은 HTTP 200, `ApiResponse<Long>` 형식이다. `data`는 생성된 후기 ID다.
+
+```json
+{
+  "success": true,
+  "data": 50,
+  "meta": null,
+  "error": null
+}
+```
+
+### 실패 응답
+
+`ApiException`과 기존 `GlobalExceptionHandler` 또는 인증 필터의 공통 응답을 사용한다. 인증·요청 검증이 먼저 수행될 수 있으므로 여러 조건이 동시에 잘못되었다면 아래 오류의 우선순위를 보장하지 않는다.
+
+| 상황 | HTTP | error.code |
+| --- | --- | --- |
+| 인증 없는 HTTP 요청 | 401 | LOGIN_REQUIRED |
+| 만료된 JWT | 401 | ACCESS_TOKEN_EXPIRED |
+| 잘못된 JWT·유효하지 않은 세션 | 401 | INVALID_TOKEN |
+| Service에 인증 회원 ID가 없거나 0 이하 | 401 | UNAUTHORIZED |
+| 숫자가 아닌 경로, 0 이하 소모임 ID, 입력 검증 실패 | 400 | BAD_REQUEST |
+| 요청 본문 누락·잘못된 JSON·역직렬화 실패 | 400 | INVALID_REQUEST |
+| 소모임이 없거나 공통 모임·개설자가 삭제됨 | 404 | SMALL_GROUP_NOT_FOUND |
+| 소모임 개설자 | 403 | SMALL_GROUP_REVIEW_OWNER_NOT_ALLOWED |
+| MANAGER 관계 | 403 | ACCESS_DENIED |
+| 승인된 일반 모임원이 아님 | 403 | SMALL_GROUP_REVIEW_CREATE_FORBIDDEN |
+| 모임 날짜 없음 | 409 | SMALL_GROUP_REVIEW_MEET_DATE_REQUIRED |
+| 모임 당일·미래 날짜 | 409 | SMALL_GROUP_REVIEW_NOT_AVAILABLE_YET |
+| 이미 등록한 후기·DB 중복 키 오류 | 409 | SMALL_GROUP_REVIEW_ALREADY_EXISTS |
+| 저장 건수가 1이 아니거나 생성 키 없음 | 500 | SMALL_GROUP_REVIEW_CREATE_FAILED |
+
+```json
+{
+  "success": false,
+  "data": null,
+  "meta": null,
+  "error": {
+    "code": "SMALL_GROUP_REVIEW_ALREADY_EXISTS",
+    "message": "이미 이 소모임에 후기를 등록했습니다."
+  }
+}
+```
+
+### DB 및 저장 모델 — 담당자 반영 요청
+
+다음은 전달한 테이블 설계이며 실제 DB 반영 확인 전이다. Mapper는 아래 이름을 참조한다.
+
+| 컬럼 | 타입·기본값 | 용도 |
+| --- | --- | --- |
+| small_group_review_id | BIGINT NOT NULL AUTO_INCREMENT, PK | 후기 식별자 |
+| small_group_id | BIGINT NOT NULL | small_group.small_group_id FK |
+| writer_id | BIGINT NOT NULL | members.member_id FK |
+| rating | DECIMAL(2,1) NOT NULL | 별점 |
+| content | VARCHAR(30) NOT NULL | 코멘트 |
+| created_at | DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP | 작성일, INSERT에서 생략 |
+| updated_at | DATETIME NULL | 기존 게시글 감사 필드 관례, 등록 시 NULL |
+
+- `uq_small_group_review_group_writer`: UNIQUE(small_group_id, writer_id). 동시 등록에도 회원당 소모임별 1건을 보장한다.
+- `fk_small_group_review_small_group`, `fk_small_group_review_writer`: 위 소모임·작성자 FK. 연쇄 삭제·갱신을 추가하지 않는다.
+- `chk_small_group_review_rating`: CHECK(rating BETWEEN 0.0 AND 5.0 AND MOD(rating * 10, 5) = 0).
+- `chk_small_group_review_content`: CHECK(CHAR_LENGTH(content) BETWEEN 1 AND 30 AND CHAR_LENGTH(TRIM(content)) > 0).
+- 기존 InnoDB·utf8mb4·utf8mb4_unicode_ci 관례를 따른다. CHECK가 강제되는 MySQL 버전과 SQL 모드를 확인한다.
+- DB CHECK는 저장값에 적용된다. DECIMAL 변환 전 별점, 탭·개행 공백 문자열, 코멘트 길이 검증은 서버·화면에서도 수행한다.
+- 현재 승인 상태·개설자·날짜 조건은 Service에서 검증한다. FK만으로 이 조건이 보장되지는 않는다.
+- SQL은 `useGeneratedKeys="true"`, `keyProperty="command.smallGroupReviewId"`로 후기 ID를 반환한다. 수정·삭제 상태나 기능은 추가하지 않는다.
+
+### 테스트 및 실제 검증 상태
+
+- `SmallGroupReviewCreateServiceTest`: 정상 저장값·생성 ID, 인증·소모임·개설자·회원 상태·MANAGER, 날짜 NULL·당일·미래, 중복·DB 중복 오류 변환, 별점·코멘트 경계, 저장 실패·생성 키 누락 테스트.
+- `SmallGroupReviewCreateControllerTest`: 요청 바인딩·Validation·서버 인증 ID 사용, 성공·실패 응답, 잘못된 JSON·본문 누락·경로 형식 테스트. Service Mock을 사용하므로 실제 업무 권한 검증 통합 테스트는 아니다.
+- `SmallGroupSecurityIntegrationTest`: 인증 속성을 임의 전달하더라도 인증 없는 후기 등록 요청이 401로 차단되는지 테스트. 실제 발급 JWT의 성공 흐름은 별도 확인이 필요하다.
+- `SmallGroupMapperXmlTest`: 신규 statement 3개와 생성 키 경로 파싱 확인. 실제 SQL 실행·잠금·DB UNIQUE 동시성 검증은 아니다.
+- 작업 중 `git diff --check`와 별도 XML 구문 파싱·매핑 정적 확인은 통과했다.
+- Gradle 컴파일 및 위 대상 테스트 실행은 Java 17 toolchain 부재로 컴파일 전에 중단되었다. 테스트 통과 건수는 없으며 실행 성공으로 기록하지 않는다.
+
+Java 17 준비 후 `back` 폴더에서 실행한다.
+
+```powershell
+.\gradlew.bat test --tests com.nightstudy.moa.smallGroup.SmallGroupReviewCreateServiceTest --tests com.nightstudy.moa.smallGroup.SmallGroupReviewCreateControllerTest --tests com.nightstudy.moa.smallGroup.SmallGroupSecurityIntegrationTest --tests com.nightstudy.moa.smallGroup.SmallGroupMapperXmlTest
+```
+
+### Postman·DB 수동 확인
+
+1. DB 담당자의 테이블·FK·UNIQUE·CHECK 반영과 `SHOW CREATE TABLE small_group_review` 결과를 확인한다. 공용 DB 적용과 schema.sql·ERD 갱신은 DB 담당자가 수행한다.
+2. 전날 이전 모임의 승인된 일반 모임원 토큰으로 위 예시를 POST하고 200, 후기 ID 및 DB 작성자·별점·코멘트·작성일을 확인한다. 별점 0·0.5·5, 코멘트 1·30자도 확인한다.
+3. 같은 회원·소모임으로 재요청해 409 및 행 수 1건 유지를 확인한다. 실제 동시 요청도 같은 제약을 유지하는지 확인한다.
+4. 비로그인, 비회원, 개설자, MANAGER, 가입 대기·거절·탈퇴·강제 탈퇴 회원, 없는·삭제된 소모임을 각각 요청해 위 오류를 확인한다.
+5. 모임 당일·미래·날짜 NULL을 거절하고 다음 날부터 허용하는지 한국 날짜 경계에서 확인한다.
+6. 별점 누락·범위 초과·0.1 단위, 코멘트 누락·빈 값·공백·31자, 잘못된 JSON 요청이 거절되고 행이 추가되지 않는지 확인한다.
+
+이 문서는 구현·테스트 코드와 확인된 실행 제한을 기록한 것이며 실제 MySQL·Postman·브라우저 검증 완료를 의미하지 않는다.
+
+---
+
+<!-- AI작성: 사용자 확정 정책과 후기 목록 1~10단계 실제 구현·검증 결과를 정리한다. -->
+## 소모임 후기 목록 조회 API
+
+### 요청·공개 범위
+
+- `GET /api/small-groups/{smallGroupId}/reviews?page=1`
+- 경로 ID는 `small_group.small_group_id`이며 양수다. 요청 본문은 없다.
+- 쿼리는 `page`만 사용한다. 생략 시 1, 정수 1 이상이다. 크기는 서버에서 8로 고정하고 검색·필터·정렬 옵션은 추가하지 않는다.
+- 비로그인·비회원·가입 대기·거절·모임 탈퇴·강퇴 관계도 조회할 수 있다. 승인 OWNER·MEMBER도 조회할 수 있다.
+- 인증된 요청자의 해당 소모임 관계에 MANAGER가 있으면 가입 상태와 관계없이 `403 ACCESS_DENIED`다. 비로그인 요청에서는 사용자 역할을 식별하지 않는다.
+- 회원 계정 탈퇴·정지 등 유효하지 않은 로그인 세션은 JWT 공통 정책을 따른다. 모임 탈퇴 관계와 계정 탈퇴를 구분한다.
+- 등록 전용 조건인 모임 다음 날·승인 MEMBER·개설자 작성 금지는 목록 조회에 적용하지 않는다.
+- 인증 없는 GET만으로도 조회 가능하며 같은 경로 POST는 인증 필수다. 만료·잘못된 인증 헤더는 공개 조회에서도 기존 JWT 오류를 반환한다.
+
+### 응답
+
+HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageMeta`를 사용한다.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "smallGroupReviewId": 50,
+      "writerNickname": "모아회원",
+      "content": "함께해서 즐거웠어요",
+      "createdAt": "2026-11-01T12:00:00",
+      "rating": 4.5
+    }
+  ],
+  "meta": { "page": 1, "size": 8, "total": 1, "totalPages": 1 },
+  "error": null
+}
+```
+
+별점은 Java BigDecimal로 조회하며 JSON 숫자로 반환한다. 공개 응답은 후기 식별자·닉네임·내용·작성일·별점만 포함한다. 작성자 회원 ID·실명·연락처·이미지·수정 여부는 추가하지 않는다. 빈 결과는 `data: []`, `total: 0`, `totalPages: 0`이다. 범위 초과 페이지도 요청 페이지 번호를 유지한 빈 목록과 실제 전체 건수·페이지 수를 반환한다.
+
+### 처리 구조·정렬
+
+1. Controller는 경로·선택적 인증 회원 ID·검증된 SmallGroupReviewSearchCondition을 Service에 전달하고 items·pageMeta를 공통 응답으로 반환한다.
+2. Service는 ID·페이지를 방어 검증하고 기존 selectSmallGroupDetail로 모임 존재를 확인한다. 공통 모임 또는 개설자가 삭제된 경우도 기존 상세 SQL에 따라 조회 대상에서 제외한다.
+3. 로그인한 요청은 기존 selectSmallGroupMemberRelations·resolveMemberRole을 재사용한다. MANAGER는 403, 중복 관계·미정의 역할은 기존 500 정책을 따른다. 승인 여부를 조회 제한으로 사용하지 않는다.
+4. SmallGroupReviewListCondition으로 해당 소모임의 건수와 목록을 조회한다. 크기는 8, offset은 공통 PageMeta로 계산한다. 빈 결과·범위 초과는 offset 계산 전에 반환한다.
+5. SQL은 `created_at DESC, small_group_review_id DESC`로 정렬한다. 목록과 건수는 동일한 소모임 WHERE 조건을 공유한다. 작성자 닉네임은 members LEFT JOIN으로 조회하고 작성자의 모임 관계·상태로 후기를 제외하지 않는다. 읽기 트랜잭션이며 등록용 잠금 쿼리는 사용하지 않는다.
+
+| 상황 | HTTP | error.code |
+| --- | --- | --- |
+| 잘못된 ID·페이지 형식, 0 이하 ID·페이지, 페이지 빈 값 | 400 | BAD_REQUEST |
+| 소모임이 없거나 공통 모임·개설자가 삭제됨 | 404 | NOT_FOUND |
+| 인증 요청자의 해당 소모임 MANAGER 관계 | 403 | ACCESS_DENIED |
+| 중복 관계·미정의 역할 | 500 | INTERNAL_ERROR |
+| Service 직접 호출에 0 이하 인증 회원 ID 전달 | 401 | UNAUTHORIZED |
+| 만료된 JWT | 401 | ACCESS_TOKEN_EXPIRED |
+| 잘못된 JWT·유효하지 않은 세션 | 401 | INVALID_TOKEN |
+
+### 화면·등록 후 갱신
+
+- SmallGroupMenuTabs는 비회원에게도 공지·후기 탭을 제공한다. 작성 버튼·기존 모달은 기존 등록 정책을 유지한다.
+- SmallGroupReviewsPanel은 처음 8개를 조회하고 하단이 보이면 다음 페이지를 추가한다. 페이지 번호 버튼 없이 기존 목록을 유지하며 닉네임·내용 전체·날짜·숫자 별점을 표시한다.
+- 중복 요청과 중복 후기 ID 표시를 방지한다. 탭·소모임·역할 전환 시 이전 요청을 취소하고 상태를 초기화한다.
+- 로딩·빈 결과·마지막 페이지를 안내하고, 추가 조회 실패 시 기존 목록 아래에서 같은 페이지를 재시도한다. IntersectionObserver 미지원 환경은 후기 더 보기 버튼을 제공한다.
+- 실제 등록 성공 콜백의 created=true인 경우만 목록을 다시 마운트하고 첫 페이지부터 재조회한다. 중복 등록 안내(created=false)는 기존 목록을 유지한다. 재조회 실패 시 등록 성공 안내와 별도로 목록 재시도를 제공한다.
+- offset 페이징이므로 페이지 요청 사이 새 등록·삭제가 발생하면 페이지 구성이 변할 수 있다. ID 중복은 제거하지만 조회 시점 전체의 일관성은 보장하지 않는다.
+
+### DB 전제·남은 TODO
+
+- 기존 후기 등록과 같은 small_group_review 테이블을 사용한다. 현재 저장소 schema.sql에는 테이블이 없으며 실제 DB 반영은 확인하지 않았다. DB 담당자의 최종 DDL·적용 결과를 받아야 한다. 이번 목록 작업은 마이그레이션·컬럼·상태를 추가하지 않았다.
+- 전달된 DDL에는 후기 삭제 컬럼이 없다. 현재 SQL은 삭제 조건을 적용하지 않는다. 물리 삭제된 행은 조회되지 않으며, 논리 삭제 예정이면 최종 컬럼을 확인해 건수·목록 양쪽에 제외 조건을 반영해야 한다. 삭제 제외 요구사항은 이 정책 확정 전까지 미검증이다.
+- 비공개·신고 숨김 정책은 관리자 기능 후속 작업이다. 임의 상태나 필터를 추가하지 않는다.
+- 작성자 계정 삭제 시 닉네임 처리 정책은 별도 확정이 필요하다. 현재 SQL은 members.nickname을 그대로 조회하고 프론트는 문자열 닉네임을 요구한다.
+
+### 최종 검증 기록 — 2026-11-02
+
+- `front`에서 `node --test src/api/smallGroups.test.js`: 51개 통과. 목록 요청·응답·빈 결과·별점 경계·오류·취소와 기존 등록 등 API 회귀 테스트다. HTTP 클라이언트를 대체한 단위 테스트로 실제 서버 통신 검증은 아니다.
+- `front`에서 `npm run build`: 통과. 번들 500 kB 초과 경고가 있으며 이번 작업에서 분할 설정은 변경하지 않았다.
+- 후기 등록·목록 Service/Controller, SmallGroupSecurityIntegrationTest, SmallGroupMapperXmlTest를 지정한 Gradle 테스트를 시도했으나 Java 17 toolchain 부재로 컴파일 전에 중단됐다. 백엔드 테스트 통과로 간주하지 않는다.
+- `git diff --check`로 문서 변경을 검증한다. 실제 MySQL·Postman·브라우저 수동 검증은 수행하지 않았다.
+
+### 후속 수동 검증 절차
+
+1. DB 담당자의 최종 테이블 정의·제약·삭제 정책과 Java 17 환경을 준비하고 위 백엔드 테스트를 다시 실행한다.
+2. Postman에서 인증 헤더 없이 목록 GET이 200인지 확인한다. 비회원·대기·탈퇴 관계·OWNER·MEMBER 토큰으로도 조회하고 MANAGER 토큰은 403인지 확인한다. 비로그인 POST 등록은 401이어야 한다.
+3. 테스트 모임에 후기 0·1·8·9·17건과 다른 모임 후기를 준비해 해당 모임만 조회되는지 확인한다. 날짜가 같은 후기의 ID 내림차순, 페이지별 8·8·1건, 범위 초과 빈 목록을 확인한다.
+4. 없는·삭제된 소모임은 404, `page=0`, `page=-1`, `page=abc`, 빈 page와 잘못된 ID는 정책에 맞는 오류인지 확인한다. 음수·문자 ID의 비로그인 요청은 공개 숫자 경로와 일치하지 않아 Security에서 먼저 401이 될 수 있다.
+5. 브라우저에서 비회원 후기 탭, 본문 전체·날짜·0·0.5·5점, 스크롤 추가 조회·마지막 안내·실패 재시도·탭/모임 전환 중 요청 취소를 확인한다.
+6. 승인 일반 모임원으로 등록해 모달 종료·완료 안내·첫 페이지 재조회·최상단 새 후기를 확인한다. 중복 등록은 목록을 초기화하지 않고, 일반 등록 실패는 모달 입력을 유지하는지 확인한다.

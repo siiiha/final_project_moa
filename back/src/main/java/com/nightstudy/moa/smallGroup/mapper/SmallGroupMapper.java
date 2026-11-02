@@ -12,6 +12,10 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupListCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateTargetRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListCondition;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListItemResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsAuthorityRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsBasicUpdate;
@@ -30,6 +34,23 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
+    // AI작성: 같은 소모임 조건으로 후기 전체 건수를 조회해 공통 페이징 정보를 구성한다.
+    int selectSmallGroupReviewCount(SmallGroupReviewListCondition condition);
+
+    // AI작성: 검증된 소모임·offset·고정 크기 8을 전달해 최신순 후기 목록을 조회한다.
+    List<SmallGroupReviewListItemResponse> selectSmallGroupReviewList(SmallGroupReviewListCondition condition);
+
+    // AI작성: 삭제되지 않은 소모임·개설자를 대상으로 모임 행을 잠가 등록 조건을 조회한다.
+    SmallGroupReviewCreateTargetRow selectSmallGroupReviewCreateTargetForUpdate(
+            @Param("smallGroupId") Long smallGroupId);
+
+    // AI작성: 회원 관계는 기존 selectSmallGroupMembershipForUpdate를 재사용하고 후기 중복만 별도 확인한다.
+    Long selectSmallGroupReviewId(
+            @Param("smallGroupId") Long smallGroupId, @Param("writerId") Long writerId);
+
+    // AI작성: 검증된 후기를 한 건 저장하고 생성 키를 command.smallGroupReviewId에 설정한다.
+    int insertSmallGroupReview(@Param("command") SmallGroupReviewCreateCommand command);
+
     List<SmallGroupRegionResponse> selectSmallGroupRegions();
 
     List<SmallGroupCategoryResponse> selectSmallGroupCategories();
@@ -151,6 +172,19 @@ public interface SmallGroupMapper {
             @Param("smallGroupId") Long smallGroupId,
             @Param("smallGroupVoteId") Long smallGroupVoteId);
 
+    // AI작성: 참여 저장 중 투표 행을 잠가 마감·삭제·선택 변경과 동시 요청을 같은 기준으로 처리한다.
+    SmallGroupVoteDetailRow selectSmallGroupVoteDetailForUpdate(
+            @Param("smallGroupId") Long smallGroupId,
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
+    // AI작성: 삭제 검증을 통과한 소속 투표 한 건만 논리 삭제하고 보기·참여·선택 이력은 보존한다.
+    int softDeleteSmallGroupVote(
+            @Param("smallGroupId") Long smallGroupId,
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
+    // AI작성: 요청한 보기 ID가 해당 투표에 모두 속하는지 검증할 수 있도록 소속 보기 ID만 반환한다.
+    List<Long> selectSmallGroupVoteOptionIds(@Param("smallGroupVoteId") Long smallGroupVoteId);
+
     // AI작성: 투표 상세의 보기를 표시 순서와 현재 득표 수로 함께 조회한다.
     List<SmallGroupVoteOptionDetailRow> selectSmallGroupVoteDetailOptions(
             @Param("smallGroupVoteId") Long smallGroupVoteId);
@@ -162,6 +196,27 @@ public interface SmallGroupMapper {
     Long selectSmallGroupVoteParticipationId(
             @Param("smallGroupVoteId") Long smallGroupVoteId,
             @Param("memberId") Long memberId);
+
+    // AI작성: 기존 참여 행을 잠가 선택 변경과 동시에 같은 회원의 이력이 중복 갱신되지 않게 한다.
+    Long selectSmallGroupVoteParticipationIdForUpdate(
+            @Param("smallGroupVoteId") Long smallGroupVoteId,
+            @Param("memberId") Long memberId);
+
+    // AI작성: 최초 참여 이력을 저장한 뒤 선택 연결을 추가한다.
+    int insertSmallGroupVoteParticipation(
+            @Param("smallGroupVoteId") Long smallGroupVoteId,
+            @Param("memberId") Long memberId);
+
+    // AI작성: 선택 보기 ID 목록을 한 참여 이력에 일괄 연결한다.
+    int insertSmallGroupVoteSelections(
+            @Param("smallGroupVoteParticipationId") Long smallGroupVoteParticipationId,
+            @Param("selectedOptionIds") List<Long> selectedOptionIds);
+
+    // AI작성: 선택 변경 시 기존 보기 연결만 제거하고 참여 이력 행은 유지한다.
+    int deleteSmallGroupVoteSelections(@Param("smallGroupVoteParticipationId") Long smallGroupVoteParticipationId);
+
+    // AI작성: 실제 선택이 달라진 재투표만 마지막 참여 시각을 갱신한다.
+    int updateSmallGroupVoteParticipationTime(@Param("smallGroupVoteParticipationId") Long smallGroupVoteParticipationId);
 
     // AI작성: 참여 이력에 연결된 선택 보기 ID만 반환해 내 선택 표시와 참여 API 후 재조회에 사용한다.
     List<Long> selectSmallGroupVoteSelectedOptionIds(

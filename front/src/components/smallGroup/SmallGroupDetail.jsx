@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -6,6 +6,11 @@ import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
 import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
+import SmallGroupReviewCreateModal from './SmallGroupReviewCreateModal';
+import SmallGroupReviewsPanel from './SmallGroupReviewsPanel';
+import SmallGroupReviewWriteAction from './SmallGroupReviewWriteAction';
+import SmallGroupPlacesPanel from './SmallGroupPlacesPanel';
+import useAuthStore from '../../store/authStore';
 
 const Profile = styled.section`
   padding: 6px 0 0;
@@ -274,6 +279,21 @@ const SettingsContent = styled.div`
   margin-top: 16px;
 `;
 
+// AI작성: 안내와 후기 목록을 같은 카드에 배치하고 본문은 왼쪽 정렬로 읽기 쉽게 표시한다.
+const ReviewCard = styled(Placeholder)`
+  padding: 24px 20px;
+  color: ${({ theme }) => theme.colors.text};
+  text-align: left;
+`;
+
+const ReviewNotice = styled.p`
+  margin: 0 0 12px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 16px;
+  line-height: 1.6;
+  text-align: center;
+`;
+
 const JoinRequestsContent = styled.div`
   margin-top: 16px;
 `;
@@ -434,12 +454,38 @@ function SmallGroupDetail({
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
   const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
+  // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
+  const [reviewModalGroupId, setReviewModalGroupId] = useState(null);
+  const [reviewResult, setReviewResult] = useState(null);
+  // AI작성: 로그인 계정이 바뀌면 이전 계정의 완료 상태와 작성 여부를 재사용하지 않는다.
+  const authVersion = useAuthStore((state) => state.authVersion);
+  // AI작성: 로그아웃 시 이전 역할 정보가 남아도 장소 검색 화면과 위치 상태를 즉시 폐기한다.
+  const hasLogin = useAuthStore((state) => Boolean(state.token));
+  const reviewCompleted = reviewResult?.smallGroupId === smallGroupId && reviewResult?.authVersion === authVersion;
+  // AI작성: 실제 등록 성공 때만 목록을 다시 마운트해 이전 요청을 취소하고 첫 페이지부터 재조회한다.
+  const [reviewListVersion, setReviewListVersion] = useState(0);
+  const closeReviewModal = useCallback(() => setReviewModalGroupId(null), [setReviewModalGroupId]);
+  const [reviewNow, setReviewNow] = useState(() => new Date());
+  // AI작성: 페이지를 오래 열어 두어도 모임 다음 날에는 작성 버튼이 활성화되도록 한국 날짜를 갱신한다.
+  useEffect(() => {
+    const timer = window.setInterval(() => setReviewNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const koreaDateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(reviewNow);
+  const datePart = (type) => koreaDateParts.find((part) => part.type === type)?.value;
+  const todayInKorea = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
+  const reviewRestriction = myRole !== 'MEMBER'
+    ? (myRole === 'OWNER' ? '소모임 개설자는 후기를 작성할 수 없습니다.' : '승인된 일반 모임원만 후기를 작성할 수 있습니다.')
+    : !group.meetDate ? '모임 날짜가 설정되지 않아 후기를 작성할 수 없습니다.'
+      : group.meetDate >= todayInKorea ? '후기는 모임 다음 날부터 작성할 수 있습니다.' : '';
   // AI작성: 이미 승인된 OWNER·MEMBER는 재신청할 수 없으므로 상세 화면에서 버튼을 노출하지 않는다.
   const canRequestJoin = !['OWNER', 'MEMBER'].includes(myRole);
   // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
   const currentMenu = allowedMenuItems.some((item) => item.id === activeMenu) ? activeMenu : 'notice';
   const activeLabel = {
-    directions: '길찾기',
+    directions: '장소 찾기',
     poll: '투표',
     review: '후기',
     settings: '설정',
@@ -536,6 +582,43 @@ function SmallGroupDetail({
             />
           )}
         </PollContent>
+      ) : currentMenu === 'review' ? (
+        <PollContent>
+          {/* AI작성: 공개 목록은 작성 권한과 분리하고 기존 작성 버튼·모달은 승인된 일반 모임원에게만 제공한다. */}
+          <PollHeading>
+            <PollTitle>소모임 후기</PollTitle>
+            {!reviewRestriction && !reviewCompleted && (
+              <SmallGroupReviewWriteAction
+                key={`${smallGroupId}:${authVersion}`}
+                smallGroupId={smallGroupId}
+                onWrite={() => setReviewModalGroupId(smallGroupId)}
+              />
+            )}
+          </PollHeading>
+          <ReviewCard aria-label="소모임 후기">
+            <ReviewNotice role="status">
+              {reviewRestriction || (reviewCompleted
+                ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
+            </ReviewNotice>
+            <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}:${reviewListVersion}`} smallGroupId={smallGroupId} />
+          </ReviewCard>
+          {!reviewRestriction && reviewModalGroupId === smallGroupId && (
+            <SmallGroupReviewCreateModal
+              key={smallGroupId}
+              smallGroupId={smallGroupId}
+              onClose={closeReviewModal}
+              onRegistered={(message, { created }) => {
+                setReviewResult({ smallGroupId, authVersion, message });
+                if (created) setReviewListVersion((previous) => previous + 1);
+                closeReviewModal();
+              }}
+            />
+          )}
+        </PollContent>
+      ) : currentMenu === 'directions' ? (
+        /* AI작성: 역할·계정·소모임 전환 때 이전 위치·결과·요청을 재사용하지 않는다. */
+        hasLogin ? <SmallGroupPlacesPanel key={`${smallGroupId}:${myRole}:${authVersion}`} smallGroupId={smallGroupId} />
+          : <Placeholder role="alert">로그인 후 이용해 주세요.</Placeholder>
       ) : currentMenu === 'settings' ? (
         <SettingsContent>
           {isSettingsLoading ? (

@@ -1,5 +1,179 @@
 import client from './client.js';
 
+// AI작성: 장소 검색의 서버 오류를 보존하고 위치나 원본 HTTP 요청을 화면 오류에 포함하지 않는다.
+export class SmallGroupPlaceSearchError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupPlaceSearchError';
+    this.code = code;
+  }
+}
+
+// AI작성: 기존 인증 client를 재사용하고 허용된 검색 조건만 전달한다. 회원 ID는 보내지 않는다.
+export async function searchSmallGroupPlaces(smallGroupId, {
+  query, page = 1, size = 15, latitude, longitude, radius, sort = 'accuracy', signal,
+} = {}) {
+  try {
+    const params = { smallGroupId, query, page, size, sort };
+    if (latitude != null) params.latitude = latitude;
+    if (longitude != null) params.longitude = longitude;
+    if (radius != null) params.radius = radius;
+    const response = await client.get('/small-groups/places', { params, signal });
+    const envelope = response.data;
+    if (envelope?.success !== true) {
+      throw new SmallGroupPlaceSearchError(envelope?.error?.code || 'INVALID_RESPONSE',
+        envelope?.error?.message || '장소 검색 응답을 확인하지 못했습니다.');
+    }
+    const data = envelope.data;
+    if (!data || !Array.isArray(data.items) || data.items.length === 0
+        || !Number.isInteger(data.page) || data.page < 1 || data.page > 45
+        || !Number.isInteger(data.size) || data.size < 1 || data.size > 15
+        || !Number.isInteger(data.totalCount) || data.totalCount < 0
+        || !Number.isInteger(data.pageableCount) || data.pageableCount < 0
+        || typeof data.end !== 'boolean') {
+      throw new SmallGroupPlaceSearchError('INVALID_RESPONSE', '장소 검색 응답을 확인하지 못했습니다.');
+    }
+    return {
+      items: data.items.map((item) => {
+        if (!item || typeof item.placeId !== 'string' || !item.placeId
+            || typeof item.placeName !== 'string' || !item.placeName.trim()
+            || !Number.isFinite(item.latitude) || Math.abs(item.latitude) > 90
+            || !Number.isFinite(item.longitude) || Math.abs(item.longitude) > 180
+            || typeof item.placeUrl !== 'string' || !/^https:\/\/place\.map\.kakao\.com\/\d+$/.test(item.placeUrl)
+            || (item.distanceMeters != null && (!Number.isInteger(item.distanceMeters) || item.distanceMeters < 0))
+            || [item.roadAddress, item.address, item.category].some((value) => value != null && typeof value !== 'string')) {
+          throw new SmallGroupPlaceSearchError('INVALID_RESPONSE', '장소 검색 응답을 확인하지 못했습니다.');
+        }
+        return {
+          placeId: item.placeId, placeName: item.placeName, roadAddress: item.roadAddress || '',
+          address: item.address || '', category: item.category || '', latitude: item.latitude,
+          longitude: item.longitude, placeUrl: item.placeUrl,
+          distanceMeters: latitude != null && longitude != null ? item.distanceMeters ?? null : null,
+        };
+      }),
+      page: data.page, size: data.size, totalCount: data.totalCount,
+      pageableCount: data.pageableCount, end: data.end,
+    };
+  } catch (error) {
+    if (error instanceof SmallGroupPlaceSearchError || error.code === 'ERR_CANCELED') throw error;
+    throw new SmallGroupPlaceSearchError(error.response?.data?.error?.code || 'SMALL_GROUP_PLACE_SEARCH_FAILED',
+      error.response?.data?.error?.message || '장소를 검색하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 공개 후기 목록의 서버 오류 코드와 메시지를 화면에 전달한다.
+export class SmallGroupReviewListLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupReviewListLoadError';
+    this.code = code;
+  }
+}
+
+// AI작성: 공개 목록과 별개로 인증 회원 본인의 작성 여부를 조회해 다음 페이지에 있는 후기까지 확인한다.
+export async function hasWrittenSmallGroupReview(smallGroupId, { signal } = {}) {
+  try {
+    const response = await client.get(`/small-groups/${encodeURIComponent(smallGroupId)}/reviews/me`, { signal });
+    if (!response.data?.success || typeof response.data.data !== 'boolean') {
+      throw new SmallGroupReviewListLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '후기 작성 여부를 확인하지 못했습니다.',
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error instanceof SmallGroupReviewListLoadError || error.code === 'ERR_CANCELED') throw error;
+    throw new SmallGroupReviewListLoadError(
+      error.response?.data?.error?.code || 'SMALL_GROUP_REVIEW_STATUS_LOAD_FAILED',
+      error.response?.data?.error?.message || '후기 작성 여부를 확인하지 못했습니다.',
+    );
+  }
+}
+
+// AI작성: 목록 식별자와 표시 정보만 반환해 작성자 회원 ID 등 불필요한 정보는 전달하지 않는다.
+export function toSmallGroupReviewListItem(item) {
+  const validId = (Number.isSafeInteger(item?.smallGroupReviewId) && item.smallGroupReviewId > 0)
+    || (typeof item?.smallGroupReviewId === 'string' && /^[1-9]\d*$/.test(item.smallGroupReviewId));
+  if (!validId || typeof item?.writerNickname !== 'string' || typeof item?.content !== 'string'
+    || typeof item?.createdAt !== 'string' || !item.createdAt
+    || !Number.isFinite(item?.rating) || item.rating < 0 || item.rating > 5
+    || !Number.isInteger(item.rating * 2)) {
+    throw new SmallGroupReviewListLoadError('INVALID_RESPONSE', '후기 목록 응답을 확인하지 못했습니다.');
+  }
+  return {
+    smallGroupReviewId: item.smallGroupReviewId,
+    writerNickname: item.writerNickname,
+    content: item.content,
+    createdAt: item.createdAt,
+    rating: item.rating,
+  };
+}
+
+// AI작성: 검색·필터·크기 없이 페이지와 취소 신호만 전달하고 서버 최신순 목록을 그대로 유지한다.
+export async function getSmallGroupReviews(smallGroupId, { page = 1, signal } = {}) {
+  try {
+    const response = await client.get(`/small-groups/${encodeURIComponent(smallGroupId)}/reviews`, {
+      params: { page },
+      signal,
+    });
+    const { data, meta } = response.data || {};
+    if (!response.data?.success || !Array.isArray(data) || !meta
+      || !Number.isInteger(meta.page) || meta.page < 1 || meta.size !== 8
+      || !Number.isInteger(meta.total) || meta.total < 0
+      || !Number.isInteger(meta.totalPages) || meta.totalPages < 0) {
+      throw new SmallGroupReviewListLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '후기 목록 응답을 확인하지 못했습니다.',
+      );
+    }
+    return {
+      items: data.map(toSmallGroupReviewListItem),
+      totalElements: meta.total,
+      totalPages: meta.totalPages,
+      currentPage: meta.page,
+      pageSize: meta.size,
+    };
+  } catch (error) {
+    if (error instanceof SmallGroupReviewListLoadError || error.code === 'ERR_CANCELED') throw error;
+    throw new SmallGroupReviewListLoadError(
+      error.response?.data?.error?.code || 'SMALL_GROUP_REVIEW_LIST_LOAD_FAILED',
+      error.response?.data?.error?.message || '후기 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    );
+  }
+}
+
+// AI작성: 후기 등록의 서버 오류 코드를 보존해 중복 등록과 재시도 가능한 실패를 구분한다.
+export class SmallGroupReviewCreateError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupReviewCreateError';
+    this.code = code;
+  }
+}
+
+// AI작성: 작성자는 JWT로 결정하므로 별점과 코멘트만 전송하고 생성된 후기 ID를 반환한다.
+export async function createSmallGroupReview(smallGroupId, { rating, content }) {
+  try {
+    const response = await client.post(`/small-groups/${encodeURIComponent(smallGroupId)}/reviews`, {
+      rating, content,
+    });
+    const result = response.data;
+    if (!result?.success || !(Number.isInteger(result.data) && result.data > 0)) {
+      throw new SmallGroupReviewCreateError(
+        result?.error?.code || 'INVALID_RESPONSE',
+        result?.error?.message || '후기 등록 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      );
+    }
+    return result.data;
+  } catch (error) {
+    if (error instanceof SmallGroupReviewCreateError) throw error;
+    throw new SmallGroupReviewCreateError(
+      error.response?.data?.error?.code || 'NETWORK_ERROR',
+      error.response?.data?.error?.message || '후기를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    );
+  }
+}
+
 // AI작성: 소모임 생성 API 실패 코드와 메시지를 화면까지 보존하기 위한 오류 객체다.
 export class SmallGroupCreationError extends Error {
   constructor(code, message) {
@@ -86,6 +260,33 @@ export class SmallGroupVoteDetailLoadError extends Error {
   constructor(code, message) {
     super(message);
     this.name = 'SmallGroupVoteDetailLoadError';
+    this.code = code;
+  }
+}
+
+// AI작성: 소모임 투표 삭제 실패 코드와 메시지를 목록·상세 화면까지 보존하기 위한 오류 객체다.
+export class SmallGroupVoteDeleteError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteDeleteError';
+    this.code = code;
+  }
+}
+
+// AI작성: 투표 참여·선택 변경 실패 코드를 상세 화면에 그대로 전달한다.
+export class SmallGroupVoteParticipationError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteParticipationError';
+    this.code = code;
+  }
+}
+
+// AI작성: 참여 완료 회원 전용 현황 조회 실패를 투표 상세 최초 조회 오류와 구분한다.
+export class SmallGroupVoteStatusLoadError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteStatusLoadError';
     this.code = code;
   }
 }
@@ -199,6 +400,33 @@ function toSmallGroupVoteDetailLoadError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupVoteDetailLoadError(
     responseError?.code || 'SMALL_GROUP_VOTE_DETAIL_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteDeleteError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteDeleteError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteDeleteError(
+    responseError?.code || 'SMALL_GROUP_VOTE_DELETE_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteParticipationError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteParticipationError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteParticipationError(
+    responseError?.code || 'SMALL_GROUP_VOTE_PARTICIPATION_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+function toSmallGroupVoteStatusLoadError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteStatusLoadError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteStatusLoadError(
+    responseError?.code || 'SMALL_GROUP_VOTE_STATUS_LOAD_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -463,6 +691,64 @@ export async function getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, { 
     return toSmallGroupVoteDetail(response.data.data);
   } catch (error) {
     throw toSmallGroupVoteDetailLoadError(error, '투표 상세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 삭제 권한과 대상 소속은 서버가 JWT·경로 식별자로 판단하므로 클라이언트는 두 ID만 전달한다.
+export async function deleteSmallGroupVote(smallGroupId, smallGroupVoteId) {
+  try {
+    const response = await client.delete(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}`,
+    );
+    if (!response.data?.success) {
+      throw new SmallGroupVoteDeleteError(
+        response.data?.error?.code || 'SMALL_GROUP_VOTE_DELETE_FAILED',
+        response.data?.error?.message || '투표를 삭제하지 못했습니다.',
+      );
+    }
+  } catch (error) {
+    throw toSmallGroupVoteDeleteError(error, '투표를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 선택 보기 ID만 전송하고 최초 참여·동일 선택·선택 변경 판단은 서버 트랜잭션에 맡긴다.
+export async function participateSmallGroupVote(smallGroupId, smallGroupVoteId, selectedOptionIds) {
+  try {
+    const response = await client.post(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}/participations`,
+      { selectedOptionIds },
+    );
+    if (!response.data?.success) {
+      throw new SmallGroupVoteParticipationError(
+        response.data?.error?.code || 'SMALL_GROUP_VOTE_PARTICIPATION_FAILED',
+        response.data?.error?.message || '투표 참여 처리에 실패했습니다.',
+      );
+    }
+  } catch (error) {
+    throw toSmallGroupVoteParticipationError(error, '투표 참여 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 참여 완료 회원 전용 현황은 상세와 같은 응답 형식을 검증해 결과 패널에 전달한다.
+export async function getSmallGroupVoteStatus(smallGroupId, smallGroupVoteId, { signal } = {}) {
+  try {
+    const response = await client.get(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}/status`,
+      { signal },
+    );
+    if (!response.data?.success || !response.data.data) {
+      throw new SmallGroupVoteStatusLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '투표 현황 응답을 확인하지 못했습니다.',
+      );
+    }
+    try {
+      return toSmallGroupVoteDetail(response.data.data);
+    } catch (error) {
+      throw new SmallGroupVoteStatusLoadError(error.code || 'INVALID_RESPONSE', error.message);
+    }
+  } catch (error) {
+    throw toSmallGroupVoteStatusLoadError(error, '투표 현황을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 

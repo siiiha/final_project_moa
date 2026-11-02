@@ -9,6 +9,10 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
@@ -18,12 +22,14 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteParticipationRequest;
 import com.nightstudy.moa.smallGroup.SmallGroupCreationService;
 import com.nightstudy.moa.smallGroup.SmallGroupService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -47,6 +53,34 @@ public class SmallGroupController {
             SmallGroupService smallGroupService) {
         this.smallGroupCreationService = smallGroupCreationService;
         this.smallGroupService = smallGroupService;
+    }
+
+    // AI작성: 이 경로는 공개 목록 경로와 달리 인증이 필요하며 본인 작성 여부만 반환한다.
+    @GetMapping("/{smallGroupId}/reviews/me")
+    public ApiResponse<Boolean> hasWrittenReview(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(smallGroupService.hasWrittenSmallGroupReview(smallGroupId, memberId));
+    }
+
+    // AI작성: 공개 조회는 인증 회원 ID를 선택적으로 전달하고 소모임 존재·MANAGER 제한·페이징은 Service에서 처리한다.
+    @GetMapping("/{smallGroupId}/reviews")
+    public ApiResponse<List<SmallGroupReviewListItemResponse>> getReviews(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute SmallGroupReviewSearchCondition condition) {
+        SmallGroupReviewListResponse result =
+                smallGroupService.getSmallGroupReviews(smallGroupId, memberId, condition);
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+
+    // AI작성: JWT 회원 ID와 검증된 입력값만 전달하고 후기 등록 조건은 Service에서 판단한다.
+    @PostMapping("/{smallGroupId}/reviews")
+    public ApiResponse<Long> createReview(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SmallGroupReviewCreateRequest request) {
+        return ApiResponse.ok(smallGroupService.createSmallGroupReview(smallGroupId, memberId, request));
     }
 
     // AI작성: 소모임 개설 화면은 로그인한 사용자의 활동 지역만 조회한다.
@@ -121,6 +155,37 @@ public class SmallGroupController {
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
         return ApiResponse.ok(
                 smallGroupService.getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, memberId));
+    }
+
+    // AI작성: JWT 회원 ID와 선택 보기만 전달하며 투표 가능 여부·선택 변경·저장은 Service 트랜잭션에서 처리한다.
+    @PostMapping("/{smallGroupId}/votes/{smallGroupVoteId}/participations")
+    public ApiResponse<Void> participateVote(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @Valid @RequestBody SmallGroupVoteParticipationRequest request,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.participateSmallGroupVote(smallGroupId, smallGroupVoteId, memberId, request);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 투표 완료 회원만 현황을 조회하도록 Service에 JWT 회원 ID와 경로 식별자를 전달한다.
+    @GetMapping("/{smallGroupId}/votes/{smallGroupVoteId}/status")
+    public ApiResponse<SmallGroupVoteDetailResponse> getVoteStatus(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(
+                smallGroupService.getSmallGroupVoteStatus(smallGroupId, smallGroupVoteId, memberId));
+    }
+
+    // AI작성: 삭제 요청은 JWT 회원 ID와 경로 식별자만 Service에 전달하고 소속·권한·삭제 상태 판단은 Service가 처리한다.
+    @DeleteMapping("/{smallGroupId}/votes/{smallGroupVoteId}")
+    public ApiResponse<Void> deleteVote(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.deleteSmallGroupVote(smallGroupId, smallGroupVoteId, memberId);
+        return ApiResponse.ok(null);
     }
 
     // AI작성: 승인자는 요청 본문이 아닌 JWT 필터가 검증한 회원 ID로만 식별한다.

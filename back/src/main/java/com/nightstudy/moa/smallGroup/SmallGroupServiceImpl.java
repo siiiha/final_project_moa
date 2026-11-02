@@ -33,7 +33,16 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteMyParticipationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionVoterNicknameRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteParticipationRequest;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateTargetRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListCondition;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewSearchCondition;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashSet;
@@ -72,6 +81,146 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    // AI작성: 목록 페이지와 무관하게 본인의 기존 후기 ID를 조회해 버튼 표시 여부를 판단한다.
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasWrittenSmallGroupReview(Long smallGroupId, Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        SmallGroupDetailRow target = smallGroupMapper.selectSmallGroupDetail(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 소모임이 없습니다.");
+        }
+        resolveMemberRole(target.getGroupId(), memberId);
+        return smallGroupMapper.selectSmallGroupReviewId(smallGroupId, memberId) != null;
+    }
+
+    // AI작성: 공개 상세와 같은 소모임·관계 조회를 재사용하며 등록 권한이나 모임 날짜로 목록을 제한하지 않는다.
+    @Override
+    @Transactional(readOnly = true)
+    public SmallGroupReviewListResponse getSmallGroupReviews(
+            Long smallGroupId, Long memberId, SmallGroupReviewSearchCondition request) {
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        if (request == null || request.getPage() == null || request.getPage() < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지 번호는 1 이상이어야 합니다.");
+        }
+        if (memberId != null && memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupDetailRow target = smallGroupMapper.selectSmallGroupDetail(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 소모임이 없습니다.");
+        }
+        // AI작성: 승인 여부는 조회 조건으로 쓰지 않고 MANAGER·중복·미정의 역할만 기존 상세 정책으로 검증한다.
+        if (memberId != null) {
+            resolveMemberRole(target.getGroupId(), memberId);
+        }
+
+        SmallGroupReviewListCondition condition = new SmallGroupReviewListCondition(smallGroupId, 0);
+        int total = smallGroupMapper.selectSmallGroupReviewCount(condition);
+        PageMeta pageMeta = PageMeta.of(request.getPage(), condition.getLimit(), total);
+        // AI작성: 빈 결과·범위 초과는 offset 계산 전에 반환해 큰 페이지 번호의 정수 오버플로도 방지한다.
+        if (pageMeta.getPage() > pageMeta.getTotalPages()) {
+            return new SmallGroupReviewListResponse(List.of(), pageMeta);
+        }
+        condition.setOffset(pageMeta.getOffset());
+        return new SmallGroupReviewListResponse(smallGroupMapper.selectSmallGroupReviewList(condition), pageMeta);
+    }
+
+    // AI작성: 소모임·회원 관계를 잠가 권한·날짜·중복을 검증한 뒤 같은 트랜잭션에서 저장한다.
+    @Override
+    @Transactional
+    public Long createSmallGroupReview(
+            Long smallGroupId, Long memberId, SmallGroupReviewCreateRequest request) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        validateSmallGroupReviewRequest(request);
+
+        SmallGroupReviewCreateTargetRow target =
+                smallGroupMapper.selectSmallGroupReviewCreateTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        if (Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_REVIEW_OWNER_NOT_ALLOWED",
+                    "소모임 개설자는 후기를 등록할 수 없습니다.");
+        }
+        SmallGroupMemberRelationRow relation =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        // AI작성: MANAGER는 가입 상태와 무관하게 기존 소모임 접근 제한을 그대로 적용한다.
+        if (relation != null && "MANAGER".equals(relation.getMemberRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "접근 권한이 없습니다.");
+        }
+        if (relation == null || !"MEMBER".equals(relation.getMemberRole())
+                || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_REVIEW_CREATE_FORBIDDEN",
+                    "승인된 소모임 일반 모임원만 후기를 등록할 수 있습니다.");
+        }
+        // AI작성: 서버 기본 시간대와 무관하게 한국 날짜 기준 모임 다음 날부터 허용한다.
+        if (target.getMeetDate() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_REVIEW_MEET_DATE_REQUIRED",
+                    "모임 날짜가 설정되지 않아 후기를 등록할 수 없습니다.");
+        }
+        if (!target.getMeetDate().isBefore(LocalDate.now(KOREA_ZONE_ID))) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_REVIEW_NOT_AVAILABLE_YET",
+                    "후기는 모임 다음 날부터 등록할 수 있습니다.");
+        }
+        if (smallGroupMapper.selectSmallGroupReviewId(smallGroupId, memberId) != null) {
+            throw smallGroupReviewAlreadyExists();
+        }
+
+        SmallGroupReviewCreateCommand command = new SmallGroupReviewCreateCommand();
+        command.setSmallGroupId(smallGroupId);
+        command.setWriterId(memberId);
+        command.setRating(request.getRating());
+        command.setContent(request.getContent());
+        int insertedRows;
+        try {
+            insertedRows = smallGroupMapper.insertSmallGroupReview(command);
+        } catch (DuplicateKeyException exception) {
+            // AI작성: 사전 조회 이후 발생한 동시 중복 요청도 동일한 업무 오류로 응답한다.
+            throw smallGroupReviewAlreadyExists();
+        }
+        if (insertedRows != 1 || command.getSmallGroupReviewId() == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_REVIEW_CREATE_FAILED",
+                    "후기 등록에 실패했습니다.");
+        }
+        return command.getSmallGroupReviewId();
+    }
+
+    // AI작성: Service 직접 호출에서도 DB 반올림·문자열 잘림 전에 DTO와 같은 입력 정책을 검증한다.
+    private void validateSmallGroupReviewRequest(SmallGroupReviewCreateRequest request) {
+        if (request == null || request.getRating() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "별점은 필수입니다.");
+        }
+        BigDecimal rating = request.getRating();
+        if (rating.compareTo(BigDecimal.ZERO) < 0 || rating.compareTo(new BigDecimal("5.0")) > 0
+                || !request.isRatingStepValid()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "별점은 0~5점, 0.5점 단위로 입력해주세요.");
+        }
+        String content = request.getContent();
+        if (content == null || content.isBlank() || content.length() > 30) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "코멘트는 1자 이상 30자 이하로 입력해주세요.");
+        }
+    }
+
+    private ApiException smallGroupReviewAlreadyExists() {
+        // AI작성: 사전 중복 확인과 DB UNIQUE 위반에 동일한 오류 코드·메시지를 사용한다.
+        return new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_REVIEW_ALREADY_EXISTS",
+                "이미 이 소모임에 후기를 등록했습니다.");
     }
 
     // AI작성: 목록 조회는 삭제되지 않은 소모임 확인 후 승인된 OWNER·MEMBER 관계만 허용하고, 검색·필터·페이징 없이 반환한다.
@@ -113,6 +262,20 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     @Transactional(readOnly = true)
     public SmallGroupVoteDetailResponse getSmallGroupVoteDetail(
             Long smallGroupId, Long smallGroupVoteId, Long memberId) {
+        return getSmallGroupVoteDetailInternal(smallGroupId, smallGroupVoteId, memberId, false);
+    }
+
+    // AI작성: 투표 현황은 기존 상세 응답을 재사용하되, 참여 이력이 없는 회원은 결과 집계 전에 차단한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SmallGroupVoteDetailResponse getSmallGroupVoteStatus(
+            Long smallGroupId, Long smallGroupVoteId, Long memberId) {
+        return getSmallGroupVoteDetailInternal(smallGroupId, smallGroupVoteId, memberId, true);
+    }
+
+    // AI작성: 상세는 투표 전 보기 선택을 위해 승인 회원에게 열고, 현황만 참여 완료 회원으로 추가 제한한다.
+    private SmallGroupVoteDetailResponse getSmallGroupVoteDetailInternal(
+            Long smallGroupId, Long smallGroupVoteId, Long memberId, boolean participationRequired) {
         if (smallGroupId == null || smallGroupId <= 0 || smallGroupVoteId == null || smallGroupVoteId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 투표 번호가 올바르지 않습니다.");
         }
@@ -139,6 +302,10 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 ? List.of()
                 : smallGroupMapper.selectSmallGroupVoteSelectedOptionIds(participationId);
         boolean participated = participationId != null;
+        if (participationRequired && !participated) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_STATUS_FORBIDDEN",
+                    "투표를 완료한 소모임 회원만 투표 현황을 조회할 수 있습니다.");
+        }
         Map<Long, List<String>> voterNicknamesByOptionId = !vote.isAnonymous() && participated
                 ? smallGroupMapper.selectSmallGroupVoteOptionVoterNicknames(smallGroupVoteId).stream()
                         .collect(Collectors.groupingBy(
@@ -164,6 +331,159 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 smallGroupMapper.selectSmallGroupVoteParticipantCount(smallGroupVoteId),
                 new SmallGroupVoteMyParticipationResponse(participated, selectedOptionIds),
                 options);
+    }
+
+    // AI작성: 소모임·투표·OWNER 관계를 잠근 뒤 투표 기본 행만 논리 삭제해 참여·선택 이력을 보존한다.
+    @Override
+    @Transactional
+    public void deleteSmallGroupVote(Long smallGroupId, Long smallGroupVoteId, Long memberId) {
+        if (smallGroupId == null || smallGroupId <= 0 || smallGroupVoteId == null || smallGroupVoteId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 투표 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+
+        SmallGroupVoteDetailRow vote =
+                smallGroupMapper.selectSmallGroupVoteDetailForUpdate(smallGroupId, smallGroupVoteId);
+        if (vote == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_VOTE_NOT_FOUND", "투표를 찾을 수 없습니다.");
+        }
+        validateSmallGroupVoteDeleteAuthority(target, vote, memberId);
+
+        if (smallGroupMapper.softDeleteSmallGroupVote(smallGroupId, smallGroupVoteId) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_DELETE_FAILED",
+                    "투표 삭제 처리에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 투표 작성자 본인과 groups 개설자·승인 OWNER가 모두 같은 회원일 때만 삭제를 허용한다.
+    private void validateSmallGroupVoteDeleteAuthority(
+            SmallGroupJoinTargetRow target, SmallGroupVoteDetailRow vote, Long memberId) {
+        if (!Objects.equals(memberId, vote.getCreatorMemberId())
+                || !Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_DELETE_FORBIDDEN",
+                    "투표 작성자인 소모임 개설자만 투표를 삭제할 수 있습니다.");
+        }
+        SmallGroupMemberRelationRow relation =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (relation == null || !"OWNER".equals(relation.getMemberRole())
+                || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_DELETE_FORBIDDEN",
+                    "승인된 소모임 개설자만 투표를 삭제할 수 있습니다.");
+        }
+    }
+
+    // AI작성: 소모임·회원·투표를 잠근 상태에서 최초 참여 저장 또는 선택 변경만 원자적으로 처리한다.
+    @Override
+    @Transactional
+    public void participateSmallGroupVote(
+            Long smallGroupId, Long smallGroupVoteId, Long memberId,
+            SmallGroupVoteParticipationRequest request) {
+        if (smallGroupId == null || smallGroupId <= 0 || smallGroupVoteId == null || smallGroupVoteId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 투표 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        validateSmallGroupVoteMemberForUpdate(target.getGroupId(), memberId);
+
+        SmallGroupVoteDetailRow vote =
+                smallGroupMapper.selectSmallGroupVoteDetailForUpdate(smallGroupId, smallGroupVoteId);
+        if (vote == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_VOTE_NOT_FOUND", "투표를 찾을 수 없습니다.");
+        }
+        if (isVoteClosed(vote, LocalDateTime.now(KOREA_ZONE_ID))) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_VOTE_CLOSED", "마감된 투표에는 참여할 수 없습니다.");
+        }
+
+        List<Long> selectedOptionIds = normalizeSelectedOptionIds(request, vote);
+        List<Long> voteOptionIds = smallGroupMapper.selectSmallGroupVoteOptionIds(smallGroupVoteId);
+        if (!new LinkedHashSet<>(voteOptionIds).containsAll(selectedOptionIds)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SMALL_GROUP_VOTE_OPTION_INVALID",
+                    "선택한 투표 보기가 해당 투표에 속하지 않습니다.");
+        }
+
+        Long participationId = smallGroupMapper.selectSmallGroupVoteParticipationIdForUpdate(smallGroupVoteId, memberId);
+        if (participationId == null) {
+            createSmallGroupVoteParticipation(smallGroupVoteId, memberId, selectedOptionIds);
+            return;
+        }
+
+        List<Long> previousOptionIds = smallGroupMapper.selectSmallGroupVoteSelectedOptionIds(participationId);
+        if (new LinkedHashSet<>(previousOptionIds).equals(new LinkedHashSet<>(selectedOptionIds))) {
+            return;
+        }
+        if (smallGroupMapper.deleteSmallGroupVoteSelections(participationId) != previousOptionIds.size()
+                || smallGroupMapper.insertSmallGroupVoteSelections(participationId, selectedOptionIds)
+                != selectedOptionIds.size()
+                || smallGroupMapper.updateSmallGroupVoteParticipationTime(participationId) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_PARTICIPATION_UPDATE_FAILED",
+                    "투표 선택 변경 처리에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 최초 참여는 참여 이력 생성 후 같은 트랜잭션에서 보기 연결을 모두 저장한다.
+    private void createSmallGroupVoteParticipation(
+            Long smallGroupVoteId, Long memberId, List<Long> selectedOptionIds) {
+        if (smallGroupMapper.insertSmallGroupVoteParticipation(smallGroupVoteId, memberId) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_PARTICIPATION_CREATE_FAILED",
+                    "투표 참여 처리에 실패했습니다.");
+        }
+        Long participationId =
+                smallGroupMapper.selectSmallGroupVoteParticipationIdForUpdate(smallGroupVoteId, memberId);
+        if (participationId == null
+                || smallGroupMapper.insertSmallGroupVoteSelections(participationId, selectedOptionIds)
+                != selectedOptionIds.size()) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_SELECTION_CREATE_FAILED",
+                    "투표 선택 저장에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 중복 ID·빈 ID·단일 선택 위반을 먼저 막고, 복수 선택은 생성된 보기 수 이하만 허용한다.
+    private List<Long> normalizeSelectedOptionIds(
+            SmallGroupVoteParticipationRequest request, SmallGroupVoteDetailRow vote) {
+        if (request == null || request.getSelectedOptionIds() == null || request.getSelectedOptionIds().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "투표 보기를 한 개 이상 선택해 주세요.");
+        }
+        LinkedHashSet<Long> normalizedIds = new LinkedHashSet<>();
+        for (Long selectedOptionId : request.getSelectedOptionIds()) {
+            if (selectedOptionId == null || selectedOptionId <= 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "선택한 투표 보기 번호가 올바르지 않습니다.");
+            }
+            if (!normalizedIds.add(selectedOptionId)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "SMALL_GROUP_VOTE_OPTION_DUPLICATED",
+                        "같은 투표 보기를 중복 선택할 수 없습니다.");
+            }
+        }
+        if (!vote.isMultipleChoice() && normalizedIds.size() != 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SMALL_GROUP_VOTE_SINGLE_CHOICE_REQUIRED",
+                    "단일 선택 투표는 한 개의 보기만 선택할 수 있습니다.");
+        }
+        return List.copyOf(normalizedIds);
+    }
+
+    // AI작성: 참여 변경은 기존 생성 권한과 달리 승인된 OWNER·MEMBER 모두 허용하되 관계 행을 잠가 상태 변경과 경합하지 않게 한다.
+    private void validateSmallGroupVoteMemberForUpdate(Long groupId, Long memberId) {
+        SmallGroupMemberRelationRow relation =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(groupId, memberId);
+        boolean isApprovedMember = relation != null
+                && "APPROVED".equals(relation.getMembershipStatus())
+                && List.of("OWNER", "MEMBER").contains(relation.getMemberRole());
+        if (!isApprovedMember) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_PARTICIPATION_FORBIDDEN",
+                    "승인된 소모임 회원만 투표에 참여할 수 있습니다.");
+        }
     }
 
     // AI작성: 마감 시각 또는 명시적 종료 상태가 있으면 참여는 막고 결과 전용 상태로 반환한다.

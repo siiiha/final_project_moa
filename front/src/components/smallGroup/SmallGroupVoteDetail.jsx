@@ -57,6 +57,20 @@ const Status = styled.span`
   white-space: nowrap;
 `;
 
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const DeleteButton = styled(Button)`
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 11px;
+`;
+
 const Meta = styled.div`
   margin-top: 10px;
   display: flex;
@@ -147,6 +161,8 @@ const DisabledButton = styled(Button)`
 const ResultPanel = styled.aside`
   min-height: 100%;
   padding: 18px;
+  display: flex;
+  flex-direction: column;
   background: ${({ theme }) => theme.colors.background};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
@@ -159,9 +175,11 @@ const ResultTitle = styled.h2`
 `;
 
 const ParticipationSummary = styled.p`
-  margin-top: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  align-self: flex-end;
   color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
+  font-size: 11px;
 `;
 
 const ResultList = styled.ol`
@@ -254,14 +272,18 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-// AI작성: 참여 API가 연결되기 전에는 선택 상태와 결과 패널 표시만 제어하며 서버 데이터를 변경하지 않는다.
+// AI작성: 상세에서는 선택·참여 요청을, 결과 패널에서는 참여 완료 회원 전용 현황만 표시한다.
 function SmallGroupVoteDetail({
-  vote, onBack, selectedOptionIds, onSelectOption, isResultOpen, onShowResults,
+  vote, onBack, selectedOptionIds, onSelectOption, onSubmit, isSubmitting,
+  isResultOpen, resultVote, isStatusLoading, statusError, onShowResults, actionError,
+  canDelete, onDelete, isDeleting,
 }) {
   const isClosed = vote.status === 'CLOSED';
   const selectedOptionIdSet = new Set(selectedOptionIds);
-  const canShowVoterNicknames = !vote.anonymous && vote.myParticipation.participated;
-  const choiceDisabled = isClosed || vote.myParticipation.participated;
+  const result = resultVote || vote;
+  const resultSelectedOptionIdSet = new Set(result.myParticipation.selectedOptionIds);
+  const canShowVoterNicknames = !result.anonymous && result.myParticipation.participated;
+  const choiceDisabled = isClosed || isSubmitting;
 
   return (
     <Card>
@@ -272,7 +294,19 @@ function SmallGroupVoteDetail({
         <VotePanel>
           <Header>
             <Title>{vote.title}</Title>
-            <Status $closed={isClosed}>{isClosed ? '마감' : '진행 중'}</Status>
+            <HeaderActions>
+              <Status $closed={isClosed}>{isClosed ? '마감' : '진행 중'}</Status>
+              {canDelete && (
+                <DeleteButton
+                  type="button"
+                  $variant="danger"
+                  onClick={onDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? '삭제 중...' : '투표 삭제'}
+                </DeleteButton>
+              )}
+            </HeaderActions>
           </Header>
           <Meta>
             <span><FiUsers size={13} aria-hidden="true" /> 작성자 {vote.creatorNickname}</span>
@@ -308,29 +342,47 @@ function SmallGroupVoteDetail({
             })}
           </ChoiceList>
           <ActionRow>
-            <DisabledButton type="button" disabled title="투표 참여 기능은 준비 중입니다.">
-              투표하기
-            </DisabledButton>
+            {isClosed ? (
+              <DisabledButton type="button" disabled>마감된 투표입니다</DisabledButton>
+            ) : (
+              <Button
+                type="button"
+                disabled={selectedOptionIds.length === 0 || isSubmitting}
+                onClick={onSubmit}
+              >
+                {isSubmitting ? '처리 중...' : vote.myParticipation.participated ? '투표 수정' : '투표하기'}
+              </Button>
+            )}
             <Button
               type="button"
               $variant="secondary"
-              disabled={!vote.myParticipation.participated}
+              disabled={!vote.myParticipation.participated || isStatusLoading}
               onClick={onShowResults}
             >
-              결과 보기
+              {isStatusLoading ? '불러오는 중...' : isClosed ? '결과 보기' : '현황 보기'}
             </Button>
           </ActionRow>
-          {!isClosed && <Notice>투표 참여 기능은 준비 중입니다.</Notice>}
+          {actionError && <Notice role="alert">{actionError}</Notice>}
         </VotePanel>
 
         <ResultPanel aria-live="polite">
-          {isResultOpen ? (
+          {isStatusLoading ? (
+            <LockedResult role="status">
+              <FiLock size={24} aria-hidden="true" />
+              <strong>투표 {isClosed ? '결과' : '현황'}을 불러오는 중입니다.</strong>
+            </LockedResult>
+          ) : statusError ? (
+            <LockedResult role="alert">
+              <FiLock size={24} aria-hidden="true" />
+              <strong>투표 {isClosed ? '결과' : '현황'}을 불러오지 못했습니다.</strong>
+              <p>{statusError}</p>
+            </LockedResult>
+          ) : isResultOpen ? (
             <>
-              <ResultTitle>투표 결과</ResultTitle>
-              <ParticipationSummary>총 {vote.participantCount}명이 참여했습니다.</ParticipationSummary>
+              <ResultTitle>투표 {isClosed ? '결과' : '현황'}</ResultTitle>
               <ResultList aria-label="투표 항목별 결과">
-                {vote.options.map((option) => {
-                  const selected = selectedOptionIdSet.has(option.smallGroupVoteOptionId);
+                {result.options.map((option) => {
+                  const selected = resultSelectedOptionIdSet.has(option.smallGroupVoteOptionId);
                   return (
                     <ResultOption key={option.smallGroupVoteOptionId}>
                       <ResultOptionHeader>
@@ -346,12 +398,13 @@ function SmallGroupVoteDetail({
                 })}
               </ResultList>
               {isClosed && <Notice>마감된 투표 결과는 마감 후 24시간 동안만 확인할 수 있습니다.</Notice>}
+              <ParticipationSummary>{result.participantCount}명 참여</ParticipationSummary>
             </>
           ) : (
             <LockedResult>
               <FiLock size={24} aria-hidden="true" />
-              <strong>투표 결과</strong>
-              <p>투표에 참여한 뒤 결과 보기 버튼을 눌러 확인할 수 있습니다.</p>
+              <strong>투표 {isClosed ? '결과' : '현황'}</strong>
+              <p>투표에 참여한 뒤 {isClosed ? '결과 보기' : '현황 보기'} 버튼을 눌러 확인할 수 있습니다.</p>
             </LockedResult>
           )}
         </ResultPanel>

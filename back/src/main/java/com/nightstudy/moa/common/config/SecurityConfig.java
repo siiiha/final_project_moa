@@ -3,6 +3,7 @@ package com.nightstudy.moa.common.config;
 import com.nightstudy.moa.common.auth.JwtAuthenticationFilter;
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
+import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -35,14 +36,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http
-    ) throws Exception {
+            HttpSecurity http,
+            RevokedTokenMapper revokedTokenMapper) throws Exception {
 
         // AI작성: 회원 상태와 로그인 세션을 함께 검증하는 JWT 필터를 등록한다.
         JwtAuthenticationFilter jwtFilter =
                 new JwtAuthenticationFilter (
                         jwtTokenProvider,
                         errorResponseWriter,
+                        revokedTokenMapper,
                         authSessionService
                 );
 
@@ -131,6 +133,11 @@ public class SecurityConfig {
                         // AI작성: 숫자 ID 상세만 공개하고 지역·카테고리 등 다른 소모임 API는 기존 인증 정책을 유지한다.
                         .requestMatchers(
                                 new RegexRequestMatcher("^/api/small-groups/\\d+$", HttpMethod.GET.name())
+                        ).permitAll()
+
+                        // AI작성: 후기 목록 GET만 공개하며 같은 경로의 POST 등록은 기존 인증 정책을 유지한다.
+                        .requestMatchers(
+                                new RegexRequestMatcher("^/api/small-groups/\\d+/reviews$", HttpMethod.GET.name())
                         ).permitAll()
 
                         .requestMatchers(
