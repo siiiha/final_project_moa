@@ -94,7 +94,8 @@ function AdminReportFilterBar({ query, searchType, reportType, status, onQueryCh
       <Field>
         신고 유형
         <Select value={reportType} onChange={(event) => onReportTypeChange(event.target.value)} aria-label="신고 유형">
-          <option value="">전체 유형</option><option value="BOARD_POST">게시글</option><option value="BOARD_COMMENT">댓글</option><option value="BOARD_MEMBER">회원</option><option value="MEETING">모임</option><option value="MEETING_MEMBER">모임 회원</option>
+          {/* AI작성: 채팅 신고 기능이 완성되기 전까지 CHAT_MESSAGE는 관리자 필터에 노출하지 않는다. */}
+          <option value="">전체 유형</option><option value="POST">게시글</option><option value="COMMENT">댓글</option><option value="MEMBER">회원</option><option value="GROUP">모임</option><option value="GROUP_MEMBER">모임 회원</option>
         </Select>
       </Field>
       <Field>

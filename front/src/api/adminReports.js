@@ -19,8 +19,8 @@ function formatDate(value) {
 
 function formatReportType(value) {
   return {
-    BOARD_POST: '게시글', BOARD_COMMENT: '댓글', BOARD_MEMBER: '회원',
-    MEETING: '모임', MEETING_MEMBER: '모임 회원',
+    POST: '게시글', COMMENT: '댓글', MEMBER: '회원',
+    GROUP: '모임', GROUP_MEMBER: '모임 회원', CHAT_MESSAGE: '채팅 메시지',
   }[value] || '유형 확인 필요';
 }
 

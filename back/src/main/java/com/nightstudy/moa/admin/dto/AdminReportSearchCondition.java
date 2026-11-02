@@ -24,7 +24,7 @@ public class AdminReportSearchCondition {
 
     // AI작성: 지원하는 신고 대상 유형만 검색 조건으로 허용한다.
     @Pattern(
-            regexp = "BOARD_POST|BOARD_COMMENT|BOARD_MEMBER|MEETING|MEETING_MEMBER",
+            regexp = "POST|COMMENT|MEMBER|GROUP|GROUP_MEMBER|CHAT_MESSAGE",
             message = "신고 유형을 다시 선택해 주세요."
     )
     private String reportType;
