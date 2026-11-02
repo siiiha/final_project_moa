@@ -14,7 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
-import com.nightstudy.moa.member.service.AuthSessionService;
+import com.nightstudy.moa.member.service.auth.AuthSessionService;
 
 @Configuration
 public class SecurityConfig {

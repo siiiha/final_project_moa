@@ -7,7 +7,7 @@
 
     <!-- 인증 목적을 포함한 새 인증 요청 저장 -->
     <insert id="insertVerification"
-            parameterType="com.nightstudy.moa.member.dto.EmailVerificationDto"
+            parameterType="com.nightstudy.moa.member.dto.email.EmailVerificationDto"
             useGeneratedKeys="true"
             keyProperty="verificationId"
             keyColumn="verification_id">
@@ -27,7 +27,7 @@
 
     <!-- 이메일과 인증 목적별 최신 요청 조회 -->
     <select id="findLatestByEmail"
-            resultType="com.nightstudy.moa.member.dto.EmailVerificationDto">
+            resultType="com.nightstudy.moa.member.dto.email.EmailVerificationDto">
         SELECT
         verification_id,
         email,
@@ -49,7 +49,7 @@
 
     <!-- 인증 요청 조회 및 동시 처리 방지를 위한 행 잠금 -->
     <select id="findById"
-            resultType="com.nightstudy.moa.member.dto.EmailVerificationDto">
+            resultType="com.nightstudy.moa.member.dto.email.EmailVerificationDto">
         SELECT
         verification_id,
         email,

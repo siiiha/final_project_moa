@@ -11,7 +11,7 @@ import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
 import com.nightstudy.moa.common.config.SecurityConfig;
 import com.nightstudy.moa.common.dto.PageMeta;
-import com.nightstudy.moa.member.service.AuthSessionService;
+import com.nightstudy.moa.member.service.auth.AuthSessionService;
 import com.nightstudy.moa.post.dto.PostListResult;
 import io.jsonwebtoken.Claims;
 import java.util.Date;
@@ -91,7 +91,6 @@ class AdminSecurityIntegrationTest {
         when(claims.get("sid", String.class))
                 .thenReturn("12345678-1234-1234-1234-123456789012");
         when(claims.getExpiration()).thenReturn(expiration);
-        // AI작성: 통합 인증 조회는 토큰 폐기 여부를 tokenId와 함께 검사한다.
         when(authSessionService.isAccessAllowed(
                 eq(1L),
                 eq(role),

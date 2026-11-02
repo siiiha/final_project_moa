@@ -1,16 +1,19 @@
 package com.nightstudy.moa.member.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
-import com.nightstudy.moa.member.dto.*;
+import com.nightstudy.moa.member.dto.profile.MemberPasswordUpdateRequest;
+import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.profile.MemberProfileUpdateRequest;
+import com.nightstudy.moa.member.dto.region.MemberRegionUpdateRequest;
+import com.nightstudy.moa.member.dto.withdrawal.MemberWithdrawalRequest;
 import com.nightstudy.moa.member.service.MemberService;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import com.nightstudy.moa.member.dto.RegionVerificationRequest;
-import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
-import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
+import com.nightstudy.moa.member.dto.region.RegionVerificationRequest;
+import com.nightstudy.moa.member.dto.identity.IdentityVerificationRequest;
+import com.nightstudy.moa.member.dto.identity.IdentityVerificationStartResponse;
 
 @RestController
 @RequestMapping("/api/members")

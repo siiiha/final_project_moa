@@ -1,7 +1,7 @@
 package com.nightstudy.moa.comment.service;
 
 import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
-import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
+import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionService;
 import com.nightstudy.moa.comment.dto.CommentDto;
 import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
