@@ -43,6 +43,7 @@ public class MemberServiceImpl implements MemberService {
     private final KakaoApiClient kakaoApiClient;
     private final PortOneProperties portOneProperties;
     private final PortOneApiClient portOneApiClient;
+    private final ProfileImageService profileImageService;
 
     public MemberServiceImpl(
             MemberMapper memberMapper,
@@ -52,7 +53,8 @@ public class MemberServiceImpl implements MemberService {
             AuthSessionService authSessionService,
             KakaoApiClient kakaoApiClient,
             PortOneProperties portOneProperties,
-            PortOneApiClient portOneApiClient
+            PortOneApiClient portOneApiClient,
+            ProfileImageService profileImageService
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
@@ -62,6 +64,7 @@ public class MemberServiceImpl implements MemberService {
         this.kakaoApiClient = kakaoApiClient;
         this.portOneProperties = portOneProperties;
         this.portOneApiClient = portOneApiClient;
+        this.profileImageService = profileImageService;
     }
 
     // 기존 회원 Mapper를 재사용해 약관 목록 조회
@@ -774,6 +777,24 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
+        // 개인정보를 비우기 전에 삭제에 필요한 기존 이메일을 조회
+        MemberProfileResponse withdrawalProfile = getMyProfile(memberId);
+
+        //  기존 이미지 삭제·관심사 삭제·세션 폐기 기능을 재사용
+        profileImageService.deleteProfileImage(memberId);
+        memberMapper.deleteMemberInterests(memberId);
+        authSessionService.revokeAllSessions(memberId);
+
+        //  탈퇴 회원의 소셜 연결과 인증 요청 기록을 정리
+        memberMapper.deleteMemberSocialAccounts(memberId);
+        memberMapper.deleteMemberIdentityRequests(memberId);
+
+        if (StringUtils.hasText(withdrawalProfile.getEmail())) {
+            memberMapper.deleteMemberEmailVerifications(
+                    withdrawalProfile.getEmail()
+            );
+        }
+
         int updateRows = memberMapper.withdrawMember(memberId);
 
         if (updateRows != 1) {
@@ -785,7 +806,7 @@ public class MemberServiceImpl implements MemberService {
         }
     }
 
-    // AI작성: 이메일 인증 기반 비밀번호 재설정은 마이페이지 비밀번호 변경과 별도 메소드로 유지한다.
+    // 이메일 인증 기반 비밀번호 재설정은 마이페이지 비밀번호 변경과 별도 메소드로 유지
     @Override
     @Transactional
     public void resetPassword(PasswordResetRequest request) {
