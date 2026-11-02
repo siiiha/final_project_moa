@@ -607,3 +607,83 @@
 - 개발자 검토·수정: 단계별 커밋은 사용자 수행. 최종 정책·동작 검토 대기. DB 담당자 테이블 적용 및 삭제 정책 확정, Java 17 환경 테스트, 스크롤·등록 후 갱신을 검토해야 한다.
 - 남은 사항: 전달 DDL에는 삭제 컬럼이 없어 SQL 삭제 제외 조건은 미구현이며 물리 삭제만 자연스럽게 제외된다. 신고·비공개 숨김과 계정 삭제 작성자 닉네임 처리는 별도 정책이 필요하다. offset 방식의 동시 등록·삭제 시 페이지 구성 변화는 남아 있다.
 - DB·의존성·외부 서비스 변경: 없음. 후기 테이블 schema.sql·ERD·실제 DB 반영은 DB 담당자 작업이다. 기존 컴파일 환경과 공통 설정을 임의 변경하지 않았다.
+<<<<<<< Updated upstream
+=======
+
+<!-- AI작성: 계모임·소모임 검색 지역 필터 1단계 구조 조사 결과입니다. -->
+## 2026-11-03 — 모임 검색 시·구·동 필터 1단계 구조 확인
+
+- 목적: 구현 전 기존 지역 선택·검색 구조와 재사용 범위, 후속 변경 대상을 확인한다.
+- 작업 범위: 관련 소스 정적 확인과 본 기록만 작성했다. 구현 코드·DB·API·의존성·외부 서비스는 변경하지 않았다. 커밋은 사용자가 수행한다.
+- 회원 지역 선택: front/src/components/member/JoinForm.jsx와 front/src/pages/VerificationPage.jsx는 getMemberRegions(front/src/api/member.js)의 /auth/regions 응답을 사용한다. regionId, provinceName, districtName, townName으로 시·구·동을 구성하며 상위 선택 변경 시 하위를 초기화한다. 회원용 폼 전체를 재사용하기보다는 기존 조회 함수와 선택지 구성 방식을 활용할 수 있다.
+- 현재 공개 모임 검색: SavingGroupsPage.jsx·SmallGroupsPage.jsx와 각 FilterBar는 단일 지역 선택 UI다. savingGroups.js·smallGroups.js는 고정 지역 코드 01~10을 전달하고 실제 백엔드 API로 조회한다. 두 SearchCondition은 해당 코드만 허용하고, ServiceImpl에서 고정 지역명으로 변환하며 ListCondition과 Mapper XML은 r.region_name 완전 일치로 검색한다. UI만 변경해서는 시·구·동 검색이 동작하지 않는다.
+- 재사용 참고: 관리자 계모임·소모임 검색은 같은 회원 지역 조회와 provinceName·districtName·townName 조건을 이미 사용한다. AdminSavingGroupMapper.xml·AdminSmallGroupMapper.xml의 선택된 단계별 컬럼 일치 조건을 참고할 수 있다. 관리자용 UI 스타일·권한은 공개 검색에 그대로 적용하지 않는다.
+- DB 영향: schema.sql의 region에는 province_name·district_name·town_name이 있고 groups.region_id를 통해 모임과 연결된다. 현재 소스상 컬럼 추가는 불필요해 보인다. 실제 DB의 동 데이터와 기존 광역 지역 행의 컬럼 채움 여부는 미확인이다. region-data.sql은 시·군·구 중심이므로 이 파일만으로 동 데이터 준비를 보장하지 않는다. 세종의 district_name 빈 문자열 처리도 확인해야 한다.
+- 후속 계모임 변경 대상: front/src/pages/SavingGroupsPage.jsx, front/src/components/savingGroup/SavingGroupFilterBar.jsx, front/src/api/savingGroups.js, back/src/main/java/com/nightstudy/moa/savingGroup/dto/SavingGroupSearchCondition.java·SavingGroupListCondition.java, back/src/main/java/com/nightstudy/moa/savingGroup/service/SavingGroupServiceImpl.java, back/src/main/resources/mappers/SavingGroupMapper.xml. 기존 API 테스트·관련 명세도 변경 내용에 맞게 갱신한다.
+- 후속 소모임 변경 대상: front/src/pages/SmallGroupsPage.jsx, front/src/components/smallGroup/SmallGroupFilterBar.jsx, front/src/api/smallGroups.js, back/src/main/java/com/nightstudy/moa/smallGroup/dto/SmallGroupSearchCondition.java·SmallGroupListCondition.java, back/src/main/java/com/nightstudy/moa/smallGroup/SmallGroupServiceImpl.java, back/src/main/resources/mappers/SmallGroupMapper.xml. 기존 API·Service·Mapper 테스트와 docs/small-group-public-detail-api.md를 변경 내용에 맞게 갱신한다.
+- 구현 전 승인 사항: 공개 검색에 provinceName·districtName·townName 선택 조건을 추가하는 방안은 관리자 검색과 일관되지만 API 계약 변경이다. 기존 regionCode 유지 시 하위 호환성이 있으나 두 조건 동시 입력 우선순위가 필요하고, 교체 시 단순하지만 기존 호출자 변경이 필요하다. 사용자 승인 전 확정하거나 구현하지 않는다. 여러 파일 수정도 대상 목록과 이유를 공유하고 승인 후 진행한다.
+- 후속 검증: 전체·시·시/구·시/구/동 검색, 잘못된 상하위 조합, 상위 변경 시 초기화, 첫 페이지 재조회, 기존 검색어·관심사 조합, 로딩·오류·빈 결과, 비로그인 지역 조회, 세종 선택을 확인한다. 현재 지역 변경 즉시 조회되는 동작은 유지 여부를 확인하고 임의로 검색 버튼 방식으로 바꾸지 않는다.
+- 검증 범위: 정적 소스 확인만 수행했다. 브라우저·Postman·실제 DB·자동 테스트는 실행하지 않았다. 개발자 검토·수정 내용: 아직 검토 대기이며 본 설계와 실제 데이터 상태를 확인해야 한다.
+
+<!-- AI작성: 승인된 계모임 검색 지역 선택 UI 2단계 구현 기록입니다. -->
+## 2026-11-03 — 계모임 검색 지역 필터 2단계 UI 적용
+
+- 목적: 회원가입·지역 인증과 같은 지역 목록으로 계모임 검색에 시·구·동 선택 UI를 구성한다.
+- 사용자 승인: SavingGroupFilterBar.jsx, SavingGroupsPage.jsx, 본 기록 총 3개 파일 수정. 시만 또는 시·구까지만 선택해도 검색할 수 있으며 하위 지역을 포함하는 실제 검색 연동은 3단계로 분리한다.
+- AI 제안·작성: getMemberRegions 재사용, 시·도/시·군·구/읍·면·동 선택지, 상위 미선택 시 하위 비활성화, 시 변경 시 구·동 초기화, 구 변경 시 동 초기화, 지역 조회 로딩·실패·재시도를 추가했다. 구 ID를 선택값으로 사용해 세종의 빈 구 이름도 구분한다. 화면 너비에 따라 선택란을 줄바꿈한다.
+- 단계 제한: 기존 고정 regionCode 선택 UI와 전송을 제거했으며 이번 단계의 지역 선택값은 목록 API에 전달하지 않는다. 현재 목록은 검색어·페이지로 조회되므로 지역별 검색 결과 검증은 3단계 연동 후 수행해야 한다. 구·동 미선택은 검색 제출을 막지 않는다.
+- 검증: 변경 JSX 두 파일 oxlint 통과, npm run build 통과(500kB 초과 번들 경고), git diff --check 통과. 브라우저·실제 지역 API·DB 검증은 실행하지 않았다.
+- 브라우저 검증 방법: 계모임 목록에서 지역 로딩 확인 → 시만 선택하고 검색 → 구까지 선택하고 검색 → 동 선택 후 시·구 변경 시 하위 초기화 확인 → 세종의 구 선택 뒤 동 목록 확인 → 지역 조회 실패 시 재시도 및 모바일 줄바꿈 확인. 실제 지역 범위별 결과는 3단계에서 확인한다.
+- 개발자 검토·수정: 사용자 검토 대기. 커밋은 사용자 수행. DB·API 계약·의존성·외부 서비스 변경 없음. 실제 DB 동 데이터 준비 여부는 별도 확인이 필요하다.
+
+<!-- AI작성: 승인된 계모임 지역 검색 API 연동 3단계 구현 기록입니다. -->
+## 2026-11-03 — 계모임 시·구·동 검색 조건 연동
+
+- 목적·승인: 기존 regionCode 호환을 유지하면서 provinceName·districtName·townName을 추가하는 추천안으로 9개 파일을 수정했다. 커밋은 사용자가 수행한다.
+- AI 제안·작성: SavingGroupsPage.jsx에서 선택한 정규 지역명을 전달하고 지역 변경 시 첫 페이지를 조회한다. savingGroups.js는 미선택 지역 파라미터를 생략하고 세종의 빈 구 이름을 보존한다. SavingGroupSearchCondition에 길이·상위 필수·기존 코드와 동시 사용 금지 검증을 추가했다. SavingGroupListCondition·SavingGroupServiceImpl·SavingGroupMapper.xml에 선택 단계까지만 AND 적용하는 조건을 추가했다. 목록·건수는 기존 공통 listWhere를 재사용한다. 기존 regionCode의 지역명 일치 동작과 응답 형식은 유지한다.
+- 검색 범위: 미선택은 전체, 시만 선택하면 해당 시의 모든 구·동 모임, 시·구 선택이면 해당 구의 모든 동 모임, 동 선택 시 해당 동이다. region 테이블에 상위 지역 컬럼이 채워진 행을 기준으로 조회한다. 존재하지 않거나 서로 맞지 않는 지역명 조합은 결과 0건이다. 실제 지역 존재 조회·DB 데이터 보정은 추가하지 않았다.
+- 테스트·명세: savingGroups.test.js에 전체·시·시/구·시/구/동·세종 빈 구 이름과 취소 신호 전달 검증을 추가했다. docs/saving-groups-api.md에 신규 파라미터·검증·범위·화면 동작을 갱신했다.
+- 실행 검증: node --test src/api/savingGroups.test.js 29개 통과, 변경 프론트 파일 oxlint 통과, npm run build 통과(기존 번들 크기 경고), git diff --check 통과.
+- 백엔드 검증 제한: gradlew.bat compileJava --offline은 기본 실행에서 Gradle 캐시 잠금 접근이 거부됐고, 권한 재시도 후에는 Java 17 toolchain 부재로 컴파일 전에 중단됐다. Java 21은 있으나 프로젝트 설정은 변경하지 않았다. 백엔드 컴파일·Validation·실제 SQL 실행 통과를 확인하지 못했다.
+- 수동 검증: 브라우저에서 전체→시→구→동 선택별 결과 및 2페이지 이후 지역 변경 시 첫 페이지 확인. Postman GET /api/saving-groups에 provinceName만, provinceName+districtName, 세 항목을 각각 보내 범위·건수를 비교한다. regionCode=01 단독은 기존 동작, regionCode+provinceName 및 districtName 단독·townName 단독은 400이어야 한다. 존재하지 않는 조합은 200 빈 목록이어야 한다. 세종은 provinceName+districtName=(빈 문자열)+townName으로 확인한다. 실제 DB region 상위 컬럼과 동 데이터 준비 여부도 확인한다.
+- 개발자 검토·수정: 검토 대기. 실제 브라우저·Postman·DB 검증은 미실행이다. DB·의존성·외부 서비스 변경 없음. 소모임 검색은 다음 단계 범위다.
+
+<!-- AI작성: 승인된 소모임 지역 필터 4단계 구현 기록입니다. -->
+## 2026-11-03 — 소모임 시·구·동 선택 및 검색 연동
+
+- 목적·사용자 승인: 4단계로 승인된 10개 파일에서 소모임 검색에도 계모임과 동일한 시·구·동 선택·검색 규칙을 적용한다. 커밋은 사용자 수행.
+- AI 제안·작성: SmallGroupFilterBar.jsx·SmallGroupsPage.jsx에 회원 지역 API getMemberRegions 재사용, 시·구·동 선택지, 상위 미선택 시 하위 비활성화, 시 변경 시 구·동 초기화, 구 변경 시 동 초기화, 지역 변경 시 첫 페이지 재조회, 지역 로딩·실패·재시도를 적용했다. 구 ID로 세종 빈 구 이름과 미선택을 구분한다. 기존 검색어·관심사·요청 취소·오래된 응답 무시는 유지한다.
+- API·SQL: smallGroups.js에 provinceName·districtName·townName을 추가하고 SmallGroupSearchCondition에 길이·상위 조건 필수·regionCode와 동시 사용 금지 검증을 추가했다. SmallGroupListCondition·SmallGroupServiceImpl·SmallGroupMapper.xml은 선택한 단계까지만 AND 조건을 적용한다. 시만 선택하면 해당 시의 모든 구·동, 시·구까지만 선택하면 해당 구의 모든 동을 포함한다. 목록·건수는 동일한 smallGroupListWhere를 재사용한다. 기존 regionCode는 호환 유지, 존재하지 않거나 맞지 않는 지역명 조합은 빈 결과다.
+- 작업 파일: front/src/components/smallGroup/SmallGroupFilterBar.jsx, front/src/pages/SmallGroupsPage.jsx, front/src/api/smallGroups.js, front/src/api/smallGroups.test.js, back/src/main/java/com/nightstudy/moa/smallGroup/dto/SmallGroupSearchCondition.java, back/src/main/java/com/nightstudy/moa/smallGroup/dto/SmallGroupListCondition.java, back/src/main/java/com/nightstudy/moa/smallGroup/SmallGroupServiceImpl.java, back/src/main/resources/mappers/SmallGroupMapper.xml, docs/small-group-public-detail-api.md, 본 기록.
+- 실행 검증: 계모임·소모임 API 테스트 총 83개 통과(기존 코드, 전체·시·구·동·세종 빈 구 이름, 검색어·관심사 결합, 실패·취소 포함). 변경 프론트 4개 파일 oxlint 통과, npm run build 통과(기존 500kB 초과 번들 경고), git diff --check 통과. .NET XML 파서로 Mapper XML 파싱과 목록·건수의 공통 조건 참조를 확인했다. Python 실행 별칭은 접근 불가여서 XML 확인은 .NET으로 수행했다.
+- 백엔드 제한: 앞 단계에서 확인된 Java 17 toolchain 부재로 이번에는 Gradle을 반복 실행하지 않았다. 백엔드 컴파일·Validation 실제 실행·MyBatis 바인딩·DB SQL 동작은 검증하지 못했다. 설정·의존성을 변경하지 않았다.
+- 브라우저·Postman 검증 방법: 전체·시·시/구·시/구/동 범위와 건수, 기존 검색어·관심사 결합, 페이지 이동 후 지역 변경 시 1페이지, 상위 변경 시 하위 초기화, 지역 목록 실패·재시도, 세종 동 선택과 모바일 줄바꿈을 확인한다. GET /api/small-groups에서 기존 regionCode 단독은 기존 결과, regionCode와 새 조건 동시 사용·구/동 단독은 400, 존재하지 않는 지역 조합은 200 빈 목록인지 확인한다. 계모임에도 동일 검색을 수행해 회귀 점검한다.
+- 개발자 검토·수정: 검토 대기. 브라우저·실제 서버·Postman·DB 검증은 미실행. DB region의 상위 컬럼과 동 데이터가 준비돼 있어야 하며 데이터 보정은 하지 않았다. DB·의존성·외부 서비스 변경 없음. 5단계 예외 상태 최종 점검은 별도 요청 범위다.
+
+<!-- AI작성: 사용자 요청에 맞춘 5단계 검색 초기화·결과 건수 표시 작업 기록입니다. -->
+## 2026-11-03 — 검색 초기화 및 결과 건수 표시
+
+- 목적·범위: 사용자가 이전 5단계를 되돌린 4단계 커밋 b56c3bb에서 검색 초기화와 결과 건수 표시만 적용하도록 요청했다.
+- AI 제안·작성: SavingGroupsPage.jsx·SmallGroupsPage.jsx의 정상 빈 결과에 검색 조건 초기화 버튼을 추가했다. 입력·제출 검색어, 시·구·동, 검색어 오류, 페이지를 초기화하며 소모임은 관심사도 전체로 되돌린다. 전체 조건에서도 재조회하도록 retry를 증가시킨다. 범위 초과의 첫 페이지 이동은 유지한다.
+- 결과 건수: 소모임 목록의 로딩·실패 중 결과 건수와 최신순 헤더를 숨긴다. 계모임은 기존 성공 시에만 표시하는 동작을 유지한다.
+- 작업 파일: front/src/pages/SavingGroupsPage.jsx, front/src/pages/SmallGroupsPage.jsx, docs/saving-groups-api.md, docs/small-group-public-detail-api.md, 본 기록. 문서는 이번 두 기능만 기록했다.
+- 검증: 변경 페이지 2개 oxlint 통과, npm run build 통과(번들 크기 경고), git diff --check 통과. 실제 브라우저 클릭 검증은 미실행이다. API 변경이 없어 기존 API 테스트는 재실행하지 않았다.
+- 개발자 검토·수정: 검토 대기. 빈 결과에서 초기화 후 전체 1페이지 조회, 소모임 관심사 초기화, 로딩·실패 중 건수 숨김을 확인해야 한다. 커밋은 사용자 수행.
+- <!-- AI작성: 가입 신청 제한 2단계 구조 조사 기록입니다. -->
+
+## 2026-11-03 — 계모임·소모임 가입 신청 제한 구조 조사
+
+- 목적: 사용자 확정 정책과 현재 가입 신청·승인·상세 화면·DB 구조를 비교하고 후속 변경 대상을 정리한다. 기능 코드는 수정하지 않았다.
+- 확정 정책: 두 모임 모두 APPROVED·PENDING 중복 신청 차단, REJECTED·EXPELLED 해당 모임 재신청 차단, LEFT 즉시 재신청 허용. 모집 마감·정원 초과 신청 차단. 승인 인원만 정원에 포함하며 신청·승인 시 정원을 검사한다. 신청 취소·정원 초과 대기 신청은 제외한다.
+- 기존 서버: SavingGroupServiceImpl.requestSavingGroupJoin과 SmallGroupServiceImpl.requestSmallGroupJoin에 상태별 제한과 LEFT 재활성화가 구현되어 있다. 두 모임 모두 트랜잭션·회원/모임/관계 잠금, DuplicateKeyException 처리가 있으며 group_member(member_id, group_id) UNIQUE 제약이 있다. 신청은 PENDING, 승인은 APPROVED로 갱신하고 승인 인원만 집계한다. 승인 시에도 정원을 재검사한다. 실제 동시성 안전성은 DB 통합 검증이 필요하다.
+- 차이: 계모임은 status=01일 때만 신청·승인한다. 소모임 신청·승인에는 모집 상태 검사가 없고, small_group.status의 ACTIVE/RESTRICTED는 운영 상태이므로 모집 마감으로 임의 해석하면 안 된다. 모집 상태 저장 방식과 변경 경로는 후속 설계 승인 대상이다.
+- 상세 응답: SavingGroupDetailResponse와 SmallGroupDetailResponse는 승인 역할 myRole을 반환하지만 신청자의 PENDING/REJECTED/LEFT/EXPELLED 상태·신청 가능 여부·제한 사유를 제공하지 않는다. 현재 myRole만으로 상태별 버튼을 구현할 수 없다.
+- 화면: SavingGroupDetail은 가입 버튼을 항상 표시하며 SmallGroupDetail은 승인 OWNER/MEMBER의 버튼을 숨긴다. 두 상세 페이지는 isJoinSubmitting으로 요청 중 추가 클릭을 막지만 성공 후 심사 상태로 갱신하지 않는다. 오류는 서버 메시지로 안내하며 거절·추방은 서버에서 같은 코드와 일반적인 재신청 불가 메시지를 사용한다.
+- 유지할 기존 조건: 활성 계정·본인 인증, 계모임 최대 5개 가입 제한, 소모임 관리자·개설자·운영진 신청 제한은 이번 정책 확정만으로 제거하지 않는다. 신청자는 Controller에서 JWT로 확인한 memberId를 사용하며 두 신청 API는 실제 API 모듈을 사용한다.
+- 후속 서버 후보: back/src/main/java/com/nightstudy/moa/savingGroup/service/SavingGroupServiceImpl.java, back/src/main/java/com/nightstudy/moa/smallGroup/SmallGroupServiceImpl.java, 각 도메인의 dto/SavingGroupDetailResponse.java·dto/SmallGroupDetailResponse.java, mapper/SavingGroupMapper.java·mapper/SmallGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml·SmallGroupMapper.xml. 상세 조회에서 본인 상태·신청 가능 여부를 전달하고 기존 조건 검사를 재사용한다. 정확한 응답 필드는 구현 전 확정한다.
+- 후속 화면 후보: front/src/pages/SavingGroupDetailPage.jsx·SmallGroupDetailPage.jsx, front/src/components/savingGroup/SavingGroupDetail.jsx, front/src/components/smallGroup/SmallGroupDetail.jsx, front/src/api/smallGroups.js 및 필요 시 savingGroups.js. 상세 상태 전달, 상태별 버튼·사유, 신청 성공 및 상태 충돌 후 갱신을 반영한다.
+- 조건부 변경: 소모임 모집 상태 설계에 따라 schema.sql, SmallGroupJoinTargetRow.java, 상세/설정 DTO·Service·Mapper·설정 화면의 추가 변경이 필요할 수 있다. 새 컬럼·API·파일은 아직 확정하지 않았다. 기존 가입 상태 ENUM과 UNIQUE는 재사용 가능하다.
+- 후속 검증·문서: 기존 SmallGroupServiceImplTest, 가입 신청/승인 Controller·Service 테스트, front/src/api/savingGroups.test.js·smallGroups.test.js를 활용한다. 계모임 신청·승인 조건 테스트 보강 필요성을 확인하고 실제 MySQL 반복 요청·동시 승인 검증을 수행한다. docs/saving-group-join-request-design.md, saving-groups-api.md, small-group-public-detail-api.md와 DB 변경 시 해당 설계서를 갱신한다.
+- 검증 방법: 브라우저에서 각 관계 상태의 버튼·사유 및 성공 후 심사 중 전환을 확인한다. Postman POST /api/saving-groups/{savingGroupId}/join-requests와 POST /api/small-groups/{smallGroupId}/join-requests를 상태별·반복 호출하고 DB 행 수를 비교한다. 마지막 빈자리 동시 승인은 실제 DB 환경에서 별도 검증한다.
+- 이번 검증: 소스·기존 테스트·문서·schema.sql 정적 조사만 수행했다. 브라우저·Postman·테스트·실제 DB 실행은 수행하지 않았다. 개발자 검토·수정은 대기 상태이며 커밋은 수행하지 않는다.
+>>>>>>> Stashed changes
