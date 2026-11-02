@@ -633,3 +633,15 @@
 - 검증: 변경 JSX 두 파일 oxlint 통과, npm run build 통과(500kB 초과 번들 경고), git diff --check 통과. 브라우저·실제 지역 API·DB 검증은 실행하지 않았다.
 - 브라우저 검증 방법: 계모임 목록에서 지역 로딩 확인 → 시만 선택하고 검색 → 구까지 선택하고 검색 → 동 선택 후 시·구 변경 시 하위 초기화 확인 → 세종의 구 선택 뒤 동 목록 확인 → 지역 조회 실패 시 재시도 및 모바일 줄바꿈 확인. 실제 지역 범위별 결과는 3단계에서 확인한다.
 - 개발자 검토·수정: 사용자 검토 대기. 커밋은 사용자 수행. DB·API 계약·의존성·외부 서비스 변경 없음. 실제 DB 동 데이터 준비 여부는 별도 확인이 필요하다.
+
+<!-- AI작성: 승인된 계모임 지역 검색 API 연동 3단계 구현 기록입니다. -->
+## 2026-11-03 — 계모임 시·구·동 검색 조건 연동
+
+- 목적·승인: 기존 regionCode 호환을 유지하면서 provinceName·districtName·townName을 추가하는 추천안으로 9개 파일을 수정했다. 커밋은 사용자가 수행한다.
+- AI 제안·작성: SavingGroupsPage.jsx에서 선택한 정규 지역명을 전달하고 지역 변경 시 첫 페이지를 조회한다. savingGroups.js는 미선택 지역 파라미터를 생략하고 세종의 빈 구 이름을 보존한다. SavingGroupSearchCondition에 길이·상위 필수·기존 코드와 동시 사용 금지 검증을 추가했다. SavingGroupListCondition·SavingGroupServiceImpl·SavingGroupMapper.xml에 선택 단계까지만 AND 적용하는 조건을 추가했다. 목록·건수는 기존 공통 listWhere를 재사용한다. 기존 regionCode의 지역명 일치 동작과 응답 형식은 유지한다.
+- 검색 범위: 미선택은 전체, 시만 선택하면 해당 시의 모든 구·동 모임, 시·구 선택이면 해당 구의 모든 동 모임, 동 선택 시 해당 동이다. region 테이블에 상위 지역 컬럼이 채워진 행을 기준으로 조회한다. 존재하지 않거나 서로 맞지 않는 지역명 조합은 결과 0건이다. 실제 지역 존재 조회·DB 데이터 보정은 추가하지 않았다.
+- 테스트·명세: savingGroups.test.js에 전체·시·시/구·시/구/동·세종 빈 구 이름과 취소 신호 전달 검증을 추가했다. docs/saving-groups-api.md에 신규 파라미터·검증·범위·화면 동작을 갱신했다.
+- 실행 검증: node --test src/api/savingGroups.test.js 29개 통과, 변경 프론트 파일 oxlint 통과, npm run build 통과(기존 번들 크기 경고), git diff --check 통과.
+- 백엔드 검증 제한: gradlew.bat compileJava --offline은 기본 실행에서 Gradle 캐시 잠금 접근이 거부됐고, 권한 재시도 후에는 Java 17 toolchain 부재로 컴파일 전에 중단됐다. Java 21은 있으나 프로젝트 설정은 변경하지 않았다. 백엔드 컴파일·Validation·실제 SQL 실행 통과를 확인하지 못했다.
+- 수동 검증: 브라우저에서 전체→시→구→동 선택별 결과 및 2페이지 이후 지역 변경 시 첫 페이지 확인. Postman GET /api/saving-groups에 provinceName만, provinceName+districtName, 세 항목을 각각 보내 범위·건수를 비교한다. regionCode=01 단독은 기존 동작, regionCode+provinceName 및 districtName 단독·townName 단독은 400이어야 한다. 존재하지 않는 조합은 200 빈 목록이어야 한다. 세종은 provinceName+districtName=(빈 문자열)+townName으로 확인한다. 실제 DB region 상위 컬럼과 동 데이터 준비 여부도 확인한다.
+- 개발자 검토·수정: 검토 대기. 실제 브라우저·Postman·DB 검증은 미실행이다. DB·의존성·외부 서비스 변경 없음. 소모임 검색은 다음 단계 범위다.

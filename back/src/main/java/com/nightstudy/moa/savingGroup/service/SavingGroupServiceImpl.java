@@ -360,7 +360,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         String regionName = request.getRegionCode() == null ? null
                 : REGIONS.get(Integer.parseInt(request.getRegionCode()) - 1);
         SavingGroupListCondition condition = new SavingGroupListCondition(
+                // AI작성: 기존 코드 검색을 보존하고 새 지역 조건은 선택한 단계까지만 전달한다.
                 escapeKeyword(request.getKeyword()), regionName,
+                request.getProvinceName(), request.getDistrictName(), request.getTownName(),
                 0, PAGE_SIZE);
         int total = savingGroupMapper.selectSavingGroupCount(condition);
         PageMeta pageMeta = PageMeta.of(request.getPage(), PAGE_SIZE, total);

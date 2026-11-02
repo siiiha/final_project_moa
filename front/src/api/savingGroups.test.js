@@ -103,6 +103,30 @@ test('검색·지역·페이지를 전달하고 API 실패를 정상 데이터�
   } finally { client.get = original; }
 });
 
+// AI작성: 선택한 단계까지만 전달하고 전체 조회·세종·취소 신호·기존 코드 요청을 구분한다.
+test('시만 또는 시·구까지만 선택한 검색과 동 검색의 파라미터를 보존한다', async () => {
+  const original = client.get;
+  const signal = new AbortController().signal;
+  const areas = [
+    {},
+    { provinceName: '서울특별시' },
+    { provinceName: '서울특별시', districtName: '강남구' },
+    { provinceName: '서울특별시', districtName: '강남구', townName: '역삼동' },
+    { provinceName: '세종특별자치시', districtName: '', townName: '어진동' },
+  ];
+  try {
+    for (const area of areas) {
+      client.get = async (path, options) => {
+        assert.equal(path, '/saving-groups');
+        assert.deepEqual(options.params, { keyword: '산책', regionCode: undefined, ...area, page: 1 });
+        assert.equal(options.signal, signal);
+        return { data: { success: true, data: [], meta: { page: 1, size: 6, total: 0, totalPages: 0 } } };
+      };
+      await getSavingGroups({ keyword: '산책', ...area, page: 1, signal });
+    }
+  } finally { client.get = original; }
+});
+
 test('가입 신청 성공 응답을 그대로 반환한다', async () => {
   const originalAdapter = client.defaults.adapter;
   client.defaults.adapter = async (config) => ({

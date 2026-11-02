@@ -85,7 +85,12 @@ function SavingGroupsPage() {
   const [result, setResult] = useState({ items: [], totalElements: 0, totalPages: 0, requestKey: null, error: '' });
   const [searchError, setSearchError] = useState('');
   const [retry, setRetry] = useState(0);
-  const requestKey = JSON.stringify([submittedKeyword, currentPage, retry]);
+  // AI작성: ID는 선택 UI에서만 사용하고 검색은 정규 지역명으로 상위 범위를 지정한다.
+  const selectedDistrict = regionState.items.find((item) => item.regionId === Number(districtId));
+  const selectedTown = regionState.items.find((item) => item.regionId === Number(townId));
+  const districtName = districtId ? selectedDistrict?.districtName : undefined;
+  const townName = townId ? selectedTown?.townName : undefined;
+  const requestKey = JSON.stringify([submittedKeyword, province, districtName, townName, currentPage, retry]);
   const loading = result.requestKey !== requestKey;
   const error = result.error;
 
@@ -107,7 +112,9 @@ function SavingGroupsPage() {
     let active = true;
     getSavingGroups({
       keyword: submittedKeyword,
-      // AI작성: 2단계는 지역 선택 UI만 적용한다. 하위 지역을 포함한 검색 조건은 3단계에서 연결한다.
+      provinceName: province || undefined,
+      districtName,
+      townName,
       page: currentPage, signal: controller.signal,
     }).then((data) => {
       if (active) setResult({ ...data, requestKey, error: '' });
@@ -117,7 +124,7 @@ function SavingGroupsPage() {
           || '목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
     });
     return () => { active = false; controller.abort(); };
-  }, [submittedKeyword, currentPage, retry, requestKey]);
+  }, [submittedKeyword, province, districtName, townName, currentPage, retry, requestKey]);
 
   // AI작성: 서버와 동일하게 앞뒤 공백 제거 후 길이를 검사한다.
   const handleSearch = (event) => {
@@ -162,12 +169,17 @@ function SavingGroupsPage() {
             setProvince(value);
             setDistrictId('');
             setTownId('');
+            setCurrentPage(1);
           }}
           onDistrictChange={(value) => {
             setDistrictId(value);
             setTownId('');
+            setCurrentPage(1);
           }}
-          onTownChange={setTownId}
+          onTownChange={(value) => {
+            setTownId(value);
+            setCurrentPage(1);
+          }}
           onKeywordChange={setKeyword}
           onSearch={handleSearch}
         />
