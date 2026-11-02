@@ -129,8 +129,7 @@ public class AdminReportServiceImpl implements AdminReportService {
                 reportId,
                 request.getStatus(),
                 request.getProcessReason(),
-                restrictedUntil,
-                request.getRestrictionScope()
+                restrictedUntil
         );
 
         if (updatedCount != 1) {

@@ -1,6 +1,5 @@
 package com.nightstudy.moa.admin.mapper;
 
-import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
@@ -50,8 +49,7 @@ public interface AdminReportMapper {
             @Param("reportId") Long reportId,
             @Param("status") String status,
             @Param("processReason") String processReason,
-            @Param("restrictedUntil") LocalDateTime restrictedUntil,
-            @Param("restrictionScope") MemberRestrictionScope restrictionScope
+            @Param("restrictedUntil") LocalDateTime restrictedUntil
     );
 
 }

@@ -72,8 +72,7 @@ class AdminReportServiceImplTest {
                 10L,
                 "CONFIRMED",
                 "게시글 운영정책 위반",
-                restrictedUntil,
-                MemberRestrictionScope.CHAT
+                restrictedUntil
         )).thenReturn(1);
 
         adminReportService.processReport(10L, request);
@@ -143,8 +142,7 @@ class AdminReportServiceImplTest {
                 10L,
                 "CONFIRMED",
                 "게시글 운영정책 위반",
-                restrictedUntil,
-                MemberRestrictionScope.CONTENT
+                restrictedUntil
         )).thenReturn(1);
 
         adminReportService.processReport(10L, request);

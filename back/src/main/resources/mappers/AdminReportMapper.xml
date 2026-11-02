@@ -81,7 +81,19 @@
         rc.process_reason AS processReason,
         rc.created_at AS createdAt,
         rc.processed_at AS processedAt,
-        rc.restricted_until AS restrictedUntil
+        rc.restricted_until AS restrictedUntil,
+        <!-- AI작성: 신고 승인으로 적용된 현재 기능 제한 범위를 회원 제한 테이블에서 조회합니다. -->
+        CASE
+            WHEN rc.status = 'CONFIRMED' THEN (
+                SELECT mfr.restriction_scope
+                FROM member_feature_restriction mfr
+                WHERE mfr.member_id = rc.reported_member_id
+                  AND mfr.restricted_until &lt;=&gt; rc.restricted_until
+                ORDER BY mfr.restriction_scope
+                LIMIT 1
+            )
+            ELSE NULL
+        END AS restrictionScope
 
         FROM report_case rc
 
@@ -130,7 +142,19 @@
         rc.process_reason AS processReason,
         rc.created_at AS createdAt,
         rc.processed_at AS processedAt,
-        rc.restricted_until AS restrictedUntil
+        rc.restricted_until AS restrictedUntil,
+        <!-- AI작성: 처리 완료 화면의 제한 영역은 신고 대상 회원의 현재 기능 제한에서 조회합니다. -->
+        CASE
+            WHEN rc.status = 'CONFIRMED' THEN (
+                SELECT mfr.restriction_scope
+                FROM member_feature_restriction mfr
+                WHERE mfr.member_id = rc.reported_member_id
+                  AND mfr.restricted_until &lt;=&gt; rc.restricted_until
+                ORDER BY mfr.restriction_scope
+                LIMIT 1
+            )
+            ELSE NULL
+        END AS restrictionScope
 
         FROM report_case rc
 
