@@ -302,6 +302,12 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 동 데이터가 없으면 동 선택을 비활성화하고 구 단위 신청을 허용한다. 실제 DB 데이터는 이번 작업에서 추가하지 않는다.
 이번 3단계는 개설 화면만 변경했다. 서버의 구·동 단위 검증 강화와 승인 후 상세 표시 확인은 후속 단계다.
 
+<!-- AI작성: 4단계에서는 기존 요청 계약을 유지하고 개설 multipart 전송을 단위 검증했다. -->
+4단계: 기존 `createSavingGroupApplication`이 최종 `regionName`을 multipart 본문에 포함하므로 운영 코드 변경 없이 요청 테스트를 보강했다.
+구 단위·동 단위·부산·세종, 이미지 포함/미포함, 같은 FormData의 지역 변경 후 재요청, 서버 지역 오류·통신 실패 전달을 검증했다.
+이 검증은 client.post를 대체한 단위 테스트이며 브라우저 선택 초기화·실제 HTTP·DB 저장 성공을 검증한 것은 아니다.
+브라우저에서는 지역을 변경한 뒤 Network의 POST `/api/saving-group` Form Data에서 regionName이 최종 선택값 하나인지 확인해야 한다.
+
 `POST /api/saving-group`은 `multipart/form-data`로 아래 필드를 받는다.
 
 | 필드 | 타입 | 필수 | 검증 |

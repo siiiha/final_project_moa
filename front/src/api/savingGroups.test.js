@@ -3,7 +3,68 @@ import test from 'node:test';
 import client from './client.js';
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
-  approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests } from './savingGroups.js';
+  approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication } from './savingGroups.js';
+
+// AI작성: 구 단위·동 단위·세종 신청의 multipart 요청 계약을 네트워크 호출 없이 검증한다.
+test('개설 요청은 최종 지역명 하나와 기존 입력·이미지를 보존한다', async () => {
+  const original = client.post;
+  try {
+    for (const regionName of ['서울특별시 강남구', '서울특별시 강남구 역삼동', '부산광역시 해운대구', '세종특별자치시']) {
+      for (const withImage of [false, true]) {
+        const input = new FormData();
+        const fields = { groupName: '테스트 모임', groupType: '친목계', regionName,
+          maxMembers: '10', description: '지역 선택 검증', duesAmount: '30000', duesDay: '15' };
+        Object.entries(fields).forEach(([key, value]) => input.set(key, value));
+        if (withImage) input.set('groupImage', new File(['test image'], 'test.png', { type: 'image/png' }));
+        client.post = async (path, body) => {
+          assert.equal(path, '/saving-group');
+          assert.ok(body instanceof FormData);
+          assert.deepEqual(body.getAll('regionName'), [regionName]);
+          Object.entries(fields).forEach(([key, value]) => assert.equal(body.get(key), value));
+          assert.deepEqual([...body.keys()].sort(), [...Object.keys(fields), ...(withImage ? ['groupImage'] : [])].sort());
+          if (withImage) {
+            assert.equal(body.get('groupImage').name, 'test.png');
+            assert.equal(await body.get('groupImage').text(), 'test image');
+          }
+          return { data: { success: true } };
+        };
+        await createSavingGroupApplication(input);
+      }
+    }
+  } finally { client.post = original; }
+});
+
+// AI작성: 같은 입력 폼의 지역 변경 후 이전 지역명이 요청에 남지 않는지 확인한다.
+test('지역 변경 후 개설 요청은 이전 지역명을 포함하지 않는다', async () => {
+  const original = client.post;
+  const input = new FormData();
+  const sent = [];
+  try {
+    client.post = async (_path, body) => {
+      sent.push(body.getAll('regionName'));
+      return { data: { success: true } };
+    };
+    input.set('regionName', '서울특별시 강남구 역삼동');
+    await createSavingGroupApplication(input);
+    input.set('regionName', '부산광역시 해운대구');
+    await createSavingGroupApplication(input);
+    assert.deepEqual(sent, [['서울특별시 강남구 역삼동'], ['부산광역시 해운대구']]);
+  } finally { client.post = original; }
+});
+
+// AI작성: 지역 관련 서버 검증 오류와 통신 실패를 성공으로 처리하지 않는다.
+test('개설 요청은 서버 지역 오류 코드와 통신 실패를 전달한다', async () => {
+  const original = client.post;
+  try {
+    client.post = async () => { throw { response: { data: { error: {
+      code: 'REGION_NOT_FOUND', message: '활동 지역을 다시 선택해 주세요.' } } } }; };
+    await assert.rejects(() => createSavingGroupApplication(new FormData()),
+      (error) => error.code === 'REGION_NOT_FOUND' && error.message === '활동 지역을 다시 선택해 주세요.');
+    client.post = async () => { throw new Error('network failure'); };
+    await assert.rejects(() => createSavingGroupApplication(new FormData()),
+      (error) => error.code === 'SAVING_GROUP_APPLICATION_FAILED');
+  } finally { client.post = original; }
+});
 
 // AI작성: 추가 테스트 패키지 없이 카드 표시와 페이징·API 실패 계약을 검증한다.
 test('지역 코드는 01~10 순서이며 카드는 기존 필드와 표시 형식을 유지한다', () => {
