@@ -21,6 +21,7 @@ public interface AuthSessionService {
             Long memberId,
             String systemRole,
             String sessionId,
-            String tokenId
+            String tokenId,
+            long accessTokenExpiresAtMs
     );
 }

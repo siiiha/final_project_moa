@@ -96,7 +96,8 @@ class AdminSecurityIntegrationTest {
                 eq(1L),
                 eq(role),
                 eq("12345678-1234-1234-1234-123456789012"),
-                eq("token-id")
+                eq("token-id"),
+                eq(expiration.getTime())
         )).thenReturn(true);
     }
 }

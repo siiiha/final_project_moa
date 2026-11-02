@@ -98,7 +98,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     memberId,
                     systemRole,
                     sessionId,
-                    tokenId
+                    tokenId,
+                    claims.getExpiration().getTime()
             )) {
                 throw new IllegalArgumentException("유효하지 않은 로그인 세션");
             }

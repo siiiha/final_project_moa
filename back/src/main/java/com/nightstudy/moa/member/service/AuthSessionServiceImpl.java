@@ -237,12 +237,14 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             Long memberId,
             String systemRole,
             String sessionId,
-            String tokenId
+            String tokenId,
+            long accessTokenExpiresAtMs
     ) {
         if (memberId == null || memberId <= 0
                 || !isValidRole(systemRole)
                 || tokenId == null
-                || tokenId.isBlank()) {
+                || tokenId.isBlank()
+                || accessTokenExpiresAtMs <= System.currentTimeMillis()) {
             return false;
         }
 
@@ -253,13 +255,50 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             return false;
         }
 
-        return sessionMapper.countActiveSession(
+        AuthStateCache.CacheLookup<Boolean> revokedToken =
+                authStateCache.findRevokedToken(tokenId);
+
+        if (revokedToken.isHit()
+                && Boolean.TRUE.equals(revokedToken.value())) {
+            return false;
+        }
+
+        // AI작성: Valkey 장애가 감지되면 캐시 값을 신뢰하지 않고 MySQL 단일 인증 조회로 대체한다.
+        if (revokedToken.status()
+                != AuthStateCache.CacheLookup.Status.UNAVAILABLE) {
+            AuthStateCache.CacheLookup<AuthStateCache.SessionState>
+                    cachedSession = authStateCache.findSession(sessionId);
+
+            if (cachedSession.isHit()
+                    && isCachedSessionAllowed(
+                    cachedSession.value(),
+                    memberId,
+                    systemRole,
+                    sessionId
+            )) {
+                return true;
+            }
+        }
+
+        boolean allowed = sessionMapper.countActiveSession(
                 sessionId,
                 memberId,
                 systemRole,
                 System.currentTimeMillis(),
                 tokenId
         ) == 1;
+
+        // AI작성: 캐시 미스는 기존 MySQL 인증 결과로 복구하고, 현재 Access Token 만료 시각까지 보관한다.
+        if (allowed) {
+            authStateCache.saveSession(new AuthStateCache.SessionState(
+                    sessionId,
+                    memberId,
+                    systemRole,
+                    accessTokenExpiresAtMs
+            ));
+        }
+
+        return allowed;
     }
 
     // 난수 생성·SHA-256 해시 변환은 기존 유틸리티를 재사용
@@ -317,6 +356,19 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         }
 
         authStateCache.saveSession(sessionState);
+    }
+
+    private boolean isCachedSessionAllowed(
+            AuthStateCache.SessionState cachedSession,
+            Long memberId,
+            String systemRole,
+            String sessionId
+    ) {
+        return cachedSession != null
+                && sessionId.equals(cachedSession.sessionId())
+                && memberId.equals(cachedSession.memberId())
+                && systemRole.equals(cachedSession.systemRole())
+                && cachedSession.expiresAtMs() > System.currentTimeMillis();
     }
 
     private boolean isActiveMember(SocialLoginMemberDto member) {
