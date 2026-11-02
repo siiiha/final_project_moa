@@ -367,6 +367,19 @@ function PostDetailPage() {
     }
   };
 
+  // AI작성: 댓글 등록 후 서버의 최신 댓글 목록과 전체 개수를 다시 동기화합니다.
+  const refreshComments = async () => {
+    const response = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
+    if (!response.success) {
+      throw new Error(response.error?.message || '최신 댓글을 불러오지 못했습니다.');
+    }
+
+    setComments((response.data?.comments || []).map(mapComment));
+    setCommentPage(response.meta?.page || 1);
+    setCommentTotal(response.data?.totalCommentCount || 0);
+    setCommentTotalPages(response.meta?.totalPages || 0);
+  };
+
   const handleCommentSubmit = async (event) => {
     event.preventDefault();
     if (!token) {
@@ -403,6 +416,16 @@ function PostDetailPage() {
       setCommentText('');
       if (commentDraftKey) sessionStorage.removeItem(commentDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
+
+      try {
+        await refreshComments();
+      } catch (refreshError) {
+        setCommentErrorMessage(
+          refreshError.response?.data?.error?.message ||
+            refreshError.message ||
+            '댓글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
+        );
+      }
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '댓글 등록에 실패했습니다.'
@@ -478,6 +501,16 @@ function PostDetailPage() {
       setReplyText('');
       if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
+
+      try {
+        await refreshComments();
+      } catch (refreshError) {
+        setCommentErrorMessage(
+          refreshError.response?.data?.error?.message ||
+            refreshError.message ||
+            '답글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
+        );
+      }
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '답글 등록에 실패했습니다.'
