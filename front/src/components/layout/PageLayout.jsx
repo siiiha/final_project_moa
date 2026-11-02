@@ -1,22 +1,30 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Header from './Header';
-import useAuthStore from '../../store/authStore';
 
 const Main = styled.main`
-  min-height: calc(100vh - 56px);
+  min-height: ${({ $isSocialFlow }) =>
+    $isSocialFlow ? '100vh' : 'calc(100vh - 56px)'};
 `;
 
-// 헤더는 로그인 상태를 직접 확인하고, 본문에 현재 페이지를 표시
 function PageLayout() {
+  const { pathname, search } = useLocation();
+  const searchParams = new URLSearchParams(search);
+
+  // AI작성: 소셜 인증 결과·추가 가입 화면에서는 상단 메뉴를 숨긴다.
+  const isSocialFlow =
+    pathname === '/member/social/callback' ||
+    (pathname === '/member/join' &&
+      searchParams.get('social') === '1');
 
   return (
     <>
-      <Header />
-      <Main>
+      {!isSocialFlow && <Header />}
+      <Main $isSocialFlow={isSocialFlow}>
         <Outlet />
       </Main>
     </>
   );
 }
+
 export default PageLayout;

@@ -1,15 +1,14 @@
 package com.nightstudy.moa.member.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.*;
 import com.nightstudy.moa.member.service.MemberService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
 import jakarta.validation.Valid;
-import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
-import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import com.nightstudy.moa.member.dto.RegionVerificationRequest;
 import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
 import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
 
@@ -29,6 +28,29 @@ public class MemberProfileController {
             @RequestAttribute("memberId") Long memberId
     ) {
         MemberProfileResponse profile = memberService.getMyProfile(memberId);
+
+        return ResponseEntity.ok(ApiResponse.ok(profile));
+    }
+
+    // 로그인한 회원의 지역 인증 처리
+    @PostMapping("/me/region-verification")
+    public ResponseEntity<ApiResponse<MemberProfileResponse>> verifyRegion(
+            @RequestAttribute("memberId") Long memberId,
+            @Valid @RequestBody RegionVerificationRequest request
+    ) {
+        MemberProfileResponse profile =
+                memberService.verifyRegion(memberId, request);
+
+        return ResponseEntity.ok(ApiResponse.ok(profile));
+    }
+    // 로그인한 회원 본인의 활동 지역을 변경
+    @PutMapping("/me/region")
+    public ResponseEntity<ApiResponse<MemberProfileResponse>> updateMyRegion(
+            @RequestAttribute("memberId") Long memberId,
+            @Valid @RequestBody MemberRegionUpdateRequest request
+    ) {
+        MemberProfileResponse profile =
+                memberService.updateMyRegion(memberId, request);
 
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }

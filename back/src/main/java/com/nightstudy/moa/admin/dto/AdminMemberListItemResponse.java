@@ -16,6 +16,7 @@ public class AdminMemberListItemResponse {
     private String email;
     private String regionName;
     private String accountStatus;
+    private String activeRestrictionScopes;
     private LocalDateTime identityVerifiedAt;
     private LocalDateTime regionVerifiedAt;
     private LocalDateTime createdAt;

@@ -14,7 +14,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
-import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import com.nightstudy.moa.member.service.AuthSessionService;
 
 @Configuration
@@ -22,18 +21,15 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final SecurityErrorResponseWriter errorResponseWriter;
-    private final RevokedTokenMapper revokedTokenMapper;
     private final AuthSessionService authSessionService;
 
     public SecurityConfig(
             JwtTokenProvider jwtTokenProvider,
             SecurityErrorResponseWriter errorResponseWriter,
-            RevokedTokenMapper revokedTokenMapper,
             AuthSessionService authSessionService
     ) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.errorResponseWriter = errorResponseWriter;
-        this.revokedTokenMapper = revokedTokenMapper;
         this.authSessionService = authSessionService;
     }
 
@@ -47,7 +43,6 @@ public class SecurityConfig {
                 new JwtAuthenticationFilter (
                         jwtTokenProvider,
                         errorResponseWriter,
-                        revokedTokenMapper,
                         authSessionService
                 );
 
@@ -107,16 +102,30 @@ public class SecurityConfig {
                                 "/api/auth/naver/result"
                         ).permitAll()
 
-                        // 가입 전에도 약관 내용을 확인할 수 있도록 허용
+                        // AI작성: 회원가입 전에도 약관과 활동 지역 목록을 조회할 수 있도록 허용한다.
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/api/auth/terms"
+                                "/api/auth/terms",
+                                "/api/auth/regions"
                         ).permitAll()
 
-                        // AI작성: 계모임 목록은 비로그인 사용자도 조회할 수 있다.
+                        // AI작성: 공개 목록과 게시판 카테고리는 로그인 여부와 무관하게 조회를 허용한다.
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/api/saving-groups"
+                                "/api/saving-groups",
+                                "/api/small-groups",
+                                "/api/community/list",
+                                "/api/community/categories"
+                        ).permitAll()
+
+                        // AI작성: 숫자 게시글 ID의 상세 GET 요청은 비로그인 조회를 허용한다.
+                        .requestMatchers(
+                                new RegexRequestMatcher("^/api/community/detail/\\d+$", HttpMethod.GET.name())
+                        ).permitAll()
+
+                        // AI작성: 게시글의 댓글 목록은 작성·수정 권한과 분리해 공개 조회만 허용한다.
+                        .requestMatchers(
+                                new RegexRequestMatcher("^/api/post/\\d+/comments$", HttpMethod.GET.name())
                         ).permitAll()
 
                         // AI작성: 숫자 ID 상세만 공개하고 지역·카테고리 등 다른 소모임 API는 기존 인증 정책을 유지한다.

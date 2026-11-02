@@ -18,6 +18,7 @@ public class SavingGroupCreationApplicationDetailResponse {
     private String regionName;
     private LocalDateTime appliedAt;
     private String status;
+    private String type;
     private String groupType;
     private Integer maxMembers;
     private BigDecimal duesAmount;
@@ -25,5 +26,9 @@ public class SavingGroupCreationApplicationDetailResponse {
     private String description;
     private String groupImagePath;
     private String rejectReason;
+    private String requestReason;
+    private BigDecimal currentBalance;
+    private Boolean activeRound;
+    private Boolean pendingPayout;
     private LocalDateTime processedAt;
 }

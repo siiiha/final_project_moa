@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.nightstudy.moa.admin.service.AdminCommentService;
+import com.nightstudy.moa.admin.dto.AdminCommentListItemResponse;
+import com.nightstudy.moa.admin.dto.AdminCommentListResult;
+import com.nightstudy.moa.admin.dto.AdminCommentSearchCondition;
 import com.nightstudy.moa.comment.dto.CommentListResult;
 import com.nightstudy.moa.comment.dto.CommentResponse;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
@@ -40,6 +43,36 @@ class AdminCommentControllerTest {
                 .standaloneSetup(new AdminCommentController(adminCommentService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+    }
+
+    @Test
+    // AI작성: 전체 댓글 API가 목록과 페이징 정보를 공통 응답으로 반환한다.
+    void getAdminCommentListReturnsCommentsAndPageMeta() throws Exception {
+        AdminCommentListItemResponse comment = new AdminCommentListItemResponse();
+        comment.setCommentId(10L);
+        comment.setStatus("VISIBLE");
+        when(adminCommentService.getAdminCommentList(any(AdminCommentSearchCondition.class)))
+                .thenReturn(new AdminCommentListResult(
+                        List.of(comment),
+                        PageMeta.of(1, 10, 1)
+                ));
+
+        mockMvc.perform(get("/api/admin/comments")
+                        .param("keyword", "안내")
+                        .param("regionName", "서울")
+                        .param("status", "VISIBLE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].commentId").value(10))
+                .andExpect(jsonPath("$.data[0].status").value("VISIBLE"))
+                .andExpect(jsonPath("$.meta.total").value(1));
+    }
+
+    @Test
+    // AI작성: 공개·삭제 외의 상태 필터는 요청 검증에서 거부한다.
+    void getAdminCommentListRejectsInvalidStatus() throws Exception {
+        mockMvc.perform(get("/api/admin/comments").param("status", "HIDDEN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
     }
 
     @Test

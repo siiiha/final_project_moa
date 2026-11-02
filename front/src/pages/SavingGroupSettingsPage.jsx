@@ -4,7 +4,8 @@ import styled from 'styled-components';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import SavingGroupSettingsForm from '../components/savingGroup/SavingGroupSettingsForm';
-import { getSavingGroupSettings, updateSavingGroupSettings } from '../api/savingGroups';
+import { getSavingGroupSettings, requestSavingGroupDeletion, updateSavingGroupSettings } from '../api/savingGroups';
+import Textarea from '../components/common/Textarea';
 
 const Page = styled.div`
   width: 100%;
@@ -76,6 +77,8 @@ function SavingGroupSettingsPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [deletionError, setDeletionError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState('');
   const [retry, setRetry] = useState(0);
@@ -119,9 +122,23 @@ function SavingGroupSettingsPage() {
     }
   };
 
-  const handleDeleteConfirm = () => {
-    // TODO: Spring Boot 서버에 계모임 삭제 요청 API를 연결합니다.
-    setIsDeleteModalOpen(false);
+  const handleDeleteConfirm = async () => {
+    if (isSaving) return;
+    if (!deletionReason.trim()) {
+      setDeletionError('삭제 사유를 입력해 주세요.');
+      return;
+    }
+    setIsSaving(true);
+    setDeletionError('');
+    try {
+      await requestSavingGroupDeletion(settings.id, deletionReason.trim());
+      setIsDeleteModalOpen(false);
+      navigate(`/saving-groups/${id}`);
+    } catch (error) {
+      setDeletionError(error.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isLoading) {
@@ -182,7 +199,11 @@ function SavingGroupSettingsPage() {
           submitErrorMessage={saveErrorMessage}
           onSubmit={handleSubmit}
           onCancel={() => navigate(`/saving-groups/${id}`)}
-          onDeleteRequest={() => setIsDeleteModalOpen(true)}
+          onDeleteRequest={() => {
+            setDeletionReason('');
+            setDeletionError('');
+            setIsDeleteModalOpen(true);
+          }}
         />
       </Content>
       {isDeleteModalOpen && (
@@ -191,9 +212,19 @@ function SavingGroupSettingsPage() {
           description={`${settings.current.groupName}의 삭제를 요청하시겠습니까? 요청 내용은 운영진 확인 후 처리됩니다.`}
           confirmLabel="삭제 요청"
           confirmVariant="danger"
+          isBusy={isSaving}
           onConfirm={handleDeleteConfirm}
-          onCancel={() => setIsDeleteModalOpen(false)}
-        />
+          onCancel={() => !isSaving && setIsDeleteModalOpen(false)}
+        >
+          <Textarea
+            value={deletionReason}
+            onChange={(event) => setDeletionReason(event.target.value)}
+            maxLength="500"
+            placeholder="삭제 사유를 입력하세요"
+            aria-label="계모임 삭제 사유"
+          />
+          {deletionError && <EmptyText role="alert">{deletionError}</EmptyText>}
+        </ConfirmModal>
       )}
     </Page>
   );

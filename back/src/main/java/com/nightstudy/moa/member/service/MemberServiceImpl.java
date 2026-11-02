@@ -5,31 +5,27 @@ import java.util.ArrayList;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.MemberInsertDto;
-import com.nightstudy.moa.member.dto.MemberSignupRequest;
+import com.nightstudy.moa.member.dto.*;
 import com.nightstudy.moa.member.mapper.MemberMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.nightstudy.moa.member.dto.MemberLoginDto;
-import com.nightstudy.moa.member.dto.MemberLoginRequest;
-import com.nightstudy.moa.member.dto.SocialSignupRequest;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
-import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
-import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
-import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
-import com.nightstudy.moa.member.dto.PasswordResetRequest;
-import com.nightstudy.moa.member.dto.MemberTermDto;
+import com.nightstudy.moa.member.dto.MemberRegionDto;
+
 import java.util.List;
+
 import com.nightstudy.moa.common.config.PortOneProperties;
 import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
 import org.springframework.util.StringUtils;
+
 import java.util.UUID;
+
 import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
 import com.nightstudy.moa.member.dto.PortOneIdentityVerificationResponse;
 import org.springframework.transaction.annotation.Isolation;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -44,6 +40,7 @@ public class MemberServiceImpl implements MemberService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
     private final AuthSessionService authSessionService;
+    private final KakaoApiClient kakaoApiClient;
     private final PortOneProperties portOneProperties;
     private final PortOneApiClient portOneApiClient;
 
@@ -53,6 +50,7 @@ public class MemberServiceImpl implements MemberService {
             JwtTokenProvider jwtTokenProvider,
             EmailVerificationService emailVerificationService,
             AuthSessionService authSessionService,
+            KakaoApiClient kakaoApiClient,
             PortOneProperties portOneProperties,
             PortOneApiClient portOneApiClient
     ) {
@@ -61,6 +59,7 @@ public class MemberServiceImpl implements MemberService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
         this.authSessionService = authSessionService;
+        this.kakaoApiClient = kakaoApiClient;
         this.portOneProperties = portOneProperties;
         this.portOneApiClient = portOneApiClient;
     }
@@ -70,6 +69,12 @@ public class MemberServiceImpl implements MemberService {
     @Transactional(readOnly = true)
     public List<MemberTermDto> getTerms() {
         return memberMapper.findTerms();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberRegionDto> getRegions() {
+        return memberMapper.findRegions();
     }
 
     @Override
@@ -86,10 +91,6 @@ public class MemberServiceImpl implements MemberService {
     public Long signupSocial(SocialSignupRequest request) {
         MemberSignupRequest memberRequest = new MemberSignupRequest();
 
-        memberRequest.setEmail(request.getEmail());
-        memberRequest.setEmailVerificationToken(
-                request.getEmailVerificationToken()
-        );
         memberRequest.setName(request.getName());
         memberRequest.setNickname(request.getNickname());
         memberRequest.setPhone(request.getPhone());
@@ -107,10 +108,10 @@ public class MemberServiceImpl implements MemberService {
             MemberSignupRequest request,
             boolean socialSignup
     ) {
-        String email = request.getEmail().trim();
+        String email = socialSignup ? null : request.getEmail().trim();
         String nickname = request.getNickname().trim();
 
-        if (memberMapper.countByEmail(email) > 0) {
+        if (!socialSignup && memberMapper.countByEmail(email) > 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
                     "EMAIL_ALREADY_EXISTS",
@@ -130,7 +131,7 @@ public class MemberServiceImpl implements MemberService {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_REGION",
-                    "존재하지 않는 지역입니다."
+                    "활동 지역을 읍·면·동까지 선택해주세요."
             );
         }
 
@@ -179,11 +180,12 @@ public class MemberServiceImpl implements MemberService {
                     "필수 약관에 모두 동의해주세요."
             );
         }
-
-        emailVerificationService.consumeVerificationToken(
-                email,
-                request.getEmailVerificationToken()
-        );
+        if (!socialSignup) {
+            emailVerificationService.consumeVerificationToken(
+                    email,
+                    request.getEmailVerificationToken()
+            );
+        }
 
         MemberInsertDto member = new MemberInsertDto();
         member.setRegionId(request.getRegionId());
@@ -334,6 +336,156 @@ public class MemberServiceImpl implements MemberService {
         );
 
         return profile;
+    }
+
+    // 위치 정확도와 가입 활동 지역을 확인한 뒤 인증 시각 저장
+    @Override
+    @Transactional
+    public MemberProfileResponse verifyRegion(
+            Long memberId,
+            RegionVerificationRequest request
+    ) {
+        if (request == null
+                || request.getLatitude() == null
+                || request.getLongitude() == null
+                || request.getAccuracy() == null
+                || !Double.isFinite(request.getLatitude())
+                || !Double.isFinite(request.getLongitude())
+                || !Double.isFinite(request.getAccuracy())
+                || Math.abs(request.getLatitude()) > 90
+                || Math.abs(request.getLongitude()) > 180
+                || request.getAccuracy() <= 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_LOCATION",
+                    "현재 위치 정보를 다시 확인해주세요."
+            );
+        }
+
+        if (request.getAccuracy() > 500) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "LOCATION_ACCURACY_LOW",
+                    "위치가 정확하지 않습니다. 예상 오차 반경 500m 이하에서 다시 시도해주세요."
+            );
+        }
+
+        // 외부 조회를 마친 후 회원 행을 잠궈 DB 잠금 시간 줄임
+        KakaoRegionResponse.Region actualRegion = kakaoApiClient.getRegion(
+                request.getLatitude(),
+                request.getLongitude()
+        );
+
+        MemberLoginDto member = memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null || !"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "MEMBER_UNAVAILABLE",
+                    "현재 계정 상태에서는 지역 인증을 진행할 수 없습니다."
+            );
+        }
+
+        MemberProfileResponse profile = getMyProfile(memberId);
+
+        // 읍·면·동 선택이 없는 기존 회원은 지역을 보완한 후 인증
+        if (profile.getLegalCode() == null
+                || !profile.getLegalCode().matches("[0-9]{8}00")
+                || profile.getTownName() == null
+                || profile.getTownName().isBlank()) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "ACTIVITY_REGION_INCOMPLETE",
+                    "활동 지역을 읍·면·동까지 설정한 후 다시 인증해주세요."
+            );
+        }
+
+        // 리 단위 응답도 선택 단위인 읍·면·동 코드로 맞춰 비교
+        String actualTownCode =
+                actualRegion.getLegalCode().substring(0, 8) + "00";
+
+        if (!profile.getLegalCode().equals(actualTownCode)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "REGION_MISMATCH",
+                    "현재 위치가 가입한 읍·면·동과 다릅니다. 해당 지역에서 다시 시도해주세요."
+            );
+        }
+
+        int updated = memberMapper.markRegionVerified(
+                memberId,
+                profile.getRegionId()
+        );
+
+        // 이미 인증된 회원이 같은 시각에 재요청한 경우도 정상 처리
+        if (updated != 1 && !profile.isRegionVerified()) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "REGION_VERIFICATION_NOT_SAVED",
+                    "인증 결과를 저장하지 못했습니다. 다시 시도해주세요."
+            );
+        }
+
+        return getMyProfile(memberId);
+    }
+
+    // 로그인 회원의 활동 지역을 변경하고 지역이 달라지면 인증을 초기화
+    @Override
+    @Transactional
+    public MemberProfileResponse updateMyRegion(
+            Long memberId,
+            MemberRegionUpdateRequest request
+    ) {
+        if (request == null
+                || request.getRegionId() == null
+                || request.getRegionId() <= 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REGION",
+                    "활동 지역을 읍·면·동까지 선택해주세요."
+            );
+        }
+
+        MemberLoginDto member =
+                memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null || !"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "MEMBER_UNAVAILABLE",
+                    "현재 계정 상태에서는 활동 지역을 변경할 수 없습니다."
+            );
+        }
+
+        if (memberMapper.countRegionById(request.getRegionId()) != 1) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REGION",
+                    "활동 지역을 읍·면·동까지 선택해주세요."
+            );
+        }
+
+        MemberProfileResponse profile = getMyProfile(memberId);
+
+        // 같은 지역을 다시 저장하면 기존 인증 상태를 유지
+        if (request.getRegionId().equals(profile.getRegionId())) {
+            return profile;
+        }
+
+        int updated = memberMapper.updateMemberRegion(
+                memberId,
+                request.getRegionId()
+        );
+
+        if (updated != 1) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "REGION_UPDATE_FAILED",
+                    "활동 지역을 저장하지 못했습니다. 다시 시도해주세요."
+            );
+        }
+
+        return getMyProfile(memberId);
     }
 
     // 비밀번호와 입력값 검증 후 회원정보 수정
@@ -596,18 +748,18 @@ public class MemberServiceImpl implements MemberService {
         String currentPassword = request.getCurrentPassword();
 
         if (currentPassword == null
-            || currentPassword.isBlank()
-            || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
-            || member.getPasswordHash() == null
-            || !passwordEncoder.matches(
-                    currentPassword,
-                    member.getPasswordHash()
+                || currentPassword.isBlank()
+                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || member.getPasswordHash() == null
+                || !passwordEncoder.matches(
+                currentPassword,
+                member.getPasswordHash()
         )) {
-        throw new ApiException(
-            HttpStatus.BAD_REQUEST,
-                "INVALID_CURRENT_PASSWORD",
-                "현재 비밀번호가 올바르지 않습니다."
-    );
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CURRENT_PASSWORD",
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
         }
 
         int blockingGroupCount =

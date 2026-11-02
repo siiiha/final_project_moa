@@ -11,7 +11,6 @@ import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
 import com.nightstudy.moa.common.config.SecurityConfig;
 import com.nightstudy.moa.common.dto.PageMeta;
-import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import com.nightstudy.moa.member.service.AuthSessionService;
 import com.nightstudy.moa.post.dto.PostListResult;
 import io.jsonwebtoken.Claims;
@@ -48,9 +47,6 @@ class AdminSecurityIntegrationTest {
 
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
-
-    @MockitoBean
-    private RevokedTokenMapper revokedTokenMapper;
 
     @MockitoBean
     private AuthSessionService authSessionService;
@@ -95,11 +91,13 @@ class AdminSecurityIntegrationTest {
         when(claims.get("sid", String.class))
                 .thenReturn("12345678-1234-1234-1234-123456789012");
         when(claims.getExpiration()).thenReturn(expiration);
-        when(revokedTokenMapper.countByTokenId("token-id")).thenReturn(0);
+        // AI작성: 통합 인증 조회는 토큰 폐기 여부를 tokenId와 함께 검사한다.
         when(authSessionService.isAccessAllowed(
                 eq(1L),
                 eq(role),
-                eq("12345678-1234-1234-1234-123456789012")
+                eq("12345678-1234-1234-1234-123456789012"),
+                eq("token-id"),
+                eq(expiration.getTime())
         )).thenReturn(true);
     }
 }
