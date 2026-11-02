@@ -1,6 +1,9 @@
 package com.nightstudy.moa.smallGroup;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -17,6 +20,8 @@ import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import com.nightstudy.moa.member.service.AuthSessionService;
 import com.nightstudy.moa.smallGroup.controller.SmallGroupController;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListResponse;
+import com.nightstudy.moa.common.dto.PageMeta;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,7 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
         SecurityErrorResponseWriter.class,
         SmallGroupSecurityIntegrationTest.TestSecurityBootstrap.class
 })
-// AI작성: SecurityFilterChain에서 숫자 ID 소모임 상세만 비로그인 공개인지 검증한다.
+// AI작성: SecurityFilterChain에서 공개 상세·후기 목록과 인증이 필요한 변경 API를 구분하는지 검증한다.
 class SmallGroupSecurityIntegrationTest {
 
     @TestConfiguration
@@ -73,6 +78,21 @@ class SmallGroupSecurityIntegrationTest {
                 .andExpect(status().isOk());
 
         verify(smallGroupService).getSmallGroupDetail(1L, null);
+    }
+
+    // AI작성: 인증 헤더 없는 후기 GET은 필터 체인을 통과하고 memberId 없이 Service를 호출한다.
+    @Test
+    void publicSmallGroupReviewsAllowAnonymousRequest() throws Exception {
+        when(smallGroupService.getSmallGroupReviews(eq(1L), isNull(), any()))
+                .thenReturn(new SmallGroupReviewListResponse(List.of(), PageMeta.of(1, 8, 0)));
+
+        mockMvc.perform(get("/api/small-groups/1/reviews"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isEmpty())
+                .andExpect(jsonPath("$.meta.size").value(8));
+
+        verify(smallGroupService).getSmallGroupReviews(eq(1L), isNull(), any());
     }
 
     @Test

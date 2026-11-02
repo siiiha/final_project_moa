@@ -12,10 +12,16 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteParticipationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewSearchCondition;
 import java.util.List;
 
 // AI작성: 소모임 공개 목록의 검색·필터 조회 계약이다.
 public interface SmallGroupService {
+    // AI작성: 비로그인·미가입 사용자도 후기를 조회하며 해당 소모임 MANAGER는 접근을 제한한다.
+    SmallGroupReviewListResponse getSmallGroupReviews(
+            Long smallGroupId, Long memberId, SmallGroupReviewSearchCondition condition);
+
     // AI작성: 승인된 일반 모임원이 모임 다음 날부터 한 번만 후기를 등록하고 생성 ID를 반환한다.
     Long createSmallGroupReview(Long smallGroupId, Long memberId, SmallGroupReviewCreateRequest request);
 

@@ -4,6 +4,9 @@ import client from './client.js';
 import {
   createSmallGroup,
   createSmallGroupReview,
+  getSmallGroupReviews,
+  SmallGroupReviewListLoadError,
+  toSmallGroupReviewListItem,
   SmallGroupReviewCreateError,
   createSmallGroupVote,
   deleteSmallGroupVote,
@@ -35,6 +38,96 @@ import {
   participateSmallGroupVote,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+// AI작성: 페이지 요청·응답 변환·취소 전달을 검증하고 서버 정렬을 변경하지 않는다.
+test('후기 목록은 페이지와 취소 신호만 보내고 공개 항목과 페이징을 반환한다', async () => {
+  const originalGet = client.get;
+  const signal = new AbortController().signal;
+  const item = { smallGroupReviewId: 50, writerNickname: '모아회원', content: '즐거웠어요',
+    createdAt: '2026-11-01T12:00:00', rating: 0 };
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/small-groups/7/reviews');
+      assert.deepEqual(options, { params: { page: 2 }, signal });
+      return { data: { success: true, data: [{ ...item, writerId: 999 }, { ...item, smallGroupReviewId: 49, rating: 4.5 }],
+        meta: { page: 2, size: 8, total: 10, totalPages: 2 } } };
+    };
+    assert.deepEqual(await getSmallGroupReviews(7, { page: 2, signal, size: 100, keyword: '검색' }), {
+      items: [item, { ...item, smallGroupReviewId: 49, rating: 4.5 }],
+      currentPage: 2, pageSize: 8, totalElements: 10, totalPages: 2,
+    });
+  } finally { client.get = originalGet; }
+});
+
+test('후기 목록은 기본 페이지 1과 빈 목록을 처리하고 경로를 인코딩한다', async () => {
+  const originalGet = client.get;
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/small-groups/7%2F8/reviews');
+      assert.equal(options.params.page, 1);
+      return { data: { success: true, data: [], meta: { page: 1, size: 8, total: 0, totalPages: 0 } } };
+    };
+    assert.deepEqual(await getSmallGroupReviews('7/8'), {
+      items: [], currentPage: 1, pageSize: 8, totalElements: 0, totalPages: 0,
+    });
+  } finally { client.get = originalGet; }
+});
+
+test('후기 목록은 실패 봉투와 HTTP 오류의 서버 코드·메시지를 보존한다', async () => {
+  const originalGet = client.get;
+  try {
+    for (const code of ['ACCESS_DENIED', 'NOT_FOUND']) {
+      for (const throws of [false, true]) {
+        client.get = async () => {
+          const data = { success: false, error: { code, message: '조회할 수 없습니다.' } };
+          if (throws) { const error = new Error('HTTP error'); error.response = { data }; throw error; }
+          return { data };
+        };
+        await assert.rejects(getSmallGroupReviews(7), (error) => error instanceof SmallGroupReviewListLoadError
+          && error.code === code && error.message === '조회할 수 없습니다.');
+      }
+    }
+  } finally { client.get = originalGet; }
+});
+
+test('후기 목록은 잘못된 목록·페이징 응답을 거절한다', async () => {
+  const originalGet = client.get;
+  const valid = { page: 1, size: 8, total: 0, totalPages: 0 };
+  try {
+    for (const data of [null, { success: true, data: null, meta: valid },
+      { success: true, data: [], meta: null },
+      ...[{ page: 0 }, { size: 10 }, { total: -1 }, { totalPages: '0' }]
+        .map((patch) => ({ success: true, data: [], meta: { ...valid, ...patch } }))]) {
+      client.get = async () => ({ data });
+      await assert.rejects(getSmallGroupReviews(7), (error) => error.code === 'INVALID_RESPONSE');
+    }
+  } finally { client.get = originalGet; }
+});
+
+test('후기 항목은 별점 0·0.5·5와 문자열 ID를 보존하고 잘못된 필드를 거절한다', () => {
+  const item = { smallGroupReviewId: '50', writerNickname: '모아회원', content: '좋아요',
+    createdAt: '2026-11-01T12:00:00', rating: 0 };
+  for (const rating of [0, 0.5, 5]) {
+    assert.equal(toSmallGroupReviewListItem({ ...item, rating }).rating, rating);
+  }
+  for (const patch of [{ smallGroupReviewId: 0 }, { writerNickname: null }, { content: null },
+    { createdAt: null }, { rating: '4.5' }, { rating: 0.1 }, { rating: 5.5 }]) {
+    assert.throws(() => toSmallGroupReviewListItem({ ...item, ...patch }),
+      (error) => error instanceof SmallGroupReviewListLoadError && error.code === 'INVALID_RESPONSE');
+  }
+});
+
+test('후기 목록은 네트워크 오류를 변환하고 취소 오류는 그대로 전달한다', async () => {
+  const originalGet = client.get;
+  try {
+    client.get = async () => { throw new Error('Network Error'); };
+    await assert.rejects(getSmallGroupReviews(7), (error) => error instanceof SmallGroupReviewListLoadError
+      && error.code === 'SMALL_GROUP_REVIEW_LIST_LOAD_FAILED');
+    const canceled = Object.assign(new Error('canceled'), { code: 'ERR_CANCELED' });
+    client.get = async () => { throw canceled; };
+    await assert.rejects(getSmallGroupReviews(7), (error) => error === canceled);
+  } finally { client.get = originalGet; }
+});
 
 // AI작성: 별점 0점도 보존하고 작성자 등 불필요한 값이 전송되지 않는지 검증한다.
 test('소모임 후기 등록은 별점과 코멘트만 보내고 생성 ID를 반환한다', async () => {
