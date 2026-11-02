@@ -20,6 +20,8 @@ public interface AuthSessionService {
     boolean isAccessAllowed(
             Long memberId,
             String systemRole,
-            String sessionId
+            String sessionId,
+            String tokenId,
+            long accessTokenExpiresAtMs
     );
 }

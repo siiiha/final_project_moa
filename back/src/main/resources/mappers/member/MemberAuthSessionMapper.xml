@@ -91,7 +91,7 @@
         AND revoked_at IS NULL
     </update>
 
-    <!-- 현재 회원 상태와 권한까지 확인해 세션 접근을 허용 -->
+    <!-- AI작성: 세션·회원 상태와 로그아웃한 access token 여부를 한 번의 원격 DB 조회로 확인한다. -->
     <select id="countActiveSession" resultType="int">
         SELECT COUNT(*)
         FROM member_auth_session s
@@ -104,6 +104,11 @@
         AND m.account_status = 'ACTIVE'
         AND m.deleted_at IS NULL
         AND m.system_role = #{systemRole}
+        AND NOT EXISTS (
+            SELECT 1
+            FROM revoked_token r
+            WHERE r.token_id = #{tokenId}
+        )
     </select>
 
     <!-- 해당 회원의 아직 폐기되지 않은 모든 로그인 세션을 폐기 -->
