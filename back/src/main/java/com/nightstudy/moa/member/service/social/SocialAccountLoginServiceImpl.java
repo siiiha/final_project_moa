@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.social;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;

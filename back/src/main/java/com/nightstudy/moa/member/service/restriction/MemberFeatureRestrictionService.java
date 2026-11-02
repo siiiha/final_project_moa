@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.restriction;
 
 import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 

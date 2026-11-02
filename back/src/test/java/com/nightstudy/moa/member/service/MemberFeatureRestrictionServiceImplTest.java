@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.member.mapper.MemberFeatureRestrictionMapper;
+import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

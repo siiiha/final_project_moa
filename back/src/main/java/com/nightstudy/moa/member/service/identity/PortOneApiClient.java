@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.identity;
 
 import com.nightstudy.moa.common.config.PortOneProperties;
 import com.nightstudy.moa.common.exception.ApiException;

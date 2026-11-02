@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.social;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SocialSignupSessionManager.PendingSignup;
@@ -6,6 +6,7 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.social.SocialLoginResultDto;
 import com.nightstudy.moa.member.dto.social.SocialSignupRequest;
 import com.nightstudy.moa.member.mapper.MemberSocialAccountMapper;
+import com.nightstudy.moa.member.service.MemberService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

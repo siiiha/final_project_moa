@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.social.naver;
 
 import com.nightstudy.moa.member.dto.social.SocialLoginResultDto;
 

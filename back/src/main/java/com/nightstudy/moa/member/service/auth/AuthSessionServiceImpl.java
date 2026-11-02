@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.auth;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -8,6 +8,7 @@ import com.nightstudy.moa.member.dto.auth.MemberRefreshTokenDto;
 import com.nightstudy.moa.member.dto.social.SocialLoginMemberDto;
 import com.nightstudy.moa.member.exception.AuthSessionRevokedException;
 import com.nightstudy.moa.member.mapper.MemberAuthSessionMapper;
+import com.nightstudy.moa.member.service.email.EmailVerificationTokenProvider;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;

@@ -12,7 +12,7 @@ import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
 import com.nightstudy.moa.common.config.SecurityConfig;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
-import com.nightstudy.moa.member.service.AuthSessionService;
+import com.nightstudy.moa.member.service.auth.AuthSessionService;
 import com.nightstudy.moa.post.dto.PostListResult;
 import io.jsonwebtoken.Claims;
 import java.util.Date;

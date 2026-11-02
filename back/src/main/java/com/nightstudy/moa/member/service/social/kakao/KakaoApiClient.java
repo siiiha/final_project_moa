@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.social.kakao;
 
 import com.nightstudy.moa.common.config.KakaoOAuthProperties;
 import com.nightstudy.moa.common.exception.ApiException;

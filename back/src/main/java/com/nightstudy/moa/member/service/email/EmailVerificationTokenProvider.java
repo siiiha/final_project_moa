@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.email;
 
 import org.springframework.stereotype.Component;
 

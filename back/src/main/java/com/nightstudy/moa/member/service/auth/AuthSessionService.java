@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.auth;
 
 import com.nightstudy.moa.member.dto.auth.MemberAuthTokenDto;
 

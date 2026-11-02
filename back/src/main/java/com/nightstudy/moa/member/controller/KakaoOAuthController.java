@@ -6,7 +6,7 @@ import com.nightstudy.moa.common.auth.SocialSignupSessionManager;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.social.SocialLoginResultDto;
-import com.nightstudy.moa.member.service.KakaoOAuthService;
+import com.nightstudy.moa.member.service.social.kakao.KakaoOAuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;

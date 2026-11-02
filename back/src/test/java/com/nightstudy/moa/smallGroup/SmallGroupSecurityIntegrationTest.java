@@ -11,7 +11,7 @@ import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
 import com.nightstudy.moa.common.config.SecurityConfig;
 import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
-import com.nightstudy.moa.member.service.AuthSessionService;
+import com.nightstudy.moa.member.service.auth.AuthSessionService;
 import com.nightstudy.moa.smallGroup.controller.SmallGroupController;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import java.time.LocalDate;

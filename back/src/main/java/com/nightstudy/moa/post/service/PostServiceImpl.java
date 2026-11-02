@@ -1,7 +1,7 @@
 package com.nightstudy.moa.post.service;
 
 import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
-import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
+import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionService;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.dto.PostDto;

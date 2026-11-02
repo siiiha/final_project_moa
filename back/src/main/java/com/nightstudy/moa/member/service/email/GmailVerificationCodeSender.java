@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.member.service.email;
 
 import com.nightstudy.moa.common.exception.ApiException;
 import org.springframework.beans.factory.annotation.Value;
