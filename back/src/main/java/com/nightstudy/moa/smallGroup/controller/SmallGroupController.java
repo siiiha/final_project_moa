@@ -9,6 +9,7 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSearchCondition;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
@@ -49,6 +50,15 @@ public class SmallGroupController {
             SmallGroupService smallGroupService) {
         this.smallGroupCreationService = smallGroupCreationService;
         this.smallGroupService = smallGroupService;
+    }
+
+    // AI작성: JWT 회원 ID와 검증된 입력값만 전달하고 후기 등록 조건은 Service에서 판단한다.
+    @PostMapping("/{smallGroupId}/reviews")
+    public ApiResponse<Long> createReview(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SmallGroupReviewCreateRequest request) {
+        return ApiResponse.ok(smallGroupService.createSmallGroupReview(smallGroupId, memberId, request));
     }
 
     // AI작성: 소모임 개설 화면은 로그인한 사용자의 활동 지역만 조회한다.
