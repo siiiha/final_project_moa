@@ -58,7 +58,7 @@ public class SmallGroupController {
     // AI작성: 공개 조회는 인증 회원 ID를 선택적으로 전달하고 소모임 존재·MANAGER 제한·페이징은 Service에서 처리한다.
     @GetMapping("/{smallGroupId}/reviews")
     public ApiResponse<List<SmallGroupReviewListItemResponse>> getReviews(
-            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupId") Long smallGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @Valid @ModelAttribute SmallGroupReviewSearchCondition condition) {
         SmallGroupReviewListResponse result =
