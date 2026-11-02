@@ -3,6 +3,7 @@ package com.nightstudy.moa.admin.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -79,5 +81,27 @@ class AdminSavingGroupControllerTest {
         mockMvc.perform(get("/api/admin/saving-groups/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("SAVING_GROUP_NOT_FOUND"));
+    }
+
+    @Test
+    void restrictSavingGroupAcceptsRequiredReason() throws Exception {
+        mockMvc.perform(patch("/api/admin/saving-groups/1/restriction")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason":"운영정책 위반"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void releaseSavingGroupRestrictionRejectsMissingReason() throws Exception {
+        mockMvc.perform(patch("/api/admin/saving-groups/1/restriction/release")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason":""}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("BAD_REQUEST"));
     }
 }

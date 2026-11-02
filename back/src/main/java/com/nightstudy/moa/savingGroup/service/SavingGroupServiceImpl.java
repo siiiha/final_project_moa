@@ -50,6 +50,11 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
         }
+        // AI작성: 관리자 제한을 포함한 일시정지 상태에서는 가입 신청 관리 활동도 차단한다.
+        if (!"01".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
         validateSavingGroupOwner(target, memberId);
         int total = savingGroupMapper.selectSavingGroupJoinRequestCount(target.getGroupId(), status);
         PageMeta meta = PageMeta.of(page, 10, total);
@@ -114,6 +119,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
         }
+        if (!List.of("01", "02").contains(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
         validateSavingGroupOwner(target, memberId);
 
         SavingGroupMembershipRelationRow member = savingGroupMapper
@@ -163,6 +172,36 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (affectedRows != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_FAILED",
                     "계모임 상태가 변경되어 삭제할 수 없습니다. 다시 확인해주세요.");
+        }
+    }
+
+    @Override
+    @Transactional
+    // AI작성: 계모임과 계주 관계를 잠가 권한·중복 신청을 확인한 뒤 삭제 심사만 등록한다.
+    public void requestSavingGroupDeletion(Long savingGroupId, Long memberId, String reason) {
+        if (savingGroupId == null || savingGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupDeleteTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        validateSavingGroupDeleteOwner(target, memberId);
+        if ("00".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETION_APPLICATION_UNAVAILABLE",
+                    "개설 심사 중인 계모임은 삭제 심사를 신청할 수 없습니다.");
+        }
+        if (savingGroupMapper.countPendingSavingGroupDeletionApplication(target.getGroupId()) > 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETION_ALREADY_PENDING",
+                    "이미 처리 대기 중인 삭제 신청이 있습니다.");
+        }
+        if (savingGroupMapper.insertSavingGroupDeletionApplication(target.getGroupId(), reason.strip()) != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETION_APPLICATION_FAILED",
+                    "계모임 삭제 신청을 등록하지 못했습니다.");
         }
     }
 
@@ -273,6 +312,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.NOT_FOUND, "JOIN_REQUEST_NOT_FOUND", "해당 계모임의 가입 신청을 찾을 수 없습니다.");
         }
         validateSavingGroupOwner(target, memberId);
+        if (!"01".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
         if (!"PENDING".equals(request.getMembershipStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_NOT_PENDING",
                     "대기 중인 가입 신청만 " + actionName + "할 수 있습니다.");
@@ -358,6 +401,11 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (!isOwner) {
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_SETTINGS_FORBIDDEN",
                     "계주만 설정을 조회할 수 있습니다.");
+        }
+
+        if ("03".equals(authority.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "이용 제한된 계모임의 설정은 조회할 수 없습니다.");
         }
 
         if ("04".equals(authority.getStatus())) {

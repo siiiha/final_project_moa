@@ -67,19 +67,21 @@ const ContentField = styled(Field)`
   margin-top: 14px;
 `;
 
+// AI작성: 게시글 본문 입력창의 높이를 고정하고 긴 글은 내부 스크롤로 확인하게 한다.
 const Textarea = styled.textarea`
   ${ControlStyle}
-  min-height: 230px;
+  height: 320px;
   padding: 12px;
   line-height: 1.6;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.muted};
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    min-height: 200px;
+    height: 200px;
   }
 `;
 
@@ -183,20 +185,24 @@ function PostCreateForm({
         </Field>
         <Field>
           제목
+          {/* AI작성: 백엔드 제목 Validation과 동일하게 입력 단계에서 100자로 제한합니다. */}
           <Input
             value={title}
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder="제목을 입력하세요"
+            maxLength={100}
             required
           />
         </Field>
       </TopFields>
       <ContentField>
         내용
+        {/* AI작성: 백엔드 본문 Validation과 동일하게 입력 단계에서 5,000자로 제한합니다. */}
         <Textarea
           value={content}
           onChange={(event) => onContentChange(event.target.value)}
           placeholder="내용을 입력하세요"
+          maxLength={5000}
           required
         />
       </ContentField>

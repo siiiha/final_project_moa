@@ -1,5 +1,28 @@
 import client from './client.js';
 
+// AI작성: 관리자 계모임 심사의 API 코드와 화면 문구를 한곳에서 관리해 직접 문자열 비교를 줄인다.
+export const savingGroupReviewStatus = Object.freeze({
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+});
+
+export const savingGroupReviewType = Object.freeze({
+  CREATE: 'CREATE',
+  DELETE: 'DELETE',
+});
+
+export const savingGroupReviewStatusLabel = {
+  [savingGroupReviewStatus.PENDING]: '대기',
+  [savingGroupReviewStatus.APPROVED]: '승인',
+  [savingGroupReviewStatus.REJECTED]: '반려',
+};
+
+export const savingGroupReviewTypeLabel = {
+  [savingGroupReviewType.CREATE]: '개설 심사',
+  [savingGroupReviewType.DELETE]: '삭제 심사',
+};
+
 class SavingGroupCreationApplicationError extends Error {
   constructor(code, message) {
     super(message);
@@ -49,11 +72,11 @@ function formatApplicationDate(value) {
     .replace(/\s/g, '');
 }
 
-// AI작성: 관리자 개설 심사 화면은 CREATE 신청만 조회하는 실제 API 결과를 화면 필드로 변환한다.
-export async function getSavingGroupCreationApplications({ status, keyword, page = 1, signal } = {}) {
+// AI작성: 관리자 심사 화면에서 개설·삭제 신청을 같은 API로 조회하고 화면 필드로 변환한다.
+export async function getSavingGroupCreationApplications({ status, type, keyword, page = 1, signal } = {}) {
   try {
     const response = await client.get('/admin/saving-group-applications', {
-      params: { status: status || undefined, keyword: keyword || undefined, page },
+      params: { status: status || undefined, type: type || undefined, keyword: keyword || undefined, page },
       signal,
     });
     if (!response.data?.success || !Array.isArray(response.data.data) || !response.data.meta) {
@@ -69,7 +92,9 @@ export async function getSavingGroupCreationApplications({ status, keyword, page
         applicant: item.applicantName,
         region: item.regionName,
         appliedAt: formatApplicationDate(item.appliedAt),
-        status: { PENDING: '대기', APPROVED: '승인', REJECTED: '반려' }[item.status] || '상태 확인 필요',
+        status: savingGroupReviewStatusLabel[item.status] || '상태 확인 필요',
+        type: item.type,
+        reviewType: savingGroupReviewTypeLabel[item.type] || '유형 확인 필요',
       })),
       meta: response.data.meta,
     };
@@ -120,6 +145,23 @@ export async function rejectSavingGroupCreationApplication(approvalId, rejectRea
     }
   } catch (error) {
     throw toCreationApplicationError(error, '개설 신청 반려에 실패했습니다.');
+  }
+}
+
+// AI작성: 설정 화면의 내부 savingGroupId와 계주가 입력한 사유만 삭제 심사 API에 전달한다.
+export async function requestSavingGroupDeletion(savingGroupId, reason) {
+  try {
+    const response = await client.post(`/saving-groups/${encodeURIComponent(savingGroupId)}/deletion-applications`, {
+      reason,
+    });
+    if (!response.data?.success) {
+      throw new SavingGroupCreationApplicationError(
+        response.data?.error?.code || 'SAVING_GROUP_DELETION_APPLICATION_FAILED',
+        response.data?.error?.message || '계모임 삭제 신청에 실패했습니다.'
+      );
+    }
+  } catch (error) {
+    throw toCreationApplicationError(error, '계모임 삭제 신청에 실패했습니다.');
   }
 }
 

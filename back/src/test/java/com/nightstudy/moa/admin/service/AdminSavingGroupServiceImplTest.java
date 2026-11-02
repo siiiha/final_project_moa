@@ -10,9 +10,12 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionTarget;
 import com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +31,9 @@ class AdminSavingGroupServiceImplTest {
 
     @Mock
     private SavingGroupMapper savingGroupMapper;
+
+    @Mock
+    private SavingGroupService savingGroupService;
 
     @InjectMocks
     private AdminSavingGroupServiceImpl adminSavingGroupService;
@@ -79,5 +85,46 @@ class AdminSavingGroupServiceImplTest {
                     assertThat(exception.getStatus().value()).isEqualTo(404);
                     assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_NOT_FOUND");
                 });
+    }
+
+    @Test
+    void restrictSavingGroupReusesStatusChangeAndStoresHistory() {
+        AdminSavingGroupRestrictionTarget target = restrictionTarget("02");
+        AdminSavingGroupRestrictionRequest request = restrictionRequest("운영정책 위반");
+        when(adminSavingGroupMapper.selectRestrictionTargetForUpdate(1L)).thenReturn(target);
+        when(adminSavingGroupMapper.insertRestrictionHistory(1L, "RESTRICT", "운영정책 위반"))
+                .thenReturn(1);
+
+        adminSavingGroupService.restrictSavingGroup(1L, request);
+
+        verify(savingGroupService).changeSavingGroupStatus(101L, "03");
+        verify(adminSavingGroupMapper).insertRestrictionHistory(1L, "RESTRICT", "운영정책 위반");
+    }
+
+    @Test
+    void releaseRejectsOrdinaryPausedSavingGroupWithoutActiveRestrictionHistory() {
+        when(adminSavingGroupMapper.selectRestrictionTargetForUpdate(1L))
+                .thenReturn(restrictionTarget("03"));
+        when(adminSavingGroupMapper.selectLatestRestrictionAction(1L)).thenReturn(null);
+
+        assertThatThrownBy(() -> adminSavingGroupService.releaseSavingGroupRestriction(
+                1L, restrictionRequest("재검토 완료")))
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_NOT_ADMIN_RESTRICTED"));
+        verify(savingGroupService, never()).changeSavingGroupStatus(101L, "02");
+    }
+
+    private AdminSavingGroupRestrictionTarget restrictionTarget(String status) {
+        AdminSavingGroupRestrictionTarget target = new AdminSavingGroupRestrictionTarget();
+        target.setSavingGroupId(1L);
+        target.setGroupId(101L);
+        target.setStatus(status);
+        return target;
+    }
+
+    private AdminSavingGroupRestrictionRequest restrictionRequest(String reason) {
+        AdminSavingGroupRestrictionRequest request = new AdminSavingGroupRestrictionRequest();
+        request.setReason(reason);
+        return request;
     }
 }

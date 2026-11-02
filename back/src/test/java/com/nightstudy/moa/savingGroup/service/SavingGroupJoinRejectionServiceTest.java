@@ -121,6 +121,7 @@ class SavingGroupJoinRejectionServiceTest {
         SavingGroupJoinTargetRow target = new SavingGroupJoinTargetRow();
         target.setSavingGroupId(SAVING_GROUP_ID);
         target.setGroupId(GROUP_ID);
+        target.setStatus("01");
         target.setOwnerMemberId(ownerId);
         return target;
     }
