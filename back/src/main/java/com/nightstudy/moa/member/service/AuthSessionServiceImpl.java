@@ -184,6 +184,13 @@ public class AuthSessionServiceImpl implements AuthSessionService {
 
         // 서로 다른 세션이 전달돼도 항상 같은 순서로 잠금
         for (String sessionId : sessionIds) {
+            // AI작성: DB 폐기 전에 캐시를 먼저 삭제해, 커밋 직후 오래된 캐시가 인증에 쓰이지 않게 한다.
+            if (!authStateCache.removeSession(sessionId)) {
+                throw new IllegalStateException(
+                        "로그아웃 세션 캐시 삭제에 실패했습니다."
+                );
+            }
+
             MemberAuthSessionDto session =
                     sessionMapper.findSessionForUpdate(sessionId);
 
@@ -212,6 +219,13 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     public void revokeAllSessions(Long memberId) {
         if (memberId == null || memberId <= 0) {
             throw new IllegalArgumentException("유효한 회원 번호가 필요합니다.");
+        }
+
+        // AI작성: 비밀번호 변경 후 기존 캐시가 남아 인증되는 일을 막기 위해 DB 폐기보다 먼저 삭제한다.
+        if (!authStateCache.removeMemberSessions(memberId)) {
+            throw new IllegalStateException(
+                    "회원 세션 캐시 삭제에 실패했습니다."
+            );
         }
 
         sessionMapper.revokeAllSessionsByMemberId(memberId);
