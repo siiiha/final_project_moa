@@ -35,6 +35,11 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteOptionVoterNicknameRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteParticipationRequest;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateRequest;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateTargetRow;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashSet;
@@ -73,6 +78,93 @@ public class SmallGroupServiceImpl implements SmallGroupService {
 
     public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
         this.smallGroupMapper = smallGroupMapper;
+    }
+
+    // AI작성: 소모임·회원 관계를 잠가 권한·날짜·중복을 검증한 뒤 같은 트랜잭션에서 저장한다.
+    @Override
+    @Transactional
+    public Long createSmallGroupReview(
+            Long smallGroupId, Long memberId, SmallGroupReviewCreateRequest request) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        validateSmallGroupReviewRequest(request);
+
+        SmallGroupReviewCreateTargetRow target =
+                smallGroupMapper.selectSmallGroupReviewCreateTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        if (Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_REVIEW_OWNER_NOT_ALLOWED",
+                    "소모임 개설자는 후기를 등록할 수 없습니다.");
+        }
+        SmallGroupMemberRelationRow relation =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        // AI작성: MANAGER는 가입 상태와 무관하게 기존 소모임 접근 제한을 그대로 적용한다.
+        if (relation != null && "MANAGER".equals(relation.getMemberRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "접근 권한이 없습니다.");
+        }
+        if (relation == null || !"MEMBER".equals(relation.getMemberRole())
+                || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_REVIEW_CREATE_FORBIDDEN",
+                    "승인된 소모임 일반 모임원만 후기를 등록할 수 있습니다.");
+        }
+        // AI작성: 서버 기본 시간대와 무관하게 한국 날짜 기준 모임 다음 날부터 허용한다.
+        if (target.getMeetDate() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_REVIEW_MEET_DATE_REQUIRED",
+                    "모임 날짜가 설정되지 않아 후기를 등록할 수 없습니다.");
+        }
+        if (!target.getMeetDate().isBefore(LocalDate.now(KOREA_ZONE_ID))) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_REVIEW_NOT_AVAILABLE_YET",
+                    "후기는 모임 다음 날부터 등록할 수 있습니다.");
+        }
+        if (smallGroupMapper.selectSmallGroupReviewId(smallGroupId, memberId) != null) {
+            throw smallGroupReviewAlreadyExists();
+        }
+
+        SmallGroupReviewCreateCommand command = new SmallGroupReviewCreateCommand();
+        command.setSmallGroupId(smallGroupId);
+        command.setWriterId(memberId);
+        command.setRating(request.getRating());
+        command.setContent(request.getContent());
+        int insertedRows;
+        try {
+            insertedRows = smallGroupMapper.insertSmallGroupReview(command);
+        } catch (DuplicateKeyException exception) {
+            // AI작성: 사전 조회 이후 발생한 동시 중복 요청도 동일한 업무 오류로 응답한다.
+            throw smallGroupReviewAlreadyExists();
+        }
+        if (insertedRows != 1 || command.getSmallGroupReviewId() == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_REVIEW_CREATE_FAILED",
+                    "후기 등록에 실패했습니다.");
+        }
+        return command.getSmallGroupReviewId();
+    }
+
+    // AI작성: Service 직접 호출에서도 DB 반올림·문자열 잘림 전에 DTO와 같은 입력 정책을 검증한다.
+    private void validateSmallGroupReviewRequest(SmallGroupReviewCreateRequest request) {
+        if (request == null || request.getRating() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "별점은 필수입니다.");
+        }
+        BigDecimal rating = request.getRating();
+        if (rating.compareTo(BigDecimal.ZERO) < 0 || rating.compareTo(new BigDecimal("5.0")) > 0
+                || !request.isRatingStepValid()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "별점은 0~5점, 0.5점 단위로 입력해주세요.");
+        }
+        String content = request.getContent();
+        if (content == null || content.isBlank() || content.length() > 30) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "코멘트는 1자 이상 30자 이하로 입력해주세요.");
+        }
+    }
+
+    private ApiException smallGroupReviewAlreadyExists() {
+        // AI작성: 사전 중복 확인과 DB UNIQUE 위반에 동일한 오류 코드·메시지를 사용한다.
+        return new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_REVIEW_ALREADY_EXISTS",
+                "이미 이 소모임에 후기를 등록했습니다.");
     }
 
     // AI작성: 목록 조회는 삭제되지 않은 소모임 확인 후 승인된 OWNER·MEMBER 관계만 허용하고, 검색·필터·페이징 없이 반환한다.
