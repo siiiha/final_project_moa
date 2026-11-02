@@ -56,7 +56,7 @@
         FROM report_case
         WHERE report_type = #{reportType}
           AND target_id = #{targetId}
-          AND status = 'PENDING'
+          AND status = #{status}
         ORDER BY case_id DESC
         LIMIT 1
         FOR UPDATE

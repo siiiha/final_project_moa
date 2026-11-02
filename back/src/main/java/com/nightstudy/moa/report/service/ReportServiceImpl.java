@@ -4,6 +4,7 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.report.dto.MemberReportRecord;
 import com.nightstudy.moa.report.dto.ReportCaseRecord;
 import com.nightstudy.moa.report.dto.ReportCreateRequest;
+import com.nightstudy.moa.report.dto.ReportStatus;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.mapper.ReportMapper;
 import org.springframework.dao.DuplicateKeyException;
@@ -45,7 +46,7 @@ public class ReportServiceImpl implements ReportService {
         }
 
         Long caseId = reportMapper.selectPendingCaseId(
-                request.getReportType(), request.getTargetId());
+                request.getReportType(), request.getTargetId(), ReportStatus.PENDING);
         if (caseId == null) {
             ReportCaseRecord reportCase = new ReportCaseRecord(
                     request.getReportType(),

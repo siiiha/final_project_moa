@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.report.dto.MemberReportRecord;
 import com.nightstudy.moa.report.dto.ReportCaseRecord;
+import com.nightstudy.moa.report.dto.ReportStatus;
 import com.nightstudy.moa.report.dto.ReportCreateRequest;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.dto.ReportType;
@@ -35,7 +36,8 @@ class ReportServiceImplTest {
         ReportCreateRequest request = request(ReportType.POST, 10L);
         when(reportMapper.selectReportTarget(ReportType.POST, 10L))
                 .thenReturn(target(2L));
-        when(reportMapper.selectPendingCaseId(ReportType.POST, 10L)).thenReturn(null);
+        when(reportMapper.selectPendingCaseId(
+                ReportType.POST, 10L, ReportStatus.PENDING)).thenReturn(null);
         when(reportMapper.insertReportCase(any(ReportCaseRecord.class))).thenAnswer(invocation -> {
             ReportCaseRecord reportCase = invocation.getArgument(0);
             reportCase.setCaseId(100L);

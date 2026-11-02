@@ -2,6 +2,7 @@ package com.nightstudy.moa.report.mapper;
 
 import com.nightstudy.moa.report.dto.MemberReportRecord;
 import com.nightstudy.moa.report.dto.ReportCaseRecord;
+import com.nightstudy.moa.report.dto.ReportStatus;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.dto.ReportType;
 import org.apache.ibatis.annotations.Mapper;
@@ -23,7 +24,8 @@ public interface ReportMapper {
 
     Long selectPendingCaseId(
             @Param("reportType") ReportType reportType,
-            @Param("targetId") Long targetId
+            @Param("targetId") Long targetId,
+            @Param("status") ReportStatus status
     );
 
     int insertReportCase(ReportCaseRecord reportCase);
