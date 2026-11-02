@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.report.mapper.ReportMapper">
+    <!-- AI작성: 같은 대상의 동시 신고가 사건을 중복 생성하지 않도록 대상 행을 먼저 잠근다. -->
+    <select id="selectReportTarget"
+            resultType="com.nightstudy.moa.report.dto.ReportTarget">
+        <choose>
+            <!-- AI작성: 신고 유형 문자열을 중복 작성하지 않고 ReportType Enum 값을 직접 비교한다. -->
+            <when test="reportType == @com.nightstudy.moa.report.dto.ReportType@POST">
+                SELECT p.writer_id AS reported_member_id
+                FROM post p
+                JOIN members m ON m.member_id = p.writer_id
+                WHERE p.post_id = #{targetId}
+                  AND p.deleted_at IS NULL
+                  AND m.deleted_at IS NULL
+                FOR UPDATE
+            </when>
+            <when test="reportType == @com.nightstudy.moa.report.dto.ReportType@COMMENT">
+                SELECT c.writer_id AS reported_member_id
+                FROM comment c
+                JOIN members m ON m.member_id = c.writer_id
+                WHERE c.comment_id = #{targetId}
+                  AND c.deleted_at IS NULL
+                  AND m.deleted_at IS NULL
+                FOR UPDATE
+            </when>
+            <when test="reportType == @com.nightstudy.moa.report.dto.ReportType@MEMBER">
+                SELECT m.member_id AS reported_member_id
+                FROM members m
+                WHERE m.member_id = #{targetId}
+                  AND m.deleted_at IS NULL
+                FOR UPDATE
+            </when>
+            <!-- AI작성: 계모임과 소모임 모두 공통 모임 번호와 개설자를 사용해 중복 SQL 없이 검증한다. -->
+            <when test="reportType == @com.nightstudy.moa.report.dto.ReportType@GROUP">
+                SELECT g.member_id AS reported_member_id
+                FROM `groups` g
+                JOIN members m ON m.member_id = g.member_id
+                WHERE g.group_id = #{targetId}
+                  AND g.deleted_at IS NULL
+                  AND m.deleted_at IS NULL
+                FOR UPDATE
+            </when>
+            <!-- AI작성: 추후 추가된 신고 유형을 회원 신고로 잘못 처리하지 않는다. -->
+            <otherwise>
+                SELECT NULL AS reported_member_id
+                WHERE 1 = 0
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- AI작성: 처리 상태와 관계없이 같은 회원의 동일 대상 중복 신고를 차단한다. -->
+    <select id="countReporterTarget" resultType="int">
+        SELECT COUNT(*)
+        FROM member_report mr
+        JOIN report_case rc ON rc.case_id = mr.case_id
+        WHERE mr.reporter_id = #{reporterId}
+          AND rc.report_type = #{reportType}
+          AND rc.target_id = #{targetId}
+    </select>
+
+    <select id="selectPendingCaseId" resultType="long">
+        SELECT case_id
+        FROM report_case
+        WHERE report_type = #{reportType}
+          AND target_id = #{targetId}
+          AND status = #{status}
+        ORDER BY case_id DESC
+        LIMIT 1
+        FOR UPDATE
+    </select>
+
+    <insert id="insertReportCase"
+            useGeneratedKeys="true"
+            keyProperty="caseId"
+            keyColumn="case_id">
+        INSERT INTO report_case (report_type, target_id, reported_member_id)
+        VALUES (#{reportType}, #{targetId}, #{reportedMemberId})
+    </insert>
+
+    <insert id="insertMemberReport"
+            useGeneratedKeys="true"
+            keyProperty="reportId"
+            keyColumn="report_id">
+        INSERT INTO member_report (case_id, reporter_id, reason)
+        VALUES (#{caseId}, #{reporterId}, #{reason})
+    </insert>
+</mapper>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Button from '../common/Button';
+import GroupReportButton from '../common/GroupReportButton';
 import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
@@ -52,6 +53,17 @@ const JoinButton = styled(Button)`
     min-height: 34px;
     padding: 7px 10px;
     font-size: 12px;
+  }
+`;
+
+const ProfileActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    align-items: stretch;
+    flex-direction: column;
   }
 `;
 
@@ -429,6 +441,7 @@ function formatDateTime(value) {
 
 function SmallGroupDetail({
   group,
+  groupId,
   smallGroupId,
   myRole = null,
   activeMenu,
@@ -514,16 +527,22 @@ function SmallGroupDetail({
               {createdAt && <><span>·</span><span>생성일 {createdAt}</span></>}
             </Meta>
           </TitleBlock>
-          {canRequestJoin && (
-            <JoinButton
-              type="button"
-              onClick={onJoinRequest}
-              disabled={isJoinSubmitting}
-              aria-busy={isJoinSubmitting}
-            >
-              {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
-            </JoinButton>
-          )}
+          <ProfileActions>
+            {canRequestJoin && (
+              <JoinButton
+                type="button"
+                onClick={onJoinRequest}
+                disabled={isJoinSubmitting}
+                aria-busy={isJoinSubmitting}
+              >
+                {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
+              </JoinButton>
+            )}
+            {/* AI작성: OWNER의 본인 신고 진입을 숨기고 그 외 사용자는 공통 신고 흐름을 재사용한다. */}
+            {myRole !== 'OWNER' && (
+              <GroupReportButton groupId={groupId} groupLabel="소모임" />
+            )}
+          </ProfileActions>
         </ProfileTop>
         <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>

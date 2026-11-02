@@ -3,6 +3,7 @@ import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
+import GroupReportButton from '../common/GroupReportButton';
 import SavingGroupMenuTabs from './SavingGroupMenuTabs';
 import SavingGroupJoinRequestsPanel from './SavingGroupJoinRequestsPanel';
 import SavingGroupMembersPanel from './SavingGroupMembersPanel';
@@ -58,6 +59,18 @@ const JoinButton = styled(Button)`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     width: 100%;
+  }
+`;
+
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
   }
 `;
 
@@ -241,9 +254,15 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
             <Title>{group.groupName}</Title>
             <StatusBadge $ongoing={group.status === '02'}>{statusLabel}</StatusBadge>
           </TitleLine>
-          <JoinButton type="button" onClick={onJoinRequest} disabled={isJoinSubmitting} aria-busy={isJoinSubmitting}>
-            {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
-          </JoinButton>
+          <HeaderActions>
+            <JoinButton type="button" onClick={onJoinRequest} disabled={isJoinSubmitting} aria-busy={isJoinSubmitting}>
+              {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
+            </JoinButton>
+            {/* AI작성: 모임장은 본인 모임을 신고할 수 없으므로 일반 사용자에게만 공통 신고 버튼을 제공한다. */}
+            {group.myRole !== 'OWNER' && (
+              <GroupReportButton groupId={group.groupId} groupLabel="계모임" />
+            )}
+          </HeaderActions>
         </HeaderTop>
         <Description>{group.description?.trim() || '소개글이 없습니다.'}</Description>
         <MetaList>
