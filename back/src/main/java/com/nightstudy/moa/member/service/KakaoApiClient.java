@@ -3,6 +3,7 @@ package com.nightstudy.moa.member.service;
 import com.nightstudy.moa.common.config.KakaoOAuthProperties;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.KakaoRegionResponse;
+import com.nightstudy.moa.member.dto.KakaoPlaceResponse;
 import com.nightstudy.moa.member.dto.KakaoTokenResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -12,6 +13,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriComponentsBuilder;
 import com.nightstudy.moa.member.dto.KakaoUserResponse;
 
 import java.net.http.HttpClient;
@@ -129,6 +131,40 @@ public class KakaoApiClient {
         }
 
         return userResponse.getId();
+    }
+
+    // AI작성: 기존 지역 인증의 HTTP Client·키·타임아웃을 재사용하며 검색어나 위치를 로그에 남기지 않는다.
+    public KakaoPlaceResponse searchPlaces(String query, int page, int size,
+            Double latitude, Double longitude, Integer radius, String sort) {
+        UriComponentsBuilder uri = UriComponentsBuilder
+                .fromUriString("https://dapi.kakao.com/v2/local/search/keyword.json")
+                .queryParam("query", "{query}")
+                .queryParam("page", page).queryParam("size", size).queryParam("sort", sort);
+        if (latitude != null && longitude != null) {
+            uri.queryParam("x", longitude).queryParam("y", latitude);
+        }
+        if (radius != null) uri.queryParam("radius", radius);
+
+        KakaoPlaceResponse response;
+        try {
+            // AI작성: 검색어를 URI 변수로 인코딩해 특수문자가 다른 요청 파라미터로 해석되지 않게 한다.
+            response = restClient.get()
+                    .uri(uri.encode().buildAndExpand(query).toUri())
+                    .header("Authorization", "KakaoAK " + properties.getClientId())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve().body(KakaoPlaceResponse.class);
+        } catch (RestClientException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "KAKAO_PLACE_REQUEST_FAILED",
+                    "장소를 검색하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        if (response == null || response.getDocuments() == null || response.getMeta() == null
+                || response.getMeta().getTotalCount() == null || response.getMeta().getTotalCount() < 0
+                || response.getMeta().getPageableCount() == null || response.getMeta().getPageableCount() < 0
+                || response.getMeta().getEnd() == null) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "KAKAO_PLACE_RESPONSE_INVALID",
+                    "장소 검색 응답을 확인할 수 없습니다. 다시 시도해 주세요.");
+        }
+        return response;
     }
 
     // 현재 좌표의 시·도와 시·군·구를 카카오에서 조회
