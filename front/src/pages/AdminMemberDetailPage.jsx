@@ -74,6 +74,11 @@ function AdminMemberDetailPage() {
   const handleStatusSubmit = async (event) => {
     event.preventDefault();
     if (submitting) return;
+    // AI작성: 화면 조작 여부와 관계없이 관리자 계정 대상 요청은 확인 모달 전에 차단한다.
+    if (member.systemRole === 'ADMIN') {
+      setErrorMessage('관리자 계정은 이용을 제한할 수 없습니다.');
+      return;
+    }
     if (!reason.trim()) {
       setErrorMessage('처리 사유를 입력해주세요.');
       return;
@@ -86,6 +91,11 @@ function AdminMemberDetailPage() {
 
   const handleStatusConfirm = async () => {
     if (submitting) return;
+    if (member.systemRole === 'ADMIN') {
+      setConfirmOpen(false);
+      setErrorMessage('관리자 계정은 이용을 제한할 수 없습니다.');
+      return;
+    }
 
     setSubmitting(true);
     setMessage('');
@@ -171,8 +181,8 @@ function AdminMemberDetailPage() {
           title={action === '이용 제한' ? '회원 이용 제한' : '회원 제한 해제'}
           description={
             action === '이용 제한'
-              ? `${member.name} 회원의 ${restrictionScopeLabel} 기능을 ${restrictionTypeLabel} 동안 제한합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
-              : `${member.name} 회원의 ${restrictionScopeLabel} 기능 제한을 해제합니다. 사유: ${reason.trim()}${errorMessage ? ` 처리에 실패했습니다. ${errorMessage} 다시 시도하세요.` : ''}`
+              ? `${member.name} 회원의 ${restrictionScopeLabel} 기능을 ${restrictionTypeLabel} 동안 제한하시겠습니까?`
+              : `${member.name} 회원의 ${restrictionScopeLabel} 기능 제한을 해제하시겠습니까?`
           }
           confirmLabel={submitting ? '처리 중...' : action}
           confirmVariant={action === '이용 제한' ? 'danger' : 'primary'}

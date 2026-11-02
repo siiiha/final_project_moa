@@ -49,6 +49,8 @@ function mapMember(member) {
     // AI작성: 계정 이용 정지를 우선 표시하고 ACTIVE 회원의 기능 제한은 제재로 구분한다.
     status: formatStatus(member.accountStatus, restrictionScopes.length > 0),
     accountStatus: member.accountStatus,
+    // AI작성: 관리자 계정의 이용 제한 UI를 비활성화할 수 있도록 시스템 역할을 보존한다.
+    systemRole: member.systemRole,
     restrictionScopes,
   };
 }
