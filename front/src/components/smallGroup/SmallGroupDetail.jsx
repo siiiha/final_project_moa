@@ -9,6 +9,7 @@ import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
 import SmallGroupReviewCreateModal from './SmallGroupReviewCreateModal';
 import SmallGroupReviewsPanel from './SmallGroupReviewsPanel';
 import SmallGroupReviewWriteAction from './SmallGroupReviewWriteAction';
+import SmallGroupPlacesPanel from './SmallGroupPlacesPanel';
 import useAuthStore from '../../store/authStore';
 
 const Profile = styled.section`
@@ -458,6 +459,8 @@ function SmallGroupDetail({
   const [reviewResult, setReviewResult] = useState(null);
   // AI작성: 로그인 계정이 바뀌면 이전 계정의 완료 상태와 작성 여부를 재사용하지 않는다.
   const authVersion = useAuthStore((state) => state.authVersion);
+  // AI작성: 로그아웃 시 이전 역할 정보가 남아도 장소 검색 화면과 위치 상태를 즉시 폐기한다.
+  const hasLogin = useAuthStore((state) => Boolean(state.token));
   const reviewCompleted = reviewResult?.smallGroupId === smallGroupId && reviewResult?.authVersion === authVersion;
   // AI작성: 실제 등록 성공 때만 목록을 다시 마운트해 이전 요청을 취소하고 첫 페이지부터 재조회한다.
   const [reviewListVersion, setReviewListVersion] = useState(0);
@@ -482,7 +485,7 @@ function SmallGroupDetail({
   // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
   const currentMenu = allowedMenuItems.some((item) => item.id === activeMenu) ? activeMenu : 'notice';
   const activeLabel = {
-    directions: '길찾기',
+    directions: '장소 찾기',
     poll: '투표',
     review: '후기',
     settings: '설정',
@@ -612,6 +615,10 @@ function SmallGroupDetail({
             />
           )}
         </PollContent>
+      ) : currentMenu === 'directions' ? (
+        /* AI작성: 역할·계정·소모임 전환 때 이전 위치·결과·요청을 재사용하지 않는다. */
+        hasLogin ? <SmallGroupPlacesPanel key={`${smallGroupId}:${myRole}:${authVersion}`} smallGroupId={smallGroupId} />
+          : <Placeholder role="alert">로그인 후 이용해 주세요.</Placeholder>
       ) : currentMenu === 'settings' ? (
         <SettingsContent>
           {isSettingsLoading ? (

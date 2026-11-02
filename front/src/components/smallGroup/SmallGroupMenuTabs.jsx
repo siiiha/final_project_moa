@@ -50,7 +50,8 @@ const MenuButton = styled.button`
 
 const commonMenuItems = [
   { id: 'notice', label: '공지' },
-  { id: 'directions', label: '길찾기' },
+  // AI작성: 기존 탭 식별자는 유지하고 이번 구현 범위인 장소 검색으로 문구만 변경한다.
+  { id: 'directions', label: '장소 찾기' },
   { id: 'poll', label: '투표' },
   { id: 'review', label: '후기' },
 ];
