@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `group_account` (
 	`account_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`group_id`	BIGINT	NOT NULL,
 	`bank_code`	VARCHAR(20)	NOT NULL,
-	`account_number`	VARCHAR(50)	NOT NULL,
+	`account_number`	VARCHAR(255)	NOT NULL,
 	`account_holder_name`	VARCHAR(100)	NOT NULL,
 	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (`account_id`)
