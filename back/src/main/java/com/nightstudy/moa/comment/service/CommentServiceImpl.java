@@ -45,12 +45,13 @@ public class CommentServiceImpl implements CommentService {
     public CommentDto insertComment(Long postId, Long memberId, String content) {
         validateContentAllowed(memberId);
 
-        validatePostExists(postId);
+        lockActivePostForCommentCreation(postId);
 
         CommentDto comment = new CommentDto();
         comment.setPostId(postId);
         comment.setMemberId(memberId);
-        comment.setContent(content);
+        // AI작성: 클라이언트 종류와 관계없이 댓글 저장값의 앞뒤 공백을 제거한다.
+        comment.setContent(content.trim());
 
         int insertRows = commentMapper.insertComment(comment);
 
@@ -70,12 +71,15 @@ public class CommentServiceImpl implements CommentService {
     public CommentDto insertReply(Long postId, Long parentCommentId, Long memberId, String content) {
         validateContentAllowed(memberId);
 
-        validatePostExists(postId);
+        lockActivePostForCommentCreation(postId);
 
-        CommentDto parentComment = commentMapper.selectCommentById(parentCommentId);
+        CommentDto parentComment = commentMapper.selectActiveCommentForUpdate(
+                postId,
+                parentCommentId
+        );
 
         // AI작성: 다른 게시글의 댓글, 삭제된 댓글, 대댓글에는 답글을 등록할 수 없습니다.
-        if (parentComment == null || !Objects.equals(parentComment.getPostId(), postId)) {
+        if (parentComment == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "PARENT_COMMENT_NOT_FOUND",
@@ -89,12 +93,12 @@ public class CommentServiceImpl implements CommentService {
                     "대댓글에는 답글을 작성할 수 없습니다."
             );
         }
-
         CommentDto reply = new CommentDto();
         reply.setPostId(postId);
         reply.setParentId(parentCommentId);
         reply.setMemberId(memberId);
-        reply.setContent(content);
+        // AI작성: 대댓글도 일반 댓글과 동일한 공백 정규화 규칙을 적용한다.
+        reply.setContent(content.trim());
 
         if (commentMapper.insertComment(reply) != 1) {
             throw new ApiException(
@@ -184,6 +188,8 @@ public class CommentServiceImpl implements CommentService {
             throw new ApiException(HttpStatus.FORBIDDEN, "COMMENT_UPDATE_FORBIDDEN", "댓글 수정 권한이 없습니다.");
         }
 
+        // AI작성: 수정 비교와 DB 저장에 동일한 공백 제거 값을 사용한다.
+        request.setContent(request.getContent().trim());
         if (comment.getContent().equals(request.getContent())) {
             return comment;
         }
@@ -239,6 +245,17 @@ public class CommentServiceImpl implements CommentService {
     // AI작성: 댓글 기능에서 반복되는 활성 게시글 존재 검증을 한 곳에서 처리합니다.
     private void validatePostExists(Long postId) {
         if (postMapper.countPostById(postId) == 0) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
+    }
+
+    // AI작성: 댓글 등록 완료 전 게시글 삭제가 끼어들지 못하도록 활성 게시글 행에 배타적 잠금을 겁니다.
+    private void lockActivePostForCommentCreation(Long postId) {
+        if (postMapper.selectActivePostIdForUpdate(postId) == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "POST_NOT_FOUND",

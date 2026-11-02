@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.post.dto.PostDto;
 import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
@@ -28,6 +29,10 @@ class PostServiceImplTest {
     @Mock
     private PostMapper postMapper;
 
+    // AI작성: 게시글 변경 전에 수행되는 CONTENT 이용 제한 검사를 Mock으로 주입한다.
+    @Mock
+    private MemberFeatureRestrictionService restrictionService;
+
     @InjectMocks
     private PostServiceImpl postService;
 
@@ -45,6 +50,19 @@ class PostServiceImplTest {
         assertThat(result.getPageMeta().getTotal()).isEqualTo(1);
         assertThat(condition.getOffset()).isZero();
         assertThat(condition.getLimit()).isEqualTo(10);
+    }
+
+    @Test
+    // AI작성: 검색 결과가 없으면 불필요한 게시글 목록 SQL을 실행하지 않는지 확인한다.
+    void getPostListSkipsListQueryWhenEmpty() {
+        PostSearchCondition condition = new PostSearchCondition();
+        when(postMapper.selectPostListCount(condition)).thenReturn(0);
+
+        PostListResult result = postService.getPostList(condition);
+
+        assertThat(result.getPostList()).isEmpty();
+        assertThat(result.getPageMeta().getTotal()).isZero();
+        verify(postMapper, never()).selectPostList(condition);
     }
 
     @Test
