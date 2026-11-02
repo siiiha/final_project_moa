@@ -96,6 +96,18 @@ const Author = styled.h3`
   font-weight: 800;
 `;
 
+const AuthorInfo = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+`;
+
+const CommentDate = styled.time`
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 12px;
+`;
+
 const CommentText = styled.p`
   margin-top: 7px;
   color: ${({ theme }) => theme.colors.secondaryText};
@@ -194,6 +206,21 @@ const ReplyForm = styled(CommentEditForm)`
   border-left: 2px solid ${({ theme }) => theme.colors.primarySoft};
 `;
 
+// AI작성: 댓글과 대댓글 작성일을 동일한 한국어 날짜·시간 형식으로 표시한다.
+function formatCommentDate(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
 function PostDetail({
   post,
   memberId,
@@ -259,7 +286,10 @@ function PostDetail({
           {comments.map((comment) => (
             <Comment key={comment.id}>
               <CommentHeader>
-                <Author>{comment.author}</Author>
+                <AuthorInfo>
+                  <Author>{comment.author}</Author>
+                  <CommentDate dateTime={comment.createdAt}>{formatCommentDate(comment.createdAt)}</CommentDate>
+                </AuthorInfo>
                 {!comment.deleted && (
                   <ReplyActions>
                     {/* AI작성: 원댓글에만 한 단계 답글 작성 버튼을 제공합니다. */}
@@ -329,7 +359,10 @@ function PostDetail({
               {comment.replies.map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>
-                    <Author>↳ {reply.author}</Author>
+                    <AuthorInfo>
+                      <Author>↳ {reply.author}</Author>
+                      <CommentDate dateTime={reply.createdAt}>{formatCommentDate(reply.createdAt)}</CommentDate>
+                    </AuthorInfo>
                     {!reply.deleted && (
                       <ReplyActions>
                         {/* AI작성: 대댓글은 한 단계만 허용하므로 수정과 삭제 기능만 제공합니다. */}
