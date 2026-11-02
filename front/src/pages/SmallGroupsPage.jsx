@@ -5,7 +5,8 @@ import styled from 'styled-components';
 import Button from '../components/common/Button';
 import SmallGroupFilterBar from '../components/smallGroup/SmallGroupFilterBar';
 import SmallGroupList from '../components/smallGroup/SmallGroupList';
-import { fetchSmallGroupCategories, getSmallGroups, smallGroupRegionOptions } from '../api/smallGroups';
+import { fetchSmallGroupCategories, getSmallGroups } from '../api/smallGroups';
+import { getMemberRegions } from '../api/member';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -80,7 +81,12 @@ function SmallGroupsPage() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [region, setRegion] = useState('전체');
+  // AI작성: 구·동은 선택 사항이며 회원가입·지역 인증의 조회 함수를 재사용한다.
+  const [province, setProvince] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const [townId, setTownId] = useState('');
+  const [regionState, setRegionState] = useState({ items: [], loading: true, error: '' });
+  const [regionRetry, setRegionRetry] = useState(0);
   const [interest, setInterest] = useState('전체');
   const [currentPage, setCurrentPage] = useState(1);
   const [retry, setRetry] = useState(0);
@@ -88,10 +94,25 @@ function SmallGroupsPage() {
   const [categoryState, setCategoryState] = useState({ items: [], loading: true, error: '' });
   const [categoryRetry, setCategoryRetry] = useState(0);
   const [searchError, setSearchError] = useState('');
-  const regions = ['전체', ...smallGroupRegionOptions.map((item) => item.name)];
+  const selectedDistrict = regionState.items.find((item) => item.regionId === Number(districtId));
+  const selectedTown = regionState.items.find((item) => item.regionId === Number(townId));
+  const districtName = districtId ? selectedDistrict?.districtName : undefined;
+  const townName = townId ? selectedTown?.townName : undefined;
   const interests = ['전체', ...categoryState.items.map((item) => item.interestName)];
-  const requestKey = JSON.stringify([submittedKeyword, region, interest, currentPage, retry]);
+  const requestKey = JSON.stringify([submittedKeyword, province, districtName, townName, interest, currentPage, retry]);
   const loading = result.requestKey !== requestKey;
+
+  // AI작성: 화면 이탈·재시도 뒤 도착한 지역 응답이 현재 상태를 덮지 않게 한다.
+  useEffect(() => {
+    let active = true;
+    getMemberRegions().then((items) => {
+      if (!Array.isArray(items) || items.length === 0) throw new Error('지역 목록이 비어 있습니다.');
+      if (active) setRegionState({ items, loading: false, error: '' });
+    }).catch(() => {
+      if (active) setRegionState({ items: [], loading: false, error: '지역을 불러오지 못했습니다. 다시 시도해 주세요.' });
+    });
+    return () => { active = false; };
+  }, [regionRetry]);
 
   // AI작성: 조건 변경·화면 이탈 시 목록 요청을 취소해 오래된 결과가 현재 화면을 덮지 않게 한다.
   useEffect(() => {
@@ -99,7 +120,9 @@ function SmallGroupsPage() {
     let active = true;
     getSmallGroups({
       keyword: submittedKeyword,
-      regionCode: smallGroupRegionOptions.find((item) => item.name === region)?.code,
+      provinceName: province || undefined,
+      districtName,
+      townName,
       likeCategory: interest === '전체' ? undefined : interest,
       page: currentPage,
       signal: controller.signal,
@@ -110,7 +133,7 @@ function SmallGroupsPage() {
         error: error.message || '소모임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
     });
     return () => { active = false; controller.abort(); };
-  }, [currentPage, interest, region, requestKey, submittedKeyword]);
+  }, [currentPage, interest, province, districtName, townName, requestKey, submittedKeyword]);
 
   // AI작성: 관심사 선택지는 목록 데이터가 아닌 interest 기준 API에서 별도로 조회한다.
   useEffect(() => {
@@ -166,13 +189,29 @@ function SmallGroupsPage() {
       <Content>
         <SmallGroupFilterBar
           keyword={keyword}
-          region={region}
+          province={province}
+          districtId={districtId}
+          townId={townId}
           interest={interest}
-          regions={regions}
+          regions={regionState.items}
+          regionsLoading={regionState.loading}
+          regionsError={regionState.error}
           interests={interests}
           onKeywordChange={setKeyword}
-          onRegionChange={(value) => {
-            setRegion(value);
+          onProvinceChange={(value) => {
+            // AI작성: 상위 변경 시 이전 하위 지역을 초기화하고 첫 페이지로 이동한다.
+            setProvince(value);
+            setDistrictId('');
+            setTownId('');
+            setCurrentPage(1);
+          }}
+          onDistrictChange={(value) => {
+            setDistrictId(value);
+            setTownId('');
+            setCurrentPage(1);
+          }}
+          onTownChange={(value) => {
+            setTownId(value);
             setCurrentPage(1);
           }}
           onInterestChange={(value) => {
@@ -182,6 +221,16 @@ function SmallGroupsPage() {
           onSearch={handleSearch}
         />
 
+        {regionState.loading && <Result role="status">지역을 불러오는 중입니다.</Result>}
+        {regionState.error && (
+          <div role="alert">
+            <Result>{regionState.error}</Result>
+            <Button type="button" onClick={() => {
+              setRegionState({ items: [], loading: true, error: '' });
+              setRegionRetry((value) => value + 1);
+            }}>지역 다시 불러오기</Button>
+          </div>
+        )}
         {categoryState.error && (
           <div role="alert">
             <Result>{categoryState.error}</Result>

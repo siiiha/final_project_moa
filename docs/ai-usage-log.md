@@ -645,3 +645,15 @@
 - 백엔드 검증 제한: gradlew.bat compileJava --offline은 기본 실행에서 Gradle 캐시 잠금 접근이 거부됐고, 권한 재시도 후에는 Java 17 toolchain 부재로 컴파일 전에 중단됐다. Java 21은 있으나 프로젝트 설정은 변경하지 않았다. 백엔드 컴파일·Validation·실제 SQL 실행 통과를 확인하지 못했다.
 - 수동 검증: 브라우저에서 전체→시→구→동 선택별 결과 및 2페이지 이후 지역 변경 시 첫 페이지 확인. Postman GET /api/saving-groups에 provinceName만, provinceName+districtName, 세 항목을 각각 보내 범위·건수를 비교한다. regionCode=01 단독은 기존 동작, regionCode+provinceName 및 districtName 단독·townName 단독은 400이어야 한다. 존재하지 않는 조합은 200 빈 목록이어야 한다. 세종은 provinceName+districtName=(빈 문자열)+townName으로 확인한다. 실제 DB region 상위 컬럼과 동 데이터 준비 여부도 확인한다.
 - 개발자 검토·수정: 검토 대기. 실제 브라우저·Postman·DB 검증은 미실행이다. DB·의존성·외부 서비스 변경 없음. 소모임 검색은 다음 단계 범위다.
+
+<!-- AI작성: 승인된 소모임 지역 필터 4단계 구현 기록입니다. -->
+## 2026-11-03 — 소모임 시·구·동 선택 및 검색 연동
+
+- 목적·사용자 승인: 4단계로 승인된 10개 파일에서 소모임 검색에도 계모임과 동일한 시·구·동 선택·검색 규칙을 적용한다. 커밋은 사용자 수행.
+- AI 제안·작성: SmallGroupFilterBar.jsx·SmallGroupsPage.jsx에 회원 지역 API getMemberRegions 재사용, 시·구·동 선택지, 상위 미선택 시 하위 비활성화, 시 변경 시 구·동 초기화, 구 변경 시 동 초기화, 지역 변경 시 첫 페이지 재조회, 지역 로딩·실패·재시도를 적용했다. 구 ID로 세종 빈 구 이름과 미선택을 구분한다. 기존 검색어·관심사·요청 취소·오래된 응답 무시는 유지한다.
+- API·SQL: smallGroups.js에 provinceName·districtName·townName을 추가하고 SmallGroupSearchCondition에 길이·상위 조건 필수·regionCode와 동시 사용 금지 검증을 추가했다. SmallGroupListCondition·SmallGroupServiceImpl·SmallGroupMapper.xml은 선택한 단계까지만 AND 조건을 적용한다. 시만 선택하면 해당 시의 모든 구·동, 시·구까지만 선택하면 해당 구의 모든 동을 포함한다. 목록·건수는 동일한 smallGroupListWhere를 재사용한다. 기존 regionCode는 호환 유지, 존재하지 않거나 맞지 않는 지역명 조합은 빈 결과다.
+- 작업 파일: front/src/components/smallGroup/SmallGroupFilterBar.jsx, front/src/pages/SmallGroupsPage.jsx, front/src/api/smallGroups.js, front/src/api/smallGroups.test.js, back/src/main/java/com/nightstudy/moa/smallGroup/dto/SmallGroupSearchCondition.java, back/src/main/java/com/nightstudy/moa/smallGroup/dto/SmallGroupListCondition.java, back/src/main/java/com/nightstudy/moa/smallGroup/SmallGroupServiceImpl.java, back/src/main/resources/mappers/SmallGroupMapper.xml, docs/small-group-public-detail-api.md, 본 기록.
+- 실행 검증: 계모임·소모임 API 테스트 총 83개 통과(기존 코드, 전체·시·구·동·세종 빈 구 이름, 검색어·관심사 결합, 실패·취소 포함). 변경 프론트 4개 파일 oxlint 통과, npm run build 통과(기존 500kB 초과 번들 경고), git diff --check 통과. .NET XML 파서로 Mapper XML 파싱과 목록·건수의 공통 조건 참조를 확인했다. Python 실행 별칭은 접근 불가여서 XML 확인은 .NET으로 수행했다.
+- 백엔드 제한: 앞 단계에서 확인된 Java 17 toolchain 부재로 이번에는 Gradle을 반복 실행하지 않았다. 백엔드 컴파일·Validation 실제 실행·MyBatis 바인딩·DB SQL 동작은 검증하지 못했다. 설정·의존성을 변경하지 않았다.
+- 브라우저·Postman 검증 방법: 전체·시·시/구·시/구/동 범위와 건수, 기존 검색어·관심사 결합, 페이지 이동 후 지역 변경 시 1페이지, 상위 변경 시 하위 초기화, 지역 목록 실패·재시도, 세종 동 선택과 모바일 줄바꿈을 확인한다. GET /api/small-groups에서 기존 regionCode 단독은 기존 결과, regionCode와 새 조건 동시 사용·구/동 단독은 400, 존재하지 않는 지역 조합은 200 빈 목록인지 확인한다. 계모임에도 동일 검색을 수행해 회귀 점검한다.
+- 개발자 검토·수정: 검토 대기. 브라우저·실제 서버·Postman·DB 검증은 미실행. DB region의 상위 컬럼과 동 데이터가 준비돼 있어야 하며 데이터 보정은 하지 않았다. DB·의존성·외부 서비스 변경 없음. 5단계 예외 상태 최종 점검은 별도 요청 범위다.
