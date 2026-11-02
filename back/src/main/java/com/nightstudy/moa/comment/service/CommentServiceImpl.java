@@ -45,7 +45,7 @@ public class CommentServiceImpl implements CommentService {
     public CommentDto insertComment(Long postId, Long memberId, String content) {
         validateContentAllowed(memberId);
 
-        validatePostExists(postId);
+        lockActivePostForCommentCreation(postId);
 
         CommentDto comment = new CommentDto();
         comment.setPostId(postId);
@@ -71,12 +71,15 @@ public class CommentServiceImpl implements CommentService {
     public CommentDto insertReply(Long postId, Long parentCommentId, Long memberId, String content) {
         validateContentAllowed(memberId);
 
-        validatePostExists(postId);
+        lockActivePostForCommentCreation(postId);
 
-        CommentDto parentComment = commentMapper.selectCommentById(parentCommentId);
+        CommentDto parentComment = commentMapper.selectActiveCommentForUpdate(
+                postId,
+                parentCommentId
+        );
 
         // AI작성: 다른 게시글의 댓글, 삭제된 댓글, 대댓글에는 답글을 등록할 수 없습니다.
-        if (parentComment == null || !Objects.equals(parentComment.getPostId(), postId)) {
+        if (parentComment == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "PARENT_COMMENT_NOT_FOUND",
@@ -90,7 +93,6 @@ public class CommentServiceImpl implements CommentService {
                     "대댓글에는 답글을 작성할 수 없습니다."
             );
         }
-
         CommentDto reply = new CommentDto();
         reply.setPostId(postId);
         reply.setParentId(parentCommentId);
@@ -243,6 +245,17 @@ public class CommentServiceImpl implements CommentService {
     // AI작성: 댓글 기능에서 반복되는 활성 게시글 존재 검증을 한 곳에서 처리합니다.
     private void validatePostExists(Long postId) {
         if (postMapper.countPostById(postId) == 0) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
+    }
+
+    // AI작성: 댓글 등록 완료 전 게시글 삭제가 끼어들지 못하도록 활성 게시글 행에 배타적 잠금을 겁니다.
+    private void lockActivePostForCommentCreation(Long postId) {
+        if (postMapper.selectActivePostIdForUpdate(postId) == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "POST_NOT_FOUND",

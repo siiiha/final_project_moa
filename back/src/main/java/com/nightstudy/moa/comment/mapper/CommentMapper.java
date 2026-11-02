@@ -14,6 +14,12 @@ public interface CommentMapper {
     // AI작성: 삭제되지 않은 댓글 단건 조회는 이 메서드로 통일합니다.
     CommentDto selectCommentById(Long commentId);
 
+    // AI작성: 대댓글 등록 중 부모 댓글이 동시에 삭제되지 않도록 원댓글 행을 잠급니다.
+    CommentDto selectActiveCommentForUpdate(
+            @Param("postId") Long postId,
+            @Param("commentId") Long commentId
+    );
+
     int selectCommentCountByPostId(Long postId);
 
     // AI작성: 화면 표시용으로 원댓글과 대댓글을 모두 포함한 개수를 조회합니다.

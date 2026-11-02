@@ -43,6 +43,11 @@ public class PostServiceImpl implements PostService {
         int totalCount = postMapper.selectPostListCount(condition);
         PageMeta pageMeta = PageMeta.of(condition.getPage(), condition.getSize(), totalCount);
 
+        // AI작성: 조회 결과가 없으면 동일한 검색 조건의 목록 쿼리를 다시 실행하지 않고 빈 목록을 반환합니다.
+        if (totalCount == 0) {
+            return new PostListResult(List.of(), pageMeta);
+        }
+
         condition.setOffset(pageMeta.getOffset());
         condition.setLimit(pageMeta.getSize());
 

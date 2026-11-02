@@ -53,6 +53,19 @@ class PostServiceImplTest {
     }
 
     @Test
+    // AI작성: 검색 결과가 없으면 불필요한 게시글 목록 SQL을 실행하지 않는지 확인한다.
+    void getPostListSkipsListQueryWhenEmpty() {
+        PostSearchCondition condition = new PostSearchCondition();
+        when(postMapper.selectPostListCount(condition)).thenReturn(0);
+
+        PostListResult result = postService.getPostList(condition);
+
+        assertThat(result.getPostList()).isEmpty();
+        assertThat(result.getPageMeta().getTotal()).isZero();
+        verify(postMapper, never()).selectPostList(condition);
+    }
+
+    @Test
     // AI작성: 작성자가 아닌 회원의 일반 상세 조회는 조회수를 증가시킨 뒤 게시글을 반환하는지 확인한다.
     void getPostDetailIncreasesViewCountForDifferentMember() {
         PostDto post = post(1L, 10L);
