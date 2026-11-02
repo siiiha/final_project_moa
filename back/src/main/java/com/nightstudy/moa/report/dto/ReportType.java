@@ -5,5 +5,8 @@ package com.nightstudy.moa.report.dto;
 public enum ReportType {
     POST,
     COMMENT,
-    MEMBER
+    MEMBER,
+    // AI작성: 계모임과 소모임의 대상 번호가 겹쳐도 신고 대상을 구분할 수 있도록 유형을 분리한다.
+    SAVING_GROUP,
+    SMALL_GROUP
 }
