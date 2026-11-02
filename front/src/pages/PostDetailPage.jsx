@@ -13,7 +13,9 @@ import {
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ReportModal from '../components/common/ReportModal';
 import useAuthStore from '../store/authStore';
+import { createReport } from '../api/reports';
 
 const COMMENTS_PER_PAGE = 20;
 
@@ -122,6 +124,10 @@ function PostDetailPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportErrorMessage, setReportErrorMessage] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportNotice, setReportNotice] = useState('');
   const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
   const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
 
@@ -562,6 +568,35 @@ function PostDetailPage() {
     }
   };
 
+  // AI작성: 비로그인 회원은 현재 게시글로 돌아올 수 있도록 로그인 화면으로 이동한다.
+  const handleReportStart = (reportType, targetId, targetLabel) => {
+    if (!token) {
+      goToLogin();
+      return;
+    }
+    setReportErrorMessage('');
+    setReportTarget({ reportType, targetId, targetLabel });
+  };
+
+  const handleReportSubmit = async (reason) => {
+    if (!reportTarget || isSubmittingReport) return;
+    setIsSubmittingReport(true);
+    setReportErrorMessage('');
+    try {
+      await createReport({
+        reportType: reportTarget.reportType,
+        targetId: reportTarget.targetId,
+        reason,
+      });
+      setReportTarget(null);
+      setReportNotice('신고가 접수되었습니다. 관리자가 내용을 확인합니다.');
+    } catch (error) {
+      setReportErrorMessage(error.message || '신고를 접수하지 못했습니다.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   if (isLoading || !post) {
     return (
       <Page>
@@ -613,6 +648,7 @@ function PostDetailPage() {
           onLoadMoreComments={handleLoadMoreComments}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onReport={handleReportStart}
           onBack={() => navigate('/post/list')}
         />
       </Content>
@@ -642,6 +678,27 @@ function PostDetailPage() {
           onCancel={() => {
             if (!isDeletingComment) setDeletingCommentId(null);
           }}
+        />
+      )}
+      {reportTarget && (
+        <ReportModal
+          targetLabel={reportTarget.targetLabel}
+          submitting={isSubmittingReport}
+          errorMessage={reportErrorMessage}
+          onSubmit={handleReportSubmit}
+          onCancel={() => {
+            if (!isSubmittingReport) setReportTarget(null);
+          }}
+        />
+      )}
+      {reportNotice && (
+        <ConfirmModal
+          title="신고 접수 완료"
+          description={reportNotice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setReportNotice('')}
+          onCancel={() => setReportNotice('')}
         />
       )}
     </Page>

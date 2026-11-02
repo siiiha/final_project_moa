@@ -211,6 +211,7 @@ function PostDetail({
   onLoadMoreComments,
   onEdit,
   onDelete,
+  onReport,
   onBack,
 }) {
   return (
@@ -221,14 +222,20 @@ function PostDetail({
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>
         <PostContent>{post.content}</PostContent>
-        {Number(post.writerId) === Number(memberId) && <PostActions>
-          <Button type="button" $size="small" onClick={onEdit}>
-            수정
-          </Button>
-          <Button type="button" $variant="danger" $size="small" onClick={onDelete}>
-            삭제
-          </Button>
-        </PostActions>}
+        <PostActions>
+          {Number(post.writerId) === Number(memberId) ? <>
+            <Button type="button" $size="small" onClick={onEdit}>수정</Button>
+            <Button type="button" $variant="danger" $size="small" onClick={onDelete}>삭제</Button>
+          </> : <>
+            {/* AI작성: 게시글 자체와 작성자 신고를 구분해 관리자에게 정확한 대상을 전달한다. */}
+            <Button type="button" $variant="secondary" $size="small" onClick={() => onReport('POST', post.id, '게시글')}>
+              게시글 신고
+            </Button>
+            <Button type="button" $variant="danger" $size="small" onClick={() => onReport('MEMBER', post.writerId, '작성자')}>
+              작성자 신고
+            </Button>
+          </>}
+        </PostActions>
       </ArticleCard>
       <ListActions>
         <Button type="button" $variant="secondary" $size="small" onClick={onBack}>
@@ -250,9 +257,12 @@ function PostDetail({
                     <TextAction type="button" onClick={() => onReplyStart(comment.id)}>
                       답글
                     </TextAction>
-                    {Number(comment.memberId) === Number(memberId) && <>
+                    {Number(comment.memberId) === Number(memberId) ? <>
                       <TextAction type="button" onClick={() => onCommentEditStart(comment)}>수정</TextAction>
                       <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>삭제</TextAction>
+                    </> : <>
+                      <TextAction type="button" onClick={() => onReport('COMMENT', comment.id, '댓글')}>댓글 신고</TextAction>
+                      <TextAction type="button" $danger onClick={() => onReport('MEMBER', comment.memberId, '작성자')}>작성자 신고</TextAction>
                     </>}
                   </ReplyActions>
                 )}
@@ -314,9 +324,12 @@ function PostDetail({
                     {!reply.deleted && (
                       <ReplyActions>
                         {/* AI작성: 대댓글은 한 단계만 허용하므로 수정과 삭제 기능만 제공합니다. */}
-                        {Number(reply.memberId) === Number(memberId) && <>
+                        {Number(reply.memberId) === Number(memberId) ? <>
                           <TextAction type="button" onClick={() => onCommentEditStart(reply)}>수정</TextAction>
                           <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>삭제</TextAction>
+                        </> : <>
+                          <TextAction type="button" onClick={() => onReport('COMMENT', reply.id, '댓글')}>댓글 신고</TextAction>
+                          <TextAction type="button" $danger onClick={() => onReport('MEMBER', reply.memberId, '작성자')}>작성자 신고</TextAction>
                         </>}
                       </ReplyActions>
                     )}
