@@ -101,7 +101,28 @@ test('금액 표시의 천 단위 구분·소수 유지·null·잘못된 값', (
   assert.equal(formatSavingGroupAmount(-1), '회비 확인 필요');
 });
 
-// AI작성: 큰 URL ID를 Number로 바꾸지 않고 취소 신호·원본 상세·오류를 유지한다.
+// AI작성: 구·동·세종·기존 광역 표시를 임의로 변환하지 않고 매 요청의 서버 값을 사용한다.
+test('상세 재조회는 저장된 지역명을 보존하고 이전 응답을 재사용하지 않는다', async () => {
+  const original = client.get;
+  let calls = 0;
+  try {
+    for (const regionName of ['서울특별시 강남구', '서울특별시 강남구 역삼동', '세종특별자치시', '서울']) {
+      client.get = async (path) => {
+        assert.equal(path, '/saving-groups/42');
+        calls += 1;
+        return { data: { success: true, data: { groupId: '42', regionName, notices: [] } } };
+      };
+      const first = await getSavingGroupDetail('42');
+      const reloaded = await getSavingGroupDetail('42');
+      assert.equal(first.regionName, regionName);
+      assert.equal(reloaded.regionName, regionName);
+      assert.notEqual(first, reloaded);
+    }
+    assert.equal(calls, 8);
+  } finally { client.get = original; }
+});
+
+// AI작성: 큰 URL ID와 취소 신호를 유지하고 상세 요청 실패를 검증한다.
 test('상세 요청은 URL ID와 취소 신호를 보존하고 실패를 숨기지 않는다', async () => {
   const original = client.get;
   const signal = new AbortController().signal;
