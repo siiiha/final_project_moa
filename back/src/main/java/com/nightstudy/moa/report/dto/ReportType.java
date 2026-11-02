@@ -6,7 +6,6 @@ public enum ReportType {
     POST,
     COMMENT,
     MEMBER,
-    // AI작성: 계모임과 소모임의 대상 번호가 겹쳐도 신고 대상을 구분할 수 있도록 유형을 분리한다.
-    SAVING_GROUP,
-    SMALL_GROUP
+    // AI작성: 계모임과 소모임은 공통 groups.group_id로 식별하므로 하나의 신고 유형을 재사용한다.
+    GROUP
 }

@@ -186,7 +186,8 @@ function ReportModal({ targets, submitting, errorMessage, onSubmit, onCancel }) 
               <TargetCopy>
                 <TargetTitle>{target.label}</TargetTitle>
                 <TargetDescription>
-                  {isMemberTarget ? '작성자의 활동을 신고합니다.' : '작성된 내용을 신고합니다.'}
+                  {target.description
+                    || (isMemberTarget ? '작성자의 활동을 신고합니다.' : '작성된 내용을 신고합니다.')}
                 </TargetDescription>
               </TargetCopy>
               {isSelected && <SelectedMark><FiCheck /></SelectedMark>}

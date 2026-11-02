@@ -1,6 +1,14 @@
 import client from './client.js';
 
-// AI작성: 로그인 회원의 게시글·댓글·회원 신고를 공통 API로 접수한다.
+// AI작성: 화면마다 신고 유형 문자열을 중복 작성하지 않도록 API 요청 유형을 공통 관리한다.
+export const REPORT_TYPES = Object.freeze({
+  POST: 'POST',
+  COMMENT: 'COMMENT',
+  MEMBER: 'MEMBER',
+  GROUP: 'GROUP',
+});
+
+// AI작성: 로그인 회원의 콘텐츠·회원·모임 신고를 공통 API로 접수한다.
 export async function createReport({ reportType, targetId, reason }) {
   try {
     const response = await client.post('/reports', { reportType, targetId, reason });

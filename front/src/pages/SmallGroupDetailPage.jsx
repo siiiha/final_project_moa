@@ -255,6 +255,7 @@ function SmallGroupDetailPage() {
             <SmallGroupDetail
               key={id}
               group={group}
+              groupId={current.group.groupId}
               smallGroupId={current.group.smallGroupId}
               myRole={current.group.myRole}
               activeMenu={menu.id === id ? menu.value : 'notice'}
