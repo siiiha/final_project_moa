@@ -3,6 +3,7 @@ package com.nightstudy.moa.admin.mapper;
 import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
+import com.nightstudy.moa.admin.dto.AdminReportTargetResponse;
 import java.util.List;
 import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Mapper;
@@ -24,6 +25,11 @@ public interface AdminReportMapper {
 
     // AI작성: 신고 사건 한 건의 기본 정보를 조회한다.
     AdminReportListItemResponse selectReportDetail(
+            @Param("caseId") Long caseId
+    );
+
+    // AI작성: 신고 사건의 게시글·댓글 원문을 삭제 여부와 관계없이 조회합니다.
+    AdminReportTargetResponse selectReportTargetContent(
             @Param("caseId") Long caseId
     );
 

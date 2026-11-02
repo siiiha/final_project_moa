@@ -6,6 +6,7 @@ import com.nightstudy.moa.admin.dto.AdminReportListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminReportListResult;
 import com.nightstudy.moa.admin.dto.AdminReportSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminReportSubmissionResponse;
+import com.nightstudy.moa.admin.dto.AdminReportTargetResponse;
 import com.nightstudy.moa.admin.dto.AdminReportProcessRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
 import com.nightstudy.moa.admin.dto.RestrictionAction;
@@ -84,8 +85,15 @@ public class AdminReportServiceImpl implements AdminReportService {
 
         List<AdminReportSubmissionResponse> submissions =
                 adminReportMapper.selectReportSubmissions(caseId);
+        // AI작성: 회원 신고는 대상 콘텐츠가 없으므로 null을, 게시글·댓글 신고는 실제 원문을 반환합니다.
+        AdminReportTargetResponse targetContent =
+                adminReportMapper.selectReportTargetContent(caseId);
 
-        AdminReportDetailResponse result = new AdminReportDetailResponse(reportCase, submissions);
+        AdminReportDetailResponse result = new AdminReportDetailResponse(
+                reportCase,
+                targetContent,
+                submissions
+        );
         return result;
     }
 

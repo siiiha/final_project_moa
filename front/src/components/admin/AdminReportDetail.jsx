@@ -100,6 +100,47 @@ const Actions = styled.div`
   gap: 8px;
 `;
 
+const TargetPreview = styled.article`
+  margin-top: 12px;
+  padding: 16px;
+  background: ${({ theme }) => theme.colors.background};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
+const TargetPreviewHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  strong {
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 14px;
+  }
+
+  span {
+    color: ${({ $deleted, theme }) => ($deleted ? theme.colors.danger : theme.colors.primary)};
+    font-size: 12px;
+    font-weight: 700;
+  }
+`;
+
+const TargetMeta = styled.p`
+  margin: 8px 0 0;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 12px;
+`;
+
+const TargetText = styled.p`
+  margin: 14px 0 0;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+`;
+
 const DeleteOption = styled.label`
   margin-top: 14px;
   display: flex;
@@ -135,6 +176,22 @@ function AdminReportDetail({ report, action, restrictionScope, restrictionType, 
         {report.restrictionScope && <div><dt>제한 영역</dt><dd>{report.restrictionScope}</dd></div>}
         {report.processReason && <div><dt>처리 사유</dt><dd>{report.processReason}</dd></div>}
       </Summary>
+      {report.targetContent && (
+        <>
+          <SectionTitle>신고 대상 콘텐츠</SectionTitle>
+          <TargetPreview>
+            <TargetPreviewHeader $deleted={report.targetContent.deleted}>
+              <strong>{report.type === '게시글' ? report.targetContent.postTitle : '댓글 내용'}</strong>
+              <span>{report.targetContent.deleted ? '삭제됨' : '공개 중'}</span>
+            </TargetPreviewHeader>
+            {report.type === '댓글' && report.targetContent.postTitle && (
+              <TargetMeta>원문 게시글: {report.targetContent.postTitle}</TargetMeta>
+            )}
+            <TargetMeta>작성자: {report.targetContent.writer}</TargetMeta>
+            <TargetText>{report.targetContent.content || '내용을 확인할 수 없습니다.'}</TargetText>
+          </TargetPreview>
+        </>
+      )}
       <SectionTitle>개별 신고 내용</SectionTitle>
       <SubmissionList>{report.submissions.map((submission) => <Submission key={submission.id}><strong>{submission.reporter}</strong><p>{submission.reason}</p><small>{submission.reportedAt}{submission.hasEvidence ? ' · 증빙 첨부' : ''}</small></Submission>)}</SubmissionList>
       {pending && <ProcessForm onSubmit={onSubmit}>

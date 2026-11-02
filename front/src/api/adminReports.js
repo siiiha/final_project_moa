@@ -83,9 +83,19 @@ export async function getAdminReport(caseId, signal) {
       throw new Error('신고 상세 응답을 확인할 수 없습니다.');
     }
     const report = mapReport(response.data.data.reportCase);
+    const targetContent = response.data.data.targetContent;
     return {
       report: {
         ...report,
+        // AI작성: 게시글·댓글 신고일 때 관리자 상세 화면에서 검토할 실제 원문을 보존한다.
+        targetContent: targetContent ? {
+          id: targetContent.targetId,
+          postId: targetContent.postId,
+          postTitle: targetContent.postTitle || '',
+          content: targetContent.content || '',
+          writer: targetContent.writerNickname || '작성자 확인 필요',
+          deleted: Boolean(targetContent.deleted),
+        } : null,
         processId: response.data.data.submissions[0]?.reportId || null,
         submissions: response.data.data.submissions.map((submission) => ({
           id: submission.reportId,
