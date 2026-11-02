@@ -45,6 +45,7 @@ function AdminReportDetailPage() {
   const [action, setAction] = useState('CONFIRMED');
   const [restrictionScope, setRestrictionScope] = useState('CONTENT');
   const [restrictionType, setRestrictionType] = useState('7_DAYS');
+  const [deleteTargetContent, setDeleteTargetContent] = useState(true);
   const [processReason, setProcessReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -81,6 +82,11 @@ function AdminReportDetailPage() {
         status: action,
         restrictionScope: action === 'CONFIRMED' ? restrictionScope : undefined,
         restrictionType: action === 'CONFIRMED' ? restrictionType : undefined,
+        // AI작성: 게시글·댓글 신고 승인일 때만 관리자가 선택한 콘텐츠 삭제 여부를 전송한다.
+        deleteTargetContent: action === 'CONFIRMED'
+          && ['POST', 'COMMENT'].includes(report.typeCode)
+          ? deleteTargetContent
+          : false,
         processReason: processReason.trim(),
       });
       setProcessReason('');
@@ -97,7 +103,7 @@ function AdminReportDetailPage() {
   if (!loading && report) {
     content = <>
       {error && <Message role="alert">{error}</Message>}
-      <AdminReportDetail report={report} action={action} restrictionScope={restrictionScope} restrictionType={restrictionType} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionScopeChange={setRestrictionScope} onRestrictionTypeChange={setRestrictionType} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onBack={() => navigate('/admin/reposts')} />
+      <AdminReportDetail report={report} action={action} restrictionScope={restrictionScope} restrictionType={restrictionType} deleteTargetContent={deleteTargetContent} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionScopeChange={setRestrictionScope} onRestrictionTypeChange={setRestrictionType} onDeleteTargetContentChange={setDeleteTargetContent} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onBack={() => navigate('/admin/reposts')} />
     </>;
   }
 

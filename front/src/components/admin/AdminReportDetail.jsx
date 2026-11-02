@@ -100,9 +100,31 @@ const Actions = styled.div`
   gap: 8px;
 `;
 
+const DeleteOption = styled.label`
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 11px 13px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  background: ${({ theme }) => theme.colors.background};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 13px;
+  font-weight: 700;
+
+  input {
+    width: 18px;
+    height: 18px;
+    accent-color: ${({ theme }) => theme.colors.danger};
+  }
+`;
+
 // AI작성: 신고 사건 정보와 처리 입력 영역을 분리해 관리자에게 처리 대상과 결과를 명확히 안내한다.
-function AdminReportDetail({ report, action, restrictionScope, restrictionType, processReason, submitting, onActionChange, onRestrictionScopeChange, onRestrictionTypeChange, onProcessReasonChange, onSubmit, onBack }) {
+function AdminReportDetail({ report, action, restrictionScope, restrictionType, deleteTargetContent, processReason, submitting, onActionChange, onRestrictionScopeChange, onRestrictionTypeChange, onDeleteTargetContentChange, onProcessReasonChange, onSubmit, onBack }) {
   const pending = report.statusCode === 'PENDING';
+  const contentReport = ['POST', 'COMMENT'].includes(report.typeCode);
   return (
     <Card>
       <TitleRow><Title>신고 사건 #{report.id}</Title><StatusBadge $pending={pending}>{report.status}</StatusBadge></TitleRow>
@@ -123,6 +145,18 @@ function AdminReportDetail({ report, action, restrictionScope, restrictionType, 
           {action === 'CONFIRMED' && <Field>제한 영역<select value={restrictionScope} onChange={(event) => onRestrictionScopeChange(event.target.value)} disabled={submitting}><option value="CONTENT">게시글·댓글</option><option value="CHAT">채팅</option><option value="REPORT">신고</option></select></Field>}
           {action === 'CONFIRMED' && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
         </ProcessFields>
+        {/* AI작성: 게시글·댓글 신고 승인 시에만 대상 콘텐츠 삭제 여부를 선택할 수 있습니다. */}
+        {action === 'CONFIRMED' && contentReport && (
+          <DeleteOption>
+            <input
+              type="checkbox"
+              checked={deleteTargetContent}
+              onChange={(event) => onDeleteTargetContentChange(event.target.checked)}
+              disabled={submitting}
+            />
+            신고된 {report.type}도 함께 삭제
+          </DeleteOption>
+        )}
         <Field>처리 사유<textarea value={processReason} onChange={(event) => onProcessReasonChange(event.target.value)} maxLength={500} required disabled={submitting} /></Field>
         <Actions>
           <Button type="button" $variant="secondary" onClick={onBack}>목록으로</Button>
