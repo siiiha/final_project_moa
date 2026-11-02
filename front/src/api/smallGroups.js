@@ -1,5 +1,66 @@
 import client from './client.js';
 
+// AI작성: 장소 검색의 서버 오류를 보존하고 위치나 원본 HTTP 요청을 화면 오류에 포함하지 않는다.
+export class SmallGroupPlaceSearchError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupPlaceSearchError';
+    this.code = code;
+  }
+}
+
+// AI작성: 기존 인증 client를 재사용하고 허용된 검색 조건만 전달한다. 회원 ID는 보내지 않는다.
+export async function searchSmallGroupPlaces(smallGroupId, {
+  query, page = 1, size = 15, latitude, longitude, radius, sort = 'accuracy', signal,
+} = {}) {
+  try {
+    const params = { smallGroupId, query, page, size, sort };
+    if (latitude != null) params.latitude = latitude;
+    if (longitude != null) params.longitude = longitude;
+    if (radius != null) params.radius = radius;
+    const response = await client.get('/small-groups/places', { params, signal });
+    const envelope = response.data;
+    if (envelope?.success !== true) {
+      throw new SmallGroupPlaceSearchError(envelope?.error?.code || 'INVALID_RESPONSE',
+        envelope?.error?.message || '장소 검색 응답을 확인하지 못했습니다.');
+    }
+    const data = envelope.data;
+    if (!data || !Array.isArray(data.items) || data.items.length === 0
+        || !Number.isInteger(data.page) || data.page < 1 || data.page > 45
+        || !Number.isInteger(data.size) || data.size < 1 || data.size > 15
+        || !Number.isInteger(data.totalCount) || data.totalCount < 0
+        || !Number.isInteger(data.pageableCount) || data.pageableCount < 0
+        || typeof data.end !== 'boolean') {
+      throw new SmallGroupPlaceSearchError('INVALID_RESPONSE', '장소 검색 응답을 확인하지 못했습니다.');
+    }
+    return {
+      items: data.items.map((item) => {
+        if (!item || typeof item.placeId !== 'string' || !item.placeId
+            || typeof item.placeName !== 'string' || !item.placeName.trim()
+            || !Number.isFinite(item.latitude) || Math.abs(item.latitude) > 90
+            || !Number.isFinite(item.longitude) || Math.abs(item.longitude) > 180
+            || typeof item.placeUrl !== 'string' || !/^https:\/\/place\.map\.kakao\.com\/\d+$/.test(item.placeUrl)
+            || (item.distanceMeters != null && (!Number.isInteger(item.distanceMeters) || item.distanceMeters < 0))
+            || [item.roadAddress, item.address, item.category].some((value) => value != null && typeof value !== 'string')) {
+          throw new SmallGroupPlaceSearchError('INVALID_RESPONSE', '장소 검색 응답을 확인하지 못했습니다.');
+        }
+        return {
+          placeId: item.placeId, placeName: item.placeName, roadAddress: item.roadAddress || '',
+          address: item.address || '', category: item.category || '', latitude: item.latitude,
+          longitude: item.longitude, placeUrl: item.placeUrl,
+          distanceMeters: latitude != null && longitude != null ? item.distanceMeters ?? null : null,
+        };
+      }),
+      page: data.page, size: data.size, totalCount: data.totalCount,
+      pageableCount: data.pageableCount, end: data.end,
+    };
+  } catch (error) {
+    if (error instanceof SmallGroupPlaceSearchError || error.code === 'ERR_CANCELED') throw error;
+    throw new SmallGroupPlaceSearchError(error.response?.data?.error?.code || 'SMALL_GROUP_PLACE_SEARCH_FAILED',
+      error.response?.data?.error?.message || '장소를 검색하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
 // AI작성: 공개 후기 목록의 서버 오류 코드와 메시지를 화면에 전달한다.
 export class SmallGroupReviewListLoadError extends Error {
   constructor(code, message) {
