@@ -1,12 +1,14 @@
 package com.nightstudy.moa.smallGroup;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
@@ -77,6 +79,18 @@ class SmallGroupSecurityIntegrationTest {
     void smallGroupRegionApiStillRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/small-groups/regions"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // AI작성: 인증 속성을 임의로 전달해도 SecurityFilterChain의 로그인 요구를 우회할 수 없다.
+    @Test
+    void smallGroupReviewCreateRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/small-groups/1/reviews")
+                        .requestAttr("memberId", 40L)
+                        .contentType("application/json")
+                        .content("{\"rating\":4.5,\"content\":\"즐거웠어요\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("LOGIN_REQUIRED"));
+        verifyNoInteractions(smallGroupService);
     }
 
     @Test

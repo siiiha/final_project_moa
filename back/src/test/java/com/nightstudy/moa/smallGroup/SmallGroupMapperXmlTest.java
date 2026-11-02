@@ -25,6 +25,12 @@ class SmallGroupMapperXmlTest {
             throw new AssertionError("소모임 Mapper XML을 파싱할 수 없습니다.", exception);
         }
 
+        // AI작성: 후기의 조회·중복 확인·저장 계약과 생성 키 경로가 MyBatis에서 파싱되는지 확인한다.
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewCreateTargetForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewId")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "insertSmallGroupReview")).isTrue();
+        assertThat(configuration.getMappedStatement(NAMESPACE + "insertSmallGroupReview").getKeyProperties())
+                .containsExactly("command.smallGroupReviewId");
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupSettingsAuthority")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupCurrentSettings")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupSettingsAuthorityForUpdate")).isTrue();
