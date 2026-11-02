@@ -465,3 +465,67 @@ SavingGroupDetailPage.jsx에서 가입 신청 API 성공 후 모달을 표시하
 - 상세 API에 membershipStatus, canApply, joinRestrictionCode, joinRestrictionMessage를 추가한다. 비로그인·본인 관계 없음은 membershipStatus=null이며, 승인 역할 myRole과 신청 상태를 분리한다. 실제 신청도 기존 공통 검증 함수를 재사용한다.
 - REJECTED와 EXPELLED의 기존 오류 코드 JOIN_REAPPLICATION_FORBIDDEN은 유지하며 거절·추방 안내 문구를 구분한다.
 - 상세 응답은 표시용 판단이며 신청 시 재검사를 생략할 수 없다. 화면 연동과 실제 DB 동시성 검증은 후속 단계다. 상세 계약은 saving-groups-api.md와 small-group-public-detail-api.md를 따른다.
+<!-- AI작성: 4단계 실제 MySQL 동시성 테스트 준비·실행 절차입니다. -->
+## 2026-11-03 중복·동시 요청 통합 테스트 (4단계)
+
+### 구성과 검증 기준
+
+- `SavingGroupJoinConcurrencyIntegrationTest`: 실제 계모임 Service·Mapper XML·MySQL·Spring 트랜잭션 프록시를 사용한다.
+- `SmallGroupJoinConcurrencyIntegrationTest`: 공통 준비·정리 및 7개 시나리오를 상속하고 실제 소모임 Service·Mapper로 실행한다. Mock으로 잠금 동작을 대신하지 않는다.
+- 기존 라이브러리만 사용하고 애플리케이션 전체를 기동하지 않는다. 금융·메일·소셜 로그인 등 외부 서비스는 호출하지 않는다.
+- 모든 연결은 REPEATABLE READ이며 잠금 대기 5초·SQL 실행 10초로 제한한다. SQL 오류·데드락·시간 초과는 테스트 실패다.
+
+| 시나리오 | 검증 결과 기준 |
+| --- | --- |
+| 같은 회원의 동시 신청 8건 | 성공 1건, 나머지 중복 안내, PENDING 1행, 승인 인원 변화 없음 |
+| LEFT 동시 재신청 8건 | 성공 1건, 기존 ID 유지, PENDING 1행, 이전 승인·탈퇴·메시지 초기화 |
+| 마지막 한 자리 동시 승인 8건 | 성공 1건, 나머지 정원 마감, 승인 인원 2명, 나머지 7건 PENDING 유지 |
+| 동일 신청 승인·거절 경합 | 하나만 성공, 나머지 이미 처리된 상태 안내, 최종 상태·승인 인원 일치 |
+| 순차 신청·승인 반복 | 기존 상태 오류 안내, 추가 행 생성 없음 |
+| DB UNIQUE 직접 검증 | 서비스 우회 중복 INSERT도 차단, 관계 1행 유지 |
+| 첫 요청 커밋 전 경쟁 요청 | 첫 트랜잭션 보류 중 두 번째 미완료, 커밋 후 중복 안내, 최종 1행 |
+
+### 실행 전제와 데이터 범위
+
+1. 테스트 전용 DB 사용이 승인된 뒤 실행한다. `application.yaml`의 외부 DB 설정은 재사용하지 않는다.
+2. MySQL 8 이상의 빈 DB를 미리 준비한다. 이름은 `moa_join_test_`로 시작하고 그 뒤에 영문·숫자·밑줄이 있어야 한다. 예: `moa_join_test_local`.
+3. 해당 DB의 테이블 생성·조회·입력·수정·삭제·정리 권한이 필요하다. 연결 정보는 실행 환경에만 설정하고 코드·문서·커밋·채팅에 기록하지 않는다.
+4. 환경변수는 `MOA_TEST_DB_ENABLED=true`, `MOA_TEST_DB_URL`, `MOA_TEST_DB_USER`, `MOA_TEST_DB_PASSWORD`다. URL에 사용자명·비밀번호를 넣지 않는다. 테스트는 인증 정보를 출력하지 않는다.
+5. 기존 테이블·뷰가 있으면 시작 전에 거부한다. `schema.sql`의 실제 CREATE TABLE에서 `members`, `groups`, `group_member`와 해당 도메인 테이블 1개를 추출한다. 종료 시 이 클래스가 생성 성공을 기록한 4개 테이블만 정리한다. DB 자체는 생성·삭제하지 않는다.
+6. 기존 UNIQUE·인덱스·InnoDB 정의를 사용한다. 전체 스키마 배포나 다른 도메인 FK 연동 검증은 포함하지 않는다. 합성 이름·닉네임만 쓰며 실제 개인정보·금융정보는 사용하지 않는다.
+7. 두 클래스는 같은 JVM에서 ResourceLock으로 직렬 실행한다. 다른 프로세스와 같은 전용 DB를 동시에 사용하지 않는다. 강제 종료로 테이블이 남으면 다음 실행은 거부하며 사용자가 전용 DB 상태를 확인해야 한다.
+
+### 실행 방법
+
+환경변수를 안전하게 설정한 PowerShell에서 `back`으로 이동해 실행한다. 환경변수 변경 후 기존 결과를 재사용하지 않도록 `--rerun-tasks`를 지정한다.
+
+```powershell
+.\gradlew.bat test --tests '*JoinConcurrencyIntegrationTest' --rerun-tasks
+```
+
+기존 다른 테스트 import 오류로 `compileTestJava`가 중단되면 빌드 설정을 바꾸지 않고 아래 임시 스크립트로 두 클래스만 컴파일·실행할 수 있다.
+
+```powershell
+New-Item -ItemType Directory -Path build -Force | Out-Null
+@'
+allprojects {
+    afterEvaluate { p ->
+        if (p.plugins.hasPlugin('java')) {
+            p.sourceSets.test.java.setIncludes([
+                'com/nightstudy/moa/savingGroup/service/SavingGroupJoinConcurrencyIntegrationTest.java',
+                'com/nightstudy/moa/smallGroup/SmallGroupJoinConcurrencyIntegrationTest.java'
+            ])
+        }
+    }
+}
+'@ | Set-Content -LiteralPath build/moa-join-stage4-db-tests.gradle -Encoding utf8
+.\gradlew.bat test --init-script build/moa-join-stage4-db-tests.gradle --tests '*JoinConcurrencyIntegrationTest' --rerun-tasks
+```
+
+### 이번 결과와 남은 확인
+
+- Java 17에서 새 테스트 컴파일 및 기존 가입 관련 테스트 114개 통과.
+- 전용 DB 사용 여부가 아직 확인되지 않아 `MOA_TEST_DB_ENABLED=false`로 실행했다. 새 DB 테스트 14개는 건너뛰었으며 이는 동시성 검증 통과가 아니다.
+- 필요한 CREATE TABLE 추출과 기존 UNIQUE 정의를 정적으로 확인했다. 실제 DB 연결·테이블 생성·데이터 변경은 하지 않았다.
+- 4단계 완료 기준은 전용 DB에서 14개 통합 테스트가 실패·건너뜀 없이 통과하는 것이다. 실패 시 서비스 변경 대상과 이유를 공유해 승인받고 보완한다.
+- 브라우저·Postman에서 같은 회원의 신청 반복 후 관계 1행, 마지막 자리 동시 승인 후 정원 이하, 승인·거절 경합 후 최종 상태 일치를 확인한다. 화면 버튼 연결은 5단계다.

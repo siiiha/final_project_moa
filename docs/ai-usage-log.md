@@ -704,3 +704,17 @@
 - 전체 테스트 제한: 일반 gradlew test는 관련 없는 기존 테스트의 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient import 경로 오류로 compileTestJava에서 중단됐다. 해당 파일들은 이번 범위 밖이라 수정하지 않았다. 관련 테스트의 별도 실행 결과를 전체 테스트 통과로 해석하면 안 된다.
 - Postman 확인: GET /api/saving-groups/{groupId}, GET /api/small-groups/{smallGroupId}에서 비로그인·가입·대기·거절·추방·탈퇴·관계 없음별 새 필드를 확인한다. POST 가입 신청도 동일 상태로 호출하며 소모임은 meet_date 어제·오늘·내일·null과 정원을 조합한다. PATCH 승인도 일정 경과·미설정 시 차단되는지 확인한다. 신청 API는 계모임 savingGroupId와 소모임 smallGroupId를 사용한다.
 - 남은 작업·개발자 검토: 실제 브라우저·Postman·DB 실행 및 동시 요청 검증은 미실행이다. 4단계에서 반복 요청·마지막 빈자리 동시 승인 등을 실제 DB로 검증하고, 5단계에서 상태별 버튼·사유·신청 후 갱신을 연결한다. 개발자 검토·수정 대기이며 커밋은 실행하지 않았다.
+<!-- AI작성: 승인된 4단계 동시성 테스트 준비와 DB 미실행 상태를 기록합니다. -->
+## 2026-11-03 — 계모임·소모임 중복·동시 요청 통합 테스트 준비
+
+- 목적·사용자 승인: 동시성 테스트 2개 신규 작성과 설계 문서·본 기록 수정, 총 4개 파일을 승인받았다. 전용 DB 사용 여부에 대한 답변은 아직 없으므로 실제 DB 실행은 보류한다.
+- 신규 파일: back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupJoinConcurrencyIntegrationTest.java, back/src/test/java/com/nightstudy/moa/smallGroup/SmallGroupJoinConcurrencyIntegrationTest.java. 소모임은 계모임 테스트의 공통 준비·정리·7개 시나리오를 상속하고 실제 소모임 Service·Mapper로 실행한다.
+- AI 제안·작성: 동시 중복 신청, LEFT 동시 재신청, 마지막 한 자리 동시 승인, 동일 신청 승인·거절 경합, 순차 신청·승인 반복, DB UNIQUE 직접 확인, 커밋 보류 중 경쟁 요청 대기를 검증한다. 성공 수·업무 오류 코드·최종 행 수·상태·승인 인원 및 LEFT 기존 ID·정보 초기화를 확인한다.
+- 실행 구조: 실제 Mapper XML·SqlSessionTemplate·Service 구현체에 Spring 트랜잭션 프록시를 적용한다. REPEATABLE READ·잠금 대기/SQL/스레드 제한을 사용하고 SQL 오류·데드락은 실패다. 기존 의존성만 사용하며 서비스·Mapper·DB 스키마·프로젝트 빌드 설정은 수정하지 않았다.
+- DB 조건: MOA_TEST_DB_ENABLED=true와 별도 MOA_TEST_DB_URL·MOA_TEST_DB_USER·MOA_TEST_DB_PASSWORD가 필요하다. MySQL 8 이상, moa_join_test_ 접두사의 빈 DB만 허용한다. 애플리케이션 DB 설정은 재사용하지 않는다. schema.sql의 필요한 4개 테이블을 생성하고 이 클래스가 생성한 테이블만 정리한다. 전체 스키마·다른 도메인 FK는 범위 밖이다.
+- 문서 파일: docs/saving-group-join-request-design.md, 본 기록. 실행 방법·데이터 범위·예상 결과·기존 import 오류를 피하는 임시 소스 선택 방법을 기록했다. 환경변수 변경 후 캐시된 건너뜀 결과를 재사용하지 않도록 --rerun-tasks를 명시했다.
+- 환경 점검: 기존 설정은 외부 DB이며 테스트 환경변수는 미설정, 로컬 3306 연결은 불가했다. 인증 정보는 출력·변경하지 않았다. 서비스 목록 조회는 권한 부족으로 확인하지 못했다.
+- 검증: Java 17 Gradle 테스트 컴파일 및 기존 가입 테스트 114개 통과. MOA_TEST_DB_ENABLED=false로 실행해 새 테스트는 각 클래스 7개씩 총 14개 건너뜀, 실패 0개. 실제 MySQL 동시성 검증 통과로 간주하지 않는다. 필요한 DDL 추출·UNIQUE 존재 및 git diff --check를 확인했다.
+- 실행 방법: 기존 Gradle 캐시 접근 권한으로 실행했다. Git 제외 back/build/moa-join-stage4-tests.gradle 임시 init-script로 가입 관련 소스만 컴파일했다. 전체 테스트는 기존 무관한 import 오류가 있어 통과를 주장하지 않는다.
+- 수동 검증: 브라우저·Postman에서 반복 신청 후 관계 1행, 마지막 자리 동시 승인 후 정원 이하, 승인·거절 경합 후 최종 상태 일치를 확인한다. 이번 실제 브라우저·Postman·DB 실행은 미실행이다.
+- 개발자 검토·수정: 검토 대기. 4단계는 테스트 준비 완료이며 전용 DB 확인 후 새 테스트 14개를 실제 실행해야 완료한다. 서비스 보완이 필요하면 대상과 이유를 먼저 공유한다. 커밋은 실행하지 않았다.
