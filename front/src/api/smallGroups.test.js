@@ -3,6 +3,8 @@ import test from 'node:test';
 import client from './client.js';
 import {
   createSmallGroup,
+  createSmallGroupReview,
+  SmallGroupReviewCreateError,
   createSmallGroupVote,
   deleteSmallGroupVote,
   getSmallGroupVoteDetail,
@@ -33,6 +35,82 @@ import {
   participateSmallGroupVote,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+// AI작성: 별점 0점도 보존하고 작성자 등 불필요한 값이 전송되지 않는지 검증한다.
+test('소모임 후기 등록은 별점과 코멘트만 보내고 생성 ID를 반환한다', async () => {
+  const originalPost = client.post;
+  try {
+    client.post = async (path, body) => {
+      assert.equal(path, '/small-groups/7/reviews');
+      assert.deepEqual(body, { rating: 0, content: '즐거웠어요' });
+      return { data: { success: true, data: 50, meta: null, error: null } };
+    };
+    assert.equal(await createSmallGroupReview(7, { rating: 0, content: '즐거웠어요', writerId: 999 }), 50);
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+// AI작성: 화면의 중복 완료 안내에 필요한 서버 코드와 메시지를 그대로 유지한다.
+test('소모임 후기 등록은 서버 중복 오류를 보존한다', async () => {
+  const originalPost = client.post;
+  try {
+    client.post = async () => {
+      const error = new Error('Conflict');
+      error.response = { data: { error: {
+        code: 'SMALL_GROUP_REVIEW_ALREADY_EXISTS', message: '이미 등록한 후기입니다.',
+      } } };
+      throw error;
+    };
+    await assert.rejects(createSmallGroupReview(7, { rating: 4.5, content: '좋아요' }), (error) => {
+      assert.ok(error instanceof SmallGroupReviewCreateError);
+      assert.equal(error.code, 'SMALL_GROUP_REVIEW_ALREADY_EXISTS');
+      assert.equal(error.message, '이미 등록한 후기입니다.');
+      return true;
+    });
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+// AI작성: 성공 여부·생성 ID가 불명확하면 등록 성공으로 표시하지 않는다.
+test('소모임 후기 등록은 잘못된 성공 응답을 거절한다', async () => {
+  const originalPost = client.post;
+  try {
+    for (const data of [null, 0, -1, '50', {}, 0.5]) {
+      client.post = async () => ({ data: { success: true, data } });
+      await assert.rejects(createSmallGroupReview(7, { rating: 5, content: '좋아요' }),
+        (error) => error.code === 'INVALID_RESPONSE');
+    }
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+test('소모임 후기 등록은 실패 봉투의 서버 권한 오류를 보존한다', async () => {
+  const originalPost = client.post;
+  try {
+    client.post = async () => ({ data: { success: false, error: {
+      code: 'SMALL_GROUP_REVIEW_OWNER_NOT_ALLOWED', message: '개설자는 작성할 수 없습니다.',
+    } } });
+    await assert.rejects(createSmallGroupReview(7, { rating: 5, content: '좋아요' }),
+      (error) => error.code === 'SMALL_GROUP_REVIEW_OWNER_NOT_ALLOWED'
+        && error.message === '개설자는 작성할 수 없습니다.');
+  } finally {
+    client.post = originalPost;
+  }
+});
+
+test('소모임 후기 등록은 네트워크 실패를 안내 오류로 변환한다', async () => {
+  const originalPost = client.post;
+  try {
+    client.post = async () => { throw new Error('Network Error'); };
+    await assert.rejects(createSmallGroupReview(7, { rating: 5, content: '좋아요' }),
+      (error) => error instanceof SmallGroupReviewCreateError && error.code === 'NETWORK_ERROR');
+  } finally {
+    client.post = originalPost;
+  }
+});
 
 test('소모임 투표 삭제는 두 식별자로 DELETE 요청을 전송한다', async () => {
   const originalDelete = client.delete;

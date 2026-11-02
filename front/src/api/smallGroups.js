@@ -1,5 +1,37 @@
 import client from './client.js';
 
+// AI작성: 후기 등록의 서버 오류 코드를 보존해 중복 등록과 재시도 가능한 실패를 구분한다.
+export class SmallGroupReviewCreateError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupReviewCreateError';
+    this.code = code;
+  }
+}
+
+// AI작성: 작성자는 JWT로 결정하므로 별점과 코멘트만 전송하고 생성된 후기 ID를 반환한다.
+export async function createSmallGroupReview(smallGroupId, { rating, content }) {
+  try {
+    const response = await client.post(`/small-groups/${encodeURIComponent(smallGroupId)}/reviews`, {
+      rating, content,
+    });
+    const result = response.data;
+    if (!result?.success || !(Number.isInteger(result.data) && result.data > 0)) {
+      throw new SmallGroupReviewCreateError(
+        result?.error?.code || 'INVALID_RESPONSE',
+        result?.error?.message || '후기 등록 결과를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      );
+    }
+    return result.data;
+  } catch (error) {
+    if (error instanceof SmallGroupReviewCreateError) throw error;
+    throw new SmallGroupReviewCreateError(
+      error.response?.data?.error?.code || 'NETWORK_ERROR',
+      error.response?.data?.error?.message || '후기를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    );
+  }
+}
+
 // AI작성: 소모임 생성 API 실패 코드와 메시지를 화면까지 보존하기 위한 오류 객체다.
 export class SmallGroupCreationError extends Error {
   constructor(code, message) {

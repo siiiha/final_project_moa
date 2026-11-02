@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -6,6 +6,7 @@ import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
 import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
+import SmallGroupReviewCreateModal from './SmallGroupReviewCreateModal';
 
 const Profile = styled.section`
   padding: 6px 0 0;
@@ -434,6 +435,25 @@ function SmallGroupDetail({
 }) {
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
   const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
+  // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
+  const [reviewModalGroupId, setReviewModalGroupId] = useState(null);
+  const [reviewResult, setReviewResult] = useState(null);
+  const closeReviewModal = useCallback(() => setReviewModalGroupId(null), [setReviewModalGroupId]);
+  const [reviewNow, setReviewNow] = useState(() => new Date());
+  // AI작성: 페이지를 오래 열어 두어도 모임 다음 날에는 작성 버튼이 활성화되도록 한국 날짜를 갱신한다.
+  useEffect(() => {
+    const timer = window.setInterval(() => setReviewNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const koreaDateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(reviewNow);
+  const datePart = (type) => koreaDateParts.find((part) => part.type === type)?.value;
+  const todayInKorea = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
+  const reviewRestriction = myRole !== 'MEMBER'
+    ? (myRole === 'OWNER' ? '소모임 개설자는 후기를 작성할 수 없습니다.' : '승인된 일반 모임원만 후기를 작성할 수 있습니다.')
+    : !group.meetDate ? '모임 날짜가 설정되지 않아 후기를 작성할 수 없습니다.'
+      : group.meetDate >= todayInKorea ? '후기는 모임 다음 날부터 작성할 수 있습니다.' : '';
   // AI작성: 이미 승인된 OWNER·MEMBER는 재신청할 수 없으므로 상세 화면에서 버튼을 노출하지 않는다.
   const canRequestJoin = !['OWNER', 'MEMBER'].includes(myRole);
   // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
@@ -532,6 +552,31 @@ function SmallGroupDetail({
               onSubmit={async (request) => {
                 await onCreateVote(request);
                 setIsVoteCreateModalOpen(false);
+              }}
+            />
+          )}
+        </PollContent>
+      ) : currentMenu === 'review' ? (
+        <PollContent>
+          {/* AI작성: 후기 조회 API를 가정하지 않고 작성과 서버 응답에 따른 완료 안내만 제공한다. */}
+          <PollHeading>
+            <PollTitle>소모임 후기</PollTitle>
+            {!reviewRestriction && reviewResult?.smallGroupId !== smallGroupId && (
+              <Button type="button" onClick={() => setReviewModalGroupId(smallGroupId)}>후기 작성</Button>
+            )}
+          </PollHeading>
+          <Placeholder role="status">
+            {reviewRestriction || (reviewResult?.smallGroupId === smallGroupId
+              ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
+          </Placeholder>
+          {!reviewRestriction && reviewModalGroupId === smallGroupId && (
+            <SmallGroupReviewCreateModal
+              key={smallGroupId}
+              smallGroupId={smallGroupId}
+              onClose={closeReviewModal}
+              onRegistered={(message) => {
+                setReviewResult({ smallGroupId, message });
+                closeReviewModal();
               }}
             />
           )}
