@@ -227,12 +227,9 @@ function PostDetail({
             <Button type="button" $size="small" onClick={onEdit}>수정</Button>
             <Button type="button" $variant="danger" $size="small" onClick={onDelete}>삭제</Button>
           </> : <>
-            {/* AI작성: 게시글 자체와 작성자 신고를 구분해 관리자에게 정확한 대상을 전달한다. */}
-            <Button type="button" $variant="secondary" $size="small" onClick={() => onReport('POST', post.id, '게시글')}>
-              게시글 신고
-            </Button>
-            <Button type="button" $variant="danger" $size="small" onClick={() => onReport('MEMBER', post.writerId, '작성자')}>
-              작성자 신고
+            {/* AI작성: 신고 버튼은 하나로 표시하고 모달에서 게시글 또는 작성자를 선택하도록 대상 정보를 함께 전달한다. */}
+            <Button type="button" $variant="danger" $size="small" onClick={() => onReport('POST', post.id, post.writerId, '게시글')}>
+              신고하기
             </Button>
           </>}
         </PostActions>
@@ -261,8 +258,8 @@ function PostDetail({
                       <TextAction type="button" onClick={() => onCommentEditStart(comment)}>수정</TextAction>
                       <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>삭제</TextAction>
                     </> : <>
-                      <TextAction type="button" onClick={() => onReport('COMMENT', comment.id, '댓글')}>댓글 신고</TextAction>
-                      <TextAction type="button" $danger onClick={() => onReport('MEMBER', comment.memberId, '작성자')}>작성자 신고</TextAction>
+                      {/* AI작성: 댓글과 작성자 신고를 하나의 진입점으로 합치고 실제 대상은 모달에서 선택한다. */}
+                      <TextAction type="button" $danger onClick={() => onReport('COMMENT', comment.id, comment.memberId, '댓글')}>신고하기</TextAction>
                     </>}
                   </ReplyActions>
                 )}
@@ -328,8 +325,7 @@ function PostDetail({
                           <TextAction type="button" onClick={() => onCommentEditStart(reply)}>수정</TextAction>
                           <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>삭제</TextAction>
                         </> : <>
-                          <TextAction type="button" onClick={() => onReport('COMMENT', reply.id, '댓글')}>댓글 신고</TextAction>
-                          <TextAction type="button" $danger onClick={() => onReport('MEMBER', reply.memberId, '작성자')}>작성자 신고</TextAction>
+                          <TextAction type="button" $danger onClick={() => onReport('COMMENT', reply.id, reply.memberId, '댓글')}>신고하기</TextAction>
                         </>}
                       </ReplyActions>
                     )}

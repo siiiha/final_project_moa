@@ -569,23 +569,30 @@ function PostDetailPage() {
   };
 
   // AI작성: 비로그인 회원은 현재 게시글로 돌아올 수 있도록 로그인 화면으로 이동한다.
-  const handleReportStart = (reportType, targetId, targetLabel) => {
+  const handleReportStart = (contentReportType, contentTargetId, memberTargetId, contentLabel) => {
     if (!token) {
       goToLogin();
       return;
     }
     setReportErrorMessage('');
-    setReportTarget({ reportType, targetId, targetLabel });
+    // AI작성: 하나의 신고 모달에서 콘텐츠와 작성자 중 한 대상을 선택할 수 있도록 두 후보를 함께 저장한다.
+    setReportTarget({
+      targets: [
+        { reportType: contentReportType, targetId: contentTargetId, label: `${contentLabel} 신고` },
+        { reportType: 'MEMBER', targetId: memberTargetId, label: '작성자 신고' },
+      ],
+    });
   };
 
-  const handleReportSubmit = async (reason) => {
-    if (!reportTarget || isSubmittingReport) return;
+  const handleReportSubmit = async (reason, selectedTarget) => {
+    if (!reportTarget || !selectedTarget || isSubmittingReport) return;
     setIsSubmittingReport(true);
     setReportErrorMessage('');
     try {
       await createReport({
-        reportType: reportTarget.reportType,
-        targetId: reportTarget.targetId,
+        // AI작성: 모달에서 사용자가 선택한 신고 유형과 대상 ID 한 건만 서버로 전송한다.
+        reportType: selectedTarget.reportType,
+        targetId: selectedTarget.targetId,
         reason,
       });
       setReportTarget(null);
@@ -682,7 +689,7 @@ function PostDetailPage() {
       )}
       {reportTarget && (
         <ReportModal
-          targetLabel={reportTarget.targetLabel}
+          targets={reportTarget.targets}
           submitting={isSubmittingReport}
           errorMessage={reportErrorMessage}
           onSubmit={handleReportSubmit}
