@@ -210,8 +210,6 @@ const SelectedPlace = styled.div`
   border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.colors.white};
   h3 { display: flex; align-items: start; gap: 10px; }
-  a { display: inline-flex; align-items: center; gap: 6px; min-height: 48px;
-    color: ${({ theme }) => theme.colors.primaryDark}; text-decoration: underline; font-weight: 700; }
 `;
 const Footer = styled(Hint)`
   margin: 0 !important;
@@ -238,14 +236,27 @@ function SmallGroupPlacesPanel({ smallGroupId }) {
   const selectedIndex = selectedPlace ? result.data.items.indexOf(selectedPlace) + 1 : 0;
   const requestRef = useRef(null);
   const locationVersion = useRef(0);
+  // AI작성: 현재 위치는 길찾기 콜백에서만 사용하며 상태·저장소에는 보관하지 않는다.
+  const directionsRef = useRef(null);
+  const [directionsState, setDirectionsState] = useState({ loading: false, error: '' });
   const forbidden = ['SMALL_GROUP_PLACE_FORBIDDEN', 'LOGIN_REQUIRED', 'INVALID_TOKEN', 'ACCESS_DENIED'].includes(result.code);
 
   useEffect(() => () => {
     requestRef.current?.abort();
     locationVersion.current += 1;
+    directionsRef.current?.popup.close();
+    directionsRef.current = null;
   }, []);
 
+  // AI작성: 검색·장소 변경 시 대기 중인 새 창을 닫고 뒤늦은 위치 응답의 외부 이동을 막는다.
+  function cancelDirections() {
+    directionsRef.current?.popup.close();
+    directionsRef.current = null;
+    setDirectionsState({ loading: false, error: '' });
+  }
+
   function resetSearch() {
+    cancelDirections();
     requestRef.current?.abort();
     setLastSearch(null);
     setResult(initialResult);
@@ -294,6 +305,7 @@ function SmallGroupPlacesPanel({ smallGroupId }) {
   }
 
   async function search(criteria, page = 1) {
+    cancelDirections();
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
@@ -326,6 +338,80 @@ function SmallGroupPlacesPanel({ smallGroupId }) {
       return;
     }
     search({ query: trimmed, sort, ...(position || {}), ...(position && radius !== '' ? { radius: Number(radius) } : {}) });
+  }
+
+  // AI작성: 사용자 클릭 시 빈 창을 먼저 확보해 비동기 위치 확인 후의 팝업 차단을 피한다.
+  function openDirections() {
+    if (!selectedPlace || forbidden || directionsRef.current) return;
+    setDirectionsState({ loading: false, error: '' });
+    if (!navigator.geolocation) {
+      setDirectionsState({ loading: false, error: '현재 브라우저에서는 위치 확인을 지원하지 않습니다.' });
+      return;
+    }
+    let popup;
+    try {
+      popup = window.open('about:blank', '_blank');
+      if (!popup) {
+        setDirectionsState({ loading: false, error: '새 창이 차단됐습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.' });
+        return;
+      }
+      // AI작성: 새 창에서 모아 창에 접근하지 못하도록 분리하고 외부 이동 시 referrer를 보내지 않는다.
+      popup.opener = null;
+      const referrer = popup.document.createElement('meta');
+      referrer.name = 'referrer';
+      referrer.content = 'no-referrer';
+      popup.document.head.appendChild(referrer);
+      popup.document.title = '길찾기 준비 중';
+      popup.document.body.textContent = '현재 위치를 확인하고 있습니다. 잠시만 기다려 주세요.';
+    } catch {
+      popup?.close();
+      setDirectionsState({ loading: false, error: '길찾기 창을 열지 못했습니다. 다시 눌러 주세요.' });
+      return;
+    }
+    const pending = { popup };
+    const destination = selectedPlace;
+    directionsRef.current = pending;
+    setDirectionsState({ loading: true, error: '' });
+    function fail(message) {
+      if (directionsRef.current !== pending) return;
+      directionsRef.current = null;
+      popup.close();
+      setDirectionsState({ loading: false, error: message });
+    }
+    try {
+      navigator.geolocation.getCurrentPosition(({ coords }) => {
+        if (directionsRef.current !== pending) return;
+        if (popup.closed) {
+          fail('길찾기 창이 닫혔습니다. 다시 눌러 주세요.');
+          return;
+        }
+        if (!Number.isFinite(coords.latitude) || Math.abs(coords.latitude) > 90
+            || !Number.isFinite(coords.longitude) || Math.abs(coords.longitude) > 180
+            || !Number.isFinite(coords.accuracy) || coords.accuracy <= 0 || coords.accuracy > 500) {
+          fail('위치가 정확하지 않습니다. 예상 오차가 500m 이하일 때 다시 눌러 주세요.');
+          return;
+        }
+        try {
+          // AI작성: 공식 길찾기 URL은 위도·경도 순서이며 장소명은 경로 변수로 인코딩한다.
+          const url = `https://map.kakao.com/link/from/${encodeURIComponent('현재 위치')},${coords.latitude},${coords.longitude}`
+            + `/to/${encodeURIComponent(destination.placeName)},${destination.latitude},${destination.longitude}`;
+          popup.location.replace(url);
+          directionsRef.current = null;
+          setDirectionsState({ loading: false, error: '' });
+        } catch {
+          fail('카카오맵 길찾기를 열지 못했습니다. 다시 눌러 주세요.');
+        }
+      }, (error) => {
+        const messages = {
+          1: '위치 사용이 허용되지 않았습니다. 위치 권한을 허용한 뒤 다시 눌러 주세요.',
+          2: '현재 위치를 확인할 수 없습니다. 잠시 후 다시 눌러 주세요.',
+          3: '위치 확인 시간이 초과됐습니다. 다시 눌러 주세요.',
+        };
+        fail(messages[error.code] || '현재 위치를 확인하지 못했습니다. 다시 눌러 주세요.');
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    } catch {
+      fail('현재 위치를 확인하지 못했습니다. 다시 눌러 주세요.');
+    }
   }
 
   return (
@@ -380,7 +466,10 @@ function SmallGroupPlacesPanel({ smallGroupId }) {
               : result.data ? <>
                 <Results>{result.data.items.map((place, index) => <li key={place.placeId}>
                   <PlaceButton type="button" $selected={place.placeId === selectedPlace.placeId}
-                    aria-pressed={place.placeId === selectedPlace.placeId} onClick={() => setSelectedPlaceId(place.placeId)}>
+                    aria-pressed={place.placeId === selectedPlace.placeId} onClick={() => {
+                      if (place.placeId !== selectedPlace.placeId) cancelDirections();
+                      setSelectedPlaceId(place.placeId);
+                    }}>
                     <PlaceNumber aria-hidden="true">{index + 1}</PlaceNumber>
                     <span><strong>{place.placeName}</strong>
                       {place.category && <small>{place.category}</small>}
@@ -410,13 +499,19 @@ function SmallGroupPlacesPanel({ smallGroupId }) {
               <p>{selectedPlace.roadAddress || selectedPlace.address || '주소 정보가 없습니다.'}</p>
               {selectedPlace.roadAddress && selectedPlace.address && selectedPlace.roadAddress !== selectedPlace.address && <Hint>지번: {selectedPlace.address}</Hint>}
               {selectedPlace.distanceMeters != null && <p>현재 위치 기준 {selectedPlace.distanceMeters.toLocaleString()}m</p>}
-              <a href={selectedPlace.placeUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">장소 상세 보기 (새 창)<FiChevronRight aria-hidden="true" /></a>
+              <LocationHint id="place-directions-purpose">누르면 현재 위치를 확인해 카카오맵에 출발지로 전달합니다. 위치는 저장하지 않으며 새 창으로 열립니다.</LocationHint>
+              <Action type="button" onClick={openDirections} disabled={directionsState.loading || forbidden}
+                aria-busy={directionsState.loading} aria-describedby="place-directions-purpose">
+                <FiNavigation aria-hidden="true" />현 위치에서 길찾기
+              </Action>
+              {directionsState.loading && <Hint role="status">출발지 위치를 확인하는 중입니다.</Hint>}
+              {directionsState.error && <Alert role="alert">{directionsState.error}</Alert>}
             </SelectedPlace>
           </> : <MapPlaceholder><FiMap aria-hidden="true" /><strong>만날 장소를 지도에서 확인하세요</strong><p>검색한 장소를 선택하면<br />이곳에 위치를 표시해 드립니다.</p></MapPlaceholder>}
         </MapPane>
       </Workspace>
-      {/* AI작성: TODO 길찾기는 후속 요청에서 구현하며 검색 결과를 모임 장소로 저장하지 않는다. */}
-      <Footer>마음에 드는 장소의 위치를 확인해 보세요. 길찾기는 준비 중입니다.</Footer>
+      {/* AI작성: 길찾기는 카카오맵에서 안내하고 검색 결과를 모임 장소로 저장하지 않는다. */}
+      <Footer>선택한 장소까지의 길찾기는 카카오맵에서 확인할 수 있습니다.</Footer>
     </Panel>
   );
 }
