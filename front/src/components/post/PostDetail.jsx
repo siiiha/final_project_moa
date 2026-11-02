@@ -101,6 +101,9 @@ const CommentText = styled.p`
   color: ${({ theme }) => theme.colors.secondaryText};
   font-size: 15px;
   line-height: 1.6;
+  /* AI작성: 댓글·대댓글에 저장된 줄바꿈을 유지하고 긴 문자열은 영역 안에서 줄바꿈한다. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 `;
 
 const Reply = styled.div`
