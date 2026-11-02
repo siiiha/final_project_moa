@@ -342,6 +342,43 @@ ALTER TABLE `restriction_history`
         FOREIGN KEY (`small_group_id`)
             REFERENCES `small_group` (`small_group_id`);
 
+-- 소모임별 회원당 후기 한 건과 별점·내용을 검증
+CREATE TABLE IF NOT EXISTS small_group_review (
+    small_group_review_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_id BIGINT NOT NULL,
+    writer_id BIGINT NOT NULL,
+    rating DECIMAL(2,1) NOT NULL,
+    content VARCHAR(30) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL,
+
+    PRIMARY KEY (small_group_review_id),
+
+    UNIQUE KEY uq_small_group_review_group_writer
+        (small_group_id, writer_id),
+
+    CONSTRAINT fk_small_group_review_small_group
+        FOREIGN KEY (small_group_id)
+        REFERENCES small_group (small_group_id),
+
+    CONSTRAINT fK_small_group_review_writer
+        FOREIGN key (writer_id)
+        REFERENCES members (member_id),
+
+    CONSTRAINT chk_small_group_review_rating
+        CHECK (
+            rating BETWEEN 0.0 AND 5.0
+            AND MOD(rating * 10, 5) = 0
+            ),
+
+    CONSTRAINT chk_small_group_review_content
+        CHECK (
+            CHAR_LENGTH(content) BETWEEN 1 AND 30
+            AND CHAR_LENGTH(TRIM(content)) > 0
+        )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
 -- 소모임 투표의 기본 정보와 종료 이력을 저장
 CREATE TABLE IF NOT EXISTS small_group_vote (
     small_group_vote_id BIGINT NOT NULL AUTO_INCREMENT,
@@ -465,11 +502,12 @@ CREATE TABLE IF NOT EXISTS `term` (
 CREATE TABLE IF NOT EXISTS `report_case` (
     `case_id` BIGINT NOT NULL AUTO_INCREMENT,
     `report_type` ENUM(
-        'BOARD_POST',
-        'BOARD_COMMENT',
-        'BOARD_MEMBER',
-        'MEETING',
-        'MEETING_MEMBER'
+        'POST',
+        'COMMENT',
+        'MEMBER',
+        'GROUP',
+        'GROUP_MEMBER',
+        'CHAT_MESSAGE'
 ) NOT NULL,
 `target_id` BIGINT NOT NULL,
 `reported_member_id` BIGINT NOT NULL,
