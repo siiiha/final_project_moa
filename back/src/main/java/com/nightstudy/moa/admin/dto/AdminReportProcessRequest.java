@@ -32,6 +32,9 @@ public class AdminReportProcessRequest {
     )
     private String restrictionType;
 
+    // AI작성: 게시글·댓글 신고 승인 시 관리자가 신고 콘텐츠 삭제 여부를 선택한다.
+    private Boolean deleteTargetContent;
+
     // AI작성: 기존 reason은 사용자 신고 내용이므로 관리자 판단 사유를 별도로 받는다.
     @NotBlank(message = "처리 사유는 필수입니다.")
     @Size(max = 500, message = "처리 사유는 500자 이하여야 합니다.")

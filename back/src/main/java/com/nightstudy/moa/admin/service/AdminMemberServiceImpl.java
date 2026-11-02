@@ -7,7 +7,7 @@ import com.nightstudy.moa.admin.dto.AdminMemberSearchCondition;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionReleaseRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminMemberRestrictionTarget;
-import com.nightstudy.moa.admin.dto.MemberRestrictionAction;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -93,7 +93,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         adminMemberMapper.upsertMemberRestriction(memberId, restrictionScope, restrictedUntil);
         if (adminMemberMapper.insertRestrictionHistory(
                 memberId,
-                MemberRestrictionAction.RESTRICT,
+                RestrictionAction.RESTRICT,
                 request.getRestrictionType(),
                 restrictionScope,
                 request.getReason(),
@@ -126,7 +126,7 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         if (adminMemberMapper.releaseMemberRestriction(memberId, restrictionScope) != 1
                 || adminMemberMapper.insertRestrictionHistory(
                         memberId,
-                        MemberRestrictionAction.RELEASE,
+                        RestrictionAction.RELEASE,
                         null,
                         restrictionScope,
                         request.getReason(),

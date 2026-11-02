@@ -1,6 +1,6 @@
 package com.nightstudy.moa.member.mapper;
 
-import com.nightstudy.moa.member.dto.SocialLoginMemberDto;
+import com.nightstudy.moa.member.dto.social.SocialLoginMemberDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

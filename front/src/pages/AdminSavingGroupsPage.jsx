@@ -1,56 +1,18 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import AdminSidebar from '../components/layout/AdminSidebar';
+import AdminPageLayout from '../components/layout/AdminPageLayout';
 import SavingGroupFilterBar from '../components/admin/SavingGroupFilterBar';
 import SavingGroupTable from '../components/admin/SavingGroupTable';
-import { adminMenuItems } from '../mocks/admin';
 import ConfirmModal from '../components/common/ConfirmModal';
 import {
   getAdminSavingGroups,
+  getAdminSavingGroupSummary,
   releaseAdminSavingGroupRestriction,
   restrictAdminSavingGroup,
 } from '../api/adminSavingGroups';
-import { savingGroupRegionOptions } from '../api/savingGroups';
+import { getMemberRegions } from '../api/member';
 
 const PAGE_SIZE = 8;
-
-const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
-  margin: 0 auto;
-  padding: 26px 0 48px;
-`;
-
-const Heading = styled.div`
-  margin-left: 218px;
-
-  h1 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -1.35px;
-  }
-
-  p {
-    margin-top: 5px;
-    color: ${({ theme }) => theme.colors.muted};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    margin-left: 0;
-  }
-`;
-
-const Grid = styled.div`
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 202px minmax(0, 1fr);
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
-`;
 
 const SummaryGrid = styled.section`
   display: grid;
@@ -95,7 +57,7 @@ const ReasonInput = styled.textarea`
   width: 100%;
   min-height: 110px;
   padding: 11px;
-  resize: vertical;
+  resize: none;
   color: ${({ theme }) => theme.colors.text};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
@@ -111,11 +73,15 @@ const ErrorMessage = styled.p`
 function AdminSavingGroupsPage() {
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState('전체');
-  const [region, setRegion] = useState('전체');
+  const [regions, setRegions] = useState([]);
+  const [province, setProvince] = useState('');
+  const [district, setDistrict] = useState('');
+  const [town, setTown] = useState('');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
+  const [summary, setSummary] = useState({ totalSavingGroups: 0, activeSavingGroups: 0, restrictedSavingGroups: 0 });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [actionTarget, setActionTarget] = useState(null);
@@ -126,17 +92,33 @@ function AdminSavingGroupsPage() {
   const [notice, setNotice] = useState('');
 
   useEffect(() => {
+    getMemberRegions().then((items) => {
+      if (Array.isArray(items)) setRegions(items);
+    }).catch(() => setRegions([]));
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getAdminSavingGroupSummary({ signal: controller.signal }).then(setSummary).catch((error) => {
+      if (error.code !== 'ERR_CANCELED') {
+        setSummary({ totalSavingGroups: 0, activeSavingGroups: 0, restrictedSavingGroups: 0 });
+      }
+    });
+    return () => controller.abort();
+  }, [reloadKey]);
+
+  useEffect(() => {
     const controller = new AbortController();
     async function loadGroups() {
       setLoading(true);
       setErrorMessage('');
       try {
         const statusMap = { 심사중: '00', 모집중: '01', 활동중: '02', 정지: '03', 종료: '04' };
-        // AI작성: 필터의 지역명과 API가 요구하는 지역 코드를 공통 지역 목록으로 연결한다.
-        const regionCode = savingGroupRegionOptions.find((item) => item.name === region)?.code || '';
         const result = await getAdminSavingGroups({
           keyword: submittedQuery,
-          regionCode,
+          provinceName: province,
+          districtName: district,
+          townName: town,
           status: statusMap[status] || '',
           page: currentPage,
           size: PAGE_SIZE,
@@ -156,10 +138,7 @@ function AdminSavingGroupsPage() {
     }
     loadGroups();
     return () => controller.abort();
-  }, [currentPage, region, reloadKey, status, submittedQuery]);
-
-  const activeCount = groups.filter((group) => group.status === '활동중').length;
-  const suspendedCount = groups.filter((group) => group.status === '정지').length;
+  }, [currentPage, district, province, reloadKey, status, submittedQuery, town]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -198,29 +177,27 @@ function AdminSavingGroupsPage() {
   };
 
   return (
-    <Page>
-      <Heading>
-        <h1>계모임 관리</h1>
-        <p>서비스에서 운영 중인 계모임의 활동 현황과 이용 상태를 관리하세요.</p>
-      </Heading>
-      <Grid>
-        <AdminSidebar items={adminMenuItems} activeItem="gatherings" />
-        <main>
+    <>
+      <AdminPageLayout
+        title="계모임 관리"
+        description="서비스에서 운영 중인 계모임의 활동 현황과 이용 상태를 관리하세요."
+        activeItem="gatherings"
+      >
           <SummaryGrid aria-label="계모임 현황 요약">
             <SummaryCard>
               <SummaryLabel>전체 계모임</SummaryLabel>
-              <SummaryValue>{pageMeta.total}개</SummaryValue>
-              <SummaryDescription>검색 조건에 해당하는 계모임</SummaryDescription>
+              <SummaryValue>{summary.totalSavingGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>서비스에 등록된 계모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>활동 중</SummaryLabel>
-              <SummaryValue>{activeCount}개</SummaryValue>
-              <SummaryDescription>현재 페이지 기준</SummaryDescription>
+              <SummaryValue>{summary.activeSavingGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>정상 운영 중인 계모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>이용 제한</SummaryLabel>
-              <SummaryValue $danger>{suspendedCount}개</SummaryValue>
-              <SummaryDescription>현재 페이지 기준 관리자 제한</SummaryDescription>
+              <SummaryValue $danger>{summary.restrictedSavingGroups.toLocaleString()}개</SummaryValue>
+              <SummaryDescription>현재 관리자 제한 중인 계모임</SummaryDescription>
             </SummaryCard>
           </SummaryGrid>
           <SavingGroupTable
@@ -235,14 +212,28 @@ function AdminSavingGroupsPage() {
             filter={
               <SavingGroupFilterBar
                 status={status}
-                region={region}
+                province={province}
+                district={district}
+                town={town}
+                regions={regions}
                 query={query}
                 onStatusChange={(value) => {
                   setStatus(value);
                   setCurrentPage(1);
                 }}
-                onRegionChange={(value) => {
-                  setRegion(value);
+                onProvinceChange={(value) => {
+                  setProvince(value);
+                  setDistrict('');
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onDistrictChange={(value) => {
+                  setDistrict(value);
+                  setTown('');
+                  setCurrentPage(1);
+                }}
+                onTownChange={(value) => {
+                  setTown(value);
                   setCurrentPage(1);
                 }}
                 onQueryChange={setQuery}
@@ -250,8 +241,7 @@ function AdminSavingGroupsPage() {
               />
             }
           />
-        </main>
-      </Grid>
+      </AdminPageLayout>
       {actionTarget && (
         <ConfirmModal
           title={actionTarget.adminRestricted ? '계모임 제한 해제' : '계모임 이용 제한'}
@@ -284,7 +274,7 @@ function AdminSavingGroupsPage() {
           onCancel={() => setNotice('')}
         />
       )}
-    </Page>
+    </>
   );
 }
 

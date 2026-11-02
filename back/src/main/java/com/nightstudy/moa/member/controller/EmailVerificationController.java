@@ -1,13 +1,13 @@
 package com.nightstudy.moa.member.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
-import com.nightstudy.moa.member.dto.EmailCheckRequest;
-import com.nightstudy.moa.member.dto.EmailVerificationRequest;
-import com.nightstudy.moa.member.service.EmailVerificationService;
+import com.nightstudy.moa.member.dto.email.EmailCheckRequest;
+import com.nightstudy.moa.member.dto.email.EmailVerificationRequest;
+import com.nightstudy.moa.member.service.email.EmailVerificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.nightstudy.moa.member.dto.EmailVerificationTokenRequest;
+import com.nightstudy.moa.member.dto.email.EmailVerificationTokenRequest;
 
 @RestController
 @RequestMapping("/api/auth/email-verifications")

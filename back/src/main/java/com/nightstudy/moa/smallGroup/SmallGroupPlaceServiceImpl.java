@@ -1,8 +1,8 @@
 package com.nightstudy.moa.smallGroup;
 
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.KakaoPlaceResponse;
-import com.nightstudy.moa.member.service.KakaoApiClient;
+import com.nightstudy.moa.member.dto.social.kakao.KakaoPlaceResponse;
+import com.nightstudy.moa.member.service.social.kakao.KakaoApiClient;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupPlaceSearchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupPlaceSearchResponse;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;

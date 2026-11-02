@@ -26,7 +26,7 @@
 
     <!-- 시·도와 시·군·구가 등록된 가입용 지역 목록 조회 -->
     <select id="findRegions"
-            resultType="com.nightstudy.moa.member.dto.MemberRegionDto">
+            resultType="com.nightstudy.moa.member.dto.region.MemberRegionDto">
         SELECT
         region_id AS regionId,
         region_name AS regionName,
@@ -42,7 +42,7 @@
 
     <!-- 회원 저장 후 자동 생성된 회원 번호를 DTO에 전달 -->
     <insert id="insertMember"
-            parameterType="com.nightstudy.moa.member.dto.MemberInsertDto"
+            parameterType="com.nightstudy.moa.member.dto.signup.MemberInsertDto"
             useGeneratedKeys="true"
             keyProperty="memberId"
             keyColumn="member_id">
@@ -89,11 +89,12 @@
         SELECT COUNT(*)
         FROM term
         WHERE is_required = TRUE
+            AND is_active = TRUE
     </select>
 
     <!-- 일반·소셜 회원가입에서 사용할 약관 목록 조회 -->
     <select id="findTerms"
-            resultType="com.nightstudy.moa.member.dto.MemberTermDto">
+            resultType="com.nightstudy.moa.member.dto.terms.MemberTermDto">
         SELECT
         term_id AS termId,
         title,
@@ -101,6 +102,7 @@
         content,
         is_required AS `required`
         FROM term
+        WHERE is_active = TRUE
         ORDER BY term_id
     </select>
 
@@ -109,6 +111,7 @@
         SELECT COUNT(*)
         FROM term
         WHERE is_required = TRUE
+        AND is_active = TRUE
         <choose>
             <when test="termIds != null and termIds.size() > 0">
                 AND term_id IN
@@ -156,10 +159,11 @@
         SELECT COUNT(*)
         FROM term
         WHERE term_id = #{termId}
+        AND is_active = TRUE
     </select>
 
     <select id="findByEmail"
-            resultType="com.nightstudy.moa.member.dto.MemberLoginDto">
+            resultType="com.nightstudy.moa.member.dto.auth.MemberLoginDto">
         SELECT
         member_id,
         password_hash,
@@ -172,7 +176,7 @@
 
     <!-- 기존 회원정보와 가입 활동 지역을 함께 조회 -->
     <select id="findProfileByMemberId"
-            resultType="com.nightstudy.moa.member.dto.MemberProfileResponse">
+            resultType="com.nightstudy.moa.member.dto.profile.MemberProfileResponse">
         SELECT
         m.member_id AS memberId,
         m.name,
@@ -225,7 +229,7 @@
     </update>
 
     <select id="findInterestsByMemberId"
-            resultType="com.nightstudy.moa.member.dto.MemberProfileResponse$Interest">
+            resultType="com.nightstudy.moa.member.dto.profile.MemberProfileResponse$Interest">
 
         SELECT
         i.interest_id AS interestId,
@@ -239,7 +243,7 @@
 
     <!-- 수정할 회원의 비밀번호 해시와 계정 상태를 조회 -->
     <select id="findByMemberIdForUpdate"
-            resultType="com.nightstudy.moa.member.dto.MemberLoginDto">
+            resultType="com.nightstudy.moa.member.dto.auth.MemberLoginDto">
         SELECT
         member_id AS memberId,
         password_hash AS passwordHash,
@@ -301,10 +305,25 @@
         )
     </select>
 
+    <!-- 탈퇴 회원의 개인정보를 제거하고 기록 연결용 회원 ID는 유지 -->
     <update id="withdrawMember">
         UPDATE members
         SET account_status = 'INACTIVE',
-        deleted_at = CURRENT_TIMESTAMP
+        deleted_at = UTC_TIMESTAMP(),
+        email = NULL,
+        password_hash = NULL,
+        name = '탈퇴회원',
+        nickname = CONCAT('탈퇴회원_', REPLACE(UUID(), '-', '')),
+        phone = NULL,
+        birth_date = NULL,
+        gender = NULL,
+        region_id = NULL,
+        profile_img_url = NULL,
+        user_level = NULL,
+        system_role = 'USER',
+        identity_verified_at = NULL,
+        region_verified_at = NULL,
+        suspended_until = NULL
         WHERE member_id = #{memberId}
         AND deleted_at IS NULL
     </update>
@@ -410,4 +429,22 @@
         AND deleted_at IS NULL
         AND identity_verified_at IS NULL
     </update>
+
+    <!-- 탈퇴 회원의 소셜 계정 연결 삭제 -->
+    <delete id="deleteMemberSocialAccounts">
+        DELETE FROM member_social_account
+        WHERE member_id = #{memberId}
+    </delete>
+
+    <!-- 탈퇴 회원의 본인인증 요청 기록 삭제 -->
+    <delete id="deleteMemberIdentityRequests">
+        DELETE FROM member_identity_verification_request
+        WHERE member_id = #{memberId}
+    </delete>
+
+    <!-- 탈퇴 회원의 이메일 인증 요청 및 인증 토큰 삭제 -->
+    <delete id="deleteMemberEmailVerifications">
+        DELETE FROM email_verification
+        WHERE email = #{email}
+    </delete>
 </mapper>

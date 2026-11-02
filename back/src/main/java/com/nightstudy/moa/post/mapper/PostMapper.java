@@ -41,5 +41,8 @@ public interface PostMapper {
     //게시글 번호에 해당하는 게시글의 존재 여부를 확인
     int countPostById(Long postId);
 
+    // AI작성: 댓글 등록 트랜잭션 동안 게시글 삭제가 동시에 처리되지 않도록 활성 게시글 행을 잠급니다.
+    Long selectActivePostIdForUpdate(@Param("postId") Long postId);
+
 }
 

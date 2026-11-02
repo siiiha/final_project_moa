@@ -14,23 +14,24 @@ const ArticleCard = styled.article`
   }
 `;
 
+// AI작성: 50~60세대 사용자가 상세 정보와 댓글을 편하게 읽도록 작은 글자 크기를 확대합니다.
 const Meta = styled.p`
   margin-top: 10px;
   color: ${({ theme }) => theme.colors.muted};
-  font-size: 11px;
+  font-size: 14px;
 `;
 
 const PostContent = styled.div`
   min-height: 215px;
   margin-top: 16px;
   color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.75;
   white-space: pre-line;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     min-height: 180px;
-    font-size: 12px;
+    font-size: 15px;
   }
 `;
 
@@ -63,7 +64,7 @@ const Comments = styled.section`
 
 const CommentsTitle = styled.h2`
   color: ${({ theme }) => theme.colors.text};
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 800;
 `;
 
@@ -91,14 +92,14 @@ const CommentHeader = styled.div`
 
 const Author = styled.h3`
   color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
 `;
 
 const CommentText = styled.p`
   margin-top: 7px;
   color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.6;
 `;
 
@@ -120,7 +121,7 @@ const TextAction = styled.button`
   background: transparent;
   border: 0;
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
 `;
 
@@ -140,15 +141,16 @@ const CommentForm = styled.form`
 // AI작성: 최대 500자의 댓글을 여러 줄로 편하게 작성할 수 있도록 textarea를 사용합니다.
 const CommentInput = styled.textarea`
   width: 100%;
-  min-height: 76px;
+  height: 76px;
   padding: 10px 11px;
   color: ${({ theme }) => theme.colors.text};
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1.6;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.muted};
@@ -159,6 +161,13 @@ const CommentInput = styled.textarea`
     outline: 0;
     box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
   }
+`;
+
+// AI작성: 댓글 입력창 높이만큼 버튼이 늘어나지 않도록 하단에 고정된 크기로 표시한다.
+const CommentSubmitButton = styled(Button)`
+  width: 76px;
+  min-width: 76px;
+  align-self: stretch;
 `;
 
 const CommentEditForm = styled.form`
@@ -371,9 +380,9 @@ function PostDetail({
             maxLength={500}
             placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
           />
-          <Button type="submit" $size="small" disabled={isSubmittingComment}>
+          <CommentSubmitButton type="submit" $size="small" disabled={isSubmittingComment}>
             {isSubmittingComment ? '등록 중...' : '등록'}
-          </Button>
+          </CommentSubmitButton>
         </CommentForm>
       </Comments>
     </>

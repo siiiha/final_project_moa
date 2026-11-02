@@ -3,6 +3,7 @@ package com.nightstudy.moa.common.config;
 import com.nightstudy.moa.common.auth.JwtAuthenticationFilter;
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
+import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +15,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
-import com.nightstudy.moa.member.service.AuthSessionService;
+import com.nightstudy.moa.member.service.auth.AuthSessionService;
 
 @Configuration
 public class SecurityConfig {
@@ -35,14 +36,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http
-    ) throws Exception {
+            HttpSecurity http,
+            RevokedTokenMapper revokedTokenMapper) throws Exception {
 
         // AI작성: 회원 상태와 로그인 세션을 함께 검증하는 JWT 필터를 등록한다.
         JwtAuthenticationFilter jwtFilter =
                 new JwtAuthenticationFilter (
                         jwtTokenProvider,
                         errorResponseWriter,
+                        revokedTokenMapper,
                         authSessionService
                 );
 

@@ -1,11 +1,14 @@
 package com.nightstudy.moa.member.mapper;
 
-import com.nightstudy.moa.member.dto.*;
+import com.nightstudy.moa.member.dto.auth.MemberLoginDto;
+import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.signup.MemberInsertDto;
+import com.nightstudy.moa.member.dto.terms.MemberTermDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
-import com.nightstudy.moa.member.dto.MemberRegionDto;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 
 @Mapper
 public interface MemberMapper {
@@ -145,5 +148,20 @@ public interface MemberMapper {
     // 활성 회원의 본인인증 완료 시각 저장
     int markIdentityVerified(
             @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 소셜 계정 연결을 삭제
+    int deleteMemberSocialAccounts(
+            @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 본인인증 요청 기록을 삭제
+    int deleteMemberIdentityRequests(
+            @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 이메일 인증 요청과 인증 토큰을 삭제
+    int deleteMemberEmailVerifications(
+            @Param("email") String email
     );
 }

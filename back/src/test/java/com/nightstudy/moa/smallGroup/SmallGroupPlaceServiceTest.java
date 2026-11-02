@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.KakaoPlaceResponse;
+import com.nightstudy.moa.member.dto.social.kakao.KakaoPlaceResponse;
 import com.nightstudy.moa.member.service.KakaoApiClient;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;

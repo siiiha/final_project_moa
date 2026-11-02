@@ -1,8 +1,9 @@
 package com.nightstudy.moa.member.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.MemberLoginDto;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
+import com.nightstudy.moa.common.service.ProfileImageStorage;
+import com.nightstudy.moa.member.dto.auth.MemberLoginDto;
+import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
 import com.nightstudy.moa.member.mapper.MemberMapper;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;

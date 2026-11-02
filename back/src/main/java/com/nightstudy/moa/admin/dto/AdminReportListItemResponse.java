@@ -14,7 +14,7 @@ public class AdminReportListItemResponse {
 
     private Long caseId;
 
-    // BOARD_POST, BOARD_COMMENT, BOARD_MEMBER, MEETING, MEETING_MEMBER
+    // AI작성: POST, COMMENT, MEMBER, GROUP, GROUP_MEMBER, CHAT_MESSAGE 신고 대상을 구분한다.
     private String reportType;
 
     // 게시글 번호, 댓글 번호, 모임 번호 또는 회원 번호

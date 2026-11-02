@@ -2,9 +2,7 @@ package com.nightstudy.moa.admin.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,17 +12,18 @@ import lombok.Setter;
 @NoArgsConstructor
 // AI작성: 관리자 계모임 목록의 검색·상태·지역·페이징 조건을 받는다.
 public class AdminSavingGroupSearchCondition {
-    private static final List<String> REGIONS = List.of(
-            "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도"
-    );
-
     @Size(max = 20, message = "검색어는 20자 이내로 입력해 주세요.")
     private String keyword;
     private String keywordPattern;
 
-    @Pattern(regexp = "0[1-9]|10", message = "지역을 다시 선택해 주세요.")
-    private String regionCode;
-    private String regionName;
+    @Size(max = 30, message = "시·도 지역명을 다시 선택해 주세요.")
+    private String provinceName;
+
+    @Size(max = 50, message = "시·군·구 지역명을 다시 선택해 주세요.")
+    private String districtName;
+
+    @Size(max = 50, message = "읍·면·동 지역명을 다시 선택해 주세요.")
+    private String townName;
 
     // AI작성: 현재 스키마가 VARCHAR이고 기존 코드에 문자·숫자 상태값이 공존해 길이만 제한한다.
     @Size(max = 20, message = "계모임 상태는 20자 이내로 입력해 주세요.")
@@ -47,13 +46,11 @@ public class AdminSavingGroupSearchCondition {
                 : "%" + this.keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
     }
 
-    // AI작성: DB에 지역 코드가 없으므로 기존 계모임 목록과 같은 순서로 지역명으로 변환한다.
-    public void setRegionCode(String regionCode) {
-        this.regionCode = regionCode;
-        if (regionCode != null && regionCode.matches("0[1-9]|10")) {
-            this.regionName = REGIONS.get(Integer.parseInt(regionCode) - 1);
-        } else {
-            this.regionName = null;
-        }
+    public void setProvinceName(String provinceName) { this.provinceName = normalize(provinceName); }
+    public void setDistrictName(String districtName) { this.districtName = normalize(districtName); }
+    public void setTownName(String townName) { this.townName = normalize(townName); }
+
+    private String normalize(String value) {
+        return value == null || value.strip().isEmpty() ? null : value.strip();
     }
 }

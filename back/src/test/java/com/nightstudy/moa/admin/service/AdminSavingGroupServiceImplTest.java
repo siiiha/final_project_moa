@@ -10,8 +10,9 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
-import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionTarget;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
@@ -90,15 +91,17 @@ class AdminSavingGroupServiceImplTest {
     @Test
     void restrictSavingGroupReusesStatusChangeAndStoresHistory() {
         AdminSavingGroupRestrictionTarget target = restrictionTarget("02");
-        AdminSavingGroupRestrictionRequest request = restrictionRequest("운영정책 위반");
+        AdminGroupRestrictionRequest request = restrictionRequest("운영정책 위반");
         when(adminSavingGroupMapper.selectRestrictionTargetForUpdate(1L)).thenReturn(target);
-        when(adminSavingGroupMapper.insertRestrictionHistory(1L, "RESTRICT", "운영정책 위반"))
+        when(adminSavingGroupMapper.insertRestrictionHistory(
+                1L, RestrictionAction.RESTRICT, "운영정책 위반"))
                 .thenReturn(1);
 
         adminSavingGroupService.restrictSavingGroup(1L, request);
 
         verify(savingGroupService).changeSavingGroupStatus(101L, "03");
-        verify(adminSavingGroupMapper).insertRestrictionHistory(1L, "RESTRICT", "운영정책 위반");
+        verify(adminSavingGroupMapper).insertRestrictionHistory(
+                1L, RestrictionAction.RESTRICT, "운영정책 위반");
     }
 
     @Test
@@ -122,8 +125,8 @@ class AdminSavingGroupServiceImplTest {
         return target;
     }
 
-    private AdminSavingGroupRestrictionRequest restrictionRequest(String reason) {
-        AdminSavingGroupRestrictionRequest request = new AdminSavingGroupRestrictionRequest();
+    private AdminGroupRestrictionRequest restrictionRequest(String reason) {
+        AdminGroupRestrictionRequest request = new AdminGroupRestrictionRequest();
         request.setReason(reason);
         return request;
     }
