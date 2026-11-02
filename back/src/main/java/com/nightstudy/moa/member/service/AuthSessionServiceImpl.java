@@ -1,5 +1,6 @@
 package com.nightstudy.moa.member.service;
 
+import com.nightstudy.moa.common.auth.AuthStateCache;
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.member.dto.MemberAuthSessionDto;
@@ -15,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -28,6 +31,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationTokenProvider tokenProvider;
     private final LogoutService logoutService;
+    private final AuthStateCache authStateCache;
     private final long refreshExpirationMs;
 
     public AuthSessionServiceImpl(
@@ -35,6 +39,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             JwtTokenProvider jwtTokenProvider,
             EmailVerificationTokenProvider tokenProvider,
             LogoutService logoutService,
+            AuthStateCache authStateCache,
             @Value("${jwt.refresh-expiration-ms:604800000}")
             long refreshExpirationMs
     ) {
@@ -49,6 +54,7 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.tokenProvider = tokenProvider;
         this.logoutService = logoutService;
+        this.authStateCache = authStateCache;
         this.refreshExpirationMs = refreshExpirationMs;
     }
 
@@ -81,7 +87,10 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             throw new IllegalStateException("로그인 세션 저장에 실패했습니다.");
         }
 
-        return issueTokens(session, member);
+        MemberAuthTokenDto tokens = issueTokens(session, member);
+        cacheSessionAfterCommit(session, member.getSystemRole());
+
+        return tokens;
     }
 
     // 세션 폐기 예외가 발생해도 폐기 기록은 DB에 유지
@@ -141,7 +150,10 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         }
 
         // 토큰을 교체해도 최초 로그인 세션의 만료 시각은 연장하지 않음
-        return issueTokens(session, member);
+        MemberAuthTokenDto tokens = issueTokens(session, member);
+        cacheSessionAfterCommit(session, member.getSystemRole());
+
+        return tokens;
     }
 
     // access token이 만료됐어도 refresh token 세션은 로그아웃할 수 있음
@@ -262,6 +274,35 @@ public class AuthSessionServiceImpl implements AuthSessionService {
                 refreshToken,
                 session.getExpiresAtMs()
         );
+    }
+
+    private void cacheSessionAfterCommit(
+            MemberAuthSessionDto session,
+            String systemRole
+    ) {
+        AuthStateCache.SessionState sessionState =
+                new AuthStateCache.SessionState(
+                        session.getSessionId(),
+                        session.getMemberId(),
+                        systemRole,
+                        session.getExpiresAtMs()
+                );
+
+        // AI작성: DB 트랜잭션이 실패했는데 인증 캐시만 남는 일을 막기 위해 커밋 후 저장한다.
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            authStateCache.saveSession(sessionState);
+                        }
+                    }
+            );
+            return;
+        }
+
+        authStateCache.saveSession(sessionState);
     }
 
     private boolean isActiveMember(SocialLoginMemberDto member) {
