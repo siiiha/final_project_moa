@@ -26,6 +26,8 @@ class SmallGroupMapperXmlTest {
         }
 
         // AI작성: 후기의 조회·중복 확인·저장 계약과 생성 키 경로가 MyBatis에서 파싱되는지 확인한다.
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewCount")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewList")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewCreateTargetForUpdate")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewId")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "insertSmallGroupReview")).isTrue();
