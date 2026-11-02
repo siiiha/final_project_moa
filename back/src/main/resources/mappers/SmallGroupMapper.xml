@@ -2,6 +2,36 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 기존 생성과 전체 목록 조회에 필요한 SQL을 함께 관리한다. -->
 <mapper namespace="com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper">
+    <!-- AI작성: 회원 상태와 날짜 판단은 Service에 맡기고 삭제되지 않은 소모임·개설자 및 모임 날짜를 잠금 조회한다. -->
+    <select id="selectSmallGroupReviewCreateTargetForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateTargetRow">
+        SELECT sg.small_group_id,
+               sg.group_id,
+               g.member_id AS creator_member_id,
+               sg.meet_date
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN members creator ON creator.member_id = g.member_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 같은 소모임·작성자의 기존 후기 ID를 조회하며 동시 중복 저장은 DB UNIQUE로도 방지한다. -->
+    <select id="selectSmallGroupReviewId" resultType="long">
+        SELECT small_group_review_id
+        FROM small_group_review
+        WHERE small_group_id = #{smallGroupId}
+          AND writer_id = #{writerId}
+    </select>
+
+    <!-- AI작성: 작성일은 DB 기본값을 사용하고 생성된 후기 ID를 내부 저장 객체에 반환한다. -->
+    <insert id="insertSmallGroupReview" useGeneratedKeys="true" keyProperty="command.smallGroupReviewId">
+        INSERT INTO small_group_review (small_group_id, writer_id, rating, content)
+        VALUES (#{command.smallGroupId}, #{command.writerId}, #{command.rating}, #{command.content})
+    </insert>
+
     <!-- AI작성: 지역 ID 순서로 반환해 DB에서 관리하는 선택 순서를 보존한다. -->
     <select id="selectSmallGroupRegions"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse">
