@@ -154,7 +154,8 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
                       </PostTitle>
                     </td>
                     <td>{post.author}</td>
-                    <td>{post.date.slice(5)}</td>
+                    {/* AI작성: 게시글 상세·댓글과 동일하게 연도를 포함한 전체 작성일을 표시한다. */}
+                    <td>{post.date || '-'}</td>
                     <td>{post.views}</td>
                   </tr>
                 ))}
