@@ -164,6 +164,19 @@ function SmallGroupsPage() {
     navigate('/small-groups/new');
   };
 
+  // AI작성: 빈 결과에서 검색어·지역·관심사·페이지를 초기화하고 전체 목록을 다시 조회한다.
+  const handleResetSearch = () => {
+    setKeyword('');
+    setSubmittedKeyword('');
+    setProvince('');
+    setDistrictId('');
+    setTownId('');
+    setInterest('전체');
+    setSearchError('');
+    setCurrentPage(1);
+    setRetry((value) => value + 1);
+  };
+
   const handleCategoryRetry = () => {
     setCategoryState((previous) => ({ ...previous, loading: true, error: '' }));
     setCategoryRetry((value) => value + 1);
@@ -239,10 +252,11 @@ function SmallGroupsPage() {
         )}
         {searchError && <Result role="alert">{searchError}</Result>}
 
-        <ListHeader>
+        {/* AI작성: 목록 로딩·실패 중 이전 결과 건수나 오류에 의한 0건을 표시하지 않는다. */}
+        {!loading && !result.error && <ListHeader>
           <Result>검색 결과 <strong>{result.totalElements}</strong>개</Result>
           <Result>최신순</Result>
-        </ListHeader>
+        </ListHeader>}
 
         {loading ? <Result role="status">소모임 목록을 불러오는 중입니다.</Result> : result.error ? (
           <div role="alert">
@@ -250,13 +264,19 @@ function SmallGroupsPage() {
             <Button type="button" onClick={() => setRetry((value) => value + 1)}>다시 시도</Button>
           </div>
         ) : (
-          <SmallGroupList
-            groups={result.items}
-            currentPage={currentPage}
-            totalPages={result.totalPages}
-            onPageChange={setCurrentPage}
-            onView={handleView}
-          />
+          <>
+            <SmallGroupList
+              groups={result.items}
+              currentPage={currentPage}
+              totalPages={result.totalPages}
+              onPageChange={setCurrentPage}
+              onView={handleView}
+            />
+            {/* AI작성: 정상 빈 결과에만 초기화를 제공하고 범위 초과 페이지 복귀는 유지한다. */}
+            {result.items.length === 0 && result.totalPages === 0 && (
+              <Button type="button" $variant="secondary" onClick={handleResetSearch}>검색 조건 초기화</Button>
+            )}
+          </>
         )}
       </Content>
     </Page>

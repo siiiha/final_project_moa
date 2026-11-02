@@ -143,6 +143,18 @@ function SavingGroupsPage() {
     navigate('/saving-groups/new');
   };
 
+  // AI작성: 빈 결과에서 검색어·지역·페이지를 초기화하고 전체 목록을 다시 조회한다.
+  const handleResetSearch = () => {
+    setKeyword('');
+    setSubmittedKeyword('');
+    setProvince('');
+    setDistrictId('');
+    setTownId('');
+    setSearchError('');
+    setCurrentPage(1);
+    setRetry((value) => value + 1);
+  };
+
   return (
     <Page>
       <Breadcrumb>계모임 &gt; 계모임 목록</Breadcrumb>
@@ -208,6 +220,10 @@ function SavingGroupsPage() {
               totalPages={result.totalPages}
               onPageChange={setCurrentPage}
             />
+            {/* AI작성: 범위 초과는 기존 첫 페이지 이동을 사용하고 정상 빈 결과에만 초기화를 제공한다. */}
+            {result.items.length === 0 && result.totalPages === 0 && (
+              <Button type="button" $variant="secondary" onClick={handleResetSearch}>검색 조건 초기화</Button>
+            )}
           </>
         )}
       </Content>
