@@ -1,5 +1,10 @@
 import client from './client.js';
 import { formatAdminDate } from './adminFormatters.js';
+import {
+  ADMIN_REPORT_STATUS_OPTIONS,
+  ADMIN_REPORT_TYPE_OPTIONS,
+  findAdminReportOptionLabel,
+} from './adminReportOptions.js';
 
 function toAdminReportError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
@@ -10,14 +15,11 @@ function toAdminReportError(error, fallbackMessage) {
 }
 
 function formatReportType(value) {
-  return {
-    POST: '게시글', COMMENT: '댓글', MEMBER: '회원',
-    GROUP: '모임', GROUP_MEMBER: '모임 회원', CHAT_MESSAGE: '채팅 메시지',
-  }[value] || '유형 확인 필요';
+  return findAdminReportOptionLabel(ADMIN_REPORT_TYPE_OPTIONS, value, '유형 확인 필요');
 }
 
 function formatReportStatus(value) {
-  return { PENDING: '대기', CONFIRMED: '승인', REJECTED: '반려' }[value] || '상태 확인 필요';
+  return findAdminReportOptionLabel(ADMIN_REPORT_STATUS_OPTIONS, value, '상태 확인 필요');
 }
 
 // AI작성: 서버의 기능 제한 범위를 관리자 화면에서 이해하기 쉬운 문구로 변환한다.

@@ -8,11 +8,11 @@
     <!-- 목록 조회와 개수 조회에서 공통으로 사용하는 검색 조건 -->
     <sql id="reportSearchWhere">
         <where>
-            <if test="status != null and status != ''">
+            <if test="status != null">
                 AND rc.status = #{status}
             </if>
 
-            <if test="reportType != null and reportType != ''">
+            <if test="reportType != null">
                 AND rc.report_type = #{reportType}
             </if>
 

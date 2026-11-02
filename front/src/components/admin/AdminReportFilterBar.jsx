@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { ADMIN_REPORT_STATUS_OPTIONS, ADMIN_REPORT_TYPE_OPTIONS } from '../../api/adminReportOptions';
 import Button from '../common/Button';
 
 const Form = styled.form`
@@ -94,14 +95,19 @@ function AdminReportFilterBar({ query, searchType, reportType, status, onQueryCh
       <Field>
         신고 유형
         <Select value={reportType} onChange={(event) => onReportTypeChange(event.target.value)} aria-label="신고 유형">
-          {/* AI작성: 채팅 신고 기능이 완성되기 전까지 CHAT_MESSAGE는 관리자 필터에 노출하지 않는다. */}
-          <option value="">전체 유형</option><option value="POST">게시글</option><option value="COMMENT">댓글</option><option value="MEMBER">회원</option><option value="GROUP">모임</option><option value="GROUP_MEMBER">모임 회원</option>
+          <option value="">전체 유형</option>
+          {ADMIN_REPORT_TYPE_OPTIONS.filter((option) => option.filterable).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </Select>
       </Field>
       <Field>
         처리 상태
         <Select value={status} onChange={(event) => onStatusChange(event.target.value)} aria-label="신고 처리 상태">
-          <option value="">전체</option><option value="PENDING">대기</option><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option>
+          <option value="">전체</option>
+          {ADMIN_REPORT_STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </Select>
       </Field>
       <SearchButton type="submit">검색</SearchButton>

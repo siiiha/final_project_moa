@@ -16,18 +16,10 @@ import jakarta.validation.constraints.Size;
 public class AdminReportSearchCondition {
 
     // AI작성: DB에서 사용하는 신고 처리 상태만 검색 조건으로 허용한다.
-    @Pattern(
-            regexp = "PENDING|CONFIRMED|REJECTED",
-            message = "신고 처리 상태를 다시 선택해 주세요."
-    )
-    private String status;
+    private AdminReportStatus status;
 
     // AI작성: 지원하는 신고 대상 유형만 검색 조건으로 허용한다.
-    @Pattern(
-            regexp = "POST|COMMENT|MEMBER|GROUP|GROUP_MEMBER|CHAT_MESSAGE",
-            message = "신고 유형을 다시 선택해 주세요."
-    )
-    private String reportType;
+    private AdminReportType reportType;
 
     // AI작성: Mapper에서 지원하는 검색 대상만 허용한다.
     @Pattern(
