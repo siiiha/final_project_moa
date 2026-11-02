@@ -8,7 +8,8 @@
     <select id="selectReportTarget"
             resultType="com.nightstudy.moa.report.dto.ReportTarget">
         <choose>
-            <when test="reportType.name() == 'POST'">
+            <!-- AI작성: 신고 유형 문자열을 중복 작성하지 않고 ReportType Enum 값을 직접 비교한다. -->
+            <when test="reportType == @com.nightstudy.moa.report.dto.ReportType@POST">
                 SELECT p.writer_id AS reported_member_id
                 FROM post p
                 JOIN members m ON m.member_id = p.writer_id
@@ -17,7 +18,7 @@
                   AND m.deleted_at IS NULL
                 FOR UPDATE
             </when>
-            <when test="reportType.name() == 'COMMENT'">
+            <when test="reportType == @com.nightstudy.moa.report.dto.ReportType@COMMENT">
                 SELECT c.writer_id AS reported_member_id
                 FROM comment c
                 JOIN members m ON m.member_id = c.writer_id
@@ -26,7 +27,7 @@
                   AND m.deleted_at IS NULL
                 FOR UPDATE
             </when>
-            <when test="reportType.name() == 'MEMBER'">
+            <when test="reportType == @com.nightstudy.moa.report.dto.ReportType@MEMBER">
                 SELECT m.member_id AS reported_member_id
                 FROM members m
                 WHERE m.member_id = #{targetId}
