@@ -7,6 +7,7 @@ import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
 import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
 import SmallGroupReviewCreateModal from './SmallGroupReviewCreateModal';
+import SmallGroupReviewsPanel from './SmallGroupReviewsPanel';
 
 const Profile = styled.section`
   padding: 6px 0 0;
@@ -558,7 +559,7 @@ function SmallGroupDetail({
         </PollContent>
       ) : currentMenu === 'review' ? (
         <PollContent>
-          {/* AI작성: 후기 조회 API를 가정하지 않고 작성과 서버 응답에 따른 완료 안내만 제공한다. */}
+          {/* AI작성: 공개 목록은 작성 권한과 분리하고 기존 작성 버튼·모달은 승인된 일반 모임원에게만 제공한다. */}
           <PollHeading>
             <PollTitle>소모임 후기</PollTitle>
             {!reviewRestriction && reviewResult?.smallGroupId !== smallGroupId && (
@@ -569,6 +570,7 @@ function SmallGroupDetail({
             {reviewRestriction || (reviewResult?.smallGroupId === smallGroupId
               ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
           </Placeholder>
+          <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}`} smallGroupId={smallGroupId} />
           {!reviewRestriction && reviewModalGroupId === smallGroupId && (
             <SmallGroupReviewCreateModal
               key={smallGroupId}
