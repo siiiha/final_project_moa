@@ -97,13 +97,21 @@ function AdminMembersPage() {
       setLoading(true);
       setErrorMessage('');
       try {
-        const statusMap = { 정상: 'ACTIVE', 제재: 'SUSPENDED', 탈퇴: 'INACTIVE' };
+        // AI작성: 계정 이용 정지와 ACTIVE 계정의 기능 제재를 서로 다른 검색 조건으로 전달한다.
+        const statusConditionMap = {
+          정상: { accountStatus: 'ACTIVE', hasActiveRestriction: false },
+          제재: { accountStatus: 'ACTIVE', hasActiveRestriction: true },
+          '이용 정지': { accountStatus: 'SUSPENDED' },
+          탈퇴: { accountStatus: 'INACTIVE' },
+        };
+        const statusCondition = statusConditionMap[status] || {};
         const result = await getAdminMembers({
           keyword: submittedQuery,
           provinceName: province,
           districtName: district,
           townName: town,
-          accountStatus: statusMap[status] || '',
+          accountStatus: statusCondition.accountStatus || '',
+          hasActiveRestriction: statusCondition.hasActiveRestriction,
           restrictionScope,
           page: currentPage,
           size: PAGE_SIZE,

@@ -15,10 +15,11 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('ko-KR').format(date);
 }
 
-function formatStatus(status) {
-  if (status === 'ACTIVE') return '정상';
-  if (status === 'SUSPENDED') return '제재';
+function formatStatus(status, hasActiveRestriction = false) {
   if (status === 'INACTIVE') return '탈퇴';
+  if (status === 'SUSPENDED') return '이용 정지';
+  if (status === 'ACTIVE' && hasActiveRestriction) return '제재';
+  if (status === 'ACTIVE') return '정상';
   return '확인 필요';
 }
 
@@ -65,7 +66,8 @@ function mapMember(member) {
     region: member.regionName,
     verified: member.identityVerifiedAt && member.regionVerifiedAt ? '인증 완료' : '인증 필요',
     joinedAt: formatDate(member.createdAt),
-    status: formatStatus(member.accountStatus),
+    // AI작성: 계정 이용 정지를 우선 표시하고 ACTIVE 회원의 기능 제한은 제재로 구분한다.
+    status: formatStatus(member.accountStatus, restrictionScopes.length > 0),
     accountStatus: member.accountStatus,
     restrictionScopes,
   };
@@ -78,6 +80,7 @@ export async function getAdminMembers({
   districtName,
   townName,
   accountStatus,
+  hasActiveRestriction,
   restrictionScope,
   page = 1,
   size = 10,
@@ -91,6 +94,7 @@ export async function getAdminMembers({
         districtName: districtName || undefined,
         townName: townName || undefined,
         accountStatus: accountStatus || undefined,
+        hasActiveRestriction,
         restrictionScope: restrictionScope || undefined,
         page,
         size,

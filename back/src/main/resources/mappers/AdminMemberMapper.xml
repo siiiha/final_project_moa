@@ -33,6 +33,29 @@
             <if test="accountStatus != null">
                 AND m.account_status = #{accountStatus}
             </if>
+            <!-- AI작성: 상태 필터에서 활성 기능 제한의 존재 여부를 계정 상태와 별도로 조회한다. -->
+            <if test="hasActiveRestriction != null and hasActiveRestriction">
+                AND EXISTS (
+                    SELECT 1
+                    FROM member_feature_restriction active_mfr
+                    WHERE active_mfr.member_id = m.member_id
+                      AND (
+                          active_mfr.restricted_until IS NULL
+                          OR active_mfr.restricted_until &gt; CURRENT_TIMESTAMP
+                      )
+                )
+            </if>
+            <if test="hasActiveRestriction != null and !hasActiveRestriction">
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM member_feature_restriction active_mfr
+                    WHERE active_mfr.member_id = m.member_id
+                      AND (
+                          active_mfr.restricted_until IS NULL
+                          OR active_mfr.restricted_until &gt; CURRENT_TIMESTAMP
+                      )
+                )
+            </if>
             <if test="provinceName != null">
                 AND r.province_name = #{provinceName}
             </if>

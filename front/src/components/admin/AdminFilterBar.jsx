@@ -95,6 +95,7 @@ function AdminFilterBar({
         <option value="전체">전체 상태</option>
         <option value="정상">정상</option>
         <option value="제재">제재</option>
+        <option value="이용 정지">이용 정지</option>
         <option value="탈퇴">탈퇴</option>
       </Control>
       <Control aria-label="가입 시·도" value={province} onChange={(event) => onProvinceChange(event.target.value)}>
