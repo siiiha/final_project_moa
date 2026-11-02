@@ -8,6 +8,8 @@ import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
 import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
 import SmallGroupReviewCreateModal from './SmallGroupReviewCreateModal';
 import SmallGroupReviewsPanel from './SmallGroupReviewsPanel';
+import SmallGroupReviewWriteAction from './SmallGroupReviewWriteAction';
+import useAuthStore from '../../store/authStore';
 
 const Profile = styled.section`
   padding: 6px 0 0;
@@ -454,6 +456,9 @@ function SmallGroupDetail({
   // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
   const [reviewModalGroupId, setReviewModalGroupId] = useState(null);
   const [reviewResult, setReviewResult] = useState(null);
+  // AI작성: 로그인 계정이 바뀌면 이전 계정의 완료 상태와 작성 여부를 재사용하지 않는다.
+  const authVersion = useAuthStore((state) => state.authVersion);
+  const reviewCompleted = reviewResult?.smallGroupId === smallGroupId && reviewResult?.authVersion === authVersion;
   // AI작성: 실제 등록 성공 때만 목록을 다시 마운트해 이전 요청을 취소하고 첫 페이지부터 재조회한다.
   const [reviewListVersion, setReviewListVersion] = useState(0);
   const closeReviewModal = useCallback(() => setReviewModalGroupId(null), [setReviewModalGroupId]);
@@ -579,13 +584,17 @@ function SmallGroupDetail({
           {/* AI작성: 공개 목록은 작성 권한과 분리하고 기존 작성 버튼·모달은 승인된 일반 모임원에게만 제공한다. */}
           <PollHeading>
             <PollTitle>소모임 후기</PollTitle>
-            {!reviewRestriction && reviewResult?.smallGroupId !== smallGroupId && (
-              <Button type="button" onClick={() => setReviewModalGroupId(smallGroupId)}>후기 작성</Button>
+            {!reviewRestriction && !reviewCompleted && (
+              <SmallGroupReviewWriteAction
+                key={`${smallGroupId}:${authVersion}`}
+                smallGroupId={smallGroupId}
+                onWrite={() => setReviewModalGroupId(smallGroupId)}
+              />
             )}
           </PollHeading>
           <ReviewCard aria-label="소모임 후기">
             <ReviewNotice role="status">
-              {reviewRestriction || (reviewResult?.smallGroupId === smallGroupId
+              {reviewRestriction || (reviewCompleted
                 ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
             </ReviewNotice>
             <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}:${reviewListVersion}`} smallGroupId={smallGroupId} />
@@ -596,7 +605,7 @@ function SmallGroupDetail({
               smallGroupId={smallGroupId}
               onClose={closeReviewModal}
               onRegistered={(message, { created }) => {
-                setReviewResult({ smallGroupId, message });
+                setReviewResult({ smallGroupId, authVersion, message });
                 if (created) setReviewListVersion((previous) => previous + 1);
                 closeReviewModal();
               }}

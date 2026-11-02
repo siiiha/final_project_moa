@@ -101,6 +101,15 @@ class SmallGroupSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // AI작성: 공개 후기 GET 경로가 본인 작성 여부 조회까지 공개하지 않는지 확인한다.
+    @Test
+    void ownReviewStatusRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/small-groups/1/reviews/me").requestAttr("memberId", 40L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("LOGIN_REQUIRED"));
+        verifyNoInteractions(smallGroupService);
+    }
+
     // AI작성: 인증 속성을 임의로 전달해도 SecurityFilterChain의 로그인 요구를 우회할 수 없다.
     @Test
     void smallGroupReviewCreateRequiresAuthentication() throws Exception {

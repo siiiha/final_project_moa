@@ -44,6 +44,43 @@ class SmallGroupReviewListServiceTest {
     @InjectMocks
     private SmallGroupServiceImpl service;
 
+    // AI작성: 공개 목록 조회 없이 본인 후기 존재 여부만 확인하므로 본인 후기가 다른 페이지에 있어도 판단한다.
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void checksOwnReviewIndependentlyOfListPage(boolean written) {
+        mockTarget();
+        when(mapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID))
+                .thenReturn(List.of(relation("MEMBER", "APPROVED")));
+        when(mapper.selectSmallGroupReviewId(SMALL_GROUP_ID, MEMBER_ID)).thenReturn(written ? 50L : null);
+
+        assertThat(service.hasWrittenSmallGroupReview(SMALL_GROUP_ID, MEMBER_ID)).isEqualTo(written);
+        verify(mapper).selectSmallGroupReviewId(SMALL_GROUP_ID, MEMBER_ID);
+        verifyNoReviewQueries();
+    }
+
+    @Test
+    void ownReviewStatusRejectsAnonymousAndMissingGroup() {
+        ApiException anonymous = catchThrowableOfType(
+                () -> service.hasWrittenSmallGroupReview(SMALL_GROUP_ID, null), ApiException.class);
+        assertThat(anonymous.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verifyNoInteractions(mapper);
+        ApiException missing = catchThrowableOfType(
+                () -> service.hasWrittenSmallGroupReview(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+        assertThat(missing.getCode()).isEqualTo("NOT_FOUND");
+        verify(mapper, never()).selectSmallGroupReviewId(any(), any());
+    }
+
+    @Test
+    void ownReviewStatusRejectsManager() {
+        mockTarget();
+        when(mapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID))
+                .thenReturn(List.of(relation("MANAGER", "APPROVED")));
+        ApiException exception = catchThrowableOfType(
+                () -> service.hasWrittenSmallGroupReview(SMALL_GROUP_ID, MEMBER_ID), ApiException.class);
+        assertThat(exception.getCode()).isEqualTo("ACCESS_DENIED");
+        verify(mapper, never()).selectSmallGroupReviewId(any(), any());
+    }
+
     @ParameterizedTest
     @CsvSource({"1, 0, 8", "2, 8, 8", "3, 16, 1"})
     void returnsRequestedPageAndPassesSameGroupWithFixedSize(int page, int offset, int count) {

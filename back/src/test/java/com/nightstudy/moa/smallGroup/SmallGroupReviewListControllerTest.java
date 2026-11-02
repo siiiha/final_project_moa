@@ -49,6 +49,19 @@ class SmallGroupReviewListControllerTest {
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
+    // AI작성: 요청의 회원 ID 파라미터 대신 인증 속성으로 본인 작성 여부만 확인한다.
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void returnsOwnReviewStatusUsingAuthenticatedMember(boolean written) throws Exception {
+        when(service.hasWrittenSmallGroupReview(10L, 40L)).thenReturn(written);
+        mockMvc.perform(get("/api/small-groups/10/reviews/me")
+                        .requestAttr("memberId", 40L).param("memberId", "999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(written));
+        verify(service).hasWrittenSmallGroupReview(10L, 40L);
+    }
+
     @Test
     void returnsAnonymousListWithDefaultPageAndPublicFields() throws Exception {
         SmallGroupReviewListItemResponse item = new SmallGroupReviewListItemResponse();

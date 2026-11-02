@@ -5,6 +5,7 @@ import {
   createSmallGroup,
   createSmallGroupReview,
   getSmallGroupReviews,
+  hasWrittenSmallGroupReview,
   SmallGroupReviewListLoadError,
   toSmallGroupReviewListItem,
   SmallGroupReviewCreateError,
@@ -38,6 +39,39 @@ import {
   participateSmallGroupVote,
   toSmallGroupSettings,
 } from './smallGroups.js';
+
+// AI작성: 본인 여부는 서버 인증으로 판단하며 boolean false를 누락값으로 처리하지 않는다.
+test('후기 작성 여부는 인증 전용 경로와 취소 신호를 사용하고 true·false를 보존한다', async () => {
+  const originalGet = client.get;
+  const signal = new AbortController().signal;
+  try {
+    for (const written of [true, false]) {
+      client.get = async (path, options) => {
+        assert.equal(path, '/small-groups/7/reviews/me');
+        assert.deepEqual(options, { signal });
+        return { data: { success: true, data: written } };
+      };
+      assert.equal(await hasWrittenSmallGroupReview(7, { signal, memberId: 999 }), written);
+    }
+  } finally { client.get = originalGet; }
+});
+
+test('후기 작성 여부는 불명확한 응답을 미작성으로 처리하지 않는다', async () => {
+  const originalGet = client.get;
+  try {
+    for (const data of [null, 'false', 0, {}]) {
+      client.get = async () => ({ data: { success: true, data } });
+      await assert.rejects(hasWrittenSmallGroupReview(7), (error) => error.code === 'INVALID_RESPONSE');
+    }
+    client.get = async () => { throw new Error('network'); };
+    await assert.rejects(hasWrittenSmallGroupReview(7), (error) => error.code === 'SMALL_GROUP_REVIEW_STATUS_LOAD_FAILED');
+    const canceled = Object.assign(new Error('canceled'), { code: 'ERR_CANCELED' });
+    client.get = async () => { throw canceled; };
+    await assert.rejects(hasWrittenSmallGroupReview(7), (error) => error === canceled);
+    client.get = async () => ({ data: { success: false, error: { code: 'ACCESS_DENIED', message: '접근 제한' } } });
+    await assert.rejects(hasWrittenSmallGroupReview(7), (error) => error.code === 'ACCESS_DENIED' && error.message === '접근 제한');
+  } finally { client.get = originalGet; }
+});
 
 // AI작성: 페이지 요청·응답 변환·취소 전달을 검증하고 서버 정렬을 변경하지 않는다.
 test('후기 목록은 페이지와 취소 신호만 보내고 공개 항목과 페이징을 반환한다', async () => {

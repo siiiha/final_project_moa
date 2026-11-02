@@ -83,6 +83,24 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         this.smallGroupMapper = smallGroupMapper;
     }
 
+    // AI작성: 목록 페이지와 무관하게 본인의 기존 후기 ID를 조회해 버튼 표시 여부를 판단한다.
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasWrittenSmallGroupReview(Long smallGroupId, Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (smallGroupId == null || smallGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        }
+        SmallGroupDetailRow target = smallGroupMapper.selectSmallGroupDetail(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 소모임이 없습니다.");
+        }
+        resolveMemberRole(target.getGroupId(), memberId);
+        return smallGroupMapper.selectSmallGroupReviewId(smallGroupId, memberId) != null;
+    }
+
     // AI작성: 공개 상세와 같은 소모임·관계 조회를 재사용하며 등록 권한이나 모임 날짜로 목록을 제한하지 않는다.
     @Override
     @Transactional(readOnly = true)

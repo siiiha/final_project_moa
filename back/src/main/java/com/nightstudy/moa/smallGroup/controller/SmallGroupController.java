@@ -55,6 +55,14 @@ public class SmallGroupController {
         this.smallGroupService = smallGroupService;
     }
 
+    // AI작성: 이 경로는 공개 목록 경로와 달리 인증이 필요하며 본인 작성 여부만 반환한다.
+    @GetMapping("/{smallGroupId}/reviews/me")
+    public ApiResponse<Boolean> hasWrittenReview(
+            @PathVariable("smallGroupId") Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(smallGroupService.hasWrittenSmallGroupReview(smallGroupId, memberId));
+    }
+
     // AI작성: 공개 조회는 인증 회원 ID를 선택적으로 전달하고 소모임 존재·MANAGER 제한·페이징은 Service에서 처리한다.
     @GetMapping("/{smallGroupId}/reviews")
     public ApiResponse<List<SmallGroupReviewListItemResponse>> getReviews(

@@ -9,6 +9,26 @@ export class SmallGroupReviewListLoadError extends Error {
   }
 }
 
+// AI작성: 공개 목록과 별개로 인증 회원 본인의 작성 여부를 조회해 다음 페이지에 있는 후기까지 확인한다.
+export async function hasWrittenSmallGroupReview(smallGroupId, { signal } = {}) {
+  try {
+    const response = await client.get(`/small-groups/${encodeURIComponent(smallGroupId)}/reviews/me`, { signal });
+    if (!response.data?.success || typeof response.data.data !== 'boolean') {
+      throw new SmallGroupReviewListLoadError(
+        response.data?.error?.code || 'INVALID_RESPONSE',
+        response.data?.error?.message || '후기 작성 여부를 확인하지 못했습니다.',
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error instanceof SmallGroupReviewListLoadError || error.code === 'ERR_CANCELED') throw error;
+    throw new SmallGroupReviewListLoadError(
+      error.response?.data?.error?.code || 'SMALL_GROUP_REVIEW_STATUS_LOAD_FAILED',
+      error.response?.data?.error?.message || '후기 작성 여부를 확인하지 못했습니다.',
+    );
+  }
+}
+
 // AI작성: 목록 식별자와 표시 정보만 반환해 작성자 회원 ID 등 불필요한 정보는 전달하지 않는다.
 export function toSmallGroupReviewListItem(item) {
   const validId = (Number.isSafeInteger(item?.smallGroupReviewId) && item.smallGroupReviewId > 0)
