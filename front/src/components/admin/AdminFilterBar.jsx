@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
+import { savingGroupRegionOptions } from '../../api/savingGroups';
 
 const Form = styled.form`
   padding: 14px;
@@ -67,19 +68,44 @@ const SearchButton = styled(Button)`
   }
 `;
 
-function AdminFilterBar({ status, region, query, onStatusChange, onRegionChange, onQueryChange, onSearch }) {
+function AdminFilterBar({
+  status,
+  region,
+  restrictionScope,
+  query,
+  onStatusChange,
+  onRegionChange,
+  onRestrictionScopeChange,
+  onQueryChange,
+  onSearch,
+}) {
   return (
     <Form onSubmit={onSearch}>
       <Control aria-label="회원 상태" value={status} onChange={(event) => onStatusChange(event.target.value)}>
         <option value="전체">전체 상태</option>
         <option value="정상">정상</option>
-        <option value="휴면">휴면</option>
         <option value="제재">제재</option>
+        <option value="탈퇴">탈퇴</option>
       </Control>
       <Control aria-label="활동 지역" value={region} onChange={(event) => onRegionChange(event.target.value)}>
         <option value="전체">전체 지역</option>
-        <option value="서울">서울</option>
-        <option value="경기">경기</option>
+        {/* AI작성: 관리자 회원 필터도 기존 서비스 지역 목록을 재사용한다. */}
+        {savingGroupRegionOptions.map((item) => (
+          <option key={item.code} value={item.name}>
+            {item.name}
+          </option>
+        ))}
+      </Control>
+      {/* AI작성: 현재 적용 중인 회원 기능 제한 영역으로 목록을 필터링한다. */}
+      <Control
+        aria-label="이용 제한 영역"
+        value={restrictionScope}
+        onChange={(event) => onRestrictionScopeChange(event.target.value)}
+      >
+        <option value="">전체 제한 영역</option>
+        <option value="CONTENT">게시글·댓글</option>
+        <option value="CHAT">채팅</option>
+        <option value="REPORT">신고</option>
       </Control>
       <SearchInput
         value={query}

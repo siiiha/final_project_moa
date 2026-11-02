@@ -1,5 +1,7 @@
 package com.nightstudy.moa.comment.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.comment.dto.CommentDto;
 import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
@@ -24,19 +26,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class CommentServiceImpl implements CommentService {
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
+    private final MemberFeatureRestrictionService restrictionService;
 
     @Autowired
     public CommentServiceImpl(
             CommentMapper commentMapper,
-            PostMapper postMapper) {
+            PostMapper postMapper,
+            MemberFeatureRestrictionService restrictionService
+    ) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
+        this.restrictionService = restrictionService;
     }
 
     @Override
     // AI작성: 댓글 저장과 등록 결과 조회를 하나의 작업으로 묶어 중간 실패 시 저장을 롤백합니다.
     @Transactional
     public CommentDto insertComment(Long postId, Long memberId, String content) {
+        validateContentAllowed(memberId);
+
         validatePostExists(postId);
 
         CommentDto comment = new CommentDto();
@@ -60,6 +68,8 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto insertReply(Long postId, Long parentCommentId, Long memberId, String content) {
+        validateContentAllowed(memberId);
+
         validatePostExists(postId);
 
         CommentDto parentComment = commentMapper.selectCommentById(parentCommentId);
@@ -153,6 +163,8 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto updateComment(Long postId, Long commentId, Long loginMemberId, CommentEditRequest request) {
+        validateContentAllowed(loginMemberId);
+
         // AI작성: 삭제된 게시글의 댓글은 수정할 수 없도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
 
@@ -195,6 +207,8 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public void deleteComment (Long postId, Long commentId, Long loginMemberId) {
+        validateContentAllowed(loginMemberId);
+
         // AI작성: 삭제된 게시글의 댓글은 삭제 요청을 처리하지 않도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
 
@@ -231,6 +245,14 @@ public class CommentServiceImpl implements CommentService {
                     "게시글을 찾을 수 없습니다."
             );
         }
+    }
+
+    // AI작성: 댓글 작성·답글·수정·삭제에서 사용하는 CONTENT 제한 검사를 한 곳에서 처리합니다.
+    private void validateContentAllowed(Long memberId) {
+        restrictionService.validateAllowed(
+                memberId,
+                MemberRestrictionScope.CONTENT
+        );
     }
 }
 

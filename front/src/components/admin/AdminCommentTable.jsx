@@ -53,19 +53,22 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 30%;
+    width: 27%;
   }
   th:nth-child(2) {
     width: 13%;
   }
   th:nth-child(3) {
-    width: 29%;
+    width: 25%;
   }
   th:nth-child(4) {
     width: 11%;
   }
   th:nth-child(5) {
-    width: 17%;
+    width: 11%;
+  }
+  th:nth-child(6) {
+    width: 13%;
     text-align: right;
   }
 
@@ -127,16 +130,25 @@ const PostTitle = styled(EllipsisText)`
   color: ${({ theme }) => theme.colors.secondaryText};
 `;
 
+const Status = styled.span`
+  display: inline-flex;
+  padding: 4px 8px;
+  color: ${({ $deleted, theme }) => ($deleted ? theme.colors.muted : theme.colors.primary)};
+  background: ${({ $deleted, theme }) => ($deleted ? theme.colors.background : theme.colors.primarySoft)};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: 10px;
+  font-weight: 700;
+`;
+
+const DeleteButton = styled(Button)`
+  min-height: 30px;
+  padding: 6px 9px;
+  font-size: 10px;
+`;
+
 const ActionArea = styled.div`
   display: flex;
   justify-content: flex-end;
-  gap: 5px;
-`;
-
-const ActionButton = styled(Button)`
-  min-height: 30px;
-  padding: 6px 8px;
-  font-size: 10px;
 `;
 
 const Pagination = styled.nav`
@@ -165,11 +177,20 @@ const Empty = styled.p`
   text-align: center;
 `;
 
-function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPageChange, onToggleHidden, onDelete }) {
+function getPageNumbers(currentPage, totalPages) {
+  // AI작성: 많은 페이지를 한꺼번에 렌더링하지 않도록 현재 구간의 다섯 페이지만 반환한다.
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const length = Math.min(5, totalPages - start + 1);
+  return Array.from({ length }, (_, index) => start + index);
+}
+
+function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPageChange, onDelete, loading, deleting }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
-      {comments.length ? (
+      {loading ? (
+        <Empty role="status">댓글 목록을 불러오는 중입니다.</Empty>
+      ) : comments.length ? (
         <>
           <TableWrap>
             <Table>
@@ -179,6 +200,7 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                   <th scope="col">작성자</th>
                   <th scope="col">게시글</th>
                   <th scope="col">작성일</th>
+                  <th scope="col">상태</th>
                   <th scope="col">관리</th>
                 </tr>
               </thead>
@@ -192,15 +214,27 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                     <td data-label="게시글">
                       <PostTitle>{comment.postTitle}</PostTitle>
                     </td>
-                    <td data-label="작성일">{comment.date.slice(5)}</td>
+                    <td data-label="작성일">
+                      {/* AI작성: 날짜 확인 실패 안내 문구와 연도가 잘리지 않도록 API 변환값 전체를 표시한다. */}
+                      {comment.date}
+                    </td>
+                    <td data-label="상태">
+                      <Status $deleted={comment.status === '삭제'}>{comment.status}</Status>
+                    </td>
                     <td data-label="관리">
                       <ActionArea>
-                        <ActionButton type="button" $variant="secondary" onClick={() => onToggleHidden(comment.id)}>
-                          {comment.status === '공개' ? '숨김' : '공개'}
-                        </ActionButton>
-                        <ActionButton type="button" $variant="danger" onClick={() => onDelete(comment.id)}>
-                          삭제
-                        </ActionButton>
+                        {comment.status === '공개' ? (
+                          <DeleteButton
+                            type="button"
+                            $variant="danger"
+                            disabled={deleting}
+                            onClick={() => onDelete(comment)}
+                          >
+                            삭제
+                          </DeleteButton>
+                        ) : (
+                          <span>-</span>
+                        )}
                       </ActionArea>
                     </td>
                   </tr>
@@ -210,7 +244,15 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
           </TableWrap>
           {totalPages > 1 && (
             <Pagination aria-label="관리자 댓글 목록 페이지">
-              {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <PageButton
+                type="button"
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                aria-label="이전 페이지"
+              >
+                이전
+              </PageButton>
+              {getPageNumbers(currentPage, totalPages).map((page) => (
                 <PageButton
                   key={page}
                   type="button"
@@ -221,6 +263,14 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                   {page}
                 </PageButton>
               ))}
+              <PageButton
+                type="button"
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                aria-label="다음 페이지"
+              >
+                다음
+              </PageButton>
             </Pagination>
           )}
         </>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.member.mapper.MemberFeatureRestrictionMapper">
+
+    <!-- AI작성: 만료되지 않은 기간 제한과 종료 시각이 없는 영구 제한만 활성 제한으로 판단한다.
+         해당 회원에게 해당 기능의 영구 제한 또는 만료되지 않은 기간 제한이 있는가? -->
+    <select id="existsActiveRestriction" resultType="boolean">
+        SELECT EXISTS (
+        SELECT 1
+        FROM member_feature_restriction
+        WHERE member_id = #{memberId}
+        AND restriction_scope = #{restrictionScope}
+        AND (
+        restricted_until IS NULL
+        OR restricted_until > CURRENT_TIMESTAMP
+        )
+        )
+    </select>
+
+</mapper>

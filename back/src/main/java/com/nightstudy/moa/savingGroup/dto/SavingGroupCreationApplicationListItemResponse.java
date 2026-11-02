@@ -16,4 +16,5 @@ public class SavingGroupCreationApplicationListItemResponse {
     private String regionName;
     private LocalDateTime appliedAt;
     private String status;
+    private String type;
 }

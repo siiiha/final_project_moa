@@ -1,17 +1,7 @@
 package com.nightstudy.moa.member.service;
 
-import com.nightstudy.moa.member.dto.MemberLoginRequest;
-import com.nightstudy.moa.member.dto.MemberSignupRequest;
-import com.nightstudy.moa.member.dto.SocialSignupRequest;
-import com.nightstudy.moa.member.dto.MemberProfileResponse;
-import com.nightstudy.moa.member.dto.MemberProfileUpdateRequest;
-import com.nightstudy.moa.member.dto.MemberWithdrawalRequest;
-import com.nightstudy.moa.member.dto.MemberPasswordUpdateRequest;
-import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
-import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
+import com.nightstudy.moa.member.dto.*;
 
-import com.nightstudy.moa.member.dto.PasswordResetRequest;
-import com.nightstudy.moa.member.dto.MemberTermDto;
 import java.util.List;
 
 public interface MemberService {
@@ -27,6 +17,15 @@ public interface MemberService {
     Long signupSocial(SocialSignupRequest request);
 
     MemberProfileResponse getMyProfile(Long memberId);
+    MemberProfileResponse verifyRegion(
+            Long memberId,
+            RegionVerificationRequest request
+    );
+
+    MemberProfileResponse updateMyRegion(
+            Long memberId,
+            MemberRegionUpdateRequest request
+    );
 
     MemberProfileResponse updateMyProfile(
             Long memberId,
@@ -46,6 +45,7 @@ public interface MemberService {
     void resetPassword(PasswordResetRequest request);
 
     List<MemberTermDto> getTerms();
+    List<MemberRegionDto> getRegions();
 
     IdentityVerificationStartResponse startIdentityVerification(
             Long memberId
