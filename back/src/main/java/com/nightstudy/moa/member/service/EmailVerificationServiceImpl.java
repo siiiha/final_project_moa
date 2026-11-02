@@ -1,7 +1,7 @@
 package com.nightstudy.moa.member.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.EmailVerificationDto;
+import com.nightstudy.moa.member.dto.email.EmailVerificationDto;
 import com.nightstudy.moa.member.mapper.EmailVerificationMapper;
 import com.nightstudy.moa.member.mapper.MemberMapper;
 import org.springframework.http.HttpStatus;

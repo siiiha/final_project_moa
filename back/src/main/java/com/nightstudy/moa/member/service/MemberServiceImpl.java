@@ -1,29 +1,43 @@
 package com.nightstudy.moa.member.service;
 
+import com.nightstudy.moa.member.dto.auth.MemberLoginDto;
+import com.nightstudy.moa.member.dto.auth.MemberLoginRequest;
+import com.nightstudy.moa.member.dto.auth.PasswordResetRequest;
+import com.nightstudy.moa.member.dto.profile.MemberPasswordUpdateRequest;
+import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.profile.MemberProfileUpdateRequest;
+import com.nightstudy.moa.member.dto.region.MemberRegionUpdateRequest;
+import com.nightstudy.moa.member.dto.region.RegionVerificationRequest;
+import com.nightstudy.moa.member.dto.signup.MemberInsertDto;
+import com.nightstudy.moa.member.dto.signup.MemberSignupRequest;
+import com.nightstudy.moa.member.dto.social.SocialSignupRequest;
+
 import java.util.HashSet;
 import java.util.ArrayList;
 
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.*;
+import com.nightstudy.moa.member.dto.social.kakao.KakaoRegionResponse;
+import com.nightstudy.moa.member.dto.terms.MemberTermDto;
+import com.nightstudy.moa.member.dto.withdrawal.MemberWithdrawalRequest;
 import com.nightstudy.moa.member.mapper.MemberMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.nightstudy.moa.member.dto.MemberRegionDto;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 
 import java.util.List;
 
 import com.nightstudy.moa.common.config.PortOneProperties;
-import com.nightstudy.moa.member.dto.IdentityVerificationStartResponse;
+import com.nightstudy.moa.member.dto.identity.IdentityVerificationStartResponse;
 import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
-import com.nightstudy.moa.member.dto.IdentityVerificationRequest;
-import com.nightstudy.moa.member.dto.PortOneIdentityVerificationResponse;
+import com.nightstudy.moa.member.dto.identity.IdentityVerificationRequest;
+import com.nightstudy.moa.member.dto.identity.portone.PortOneIdentityVerificationResponse;
 import org.springframework.transaction.annotation.Isolation;
 
 import java.time.Instant;

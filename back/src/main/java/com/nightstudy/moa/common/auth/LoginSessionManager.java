@@ -1,9 +1,9 @@
 package com.nightstudy.moa.common.auth;
 
 import com.nightstudy.moa.common.auth.SocialSignupSessionManager.PendingSignup;
-import com.nightstudy.moa.member.dto.MemberAuthTokenDto;
-import com.nightstudy.moa.member.dto.SocialLoginResultDto;
-import com.nightstudy.moa.member.dto.SocialSignupRequest;
+import com.nightstudy.moa.member.dto.auth.MemberAuthTokenDto;
+import com.nightstudy.moa.member.dto.social.SocialLoginResultDto;
+import com.nightstudy.moa.member.dto.social.SocialSignupRequest;
 import com.nightstudy.moa.member.service.AuthSessionService;
 import com.nightstudy.moa.member.service.SocialSignupService;
 import jakarta.servlet.http.HttpServletResponse;

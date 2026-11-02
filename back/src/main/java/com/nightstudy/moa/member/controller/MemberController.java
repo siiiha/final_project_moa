@@ -1,7 +1,12 @@
 package com.nightstudy.moa.member.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
-import com.nightstudy.moa.member.dto.*;
+import com.nightstudy.moa.member.dto.auth.MemberLoginRequest;
+import com.nightstudy.moa.member.dto.auth.PasswordResetRequest;
+import com.nightstudy.moa.member.dto.email.EmailCheckRequest;
+import com.nightstudy.moa.member.dto.profile.NicknameCheckRequest;
+import com.nightstudy.moa.member.dto.signup.MemberSignupRequest;
+import com.nightstudy.moa.member.dto.terms.MemberTermDto;
 import com.nightstudy.moa.member.service.MemberService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -9,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.nightstudy.moa.common.auth.LoginSessionManager;
 import jakarta.servlet.http.HttpServletResponse;
-import com.nightstudy.moa.member.dto.MemberRegionDto;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 
 import java.util.List;
 

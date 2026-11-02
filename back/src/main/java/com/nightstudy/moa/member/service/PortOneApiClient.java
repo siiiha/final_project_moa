@@ -2,7 +2,7 @@ package com.nightstudy.moa.member.service;
 
 import com.nightstudy.moa.common.config.PortOneProperties;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.PortOneIdentityVerificationResponse;
+import com.nightstudy.moa.member.dto.identity.portone.PortOneIdentityVerificationResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;

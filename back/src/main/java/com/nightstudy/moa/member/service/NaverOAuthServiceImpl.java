@@ -1,7 +1,7 @@
 package com.nightstudy.moa.member.service;
 
 import com.nightstudy.moa.common.config.NaverOAuthProperties;
-import com.nightstudy.moa.member.dto.SocialLoginResultDto;
+import com.nightstudy.moa.member.dto.social.SocialLoginResultDto;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 

@@ -3,7 +3,7 @@ package com.nightstudy.moa.member.controller;
 import com.nightstudy.moa.common.auth.RefreshTokenCookie;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.MemberAuthTokenDto;
+import com.nightstudy.moa.member.dto.auth.MemberAuthTokenDto;
 import com.nightstudy.moa.member.service.AuthSessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

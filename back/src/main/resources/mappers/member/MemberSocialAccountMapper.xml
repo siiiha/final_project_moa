@@ -7,7 +7,7 @@
 
     <!-- 소셜 계정에 연결된 모아 회원의 상태와 권한을 조회 -->
     <select id="findByProviderAndProviderUserId"
-            resultType="com.nightstudy.moa.member.dto.SocialLoginMemberDto">
+            resultType="com.nightstudy.moa.member.dto.social.SocialLoginMemberDto">
         SELECT
         m.member_id,
         m.account_status,

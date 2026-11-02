@@ -1,6 +1,6 @@
 package com.nightstudy.moa.member.service;
 
-import com.nightstudy.moa.member.dto.SocialLoginResultDto;
+import com.nightstudy.moa.member.dto.social.SocialLoginResultDto;
 
 import java.net.URI;
 

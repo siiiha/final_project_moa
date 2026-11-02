@@ -2,8 +2,8 @@ package com.nightstudy.moa.member.service;
 
 import com.nightstudy.moa.common.config.NaverOAuthProperties;
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.NaverTokenResponse;
-import com.nightstudy.moa.member.dto.NaverUserResponse;
+import com.nightstudy.moa.member.dto.social.naver.NaverTokenResponse;
+import com.nightstudy.moa.member.dto.social.naver.NaverUserResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;

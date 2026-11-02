@@ -1,7 +1,7 @@
 package com.nightstudy.moa.common.auth;
 
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.dto.SocialLoginResultDto;
+import com.nightstudy.moa.member.dto.social.SocialLoginResultDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;

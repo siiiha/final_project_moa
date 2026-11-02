@@ -1,6 +1,6 @@
 package com.nightstudy.moa.member.service;
 
-import com.nightstudy.moa.member.dto.MemberAuthTokenDto;
+import com.nightstudy.moa.member.dto.auth.MemberAuthTokenDto;
 
 public interface AuthSessionService {
 

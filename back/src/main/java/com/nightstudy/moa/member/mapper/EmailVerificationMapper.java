@@ -1,6 +1,6 @@
 package com.nightstudy.moa.member.mapper;
 
-import com.nightstudy.moa.member.dto.EmailVerificationDto;
+import com.nightstudy.moa.member.dto.email.EmailVerificationDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;

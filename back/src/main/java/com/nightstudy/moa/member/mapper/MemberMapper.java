@@ -1,11 +1,14 @@
 package com.nightstudy.moa.member.mapper;
 
-import com.nightstudy.moa.member.dto.*;
+import com.nightstudy.moa.member.dto.auth.MemberLoginDto;
+import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.signup.MemberInsertDto;
+import com.nightstudy.moa.member.dto.terms.MemberTermDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
-import com.nightstudy.moa.member.dto.MemberRegionDto;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 
 @Mapper
 public interface MemberMapper {
