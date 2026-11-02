@@ -1,10 +1,17 @@
+import { useCallback, useEffect, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
-import SmallGroupMenuTabs from './SmallGroupMenuTabs';
+import GroupReportButton from '../common/GroupReportButton';
+import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
+import SmallGroupVoteCreateModal from './SmallGroupVoteCreateModal';
+import SmallGroupReviewCreateModal from './SmallGroupReviewCreateModal';
+import SmallGroupReviewsPanel from './SmallGroupReviewsPanel';
+import SmallGroupReviewWriteAction from './SmallGroupReviewWriteAction';
+import SmallGroupPlacesPanel from './SmallGroupPlacesPanel';
+import useAuthStore from '../../store/authStore';
 
 const Profile = styled.section`
   padding: 6px 0 0;
@@ -13,6 +20,7 @@ const Profile = styled.section`
 const ProfileTop = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
 `;
 
@@ -31,7 +39,32 @@ const ProfileImage = styled.div`
 `;
 
 const TitleBlock = styled.div`
+  flex: 1 1 auto;
   min-width: 0;
+`;
+
+const JoinButton = styled(Button)`
+  min-height: 38px;
+  padding: 8px 14px;
+  flex: 0 0 auto;
+  font-size: 13px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+`;
+
+const ProfileActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 const Title = styled.h1`
@@ -52,13 +85,6 @@ const Meta = styled.p`
   gap: 5px;
   color: ${({ theme }) => theme.colors.muted};
   font-size: 11px;
-`;
-
-const StatusBadge = styled(Badge)`
-  min-height: 20px;
-  padding: 2px 7px;
-  color: ${({ theme }) => theme.colors.primary};
-  font-size: 10px;
 `;
 
 const ContentGrid = styled.div`
@@ -183,23 +209,23 @@ const CalendarIcon = styled.div`
 const ScheduleText = styled.div`
   min-width: 0;
 
-  strong {
+  strong,
+  span {
     display: block;
     overflow: hidden;
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  strong {
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 12px;
+  }
+
   span {
     margin-top: 4px;
-    display: block;
-    overflow: hidden;
     color: ${({ theme }) => theme.colors.muted};
     font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 `;
 
@@ -229,7 +255,7 @@ const NoticeTable = styled.div`
 const NoticeRow = styled.div`
   padding: 9px 10px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 66px 42px;
+  grid-template-columns: minmax(0, 1fr) 66px 72px;
   gap: 8px;
   color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
   background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
@@ -241,6 +267,13 @@ const NoticeRow = styled.div`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+`;
+
+const NoticeEmpty = styled.p`
+  padding: 16px 10px;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 11px;
+  text-align: center;
 `;
 
 const Placeholder = styled.section`
@@ -258,27 +291,222 @@ const SettingsContent = styled.div`
   margin-top: 16px;
 `;
 
+// AI작성: 안내와 후기 목록을 같은 카드에 배치하고 본문은 왼쪽 정렬로 읽기 쉽게 표시한다.
+const ReviewCard = styled(Placeholder)`
+  padding: 24px 20px;
+  color: ${({ theme }) => theme.colors.text};
+  text-align: left;
+`;
+
+const ReviewNotice = styled.p`
+  margin: 0 0 12px;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 16px;
+  line-height: 1.6;
+  text-align: center;
+`;
+
 const JoinRequestsContent = styled.div`
   margin-top: 16px;
 `;
 
+const PollContent = styled.section`
+  margin-top: 16px;
+  position: relative;
+`;
+
+const PollHeading = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const PollTitle = styled.h2`
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+`;
+
+const VoteCreateButton = styled(Button)`
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
+`;
+
+const VoteTable = styled.div`
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
+const VoteRow = styled.div`
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px 160px;
+  gap: 8px;
+  color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
+  background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
+  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
+  font-size: 11px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr) 66px 132px;
+    padding: 10px 8px;
+    gap: 4px;
+    font-size: 10px;
+  }
+`;
+
+const VoteItem = styled.button`
+  width: 100%;
+  padding: 11px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px 160px;
+  gap: 8px;
+  color: ${({ theme }) => theme.colors.text};
+  text-align: left;
+  background: ${({ theme }) => theme.colors.white};
+  border: 0;
+  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
+  cursor: pointer;
+  font-size: 11px;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primarySoft};
+  }
+
+  &:focus-visible {
+    outline: 3px solid rgba(23, 107, 91, 0.22);
+    outline-offset: -3px;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr) 66px 132px;
+    padding: 10px 8px;
+    gap: 4px;
+    font-size: 10px;
+  }
+`;
+
+const VoteStatusCell = styled.div`
+  min-width: 0;
+`;
+
+const VoteStatusBadge = styled.span`
+  padding: 4px 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ $closed, theme }) => ($closed ? theme.colors.muted : theme.colors.primary)};
+  background: ${({ $closed, theme }) => ($closed ? theme.colors.background : theme.colors.primarySoft)};
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
+function formatDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  }).format(date);
+}
+
+// AI작성: 투표 목록의 마감 시각은 날짜뿐 아니라 시·분까지 표시해 마감 여부를 명확히 한다.
+function formatDateTime(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  }).format(date);
+}
+
 function SmallGroupDetail({
   group,
-  detail,
+  groupId,
+  smallGroupId,
+  myRole = null,
   activeMenu,
-  interests,
+  settings,
+  settingsCategories,
+  isSettingsLoading,
+  isSettingsSaving,
+  settingsErrorMessage,
+  votes = [],
+  isVoteLoading,
+  voteErrorMessage,
   onMenuChange,
   onSettingsSubmit,
   onSettingsCancel,
+  onRetrySettings,
   onDelete,
+  onJoinRequest,
+  isJoinSubmitting,
+  onCreateVote,
+  isVoteCreating,
+  onRetryVotes,
+  onVoteDetail,
 }) {
+  const allowedMenuItems = getSmallGroupMenuItems(myRole);
+  const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
+  // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
+  const [reviewModalGroupId, setReviewModalGroupId] = useState(null);
+  const [reviewResult, setReviewResult] = useState(null);
+  // AI작성: 로그인 계정이 바뀌면 이전 계정의 완료 상태와 작성 여부를 재사용하지 않는다.
+  const authVersion = useAuthStore((state) => state.authVersion);
+  // AI작성: 로그아웃 시 이전 역할 정보가 남아도 장소 검색 화면과 위치 상태를 즉시 폐기한다.
+  const hasLogin = useAuthStore((state) => Boolean(state.token));
+  const reviewCompleted = reviewResult?.smallGroupId === smallGroupId && reviewResult?.authVersion === authVersion;
+  // AI작성: 실제 등록 성공 때만 목록을 다시 마운트해 이전 요청을 취소하고 첫 페이지부터 재조회한다.
+  const [reviewListVersion, setReviewListVersion] = useState(0);
+  const closeReviewModal = useCallback(() => setReviewModalGroupId(null), [setReviewModalGroupId]);
+  const [reviewNow, setReviewNow] = useState(() => new Date());
+  // AI작성: 페이지를 오래 열어 두어도 모임 다음 날에는 작성 버튼이 활성화되도록 한국 날짜를 갱신한다.
+  useEffect(() => {
+    const timer = window.setInterval(() => setReviewNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const koreaDateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(reviewNow);
+  const datePart = (type) => koreaDateParts.find((part) => part.type === type)?.value;
+  const todayInKorea = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
+  const reviewRestriction = myRole !== 'MEMBER'
+    ? (myRole === 'OWNER' ? '소모임 개설자는 후기를 작성할 수 없습니다.' : '승인된 일반 모임원만 후기를 작성할 수 있습니다.')
+    : !group.meetDate ? '모임 날짜가 설정되지 않아 후기를 작성할 수 없습니다.'
+      : group.meetDate >= todayInKorea ? '후기는 모임 다음 날부터 작성할 수 있습니다.' : '';
+  // AI작성: 이미 승인된 OWNER·MEMBER는 재신청할 수 없으므로 상세 화면에서 버튼을 노출하지 않는다.
+  const canRequestJoin = !['OWNER', 'MEMBER'].includes(myRole);
+  // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
+  const currentMenu = allowedMenuItems.some((item) => item.id === activeMenu) ? activeMenu : 'notice';
   const activeLabel = {
-    directions: '길찾기',
+    directions: '장소 찾기',
     poll: '투표',
     review: '후기',
     settings: '설정',
     joinRequests: '신청 목록',
-  }[activeMenu];
+  }[currentMenu];
+  const meetDate = formatDate(group.meetDate) || '일정 조율 중';
+  const location = group.location || '모임에서 추후 안내';
+  const createdAt = formatDate(group.createdAt);
 
   return (
     <>
@@ -294,29 +522,147 @@ function SmallGroupDetail({
               <span>·</span>
               <FiUsers size={12} aria-hidden="true" />
               <span>{group.participants}</span>
-              <StatusBadge>{detail.status}</StatusBadge>
+              {/* AI작성: 상세 카드와 중복되는 개설자·생성일은 모임 기본 정보 옆에서만 표시한다. */}
+              {group.creatorNickname && <><span>·</span><span>개설자 {group.creatorNickname}</span></>}
+              {createdAt && <><span>·</span><span>생성일 {createdAt}</span></>}
             </Meta>
           </TitleBlock>
+          <ProfileActions>
+            {canRequestJoin && (
+              <JoinButton
+                type="button"
+                onClick={onJoinRequest}
+                disabled={isJoinSubmitting}
+                aria-busy={isJoinSubmitting}
+              >
+                {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
+              </JoinButton>
+            )}
+            {/* AI작성: OWNER의 본인 신고 진입을 숨기고 그 외 사용자는 공통 신고 흐름을 재사용한다. */}
+            {myRole !== 'OWNER' && (
+              <GroupReportButton groupId={groupId} groupLabel="소모임" />
+            )}
+          </ProfileActions>
         </ProfileTop>
-        <SmallGroupMenuTabs activeMenu={activeMenu} onMenuChange={onMenuChange} />
+        <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>
 
-      {activeMenu === 'settings' ? (
+      {currentMenu === 'poll' ? (
+        <PollContent>
+          <PollHeading>
+            <PollTitle>투표 목록</PollTitle>
+            {myRole === 'OWNER' && (
+              <VoteCreateButton type="button" onClick={() => setIsVoteCreateModalOpen(true)}>
+                투표 생성
+              </VoteCreateButton>
+            )}
+          </PollHeading>
+          {isVoteLoading ? (
+            <Placeholder role="status">투표 목록을 불러오는 중입니다.</Placeholder>
+          ) : voteErrorMessage ? (
+            <Placeholder role="alert">
+              <p>{voteErrorMessage}</p>
+              <Button type="button" onClick={onRetryVotes}>다시 시도</Button>
+            </Placeholder>
+          ) : votes.length === 0 ? (
+            <Placeholder>등록된 투표가 없습니다.</Placeholder>
+          ) : (
+            <VoteTable aria-label="소모임 투표 목록">
+              <VoteRow $header>
+                <span>투표명</span><span>상태</span><span>마감시각</span>
+              </VoteRow>
+              {votes.map((vote, index) => (
+                <VoteItem
+                  key={vote.smallGroupVoteId}
+                  type="button"
+                  $last={index === votes.length - 1}
+                  onClick={() => onVoteDetail(vote.smallGroupVoteId)}
+                  aria-label={`${vote.title} 투표 상세 보기`}
+                >
+                  <span>{vote.title}</span>
+                  <VoteStatusCell>
+                    <VoteStatusBadge $closed={vote.status === 'CLOSED'}>
+                      {vote.status === 'CLOSED' ? '종료' : '진행 중'}
+                    </VoteStatusBadge>
+                  </VoteStatusCell>
+                  <span>{formatDateTime(vote.endsAt) || '마감시각 미설정'}</span>
+                </VoteItem>
+              ))}
+            </VoteTable>
+          )}
+          {isVoteCreateModalOpen && (
+            <SmallGroupVoteCreateModal
+              isSubmitting={isVoteCreating}
+              onClose={() => setIsVoteCreateModalOpen(false)}
+              onSubmit={async (request) => {
+                await onCreateVote(request);
+                setIsVoteCreateModalOpen(false);
+              }}
+            />
+          )}
+        </PollContent>
+      ) : currentMenu === 'review' ? (
+        <PollContent>
+          {/* AI작성: 공개 목록은 작성 권한과 분리하고 기존 작성 버튼·모달은 승인된 일반 모임원에게만 제공한다. */}
+          <PollHeading>
+            <PollTitle>소모임 후기</PollTitle>
+            {!reviewRestriction && !reviewCompleted && (
+              <SmallGroupReviewWriteAction
+                key={`${smallGroupId}:${authVersion}`}
+                smallGroupId={smallGroupId}
+                onWrite={() => setReviewModalGroupId(smallGroupId)}
+              />
+            )}
+          </PollHeading>
+          <ReviewCard aria-label="소모임 후기">
+            <ReviewNotice role="status">
+              {reviewRestriction || (reviewCompleted
+                ? reviewResult.message : '별점과 짧은 코멘트로 모임 후기를 남겨 주세요. 후기는 한 번만 작성할 수 있습니다.')}
+            </ReviewNotice>
+            <SmallGroupReviewsPanel key={`${smallGroupId}:${myRole || 'PUBLIC'}:${reviewListVersion}`} smallGroupId={smallGroupId} />
+          </ReviewCard>
+          {!reviewRestriction && reviewModalGroupId === smallGroupId && (
+            <SmallGroupReviewCreateModal
+              key={smallGroupId}
+              smallGroupId={smallGroupId}
+              onClose={closeReviewModal}
+              onRegistered={(message, { created }) => {
+                setReviewResult({ smallGroupId, authVersion, message });
+                if (created) setReviewListVersion((previous) => previous + 1);
+                closeReviewModal();
+              }}
+            />
+          )}
+        </PollContent>
+      ) : currentMenu === 'directions' ? (
+        /* AI작성: 역할·계정·소모임 전환 때 이전 위치·결과·요청을 재사용하지 않는다. */
+        hasLogin ? <SmallGroupPlacesPanel key={`${smallGroupId}:${myRole}:${authVersion}`} smallGroupId={smallGroupId} />
+          : <Placeholder role="alert">로그인 후 이용해 주세요.</Placeholder>
+      ) : currentMenu === 'settings' ? (
         <SettingsContent>
-          <SmallGroupSettingsForm
-            group={group}
-            detail={detail}
-            interests={interests}
-            onSubmit={onSettingsSubmit}
-            onCancel={onSettingsCancel}
-            onDelete={onDelete}
-          />
+          {isSettingsLoading ? (
+            <Placeholder role="status">소모임 설정 정보를 불러오는 중입니다.</Placeholder>
+          ) : settingsErrorMessage ? (
+            <Placeholder role="alert">
+              <p>{settingsErrorMessage}</p>
+              <Button type="button" onClick={onRetrySettings}>다시 시도</Button>
+            </Placeholder>
+          ) : settings ? (
+            <SmallGroupSettingsForm
+              settings={settings}
+              categories={settingsCategories}
+              isSaving={isSettingsSaving}
+              onSubmit={onSettingsSubmit}
+              onCancel={onSettingsCancel}
+              onDelete={onDelete}
+            />
+          ) : null}
         </SettingsContent>
-      ) : activeMenu === 'joinRequests' ? (
+      ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
-          <SmallGroupJoinRequestsPanel groupName={group.name} />
+          <SmallGroupJoinRequestsPanel smallGroupId={smallGroupId} groupName={group.name} />
         </JoinRequestsContent>
-      ) : activeMenu !== 'notice' ? (
+      ) : currentMenu !== 'notice' ? (
         <Placeholder>{activeLabel} 기능은 준비 중입니다.</Placeholder>
       ) : (
         <ContentGrid>
@@ -331,8 +677,9 @@ function SmallGroupDetail({
             <Card>
               <CardTitle>장소</CardTitle>
               <PlaceContent>
-                <Place><FiMapPin size={14} aria-hidden="true" /> {detail.meetingPlace}</Place>
-                <MapButton type="button" $variant="secondary" onClick={() => {}}>
+                <Place><FiMapPin size={14} aria-hidden="true" /> {location}</Place>
+                {/* AI작성: 길찾기 API가 확정되기 전에는 이동을 발생시키지 않는다. */}
+                <MapButton type="button" $variant="secondary" disabled title="길찾기 기능은 준비 중입니다.">
                   선택 장소 길찾기 <FiChevronRight size={12} aria-hidden="true" />
                 </MapButton>
               </PlaceContent>
@@ -343,28 +690,36 @@ function SmallGroupDetail({
             <Card>
               <CardHeading>
                 <CardTitle>다음 모임 일정</CardTitle>
-                <TextButton type="button" onClick={() => {}}>일정 확인</TextButton>
+                {/* AI작성: 소모임 일정 목록 API가 준비되기 전에는 화면 이동을 연결하지 않는다. */}
+                <TextButton type="button" disabled title="일정 목록 기능은 준비 중입니다.">일정 확인</TextButton>
               </CardHeading>
               <ScheduleRow>
                 <CalendarIcon><FiCalendar size={17} aria-hidden="true" /></CalendarIcon>
                 <ScheduleText>
-                  <strong>{detail.nextMeeting}</strong>
-                  <span>{detail.meetingPlace}</span>
+                  <strong>{meetDate}</strong>
+                  <span>{location}</span>
                 </ScheduleText>
               </ScheduleRow>
             </Card>
             <Card>
               <CardHeading>
                 <CardTitle>최근 공지</CardTitle>
-                <NoticeButton type="button" $variant="secondary">공지 전체 보기</NoticeButton>
+                {/* AI작성: 공지 목록·상세 API 구현 전에는 이동을 연결하지 않는다. */}
+                <NoticeButton type="button" $variant="secondary" disabled title="공지 목록 기능은 준비 중입니다.">
+                  공지 전체 보기
+                </NoticeButton>
               </CardHeading>
               <NoticeTable aria-label="최근 공지 목록">
                 <NoticeRow $header>
                   <span>제목</span><span>작성자</span><span>작성일</span>
                 </NoticeRow>
-                {detail.notices.map((notice, index) => (
-                  <NoticeRow key={notice.id} $last={index === detail.notices.length - 1}>
-                    <span>{notice.title}</span><span>{notice.author}</span><span>{notice.date}</span>
+                {group.notices.length === 0 ? (
+                  <NoticeEmpty>등록된 공지가 없습니다.</NoticeEmpty>
+                ) : group.notices.map((notice, index) => (
+                  <NoticeRow key={notice.noticeId} $last={index === group.notices.length - 1}>
+                    <span>{notice.title}</span>
+                    <span>{notice.writerNickname}</span>
+                    <span>{formatDate(notice.createdAt)}</span>
                   </NoticeRow>
                 ))}
               </NoticeTable>

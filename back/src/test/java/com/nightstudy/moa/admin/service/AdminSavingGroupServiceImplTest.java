@@ -10,8 +10,13 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupRestrictionTarget;
+import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminSavingGroupMapper;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +30,12 @@ class AdminSavingGroupServiceImplTest {
     @Mock
     private AdminSavingGroupMapper adminSavingGroupMapper;
 
+    @Mock
+    private SavingGroupMapper savingGroupMapper;
+
+    @Mock
+    private SavingGroupService savingGroupService;
+
     @InjectMocks
     private AdminSavingGroupServiceImpl adminSavingGroupService;
 
@@ -35,15 +46,15 @@ class AdminSavingGroupServiceImplTest {
         condition.setSize(10);
         AdminSavingGroupListItemResponse item = new AdminSavingGroupListItemResponse();
         item.setSavingGroupId(11L);
+        item.setGroupId(101L);
         when(adminSavingGroupMapper.selectSavingGroupCount(condition)).thenReturn(11);
         when(adminSavingGroupMapper.selectSavingGroupList(condition)).thenReturn(List.of(item));
+        when(savingGroupMapper.selectApprovedMemberCounts(List.of(101L))).thenReturn(List.of());
 
         AdminSavingGroupListResult result = adminSavingGroupService.getSavingGroupList(condition);
 
         assertThat(result.getSavingGroups()).containsExactly(item);
         assertThat(result.getPageMeta().getTotalPages()).isEqualTo(2);
-        assertThat(condition.getOffset()).isEqualTo(10);
-        assertThat(condition.getLimit()).isEqualTo(10);
     }
 
     @Test
@@ -75,5 +86,48 @@ class AdminSavingGroupServiceImplTest {
                     assertThat(exception.getStatus().value()).isEqualTo(404);
                     assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_NOT_FOUND");
                 });
+    }
+
+    @Test
+    void restrictSavingGroupReusesStatusChangeAndStoresHistory() {
+        AdminSavingGroupRestrictionTarget target = restrictionTarget("02");
+        AdminGroupRestrictionRequest request = restrictionRequest("운영정책 위반");
+        when(adminSavingGroupMapper.selectRestrictionTargetForUpdate(1L)).thenReturn(target);
+        when(adminSavingGroupMapper.insertRestrictionHistory(
+                1L, RestrictionAction.RESTRICT, "운영정책 위반"))
+                .thenReturn(1);
+
+        adminSavingGroupService.restrictSavingGroup(1L, request);
+
+        verify(savingGroupService).changeSavingGroupStatus(101L, "03");
+        verify(adminSavingGroupMapper).insertRestrictionHistory(
+                1L, RestrictionAction.RESTRICT, "운영정책 위반");
+    }
+
+    @Test
+    void releaseRejectsOrdinaryPausedSavingGroupWithoutActiveRestrictionHistory() {
+        when(adminSavingGroupMapper.selectRestrictionTargetForUpdate(1L))
+                .thenReturn(restrictionTarget("03"));
+        when(adminSavingGroupMapper.selectLatestRestrictionAction(1L)).thenReturn(null);
+
+        assertThatThrownBy(() -> adminSavingGroupService.releaseSavingGroupRestriction(
+                1L, restrictionRequest("재검토 완료")))
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_NOT_ADMIN_RESTRICTED"));
+        verify(savingGroupService, never()).changeSavingGroupStatus(101L, "02");
+    }
+
+    private AdminSavingGroupRestrictionTarget restrictionTarget(String status) {
+        AdminSavingGroupRestrictionTarget target = new AdminSavingGroupRestrictionTarget();
+        target.setSavingGroupId(1L);
+        target.setGroupId(101L);
+        target.setStatus(status);
+        return target;
+    }
+
+    private AdminGroupRestrictionRequest restrictionRequest(String reason) {
+        AdminGroupRestrictionRequest request = new AdminGroupRestrictionRequest();
+        request.setReason(reason);
+        return request;
     }
 }

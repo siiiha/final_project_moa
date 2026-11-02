@@ -82,15 +82,16 @@ function ConfirmModal({
   size = 'default',
   cancelFirst = false,
   showCancel = true,
+  isBusy = false,
 }) {
   const cancelButton = (
-    <ActionButton type="button" $variant="secondary" onClick={onCancel}>
+    <ActionButton type="button" $variant="secondary" onClick={onCancel} disabled={isBusy}>
       {cancelLabel}
     </ActionButton>
   );
 
   const confirmButton = (
-    <ActionButton type="button" $variant={confirmVariant} onClick={onConfirm}>
+    <ActionButton type="button" $variant={confirmVariant} onClick={onConfirm} disabled={isBusy}>
       {confirmLabel}
     </ActionButton>
   );
@@ -99,7 +100,7 @@ function ConfirmModal({
     <Overlay>
       <Dialog $size={size} role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
         <Title id="confirm-modal-title">{title}</Title>
-        <CloseButton type="button" onClick={onCancel} aria-label="모달 닫기">
+        <CloseButton type="button" onClick={onCancel} aria-label="모달 닫기" disabled={isBusy}>
           <FiX size={17} aria-hidden="true" />
         </CloseButton>
         {description && <Description>{description}</Description>}

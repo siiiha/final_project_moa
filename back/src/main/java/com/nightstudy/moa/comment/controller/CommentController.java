@@ -1,15 +1,18 @@
 package com.nightstudy.moa.comment.controller;
 
 import com.nightstudy.moa.comment.dto.CommentDto;
+import com.nightstudy.moa.comment.dto.CommentCreateRequest;
 import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
 import com.nightstudy.moa.comment.service.CommentService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -18,8 +21,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
+// AI작성: 댓글 API의 경로 변수 제약 조건이 Controller 진입 전에 검증되도록 설정합니다.
+@Validated
 @RestController
 @RequestMapping("/api")
 public class CommentController {
@@ -31,12 +37,12 @@ public class CommentController {
 
     @PostMapping("/post/{postId}/comments")
     public ResponseEntity<ApiResponse<CommentDto>> insertComment(
-            @PathVariable Long postId,
-            @Valid @RequestBody CommentDto commentDto) {
-        // TODO AI작성: Spring Security 적용 후 수정 - 요청의 memberId 대신 로그인 회원 ID를 사용해야 함
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestBody CommentCreateRequest request) {
         CommentDto insertedComment = commentService.insertComment(postId,
-                commentDto.getMemberId(),
-                commentDto.getContent());
+                loginMemberId,
+                request.getContent());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -46,15 +52,15 @@ public class CommentController {
     // AI작성: 원댓글 번호를 경로로 받아 한 단계 대댓글을 등록합니다.
     @PostMapping("/post/{postId}/comments/{parentCommentId}/replies")
     public ResponseEntity<ApiResponse<CommentDto>> insertReply(
-            @PathVariable Long postId,
-            @PathVariable Long parentCommentId,
-            @Valid @RequestBody CommentDto commentDto) {
-        // TODO AI작성: Spring Security 적용 후 요청의 memberId 대신 로그인 회원 ID를 사용해야 합니다.
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
+            @PathVariable @Positive(message = "부모 댓글 번호는 1 이상이어야 합니다.") Long parentCommentId,
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestBody CommentCreateRequest request) {
         CommentDto insertedReply = commentService.insertReply(
                 postId,
                 parentCommentId,
-                commentDto.getMemberId(),
-                commentDto.getContent());
+                loginMemberId,
+                request.getContent());
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -63,7 +69,7 @@ public class CommentController {
 
     @GetMapping("/post/{postId}/comments")
     public ApiResponse<CommentListResult> getCommentList(
-            @PathVariable Long postId,
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
             @ModelAttribute CommentSearchCondition condition
             ) {
         // AI작성: 게시글 번호와 페이지 조건으로 댓글 목록을 조회합니다.
@@ -75,23 +81,23 @@ public class CommentController {
 
     @PutMapping("/post/{postId}/comments/{commentId}")
     public ApiResponse<CommentDto> updateComment(
-            @PathVariable Long postId,
-            @PathVariable Long commentId,
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
+            @PathVariable @Positive(message = "댓글 번호는 1 이상이어야 합니다.") Long commentId,
+            @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody CommentEditRequest request) {
-        // 인증 구현 후 로그인 회원이 댓글 작성자인지 확인 필요
         CommentDto updateComment = commentService.updateComment(postId,
-                commentId, request);
+                commentId, loginMemberId, request);
 
         return  ApiResponse.ok(updateComment);
         }
 
         @DeleteMapping("/post/{postId}/comments/{commentId}")
         public ApiResponse<Void> deleteComment(
-            @PathVariable Long postId,
-            @PathVariable Long commentId) {
+            @PathVariable @Positive(message = "게시글 번호는 1 이상이어야 합니다.") Long postId,
+            @PathVariable @Positive(message = "댓글 번호는 1 이상이어야 합니다.") Long commentId,
+            @RequestAttribute("memberId") Long loginMemberId) {
 
-         // 인증 구현 전에는 임시 회원 ID를 사용하지 않고 댓글 번호로만 삭제
-        commentService.deleteComment(postId, commentId);
+        commentService.deleteComment(postId, commentId, loginMemberId);
 
         return ApiResponse.ok(null);
         }

@@ -1,5 +1,6 @@
 package com.nightstudy.moa.admin.dto;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -13,7 +14,7 @@ public class AdminReportListItemResponse {
 
     private Long caseId;
 
-    // BOARD_POST, BOARD_COMMENT, BOARD_MEMBER, MEETING, MEETING_MEMBER
+    // AI작성: POST, COMMENT, MEMBER, GROUP, GROUP_MEMBER, CHAT_MESSAGE 신고 대상을 구분한다.
     private String reportType;
 
     // 게시글 번호, 댓글 번호, 모임 번호 또는 회원 번호
@@ -40,4 +41,7 @@ public class AdminReportListItemResponse {
     // AI작성: 이 사건으로 발생한 기능 제한 종료 일시이다.
     // 기능 제한이 적용되지 않았다면 null
     private LocalDateTime restrictedUntil;
+
+    // AI작성: 승인된 신고로 제한한 기능 범위이며 반려 또는 처리 전에는 null이다.
+    private MemberRestrictionScope restrictionScope;
 }

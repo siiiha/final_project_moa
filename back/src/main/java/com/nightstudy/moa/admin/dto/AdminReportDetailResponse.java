@@ -11,6 +11,8 @@ import lombok.Getter;
 public class AdminReportDetailResponse {
     // AI작성: 신고 유형, 대상 회원, 처리 상태 등 신고 사건의 기본 정보이다.
     private final AdminReportListItemResponse reportCase;
+    // AI작성: 게시글·댓글 신고일 때 관리자가 검토할 실제 대상 콘텐츠입니다.
+    private final AdminReportTargetResponse targetContent;
     // AI작성: 같은 사건에 접수된 신고자별 상세 신고 내용이다.
     private final List<AdminReportSubmissionResponse> submissions;
 }

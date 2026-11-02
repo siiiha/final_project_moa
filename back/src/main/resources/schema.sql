@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `group_account` (
 	`account_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`group_id`	BIGINT	NOT NULL,
 	`bank_code`	VARCHAR(20)	NOT NULL,
-	`account_number`	VARCHAR(50)	NOT NULL,
+	`account_number`	VARCHAR(255)	NOT NULL,
 	`account_holder_name`	VARCHAR(100)	NOT NULL,
 	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (`account_id`)
@@ -73,14 +73,14 @@ CREATE TABLE IF NOT EXISTS `fee_payment` (
 
 CREATE TABLE IF NOT EXISTS `members` (
 	`member_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`region_id`	BIGINT	NOT NULL,
-	`email`	VARCHAR(40)	NOT NULL,
+	`region_id`	BIGINT NULL,
+	`email`	VARCHAR(40)	NULL,
 	`password_hash`	VARCHAR(255)	NULL,
 	`name`	VARCHAR(50)	NOT NULL,
 	`nickname`	VARCHAR(50)	NOT NULL,
-	`phone`	VARCHAR(20)	NOT NULL,
-	`birth_date`	DATE	NOT NULL,
-	`gender`	ENUM('MALE', 'FEMALE')	NOT NULL,
+	`phone`	VARCHAR(20) NULL,
+	`birth_date` DATE NULL,
+	`gender` ENUM('MALE', 'FEMALE')	 NULL,
 	`profile_img_url`	VARCHAR(500)	NULL,
 	`user_level`	VARCHAR(20)	NULL,
 	`system_role`	ENUM('USER',  'ADMIN')	NOT NULL	DEFAULT 'USER',
@@ -93,10 +93,85 @@ CREATE TABLE IF NOT EXISTS `members` (
 	PRIMARY KEY (`member_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `member_feature_restriction` (
+    `member_id` BIGINT NOT NULL,
+    `restriction_scope` VARCHAR(30) NOT NULL,
+    `restricted_until` DATETIME NULL DEFAULT NULL,
+
+    PRIMARY KEY (`member_id`, `restriction_scope`),
+
+    CONSTRAINT `fk_member_feature_restriction_member`
+        FOREIGN KEY (`member_id`)
+        REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `chk_member_feature_restriction_scope`
+        CHECK (`restriction_scope` IN ('CONTENT', 'CHAT', 'REPORT'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS member_auth_session (
+    session_id CHAR(36)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    member_id BIGINT NOT NULL,
+    expires_at_ms BIGINT NOT NULL,
+    revoked_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (session_id),
+    KEY ix_member_auth_session_member (member_id),
+    KEY ix_member_auth_session_expires (expires_at_ms),
+
+    CONSTRAINT fk_member_auth_session_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE  TABLE IF NOT EXISTS member_refresh_token (
+    token_hash CHAR(64)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    session_id CHAR(36)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    used_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT
+CURRENT_TIMESTAMP(6),
+
+    PRIMARY KEY (token_hash),
+    KEY ix_member_refresh_token_session (session_id),
+
+    CONSTRAINT fk_member_refresh_token_session
+        FOREIGN KEY (session_id)
+        REFERENCES member_auth_session (session_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS
+member_identity_verification_request (
+    identity_verification_id VARCHAR(128)
+        CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    member_id BIGINT NOT NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT
+CURRENT_TIMESTAMP(6),
+    expires_at DATETIME(6) NOT NULL,
+    consumed_at DATETIME(6) NULL,
+
+    PRIMARY KEY (identity_verification_id),
+    KEY ix_member_identity_verification_request_member(member_id),
+
+    CONSTRAINT
+fk_member_identity_verification_request_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS member_social_account (
-                                                     social_account_id BIGINT NOT NULL AUTO_INCREMENT,
-                                                     member_id BIGINT NOT NULL,
-                                                     provider VARCHAR(20)
+    social_account_id BIGINT NOT NULL AUTO_INCREMENT,
+    member_id BIGINT NOT NULL,
+    provider VARCHAR(20)
     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     provider_user_id VARCHAR(255)
     CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -123,7 +198,8 @@ CREATE TABLE IF NOT EXISTS `meeting_approval` (
 	`type`	ENUM('CREATE', 'DELETE')	NOT NULL,
 	`bank_book_url`	VARCHAR(500)	NULL,
 	`status`	ENUM('PENDING','APPROVED','REJECTED')	NOT NULL	DEFAULT 'PENDING',
-	`reject_reason`	VARCHAR(255)	NULL,
+    `request_reason` VARCHAR(500) NULL,
+    `reject_reason`	VARCHAR(255)	NULL,
 	`processed_at`	DATETIME	NULL,
 	PRIMARY KEY (`approval_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -183,18 +259,49 @@ CREATE TABLE IF NOT EXISTS `groups` (
 CREATE TABLE IF NOT EXISTS `saving_group` (
 	`saving_group_id` BIGINT NOT NULL AUTO_INCREMENT,
     `group_id` BIGINT NOT NULL,
-    `saving_group_type` VARCHAR(50) NULL, 
-    `dues_amount` DECIMAL(12,2) NULL, 
-    `dues_day` TINYINT NULL, 
+    `interest_id` BIGINT NULL,
+    `saving_group_type` VARCHAR(50) NULL,
+    `dues_amount` DECIMAL(12,2) NULL,
+    `dues_day` TINYINT NULL,
     `start_date` DATE NULL,
-    `end_date` DATE NULL, 
-    `status` VARCHAR(20) NOT NULL, 
+    `end_date` DATE NULL,
+    `status` VARCHAR(20) NOT NULL,
     `group_image` VARCHAR(255) NULL,
     PRIMARY KEY (`saving_group_id`),
     CONSTRAINT `chk_saving_group_dues_day`
 		CHECK(`dues_day` BETWEEN 1 AND 28)
     ) ENGINE=InnoDB DEFAULT CHARSET=UTF8MB4
     COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `restriction_history` (
+    `restriction_history_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `member_id` BIGINT NULL,
+    `saving_group_id` BIGINT NULL,
+    `small_group_id` BIGINT NULL,
+    `action` ENUM('RESTRICT', 'RELEASE') NOT NULL,
+    `restriction_scope` VARCHAR(30) NULL DEFAULT NULL,
+    `restriction_type` ENUM('7_DAYS', '30_DAYS', 'PERMANENT') NULL,
+    `reason` VARCHAR(500) NOT NULL,
+    `restricted_until` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`restriction_history_id`),
+
+    CONSTRAINT `chk_restriction_history_target`
+    CHECK (
+(`member_id` IS NOT NULL)
+    + (`saving_group_id` IS NOT NULL)
+    + (`small_group_id` IS NOT NULL) = 1
+    ),
+
+    CONSTRAINT `fk_restriction_history_member`
+    FOREIGN KEY (`member_id`)
+    REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `fk_restriction_history_saving_group`
+    FOREIGN KEY (`saving_group_id`)
+    REFERENCES `saving_group` (`saving_group_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `saving_group_setting_change` (
     `setting_change_id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -223,29 +330,185 @@ CREATE TABLE IF NOT EXISTS `small_group` (
 	`small_group_id` BIGINT NOT NULL AUTO_INCREMENT,
     `group_id` BIGINT NOT NULL,
     `like_category` VARCHAR(50) NULL,
-    `meet_date` DATE NULL, 
+    `meet_date` DATE NULL,
     `location` VARCHAR(40) NULL,
+    `status` ENUM('ACTIVE', 'RESTRICTED') NOT NULL DEFAULT 'ACTIVE',
     PRIMARY KEY (`small_group_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci;
-    
+
+ALTER TABLE `restriction_history`
+    ADD CONSTRAINT `fk_restriction_history_small_group`
+        FOREIGN KEY (`small_group_id`)
+            REFERENCES `small_group` (`small_group_id`);
+
+-- 소모임별 회원당 후기 한 건과 별점·내용을 검증
+CREATE TABLE IF NOT EXISTS small_group_review (
+    small_group_review_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_id BIGINT NOT NULL,
+    writer_id BIGINT NOT NULL,
+    rating DECIMAL(2,1) NOT NULL,
+    content VARCHAR(30) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NULL,
+
+    PRIMARY KEY (small_group_review_id),
+
+    UNIQUE KEY uq_small_group_review_group_writer
+        (small_group_id, writer_id),
+
+    CONSTRAINT fk_small_group_review_small_group
+        FOREIGN KEY (small_group_id)
+        REFERENCES small_group (small_group_id),
+
+    CONSTRAINT fK_small_group_review_writer
+        FOREIGN key (writer_id)
+        REFERENCES members (member_id),
+
+    CONSTRAINT chk_small_group_review_rating
+        CHECK (
+            rating BETWEEN 0.0 AND 5.0
+            AND MOD(rating * 10, 5) = 0
+            ),
+
+    CONSTRAINT chk_small_group_review_content
+        CHECK (
+            CHAR_LENGTH(content) BETWEEN 1 AND 30
+            AND CHAR_LENGTH(TRIM(content)) > 0
+        )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+-- 소모임 투표의 기본 정보와 종료 이력을 저장
+CREATE TABLE IF NOT EXISTS small_group_vote (
+    small_group_vote_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_id BIGINT NOT NULL,
+    creator_member_id BIGINT NOT NULL,
+    title VARCHAR(12) NOT NULL,
+    is_multiple_choice BOOLEAN NOT NULL DEFAULT FALSE,
+    is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+    ends_at DATETIME NULL,
+    status ENUM('OPEN', 'CLOSED') NOT NULL DEFAULT 'OPEN',
+    closed_at DATETIME NULL,
+    closed_by_member_id BIGINT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL DEFAULT NULL,
+
+    PRIMARY KEY (small_group_vote_id),
+
+    KEY ix_small_group_vote_group_status_ends
+        (small_group_id, status, ends_at),
+
+    CONSTRAINT fk_small_group_vote_small_group
+        FOREIGN KEY (small_group_id)
+        REFERENCES small_group (small_group_id),
+
+    CONSTRAINT fk_small_group_vote_creator
+        FOREIGN KEY (creator_member_id)
+        REFERENCES members (member_id),
+
+    CONSTRAINT fk_small_group_vote_closed_by
+        FOREIGN KEY (closed_by_member_id)
+        REFERENCES members (member_id),
+
+    CONSTRAINT chk_small_group_vote_title
+        CHECK (CHAR_LENGTH(TRIM(title)) BETWEEN 2 AND 12)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+-- 투표 보기와 표시 순서를 저장
+CREATE TABLE IF NOT EXISTS small_group_vote_option (
+    small_group_vote_option_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_vote_id BIGINT NOT NULL,
+    option_content VARCHAR(12) NOT NULL,
+    display_order TINYINT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (small_group_vote_option_id),
+
+    UNIQUE KEY uq_small_group_vote_option_order
+        (small_group_vote_id, display_order),
+
+    CONSTRAINT fk_small_group_vote_option_vote
+        FOREIGN KEY (small_group_vote_id)
+        REFERENCES small_group_vote (small_group_vote_id),
+
+    CONSTRAINT chk_small_group_vote_option_content
+        CHECK (CHAR_LENGTH(TRIM(option_content)) BETWEEN 2 AND 12)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+-- 회원별 투표 참여 이력을 저장하고 중복 참여를 방지
+CREATE TABLE IF NOT EXISTS small_group_vote_participation (
+    small_group_vote_participation_id BIGINT NOT NULL AUTO_INCREMENT,
+    small_group_vote_id BIGINT NOT NULL,
+    member_id BIGINT NOT NULL,
+    participated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (small_group_vote_participation_id),
+
+    UNIQUE KEY uq_small_group_vote_participation_member
+        (small_group_vote_id, member_id),
+
+    CONSTRAINT fk_small_group_vote_participation_vote
+        FOREIGN KEY (small_group_vote_id)
+        REFERENCES small_group_vote (small_group_vote_id),
+
+    CONSTRAINT fk_small_group_vote_participation_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
+-- 투표 참여 이력과 선택한 보기 연결
+CREATE TABLE IF NOT EXISTS small_group_vote_selection (
+    small_group_vote_participation_id BIGINT NOT NULL,
+    small_group_vote_option_id BIGINT NOT NULL,
+
+    PRIMARY KEY (
+        small_group_vote_participation_id,
+    small_group_vote_option_id
+),
+
+    CONSTRAINT fk_small_group_vote_selection_participation
+        FOREIGN KEY (small_group_vote_participation_id)
+        REFERENCES small_group_vote_participation (
+            small_group_vote_participation_id
+        ),
+
+    CONSTRAINT fk_small_group_vote_selection_option
+        FOREIGN KEY (small_group_vote_option_id)
+        REFERENCES small_group_vote_option (
+            small_group_vote_option_id
+        )
+) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `term` (
 	`term_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`title`	VARCHAR(200)	NOT NULL,
 	`version`	VARCHAR(20)	NOT NULL,
 	`content`	TEXT	NOT NULL,
 	`is_required`	BOOLEAN	NOT NULL,
+    `is_active` BOOLEAN NOT NULL DEFAULT TRUE,
 	PRIMARY KEY (`term_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `report_case` (
     `case_id` BIGINT NOT NULL AUTO_INCREMENT,
     `report_type` ENUM(
-        'BOARD_POST',
-        'BOARD_COMMENT',
-        'BOARD_MEMBER',
-        'MEETING',
-        'MEETING_MEMBER'
+        'POST',
+        'COMMENT',
+        'MEMBER',
+        'GROUP',
+        'GROUP_MEMBER',
+        'CHAT_MESSAGE'
 ) NOT NULL,
 `target_id` BIGINT NOT NULL,
 `reported_member_id` BIGINT NOT NULL,
@@ -287,20 +550,35 @@ CREATE TABLE IF NOT EXISTS `member_report` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `email_verification` (
-	`verification_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`email`	VARCHAR(40)	NOT NULL,
-	`code_hash`	VARCHAR(255)	NOT NULL,
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	`expires_at`	DATETIME	NOT NULL,
-	`verified_at`	DATETIME	NULL,
-	PRIMARY KEY (`verification_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `verification_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `email` VARCHAR(40) NOT NULL,
+    `purpose` VARCHAR(20) NOT NULL DEFAULT 'SIGNUP',
+    `code_hash` VARCHAR(255) NOT NULL,
+    `failed_attempts` INT NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `expires_at` DATETIME NOT NULL,
+    `verified_at` DATETIME NULL,
+    `verification_token_hash` VARCHAR(64) NULL,
+    `token_expires_at` DATETIME NULL,
+    `consumed_at` DATETIME NULL,
+    PRIMARY KEY (`verification_id`),
+    CONSTRAINT `chk_email_verification_purpose`
+    CHECK (`purpose` IN (
+           'SIGNUP', 'FIND_ACCOUNT', 'RESET_PASSWORD'
+            ))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `region` (
-	`region_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`region_name`	VARCHAR(100)	NOT NULL,
-	PRIMARY KEY (`region_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `region_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `region_name` VARCHAR(100) NOT NULL,
+    `province_name` VARCHAR(30) NULL,
+    `district_name` VARCHAR(50) NULL,
+    `legal_code` VARCHAR(10) NULL,
+    `town_name` VARCHAR(50) NULL,
+    PRIMARY KEY (`region_id`),
+    UNIQUE KEY `uq_region_legal_code` (`legal_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `meeting_round` (
 	`round_id`	BIGINT	NOT NULL AUTO_INCREMENT,
@@ -399,6 +677,23 @@ CREATE TABLE IF NOT EXISTS `post` (
 	PRIMARY KEY (`post_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `post_image` (
+    `image_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `post_id` BIGINT NOT NULL,
+    `image_url` VARCHAR(500) NOT NULL,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`image_id`),
+    KEY `ix_post_image_post_order` (`post_id`, `sort_order`),
+
+    CONSTRAINT `fk_post_image_post`
+    FOREIGN KEY (`post_id`)
+    REFERENCES `post` (`post_id`)
+    ) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci;
+
 ALTER TABLE `member_interest` ADD CONSTRAINT `FK_interest_TO_member_interest_1` FOREIGN KEY (
 	`interest_id`
 )
@@ -446,7 +741,7 @@ REFERENCES `members` (
 	`member_id`
 );
 
-ALTER TABLE `group_account` 
+ALTER TABLE `group_account`
 ADD CONSTRAINT `FK_groups_TO_group_account_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);
@@ -554,6 +849,11 @@ ALTER TABLE `saving_group`
 ADD CONSTRAINT `FK_groups_TO_saving_group_1`
 FOREIGN KEY (`group_id`)
 REFERENCES `groups` (`group_id`);
+
+ALTER TABLE `saving_group`
+ADD CONSTRAINT `FK_interest_TO_saving_group_1`
+FOREIGN KEY (`interest_id`)
+REFERENCES `interest` (`interest_id`);
 
 ALTER TABLE `small_group`
 ADD CONSTRAINT `FK_groups_TO_small_group_1`

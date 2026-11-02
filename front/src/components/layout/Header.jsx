@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { FiBell } from 'react-icons/fi';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import { logoutMember } from '../../api/member';
-import useAuthStore from '../../store/authStore';
+import useAuthStore, { isAdminToken } from '../../store/authStore';
 
 const Shell = styled.header`
   height: 56px;
@@ -148,45 +148,32 @@ const LogoutButton = styled.button`
 
 function Header() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
-
   const token = useAuthStore((state) => state.token);
   const clearToken = useAuthStore((state) => state.clearToken);
+  const isAdmin = isAdminToken(token);
+  // AI작성: 로그아웃 요청 중에는 중복 요청을 막고 처리 상태를 화면에 표시한다.
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const isLoggedIn = Boolean(token);
-
-  // 서버 로그아웃 성공 후 브라우저의 JWT를 제거
   const handleLogout = async () => {
-    if (!token || isLoggingOut) return;
+    if (isLoggingOut) return;
 
     setIsLoggingOut(true);
-
     try {
-      const result = await logoutMember(token);
-
-      if (!result.success) {
-        throw new Error('로그아웃에 실패했습니다.');
-      }
-
-      clearToken();
-      navigate('/member/login', { replace: true });
+      await logoutMember(token);
     } catch (error) {
-      // 만료되거나 이미 무효인 JWT도 브라우저에서 제거
-      if (error.response?.status === 401) {
-        clearToken();
-        navigate('/member/login', { replace: true });
-        return;
+      // AI작성: 서버 폐기를 확인하지 못한 경우에도 현재 브라우저에서는 로그아웃한다.
+      if (error.response?.status !== 401) {
+        window.alert('서버 로그아웃을 확인하지 못했습니다. 현재 브라우저의 로그인 정보는 삭제합니다.');
       }
-
-      window.alert(
-        error.response?.data?.error?.message ??
-          '로그아웃에 실패했습니다. 잠시 후 다시 시도해주세요.',
-      );
     } finally {
+      // AI작성: 기존 스토어의 로그인 초기화 함수를 재사용한다.
+      clearToken();
+      sessionStorage.removeItem('moa-social-signup');
       setIsLoggingOut(false);
+      window.location.assign('/');
     }
   };
+  const isLoggedIn = Boolean(token);
 
   return (
     <Shell>
@@ -220,6 +207,7 @@ function Header() {
               <FiBell size={15} aria-hidden="true" /> 알림
             </NotificationLink>
             <Link to="/member/mypage">마이페이지</Link>
+            {isAdmin && <Link to="/admin/members">관리자 페이지</Link>}
             <LogoutButton
               type="button"
               onClick={handleLogout}

@@ -1,7 +1,8 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import FindAccountPage from './pages/FindAccountPage';
 import MyPage from './pages/MyPage';
 import EditProfilePage from './pages/EditProfilePage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
@@ -28,8 +29,18 @@ import SavingGroupSettingsPage from './pages/SavingGroupSettingsPage';
 import SmallGroupsPage from './pages/SmallGroupsPage';
 import SmallGroupCreatePage from './pages/SmallGroupCreatePage';
 import SmallGroupDetailPage from './pages/SmallGroupDetailPage';
+import SmallGroupVoteDetailPage from './pages/SmallGroupVoteDetailPage';
 import NotFound from './pages/NotFound';
 import SocialLoginCallbackPage from './pages/SocialLoginCallbackPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import useAuthStore, { isAdminToken } from './store/authStore';
+
+// AI작성: 주소를 직접 입력한 일반 회원도 관리자 화면으로 진입하지 않도록 보호한다.
+function AdminRoute({ children }) {
+  const token = useAuthStore((state) => state.token);
+
+  return isAdminToken(token) ? children : <Navigate to="/" replace />;
+}
 
 function App() {
   return (
@@ -42,9 +53,13 @@ function App() {
         <Route path="/saving-groups/:id/settings" element={<SavingGroupSettingsPage />} />
         <Route path="/saving-groups/:id" element={<SavingGroupDetailPage />} />
         <Route path="/small-groups/new" element={<SmallGroupCreatePage />} />
+        <Route path="/small-groups/:smallGroupId/votes/:voteId" element={<SmallGroupVoteDetailPage />} />
         <Route path="/small-groups/:id" element={<SmallGroupDetailPage />} />
         <Route path="/small-groups" element={<SmallGroupsPage />} />
         <Route path="/member/login" element={<LoginPage />} />
+        <Route path="/member/find-account" element={<FindAccountPage />} />
+        <Route path="/member/reset-password" element={<ResetPasswordPage />} />
+
         {/* AI작성: 카카오 인증 후 로그인 결과를 처리하는 화면 */}
         <Route
           path="/member/social/callback"
@@ -59,16 +74,16 @@ function App() {
         <Route path="/post/create" element={<PostCreatePage />} />
         <Route path="/post/:id/edit" element={<PostCreatePage />} />
         <Route path="/post/:id" element={<PostDetailPage />} />
-        <Route path="/admin/members" element={<AdminMembersPage />} />
-        <Route path="/admin/members/:id" element={<AdminMemberDetailPage />} />
-        <Route path="/admin/saving-groups" element={<AdminSavingGroupsPage />} />
-        <Route path="/admin/saving-groups/applications" element={<AdminSavingGroupApplicationsPage />} />
-        <Route path="/admin/saving-groups/applications/:id" element={<AdminSavingGroupApplicationDetailPage />} />
-        <Route path="/admin/small-groups" element={<AdminSmallGroupsPage />} />
-        <Route path="/admin/posts" element={<AdminPostsPage />} />
-        <Route path="/admin/comments" element={<AdminCommentsPage />} />
-        <Route path="/admin/reposts" element={<AdminReportsPage />} />
-        <Route path="/admin/reposts/:id" element={<AdminReportDetailPage />} />
+        <Route path="/admin/members" element={<AdminRoute><AdminMembersPage /></AdminRoute>} />
+        <Route path="/admin/members/:id" element={<AdminRoute><AdminMemberDetailPage /></AdminRoute>} />
+        <Route path="/admin/saving-groups" element={<AdminRoute><AdminSavingGroupsPage /></AdminRoute>} />
+        <Route path="/admin/saving-groups/applications" element={<AdminRoute><AdminSavingGroupApplicationsPage /></AdminRoute>} />
+        <Route path="/admin/saving-groups/applications/:id" element={<AdminRoute><AdminSavingGroupApplicationDetailPage /></AdminRoute>} />
+        <Route path="/admin/small-groups" element={<AdminRoute><AdminSmallGroupsPage /></AdminRoute>} />
+        <Route path="/admin/posts" element={<AdminRoute><AdminPostsPage /></AdminRoute>} />
+        <Route path="/admin/comments" element={<AdminRoute><AdminCommentsPage /></AdminRoute>} />
+        <Route path="/admin/reposts" element={<AdminRoute><AdminReportsPage /></AdminRoute>} />
+        <Route path="/admin/reposts/:id" element={<AdminRoute><AdminReportDetailPage /></AdminRoute>} />
         <Route path="/member/join" element={<JoinPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />

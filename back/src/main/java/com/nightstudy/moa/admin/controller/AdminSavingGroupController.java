@@ -4,6 +4,8 @@ import com.nightstudy.moa.admin.dto.AdminSavingGroupDetailResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListItemResponse;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupListResult;
 import com.nightstudy.moa.admin.dto.AdminSavingGroupSearchCondition;
+import com.nightstudy.moa.admin.dto.AdminSavingGroupSummaryResponse;
+import com.nightstudy.moa.admin.dto.AdminGroupRestrictionRequest;
 import com.nightstudy.moa.admin.service.AdminSavingGroupService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -13,8 +15,10 @@ import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -25,6 +29,12 @@ public class AdminSavingGroupController {
 
     public AdminSavingGroupController(AdminSavingGroupService adminSavingGroupService) {
         this.adminSavingGroupService = adminSavingGroupService;
+    }
+
+    @GetMapping("/summary")
+    // AI작성: 목록 필터와 무관하게 전체 계모임 운영 현황을 집계해 반환한다.
+    public ApiResponse<AdminSavingGroupSummaryResponse> getSavingGroupSummary() {
+        return ApiResponse.ok(adminSavingGroupService.getSavingGroupSummary());
     }
 
     @GetMapping
@@ -40,6 +50,26 @@ public class AdminSavingGroupController {
             @PathVariable Long savingGroupId
     ) {
         return ApiResponse.ok(adminSavingGroupService.getSavingGroupDetail(savingGroupId));
+    }
+
+    @PatchMapping("/{savingGroupId}/restriction")
+    // AI작성: 기간 없이 관리자 사유를 기록하고 진행 중 계모임을 활동 정지한다.
+    public ApiResponse<Void> restrictSavingGroup(
+            @PathVariable Long savingGroupId,
+            @Valid @RequestBody AdminGroupRestrictionRequest request
+    ) {
+        adminSavingGroupService.restrictSavingGroup(savingGroupId, request);
+        return ApiResponse.ok(null);
+    }
+
+    @PatchMapping("/{savingGroupId}/restriction/release")
+    // AI작성: 미해제 관리자 제한 이력이 있는 계모임만 정상 진행 상태로 복구한다.
+    public ApiResponse<Void> releaseSavingGroupRestriction(
+            @PathVariable Long savingGroupId,
+            @Valid @RequestBody AdminGroupRestrictionRequest request
+    ) {
+        adminSavingGroupService.releaseSavingGroupRestriction(savingGroupId, request);
+        return ApiResponse.ok(null);
     }
 
     @InitBinder

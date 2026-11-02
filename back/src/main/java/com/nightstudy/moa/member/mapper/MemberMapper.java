@@ -1,9 +1,14 @@
 package com.nightstudy.moa.member.mapper;
 
-import com.nightstudy.moa.member.dto.MemberInsertDto;
+import com.nightstudy.moa.member.dto.auth.MemberLoginDto;
+import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
+import com.nightstudy.moa.member.dto.signup.MemberInsertDto;
+import com.nightstudy.moa.member.dto.terms.MemberTermDto;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import com.nightstudy.moa.member.dto.MemberLoginDto;
+
+import java.util.List;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 
 @Mapper
 public interface MemberMapper {
@@ -11,12 +16,25 @@ public interface MemberMapper {
     int countByEmail(@Param("email") String email);
 
     int countRegionById(@Param("regionId") Long regionId);
+    List<MemberRegionDto> findRegions();
+
+    int markRegionVerified(
+            @Param("memberId") Long memberId,
+            @Param("regionId") Long regionId
+    );
+
+    // 회원의 활동 지역을 변경하고 기존 지역 인증을 초기화
+    int updateMemberRegion(
+            @Param("memberId") Long memberId,
+            @Param("regionId") Long regionId
+    );
 
     int insertMember(MemberInsertDto member);
 
     int countVerifiedEmail(@Param("email") String email);
 
     int countRequiredTerms();
+    List<MemberTermDto> findTerms();
 
     int countRequiredAgreedTerms(
             @Param("termIds") java.util.List<Long> termIds
@@ -39,4 +57,111 @@ public interface MemberMapper {
     int countTermById(@Param("termId") Long termId);
 
     MemberLoginDto findByEmail(@Param("email") String email);
+
+    MemberProfileResponse findProfileByMemberId(
+            @Param("memberId") Long memberId
+    );
+
+    List<MemberProfileResponse.Interest> findInterestsByMemberId(
+            @Param("memberId") Long memberId
+    );
+
+    // 수정 대상 회원을 조회하고 동시에 변경되지 않도록 잠금
+    MemberLoginDto findByMemberIdForUpdate(
+            @Param("memberId") Long memberId
+    );
+
+    // 본인 제외 동일 닉네임 사용하는 회원 수 조회
+    int countByNicknameExcludingMember(
+            @Param("nickname") String nickname,
+            @Param("memberId")  Long memberId
+    );
+
+    // 로그인한 회원의 닉네임 변경
+    int updateNickname(
+            @Param("memberId") Long memberId,
+            @Param("nickname") String nickname
+    );
+
+    // 관심사 목록 교체 위해 회원의 기존 선택 네역 삭제
+    int deleteMemberInterests(
+            @Param("memberId") Long memberId
+    );
+
+    // 암호화된 새 비밀번호 저장
+    int updatePassword(
+            @Param("memberId") Long memberId,
+            @Param("passwordHash") String passwordHash
+    );
+
+    int countWithdrawalBlockingGroups(
+            @Param("memberId") Long memberId
+    );
+
+    int withdrawMember(
+            @Param("memberId") Long memberId
+    );
+
+    int countNotWithdrawnMemberById(
+            @Param("memberId") Long memberId
+    );
+
+    // 회원의 프로필 사진 경로를 변경 or 초기화
+    int updateProfileImageUrl(
+            @Param("memberId") Long memberId,
+            @Param("profileImageUrl")  String profileImageUrl
+    );
+
+    // 이메일 인증을 통한 비밀번호 재설정 시 조회 당시 비밀번호가 유지된 활성 계정만 변경
+    int updatePasswordForReset(
+            @Param("memberId") Long memberId,
+            @Param("currentPasswordHash") String currentPasswordHash,
+            @Param("newPasswordHash") String newPasswordHash
+    );
+
+    // 서버가 발급한 인증 요청 번호를 회원과 연결
+    int insertIdentityVerificationRequest(
+            @Param("identityVerificationId") String identityVerificationId,
+            @Param("memberId") Long memberId
+    );
+
+    // 해당 회원의 미사용·미만료 인증 요청인지 확인
+    int countAvailableIdentityVerificationRequest(
+            @Param("identityVerificationId") String identitVerificationId,
+            @Param("memberId") Long memberId
+    );
+
+    // 인증된 이름·생년월일·전화번호가 회원 정보와 일치하는지 확인
+    int countMemberIdentityMatch(
+            @Param("memberId") Long memberId,
+            @Param("name") String name,
+            @Param("birthDate") String birthDate,
+            @Param("phoneNumber") String phoneNumber
+    );
+
+    // 인증 요청 한 번만 사용 처리
+    int consumeIdentityVerificationRequest(
+            @Param("identityVerificationId") String identityVerificationId,
+            @Param("memberId") Long memberId
+    );
+
+    // 활성 회원의 본인인증 완료 시각 저장
+    int markIdentityVerified(
+            @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 소셜 계정 연결을 삭제
+    int deleteMemberSocialAccounts(
+            @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 본인인증 요청 기록을 삭제
+    int deleteMemberIdentityRequests(
+            @Param("memberId") Long memberId
+    );
+
+    // 탈퇴 회원의 이메일 인증 요청과 인증 토큰을 삭제
+    int deleteMemberEmailVerifications(
+            @Param("email") String email
+    );
 }

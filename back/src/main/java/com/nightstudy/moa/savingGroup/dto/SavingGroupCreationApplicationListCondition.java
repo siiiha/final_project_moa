@@ -10,6 +10,7 @@ import lombok.Setter;
 public class SavingGroupCreationApplicationListCondition {
     private final String keywordPattern;
     private final String status;
+    private final String type;
     @Setter
     private int offset;
     private final int limit;

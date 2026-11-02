@@ -1,0 +1,121 @@
+import client from './client.js';
+import { formatAdminDate } from './adminFormatters.js';
+import {
+  ADMIN_REPORT_STATUS_OPTIONS,
+  ADMIN_REPORT_TYPE_OPTIONS,
+  findAdminReportOptionLabel,
+} from './adminReportOptions.js';
+
+function toAdminReportError(error, fallbackMessage) {
+  const responseError = error.response?.data?.error;
+  const failure = new Error(responseError?.message || fallbackMessage);
+  failure.name = 'AdminReportError';
+  failure.code = responseError?.code || 'ADMIN_REPORT_REQUEST_FAILED';
+  return failure;
+}
+
+function formatReportType(value) {
+  return findAdminReportOptionLabel(ADMIN_REPORT_TYPE_OPTIONS, value, '유형 확인 필요');
+}
+
+function formatReportStatus(value) {
+  return findAdminReportOptionLabel(ADMIN_REPORT_STATUS_OPTIONS, value, '상태 확인 필요');
+}
+
+// AI작성: 서버의 기능 제한 범위를 관리자 화면에서 이해하기 쉬운 문구로 변환한다.
+function formatRestrictionScope(value) {
+  return { CONTENT: '게시글·댓글', CHAT: '채팅', REPORT: '신고' }[value] || '';
+}
+
+function mapReport(item) {
+  return {
+    id: item.caseId,
+    type: formatReportType(item.reportType),
+    typeCode: item.reportType,
+    targetId: item.targetId,
+    targetMember: item.reportedMemberNickname || '대상 확인 필요',
+    reporterCount: item.reporterCount ?? 0,
+    status: formatReportStatus(item.status),
+    statusCode: item.status,
+    processReason: item.processReason || '',
+    createdAt: formatAdminDate(item.createdAt, { includeTime: true }),
+    processedAt: item.processedAt
+      ? formatAdminDate(item.processedAt, { includeTime: true })
+      : '-',
+    restrictedUntil: item.restrictedUntil
+      ? formatAdminDate(item.restrictedUntil, { includeTime: true })
+      : '-',
+    restrictionScope: formatRestrictionScope(item.restrictionScope),
+  };
+}
+
+// AI작성: 관리자 신고 목록 API 응답을 목록 화면의 표시 형식으로 변환한다.
+export async function getAdminReports({ status, reportType, searchType, keyword, page = 1, size = 10, signal } = {}) {
+  try {
+    const response = await client.get('/admin/reports', {
+      params: {
+        status: status || undefined,
+        reportType: reportType || undefined,
+        searchType: searchType || undefined,
+        keyword: keyword || undefined,
+        page,
+        size,
+      },
+      signal,
+    });
+    if (!response.data?.success || !Array.isArray(response.data.data) || !response.data.meta) {
+      throw new Error('신고 목록 응답을 확인할 수 없습니다.');
+    }
+    return { items: response.data.data.map(mapReport), meta: response.data.meta };
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    throw toAdminReportError(error, '신고 목록을 불러오지 못했습니다.');
+  }
+}
+
+// AI작성: 신고 사건 상세와 사건에 포함된 개별 신고 내용을 함께 변환한다.
+export async function getAdminReport(caseId, signal) {
+  try {
+    const response = await client.get(`/admin/reports/${encodeURIComponent(caseId)}`, { signal });
+    if (!response.data?.success || !response.data.data?.reportCase || !Array.isArray(response.data.data.submissions)) {
+      throw new Error('신고 상세 응답을 확인할 수 없습니다.');
+    }
+    const report = mapReport(response.data.data.reportCase);
+    const targetContent = response.data.data.targetContent;
+    return {
+      report: {
+        ...report,
+        // AI작성: 게시글·댓글 신고일 때 관리자 상세 화면에서 검토할 실제 원문을 보존한다.
+        targetContent: targetContent ? {
+          id: targetContent.targetId,
+          postId: targetContent.postId,
+          postTitle: targetContent.postTitle || '',
+          content: targetContent.content || '',
+          writer: targetContent.writerNickname || '작성자 확인 필요',
+          deleted: Boolean(targetContent.deleted),
+        } : null,
+        processId: response.data.data.submissions[0]?.reportId || null,
+        submissions: response.data.data.submissions.map((submission) => ({
+          id: submission.reportId,
+          reporter: submission.reporterNickname || '신고자 확인 필요',
+          reason: submission.reason || '신고 사유 없음',
+          reportedAt: formatAdminDate(submission.reportedAt, { includeTime: true }),
+          hasEvidence: Boolean(submission.evidenceFiles),
+        })),
+      },
+    };
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    throw toAdminReportError(error, '신고 상세 정보를 불러오지 못했습니다.');
+  }
+}
+
+// AI작성: 개별 신고 번호로 사건 처리와 대상 회원 제한을 한 트랜잭션으로 요청한다.
+export async function processAdminReport(reportId, request) {
+  try {
+    const response = await client.patch(`/admin/reports/${encodeURIComponent(reportId)}/process`, request);
+    if (!response.data?.success) throw new Error('신고 처리 응답을 확인할 수 없습니다.');
+  } catch (error) {
+    throw toAdminReportError(error, '신고를 처리하지 못했습니다.');
+  }
+}

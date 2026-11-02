@@ -15,6 +15,7 @@ import com.nightstudy.moa.comment.dto.CommentResponse;
 import com.nightstudy.moa.comment.dto.CommentSearchCondition;
 import com.nightstudy.moa.comment.mapper.CommentMapper;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -33,31 +34,56 @@ class CommentServiceImplTest {
     @Mock
     private PostMapper postMapper;
 
+    // AI작성: 댓글 변경 전에 수행되는 CONTENT 이용 제한 검사를 Mock으로 주입한다.
+    @Mock
+    private MemberFeatureRestrictionService restrictionService;
+
     @InjectMocks
     private CommentServiceImpl commentService;
 
     @Test
-    // AI작성: 활성 게시글에 댓글을 등록하고 생성된 댓글을 반환하는지 확인한다.
+    // AI작성: 댓글의 앞뒤 공백을 제거해 저장하고 생성된 댓글을 반환하는지 확인한다.
     void insertCommentReturnsCreatedComment() {
-        when(postMapper.countPostById(1L)).thenReturn(1);
+        when(postMapper.selectActivePostIdForUpdate(1L)).thenReturn(1L);
         doAnswer(invocation -> {
             CommentDto comment = invocation.getArgument(0);
+            assertThat(comment.getContent()).isEqualTo("댓글");
             comment.setCommentId(10L);
             return 1;
         }).when(commentMapper).insertComment(any(CommentDto.class));
         CommentDto saved = comment(10L, 1L, null, "댓글");
         when(commentMapper.selectCommentById(10L)).thenReturn(saved);
 
-        CommentDto result = commentService.insertComment(1L, 2L, "댓글");
+        CommentDto result = commentService.insertComment(1L, 2L, "  댓글  ");
 
         assertThat(result).isSameAs(saved);
         verify(commentMapper).insertComment(any(CommentDto.class));
     }
 
     @Test
+    // AI작성: 대댓글에도 일반 댓글과 동일한 앞뒤 공백 제거 규칙이 적용되는지 확인한다.
+    void insertReplyTrimsContent() {
+        CommentDto parent = comment(10L, 1L, null, "원댓글");
+        CommentDto savedReply = comment(11L, 1L, 10L, "대댓글");
+        when(postMapper.selectActivePostIdForUpdate(1L)).thenReturn(1L);
+        when(commentMapper.selectActiveCommentForUpdate(1L, 10L)).thenReturn(parent);
+        doAnswer(invocation -> {
+            CommentDto reply = invocation.getArgument(0);
+            assertThat(reply.getContent()).isEqualTo("대댓글");
+            reply.setCommentId(11L);
+            return 1;
+        }).when(commentMapper).insertComment(any(CommentDto.class));
+        when(commentMapper.selectCommentById(11L)).thenReturn(savedReply);
+
+        CommentDto result = commentService.insertReply(1L, 10L, 2L, "  대댓글  ");
+
+        assertThat(result).isSameAs(savedReply);
+    }
+
+    @Test
     // AI작성: 존재하지 않거나 삭제된 게시글에는 댓글을 등록하지 않는지 확인한다.
     void insertCommentRejectsMissingPost() {
-        when(postMapper.countPostById(999L)).thenReturn(0);
+        when(postMapper.selectActivePostIdForUpdate(999L)).thenReturn(null);
 
         assertThatThrownBy(() -> commentService.insertComment(999L, 2L, "댓글"))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
@@ -102,21 +128,22 @@ class CommentServiceImplTest {
     }
 
     @Test
-    // AI작성: 댓글 내용 수정 성공 후 변경된 댓글을 다시 조회해 반환하는지 확인한다.
+    // AI작성: 수정 댓글의 앞뒤 공백을 제거해 저장한 후 변경된 댓글을 반환하는지 확인한다.
     void updateCommentReturnsUpdatedComment() {
         CommentDto before = comment(10L, 1L, null, "기존 내용");
         CommentDto after = comment(10L, 1L, null, "수정 내용");
         CommentEditRequest request = new CommentEditRequest();
-        request.setContent("수정 내용");
+        request.setContent("  수정 내용  ");
         when(postMapper.countPostById(1L)).thenReturn(1);
         when(commentMapper.selectCommentById(10L)).thenReturn(before, after);
-        when(commentMapper.updateComment(1L, 10L, request)).thenReturn(1);
+        when(commentMapper.updateComment(1L, 10L, 2L, request))
+                .thenReturn(1);
+        before.setMemberId(2L);
+        CommentDto result = commentService.updateComment(1L, 10L, 2L, request);
 
-        CommentDto result = commentService.updateComment(1L, 10L, request);
-
+        assertThat(request.getContent()).isEqualTo("수정 내용");
         assertThat(result.getContent()).isEqualTo("수정 내용");
-        verify(commentMapper).updateComment(1L, 10L, request);
-    }
+        verify(commentMapper).updateComment(1L, 10L, 2L, request);    }
 
     @Test
     // AI작성: 다른 게시글의 댓글 수정 요청은 COMMENT_NOT_FOUND로 처리하는지 확인한다.
@@ -127,30 +154,34 @@ class CommentServiceImplTest {
         when(postMapper.countPostById(1L)).thenReturn(1);
         when(commentMapper.selectCommentById(10L)).thenReturn(comment);
 
-        assertThatThrownBy(() -> commentService.updateComment(1L, 10L, request))
+        assertThatThrownBy(() -> commentService.updateComment(1L, 10L, 2L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("COMMENT_NOT_FOUND"));
-        verify(commentMapper, never()).updateComment(1L, 10L, request);
+        verify(commentMapper, never())
+                .updateComment(1L, 10L, 2L, request);
     }
 
     @Test
     // AI작성: 활성 게시글의 댓글 삭제 결과가 한 건이면 정상 완료되는지 확인한다.
     void deleteCommentCompletesWhenOneCommentIsUpdated() {
         when(postMapper.countPostById(1L)).thenReturn(1);
-        when(commentMapper.deleteComment(1L, 10L)).thenReturn(1);
+        when(commentMapper.deleteComment(1L, 10L, 2L))
+                .thenReturn(1);
 
-        commentService.deleteComment(1L, 10L);
+        CommentDto comment = comment(10L, 1L, null, "댓글");
+        comment.setMemberId(2L);
+        when(commentMapper.selectCommentById(10L)).thenReturn(comment);
+        commentService.deleteComment(1L, 10L, 2L);
 
-        verify(commentMapper).deleteComment(1L, 10L);
+        verify(commentMapper).deleteComment(1L, 10L, 2L);
     }
 
     @Test
     // AI작성: 없거나 이미 삭제된 댓글은 COMMENT_NOT_FOUND로 처리하는지 확인한다.
     void deleteCommentThrowsWhenCommentDoesNotExist() {
         when(postMapper.countPostById(1L)).thenReturn(1);
-        when(commentMapper.deleteComment(1L, 999L)).thenReturn(0);
 
-        assertThatThrownBy(() -> commentService.deleteComment(1L, 999L))
+        assertThatThrownBy(() -> commentService.deleteComment(1L, 999L, 2L))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("COMMENT_NOT_FOUND"));
     }

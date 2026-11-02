@@ -10,7 +10,7 @@
         <where>
             p.deleted_at IS NULL
 
-            <if test="categoryId != null and categoryId != '' and categoryId != '전체'">
+            <if test="categoryId != null">
                 AND p.category_id = #{categoryId}
             </if>
 

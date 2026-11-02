@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import {
   createComment,
@@ -13,11 +13,30 @@ import {
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ReportModal from '../components/common/ReportModal';
+import useAuthStore from '../store/authStore';
+import { createReport } from '../api/reports';
 
 const COMMENTS_PER_PAGE = 20;
 
-// AI작성: 인증 연동 전에만 사용하는 임시 회원 ID이며, 추후 로그인 회원 ID로 교체해야 합니다.
-const TEMP_MEMBER_ID = 44;
+// AI작성: 로그인 JWT의 subject는 백엔드가 발급한 회원 번호이므로 댓글 작성 권한 비교에 사용한다.
+const getMemberIdFromToken = (token) => {
+  try {
+    const payload = String(token || '').split('.')[1];
+
+    if (!payload) return null;
+
+    const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decodedPayload = window.atob(
+      normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '='),
+    );
+    const memberId = JSON.parse(decodedPayload).sub;
+
+    return memberId ? String(memberId) : null;
+  } catch {
+    return null;
+  }
+};
 
 // AI작성: 더보기로 가져온 과거 댓글과 방금 작성한 댓글이 시간 순서대로 표시되도록 정렬합니다.
 const sortCommentsByCreatedAt = (comments) =>
@@ -35,6 +54,7 @@ const sortCommentsByCreatedAt = (comments) =>
 // AI작성: 백엔드 댓글 응답을 화면 컴포넌트의 표시 형식으로 변환합니다.
 const mapComment = (comment) => ({
   id: comment.commentId,
+  memberId: comment.memberId,
   author: comment.writerNickname || '알 수 없음',
   content: comment.content,
   createdAt: comment.createdAt,
@@ -42,6 +62,7 @@ const mapComment = (comment) => ({
   // AI작성: 백엔드가 반환한 한 단계 대댓글을 화면 표시 형식으로 변환합니다.
   replies: (comment.replies || []).map((reply) => ({
     id: reply.commentId,
+    memberId: reply.memberId,
     author: reply.writerNickname || '알 수 없음',
     content: reply.content,
     createdAt: reply.createdAt,
@@ -95,7 +116,10 @@ const EmptyCard = styled.section`
 
 function PostDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
+  const token = useAuthStore((state) => state.token);
+  const memberId = getMemberIdFromToken(token);
   const [commentText, setCommentText] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState(null);
@@ -119,6 +143,64 @@ function PostDetailPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportErrorMessage, setReportErrorMessage] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportNotice, setReportNotice] = useState('');
+  const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
+  const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
+
+  // AI작성: 같은 회원이 같은 게시글에서 작성하던 댓글과 대댓글을 새로고침 후 복원합니다.
+  useEffect(() => {
+    if (!commentDraftKey || !replyDraftKey) return;
+
+    // oxlint-disable-next-line react/set-state-in-effect -- 외부 sessionStorage 값을 화면 상태로 복원해야 합니다.
+    setCommentText(sessionStorage.getItem(commentDraftKey) || '');
+    setReplyingCommentId(null);
+    setReplyText('');
+
+    try {
+      const savedReply = JSON.parse(sessionStorage.getItem(replyDraftKey) || 'null');
+      const parentCommentId = Number(savedReply?.parentCommentId);
+
+      if (Number.isInteger(parentCommentId) && parentCommentId > 0 && typeof savedReply?.content === 'string') {
+        setReplyingCommentId(parentCommentId);
+        setReplyText(savedReply.content);
+      } else if (savedReply !== null) {
+        sessionStorage.removeItem(replyDraftKey);
+      }
+    } catch {
+      // AI작성: 손상된 임시저장 값은 복원하지 않고 제거해 상세 화면 이용을 방해하지 않도록 합니다.
+      sessionStorage.removeItem(replyDraftKey);
+    }
+  }, [commentDraftKey, replyDraftKey]);
+
+  const handleCommentChange = (value) => {
+    setCommentText(value);
+    if (!commentDraftKey) return;
+
+    if (value) sessionStorage.setItem(commentDraftKey, value);
+    else sessionStorage.removeItem(commentDraftKey);
+  };
+
+  const handleReplyChange = (value) => {
+    setReplyText(value);
+    if (!replyDraftKey || !replyingCommentId) return;
+
+    if (value) {
+      sessionStorage.setItem(replyDraftKey, JSON.stringify({
+        parentCommentId: replyingCommentId,
+        content: value,
+      }));
+    } else {
+      sessionStorage.removeItem(replyDraftKey);
+    }
+  };
+
+  // AI작성: 인증이 필요한 동작에서 현재 게시글로 다시 돌아올 수 있도록 로그인 이동을 공통 처리한다.
+  const goToLogin = () => {
+    navigate(`/member/login?redirect=${encodeURIComponent(location.pathname)}`);
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -143,6 +225,7 @@ function PostDetailPage() {
           title: detail.title,
           content: detail.content,
           author: detail.writerNickname || '알 수 없음',
+          writerId: detail.writerId,
           date: detail.createdAtStr || '',
           views: detail.viewCount,
         });
@@ -257,7 +340,6 @@ function PostDetailPage() {
     setDeleteErrorMessage('');
 
     try {
-      // TODO AI작성: 로그인 연동 후 백엔드의 임시 회원 ID(44L)를 인증된 회원 ID로 교체해야 합니다.
       const response = await deletePost(id);
       if (!response.success) {
         throw new Error(response.error?.message || '게시글 삭제에 실패했습니다.');
@@ -276,6 +358,10 @@ function PostDetailPage() {
 
   const handleCommentSubmit = async (event) => {
     event.preventDefault();
+    if (!token) {
+      goToLogin();
+      return;
+    }
     const trimmedComment = commentText.trim();
     if (!trimmedComment || isSubmittingComment) return;
 
@@ -283,9 +369,7 @@ function PostDetailPage() {
     setCommentErrorMessage('');
 
     try {
-      // TODO AI작성: 로그인 연동 후 TEMP_MEMBER_ID를 인증된 회원 ID로 교체해야 합니다.
       const response = await createComment(id, {
-        memberId: TEMP_MEMBER_ID,
         content: trimmedComment,
       });
 
@@ -297,6 +381,8 @@ function PostDetailPage() {
         ...currentComments,
         {
           id: response.data.commentId,
+          // AI작성: 등록 직후에도 본인 댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
+          memberId: response.data.memberId,
           author: '나',
           content: response.data.content,
           createdAt: response.data.createdAt,
@@ -304,6 +390,7 @@ function PostDetailPage() {
         },
       ]);
       setCommentText('');
+      if (commentDraftKey) sessionStorage.removeItem(commentDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
     } catch (error) {
       setCommentErrorMessage(
@@ -321,15 +408,21 @@ function PostDetailPage() {
   };
 
   const handleReplyStart = (commentId) => {
+    if (!token) {
+      goToLogin();
+      return;
+    }
     setCommentErrorMessage('');
     setReplyingCommentId(commentId);
     setReplyText('');
+    if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
   };
 
   const handleReplyCancel = () => {
     if (isSubmittingReply) return;
     setReplyingCommentId(null);
     setReplyText('');
+    if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
   };
 
   const handleReplySubmit = async (event) => {
@@ -341,9 +434,7 @@ function PostDetailPage() {
     setCommentErrorMessage('');
 
     try {
-      // TODO AI작성: 로그인 연동 후 TEMP_MEMBER_ID를 인증된 회원 ID로 교체해야 합니다.
       const response = await createReply(id, replyingCommentId, {
-        memberId: TEMP_MEMBER_ID,
         content: trimmedReply,
       });
       if (!response.success || !response.data) {
@@ -360,6 +451,8 @@ function PostDetailPage() {
                   ...comment.replies,
                   {
                     id: response.data.commentId,
+                    // AI작성: 등록 직후에도 본인 대댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
+                    memberId: response.data.memberId,
                     author: '나',
                     content: response.data.content,
                     createdAt: response.data.createdAt,
@@ -372,6 +465,7 @@ function PostDetailPage() {
       );
       setReplyingCommentId(null);
       setReplyText('');
+      if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
     } catch (error) {
       setCommentErrorMessage(
@@ -390,6 +484,10 @@ function PostDetailPage() {
 
   const handleCommentEditSubmit = async (event) => {
     event.preventDefault();
+    if (!token) {
+      goToLogin();
+      return;
+    }
     const trimmedComment = editingCommentText.trim();
     if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
 
@@ -435,6 +533,10 @@ function PostDetailPage() {
   };
 
   const handleCommentDeleteConfirm = async () => {
+    if (!token) {
+      goToLogin();
+      return;
+    }
     if (!deletingCommentId || isDeletingComment) return;
 
     setIsDeletingComment(true);
@@ -464,10 +566,13 @@ function PostDetailPage() {
           };
         })
       );
+      // AI작성: 삭제된 댓글은 목록에는 안내 문구로 남지만 댓글 수에서는 즉시 제외한다.
+      setCommentTotal((currentTotal) => Math.max(0, currentTotal - 1));
       // AI작성: 입력 또는 수정 중인 댓글이 삭제되면 남아 있는 입력 상태를 함께 정리합니다.
       if (replyingCommentId === deletingCommentId) {
         setReplyingCommentId(null);
         setReplyText('');
+        if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
       }
       if (editingCommentId === deletingCommentId) {
         setEditingCommentId(null);
@@ -481,6 +586,42 @@ function PostDetailPage() {
       );
     } finally {
       setIsDeletingComment(false);
+    }
+  };
+
+  // AI작성: 비로그인 회원은 현재 게시글로 돌아올 수 있도록 로그인 화면으로 이동한다.
+  const handleReportStart = (contentReportType, contentTargetId, memberTargetId, contentLabel) => {
+    if (!token) {
+      goToLogin();
+      return;
+    }
+    setReportErrorMessage('');
+    // AI작성: 하나의 신고 모달에서 콘텐츠와 작성자 중 한 대상을 선택할 수 있도록 두 후보를 함께 저장한다.
+    setReportTarget({
+      targets: [
+        { reportType: contentReportType, targetId: contentTargetId, label: `${contentLabel} 신고` },
+        { reportType: 'MEMBER', targetId: memberTargetId, label: '작성자 신고' },
+      ],
+    });
+  };
+
+  const handleReportSubmit = async (reason, selectedTarget) => {
+    if (!reportTarget || !selectedTarget || isSubmittingReport) return;
+    setIsSubmittingReport(true);
+    setReportErrorMessage('');
+    try {
+      await createReport({
+        // AI작성: 모달에서 사용자가 선택한 신고 유형과 대상 ID 한 건만 서버로 전송한다.
+        reportType: selectedTarget.reportType,
+        targetId: selectedTarget.targetId,
+        reason,
+      });
+      setReportTarget(null);
+      setReportNotice('신고가 접수되었습니다. 관리자가 내용을 확인합니다.');
+    } catch (error) {
+      setReportErrorMessage(error.message || '신고를 접수하지 못했습니다.');
+    } finally {
+      setIsSubmittingReport(false);
     }
   };
 
@@ -508,6 +649,7 @@ function PostDetailPage() {
         {commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}
         <PostDetail
           post={post}
+          memberId={memberId}
           comments={isLoadingComments ? [] : comments}
           commentTotal={commentTotal}
           hasMoreComments={commentPage < commentTotalPages}
@@ -520,10 +662,10 @@ function PostDetailPage() {
           editingCommentText={editingCommentText}
           isUpdatingComment={isUpdatingComment}
           commentText={commentText}
-          onCommentChange={setCommentText}
+          onCommentChange={handleCommentChange}
           onCommentSubmit={handleCommentSubmit}
           onReplyStart={handleReplyStart}
-          onReplyChange={setReplyText}
+          onReplyChange={handleReplyChange}
           onReplySubmit={handleReplySubmit}
           onReplyCancel={handleReplyCancel}
           onCommentEditStart={handleCommentEditStart}
@@ -534,6 +676,7 @@ function PostDetailPage() {
           onLoadMoreComments={handleLoadMoreComments}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onReport={handleReportStart}
           onBack={() => navigate('/post/list')}
         />
       </Content>
@@ -563,6 +706,27 @@ function PostDetailPage() {
           onCancel={() => {
             if (!isDeletingComment) setDeletingCommentId(null);
           }}
+        />
+      )}
+      {reportTarget && (
+        <ReportModal
+          targets={reportTarget.targets}
+          submitting={isSubmittingReport}
+          errorMessage={reportErrorMessage}
+          onSubmit={handleReportSubmit}
+          onCancel={() => {
+            if (!isSubmittingReport) setReportTarget(null);
+          }}
+        />
+      )}
+      {reportNotice && (
+        <ConfirmModal
+          title="신고 접수 완료"
+          description={reportNotice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setReportNotice('')}
+          onCancel={() => setReportNotice('')}
         />
       )}
     </Page>

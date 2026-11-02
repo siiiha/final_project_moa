@@ -2,6 +2,7 @@ package com.nightstudy.moa.admin.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,7 +23,7 @@ public class AdminMemberDetailResponse {
     private String userLevel;
     private String systemRole;
     private String accountStatus;
-    private LocalDateTime suspendedUntil;
+    private List<AdminMemberFeatureRestrictionResponse> restrictions;
     private LocalDateTime identityVerifiedAt;
     private LocalDateTime regionVerifiedAt;
     private LocalDateTime createdAt;

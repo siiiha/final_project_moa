@@ -16,8 +16,8 @@ public interface CommentService {
             Long postId,
             CommentSearchCondition condition);
 
-    CommentDto updateComment(Long postId, Long commentId, CommentEditRequest request);
+    CommentDto updateComment(Long postId, Long commentId, Long loginMemberId, CommentEditRequest request);
 
-    void deleteComment(Long postId, Long commentId);
+    void deleteComment(Long postId, Long commentId, Long loginMemberId);
 
 }

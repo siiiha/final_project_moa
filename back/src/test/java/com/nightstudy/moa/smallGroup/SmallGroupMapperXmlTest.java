@@ -1,0 +1,66 @@
+package com.nightstudy.moa.smallGroup;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.InputStream;
+import org.apache.ibatis.builder.xml.XMLMapperBuilder;
+import org.apache.ibatis.session.Configuration;
+import org.junit.jupiter.api.Test;
+
+// AI작성: 소모임 설정과 가입 신청용 MyBatis statement가 애플리케이션 기동 전 파싱되는지 확인한다.
+class SmallGroupMapperXmlTest {
+
+    private static final String NAMESPACE = "com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper.";
+
+    @Test
+    void parsesSmallGroupMapperStatements() {
+        Configuration configuration = new Configuration();
+        try (InputStream input = getClass().getResourceAsStream("/mappers/SmallGroupMapper.xml")) {
+            assertThat(input).isNotNull();
+
+            XMLMapperBuilder mapperBuilder = new XMLMapperBuilder(
+                    input, configuration, "mappers/SmallGroupMapper.xml", configuration.getSqlFragments());
+            mapperBuilder.parse();
+        } catch (Exception exception) {
+            throw new AssertionError("소모임 Mapper XML을 파싱할 수 없습니다.", exception);
+        }
+
+        // AI작성: 후기의 조회·중복 확인·저장 계약과 생성 키 경로가 MyBatis에서 파싱되는지 확인한다.
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewCount")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewList")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewCreateTargetForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupReviewId")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "insertSmallGroupReview")).isTrue();
+        assertThat(configuration.getMappedStatement(NAMESPACE + "insertSmallGroupReview").getKeyProperties())
+                .containsExactly("command.smallGroupReviewId");
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupSettingsAuthority")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupCurrentSettings")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupSettingsAuthorityForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupOwnerMemberIdForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectApprovedSmallGroupMemberCountForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "updateSmallGroupBasicSettings")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "updateSmallGroupDetailSettings")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupJoinMemberForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupJoinTargetForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupMembershipForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "insertSmallGroupJoinRequest")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "reactivateLeftSmallGroupMembership")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteListTarget")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteList")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetail")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetailForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "softDeleteSmallGroupVote")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteOptionIds")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteDetailOptions")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteParticipantCount")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteParticipationId")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteParticipationIdForUpdate")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "insertSmallGroupVoteParticipation")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "insertSmallGroupVoteSelections")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "deleteSmallGroupVoteSelections")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "updateSmallGroupVoteParticipationTime")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteSelectedOptionIds")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteOptionVoterNicknames")).isTrue();
+        assertThat(configuration.getResultMapNames()).contains(NAMESPACE + "smallGroupSettings");
+    }
+}

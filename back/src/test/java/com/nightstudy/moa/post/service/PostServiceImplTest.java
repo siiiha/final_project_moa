@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
@@ -26,6 +29,10 @@ class PostServiceImplTest {
     @Mock
     private PostMapper postMapper;
 
+    // AI작성: 게시글 변경 전에 수행되는 CONTENT 이용 제한 검사를 Mock으로 주입한다.
+    @Mock
+    private MemberFeatureRestrictionService restrictionService;
+
     @InjectMocks
     private PostServiceImpl postService;
 
@@ -43,6 +50,19 @@ class PostServiceImplTest {
         assertThat(result.getPageMeta().getTotal()).isEqualTo(1);
         assertThat(condition.getOffset()).isZero();
         assertThat(condition.getLimit()).isEqualTo(10);
+    }
+
+    @Test
+    // AI작성: 검색 결과가 없으면 불필요한 게시글 목록 SQL을 실행하지 않는지 확인한다.
+    void getPostListSkipsListQueryWhenEmpty() {
+        PostSearchCondition condition = new PostSearchCondition();
+        when(postMapper.selectPostListCount(condition)).thenReturn(0);
+
+        PostListResult result = postService.getPostList(condition);
+
+        assertThat(result.getPostList()).isEmpty();
+        assertThat(result.getPageMeta().getTotal()).isZero();
+        verify(postMapper, never()).selectPostList(condition);
     }
 
     @Test
@@ -65,12 +85,15 @@ class PostServiceImplTest {
         PostDto post = post(11L, 10L);
         post.setCategoryId(2L);
         when(postMapper.countCategoryById(2L)).thenReturn(1);
-        when(postMapper.insertPost(post)).thenReturn(1);
+        when(postMapper.insertPost(any(PostDto.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, PostDto.class).setPostId(11L);
+            return 1;
+        });
 
-        Long postId = postService.writePost(post);
+        Long postId = postService.writePost(10L, createRequest(2L));
 
         assertThat(postId).isEqualTo(11L);
-        verify(postMapper).insertPost(post);
+        verify(postMapper).insertPost(any(PostDto.class));
     }
 
     @Test
@@ -80,7 +103,7 @@ class PostServiceImplTest {
         post.setCategoryId(999L);
         when(postMapper.countCategoryById(999L)).thenReturn(0);
 
-        assertThatThrownBy(() -> postService.writePost(post))
+        assertThatThrownBy(() -> postService.writePost(10L, createRequest(999L)))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("INVALID_CATEGORY"));
         verify(postMapper, never()).insertPost(post);
@@ -90,23 +113,22 @@ class PostServiceImplTest {
     // AI작성: 유효한 카테고리와 수정 내용이 전달되면 게시글 번호를 반환하는지 확인한다.
     void editPostReturnsPostId() {
         PostEditRequest request = editRequest(2L);
+        when(postMapper.selectPostDetail(1L)).thenReturn(post(1L, 10L));
         when(postMapper.countCategoryById(2L)).thenReturn(1);
-        when(postMapper.editPost(1L, request)).thenReturn(1L);
+        when(postMapper.editPost(1L, 10L, request)).thenReturn(1);
 
-        Long postId = postService.editPost(1L, request);
+        Long postId = postService.editPost(1L, 10L, request);
 
         assertThat(postId).isEqualTo(1L);
-        verify(postMapper).editPost(1L, request);
+        verify(postMapper).editPost(1L, 10L, request);
     }
 
     @Test
     // AI작성: 수정 대상이 없으면 POST_NOT_FOUND로 처리하는지 확인한다.
     void editPostThrowsWhenPostDoesNotExist() {
         PostEditRequest request = editRequest(2L);
-        when(postMapper.countCategoryById(2L)).thenReturn(1);
-        when(postMapper.editPost(999L, request)).thenReturn(0L);
-
-        assertThatThrownBy(() -> postService.editPost(999L, request))
+        when(postMapper.selectPostDetail(999L)).thenReturn(null);
+        assertThatThrownBy(() -> postService.editPost(999L, 10L, request))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
                         assertThat(exception.getCode()).isEqualTo("POST_NOT_FOUND"));
     }
@@ -151,6 +173,14 @@ class PostServiceImplTest {
         request.setCategoryId(categoryId);
         request.setTitle("수정 제목");
         request.setContent("수정 내용");
+        return request;
+    }
+
+    private PostCreateRequest createRequest(Long categoryId) {
+        PostCreateRequest request = new PostCreateRequest();
+        request.setCategoryId(categoryId);
+        request.setTitle("테스트 게시글");
+        request.setContent("테스트 내용");
         return request;
     }
 }

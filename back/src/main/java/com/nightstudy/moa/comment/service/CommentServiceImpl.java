@@ -1,5 +1,7 @@
 package com.nightstudy.moa.comment.service;
 
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
+import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionService;
 import com.nightstudy.moa.comment.dto.CommentDto;
 import com.nightstudy.moa.comment.dto.CommentEditRequest;
 import com.nightstudy.moa.comment.dto.CommentListResult;
@@ -24,25 +26,32 @@ import org.springframework.transaction.annotation.Transactional;
 public class CommentServiceImpl implements CommentService {
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
+    private final MemberFeatureRestrictionService restrictionService;
 
     @Autowired
     public CommentServiceImpl(
             CommentMapper commentMapper,
-            PostMapper postMapper) {
+            PostMapper postMapper,
+            MemberFeatureRestrictionService restrictionService
+    ) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
+        this.restrictionService = restrictionService;
     }
 
     @Override
     // AI작성: 댓글 저장과 등록 결과 조회를 하나의 작업으로 묶어 중간 실패 시 저장을 롤백합니다.
     @Transactional
     public CommentDto insertComment(Long postId, Long memberId, String content) {
-        validatePostExists(postId);
+        validateContentAllowed(memberId);
+
+        lockActivePostForCommentCreation(postId);
 
         CommentDto comment = new CommentDto();
         comment.setPostId(postId);
         comment.setMemberId(memberId);
-        comment.setContent(content);
+        // AI작성: 클라이언트 종류와 관계없이 댓글 저장값의 앞뒤 공백을 제거한다.
+        comment.setContent(content.trim());
 
         int insertRows = commentMapper.insertComment(comment);
 
@@ -60,12 +69,17 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto insertReply(Long postId, Long parentCommentId, Long memberId, String content) {
-        validatePostExists(postId);
+        validateContentAllowed(memberId);
 
-        CommentDto parentComment = commentMapper.selectCommentById(parentCommentId);
+        lockActivePostForCommentCreation(postId);
+
+        CommentDto parentComment = commentMapper.selectActiveCommentForUpdate(
+                postId,
+                parentCommentId
+        );
 
         // AI작성: 다른 게시글의 댓글, 삭제된 댓글, 대댓글에는 답글을 등록할 수 없습니다.
-        if (parentComment == null || !Objects.equals(parentComment.getPostId(), postId)) {
+        if (parentComment == null) {
             throw new ApiException(
                     HttpStatus.NOT_FOUND,
                     "PARENT_COMMENT_NOT_FOUND",
@@ -79,12 +93,12 @@ public class CommentServiceImpl implements CommentService {
                     "대댓글에는 답글을 작성할 수 없습니다."
             );
         }
-
         CommentDto reply = new CommentDto();
         reply.setPostId(postId);
         reply.setParentId(parentCommentId);
         reply.setMemberId(memberId);
-        reply.setContent(content);
+        // AI작성: 대댓글도 일반 댓글과 동일한 공백 정규화 규칙을 적용한다.
+        reply.setContent(content.trim());
 
         if (commentMapper.insertComment(reply) != 1) {
             throw new ApiException(
@@ -152,7 +166,9 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
-    public CommentDto updateComment(Long postId, Long commentId, CommentEditRequest request) {
+    public CommentDto updateComment(Long postId, Long commentId, Long loginMemberId, CommentEditRequest request) {
+        validateContentAllowed(loginMemberId);
+
         // AI작성: 삭제된 게시글의 댓글은 수정할 수 없도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
 
@@ -167,12 +183,23 @@ public class CommentServiceImpl implements CommentService {
                     "댓글을 찾을 수 없습니다."
             );
         }
+        // AI작성: JWT의 로그인 회원과 댓글 작성자가 다르면 수정할 수 없다.
+        if (!Objects.equals(comment.getMemberId(), loginMemberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "COMMENT_UPDATE_FORBIDDEN", "댓글 수정 권한이 없습니다.");
+        }
 
+        // AI작성: 수정 비교와 DB 저장에 동일한 공백 제거 값을 사용한다.
+        request.setContent(request.getContent().trim());
         if (comment.getContent().equals(request.getContent())) {
             return comment;
         }
 
-        int updatedRow = commentMapper.updateComment(postId, commentId, request);
+        int updatedRow = commentMapper.updateComment(
+                postId,
+                commentId,
+                loginMemberId,
+                request
+        );
 
         if (updatedRow != 1) {
             throw new ApiException(
@@ -185,11 +212,26 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public void deleteComment (Long postId, Long commentId) {
+    public void deleteComment (Long postId, Long commentId, Long loginMemberId) {
+        validateContentAllowed(loginMemberId);
+
         // AI작성: 삭제된 게시글의 댓글은 삭제 요청을 처리하지 않도록 활성 게시글을 확인합니다.
         validatePostExists(postId);
 
-        int deleteRows = commentMapper.deleteComment(postId, commentId);
+        CommentDto comment = commentMapper.selectCommentById(commentId);
+        if (comment == null || !Objects.equals(comment.getPostId(), postId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "COMMENT_NOT_FOUND", "댓글을 찾을 수 없습니다.");
+        }
+        // AI작성: JWT의 로그인 회원과 댓글 작성자가 다르면 삭제할 수 없다.
+        if (!Objects.equals(comment.getMemberId(), loginMemberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "COMMENT_DELETE_FORBIDDEN", "댓글 삭제 권한이 없습니다.");
+        }
+
+        int deleteRows = commentMapper.deleteComment(
+                postId,
+                commentId,
+                loginMemberId
+        );
 
         if (deleteRows != 1) {
             throw new ApiException(
@@ -209,6 +251,25 @@ public class CommentServiceImpl implements CommentService {
                     "게시글을 찾을 수 없습니다."
             );
         }
+    }
+
+    // AI작성: 댓글 등록 완료 전 게시글 삭제가 끼어들지 못하도록 활성 게시글 행에 배타적 잠금을 겁니다.
+    private void lockActivePostForCommentCreation(Long postId) {
+        if (postMapper.selectActivePostIdForUpdate(postId) == null) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "POST_NOT_FOUND",
+                    "게시글을 찾을 수 없습니다."
+            );
+        }
+    }
+
+    // AI작성: 댓글 작성·답글·수정·삭제에서 사용하는 CONTENT 제한 검사를 한 곳에서 처리합니다.
+    private void validateContentAllowed(Long memberId) {
+        restrictionService.validateAllowed(
+                memberId,
+                MemberRestrictionScope.CONTENT
+        );
     }
 }
 

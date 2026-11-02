@@ -14,23 +14,24 @@ const ArticleCard = styled.article`
   }
 `;
 
+// AI작성: 50~60세대 사용자가 상세 정보와 댓글을 편하게 읽도록 작은 글자 크기를 확대합니다.
 const Meta = styled.p`
   margin-top: 10px;
   color: ${({ theme }) => theme.colors.muted};
-  font-size: 11px;
+  font-size: 14px;
 `;
 
 const PostContent = styled.div`
   min-height: 215px;
   margin-top: 16px;
   color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.75;
   white-space: pre-line;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     min-height: 180px;
-    font-size: 12px;
+    font-size: 15px;
   }
 `;
 
@@ -63,7 +64,7 @@ const Comments = styled.section`
 
 const CommentsTitle = styled.h2`
   color: ${({ theme }) => theme.colors.text};
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 800;
 `;
 
@@ -91,14 +92,14 @@ const CommentHeader = styled.div`
 
 const Author = styled.h3`
   color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
 `;
 
 const CommentText = styled.p`
   margin-top: 7px;
   color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.6;
 `;
 
@@ -120,7 +121,7 @@ const TextAction = styled.button`
   background: transparent;
   border: 0;
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
 `;
 
@@ -140,15 +141,16 @@ const CommentForm = styled.form`
 // AI작성: 최대 500자의 댓글을 여러 줄로 편하게 작성할 수 있도록 textarea를 사용합니다.
 const CommentInput = styled.textarea`
   width: 100%;
-  min-height: 76px;
+  height: 76px;
   padding: 10px 11px;
   color: ${({ theme }) => theme.colors.text};
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1.6;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.muted};
@@ -159,6 +161,13 @@ const CommentInput = styled.textarea`
     outline: 0;
     box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
   }
+`;
+
+// AI작성: 댓글 입력창 높이만큼 버튼이 늘어나지 않도록 하단에 고정된 크기로 표시한다.
+const CommentSubmitButton = styled(Button)`
+  width: 76px;
+  min-width: 76px;
+  align-self: stretch;
 `;
 
 const CommentEditForm = styled.form`
@@ -184,6 +193,7 @@ const ReplyForm = styled(CommentEditForm)`
 
 function PostDetail({
   post,
+  memberId,
   comments,
   commentTotal,
   hasMoreComments,
@@ -210,6 +220,7 @@ function PostDetail({
   onLoadMoreComments,
   onEdit,
   onDelete,
+  onReport,
   onBack,
 }) {
   return (
@@ -221,12 +232,15 @@ function PostDetail({
         </Meta>
         <PostContent>{post.content}</PostContent>
         <PostActions>
-          <Button type="button" $size="small" onClick={onEdit}>
-            수정
-          </Button>
-          <Button type="button" $variant="danger" $size="small" onClick={onDelete}>
-            삭제
-          </Button>
+          {Number(post.writerId) === Number(memberId) ? <>
+            <Button type="button" $size="small" onClick={onEdit}>수정</Button>
+            <Button type="button" $variant="danger" $size="small" onClick={onDelete}>삭제</Button>
+          </> : <>
+            {/* AI작성: 신고 버튼은 하나로 표시하고 모달에서 게시글 또는 작성자를 선택하도록 대상 정보를 함께 전달한다. */}
+            <Button type="button" $variant="danger" $size="small" onClick={() => onReport('POST', post.id, post.writerId, '게시글')}>
+              신고하기
+            </Button>
+          </>}
         </PostActions>
       </ArticleCard>
       <ListActions>
@@ -249,12 +263,13 @@ function PostDetail({
                     <TextAction type="button" onClick={() => onReplyStart(comment.id)}>
                       답글
                     </TextAction>
-                    <TextAction type="button" onClick={() => onCommentEditStart(comment)}>
-                      수정
-                    </TextAction>
-                    <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>
-                      삭제
-                    </TextAction>
+                    {Number(comment.memberId) === Number(memberId) ? <>
+                      <TextAction type="button" onClick={() => onCommentEditStart(comment)}>수정</TextAction>
+                      <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>삭제</TextAction>
+                    </> : <>
+                      {/* AI작성: 댓글과 작성자 신고를 하나의 진입점으로 합치고 실제 대상은 모달에서 선택한다. */}
+                      <TextAction type="button" $danger onClick={() => onReport('COMMENT', comment.id, comment.memberId, '댓글')}>신고하기</TextAction>
+                    </>}
                   </ReplyActions>
                 )}
               </CommentHeader>
@@ -315,12 +330,12 @@ function PostDetail({
                     {!reply.deleted && (
                       <ReplyActions>
                         {/* AI작성: 대댓글은 한 단계만 허용하므로 수정과 삭제 기능만 제공합니다. */}
-                        <TextAction type="button" onClick={() => onCommentEditStart(reply)}>
-                          수정
-                        </TextAction>
-                        <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>
-                          삭제
-                        </TextAction>
+                        {Number(reply.memberId) === Number(memberId) ? <>
+                          <TextAction type="button" onClick={() => onCommentEditStart(reply)}>수정</TextAction>
+                          <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>삭제</TextAction>
+                        </> : <>
+                          <TextAction type="button" $danger onClick={() => onReport('COMMENT', reply.id, reply.memberId, '댓글')}>신고하기</TextAction>
+                        </>}
                       </ReplyActions>
                     )}
                   </CommentHeader>
@@ -374,9 +389,9 @@ function PostDetail({
             maxLength={500}
             placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
           />
-          <Button type="submit" $size="small" disabled={isSubmittingComment}>
+          <CommentSubmitButton type="submit" $size="small" disabled={isSubmittingComment}>
             {isSubmittingComment ? '등록 중...' : '등록'}
-          </Button>
+          </CommentSubmitButton>
         </CommentForm>
       </Comments>
     </>

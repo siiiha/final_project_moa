@@ -70,10 +70,11 @@ function JoinPage() {
   return (
     <JoinMain>
       <Heading>
-        <Title>{isSocialSignup ? '소셜 회원가입' : '회원가입'}</Title>
+        {/* AI작성: 소셜 인증 후 모아 가입에 필요한 추가 정보를 안내한다. */}
+        <Title>{isSocialSignup ? '모아 가입 마무리' : '회원가입'}</Title>
         <Subtitle>
           {isSocialSignup
-            ? '가입에 필요한 추가 정보와 약관 동의를 완료해주세요.'
+            ? '모아 이용을 위한 추가 정보를 입력하고 약관에 동의해주세요.'
             : '모아에서 함께할 이웃을 만나보세요.'}
         </Subtitle>
       </Heading>
