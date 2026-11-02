@@ -1,4 +1,4 @@
-package com.nightstudy.moa.member.service;
+package com.nightstudy.moa.common.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
 import org.slf4j.Logger;
