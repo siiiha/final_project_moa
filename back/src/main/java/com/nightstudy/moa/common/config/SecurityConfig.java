@@ -108,12 +108,18 @@ public class SecurityConfig {
                                 "/api/auth/terms"
                         ).permitAll()
 
-                        // AI작성: 공개 목록은 로그인 여부와 무관하게 같은 기본 데이터를 반환한다.
+                        // AI작성: 공개 목록과 게시판 카테고리는 로그인 여부와 무관하게 조회를 허용한다.
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/saving-groups",
                                 "/api/small-groups",
-                                "/api/community/list"
+                                "/api/community/list",
+                                "/api/community/categories"
+                        ).permitAll()
+
+                        // AI작성: 숫자 게시글 ID의 상세 GET 요청은 비로그인 조회를 허용한다.
+                        .requestMatchers(
+                                new RegexRequestMatcher("^/api/community/detail/\\d+$", HttpMethod.GET.name())
                         ).permitAll()
 
                         // AI작성: 게시글의 댓글 목록은 작성·수정 권한과 분리해 공개 조회만 허용한다.
