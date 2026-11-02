@@ -455,3 +455,13 @@ SavingGroupDetailPage.jsx에서 가입 신청 API 성공 후 모달을 표시하
 - 대기 신청은 정원을 예약하거나 5개 제한에 포함하지 않는다.
 - 성공 모달 문구는 `가입 신청이 완료되었습니다.`이다.
 - 성공 모달을 닫은 뒤 현재 상세 화면에 남는다.
+
+<!-- AI작성: 사용자 확정 가입 제한과 3단계 서버 응답 반영 기록입니다. -->
+## 2026-11-03 가입 신청 제한 정책 및 서버 반영
+
+- 계모임·소모임 공통: APPROVED·PENDING 중복 신청 차단, REJECTED·EXPELLED 해당 모임 재신청 차단, LEFT 즉시 재신청 허용. 신청 취소·정원 초과 대기 신청은 이번 범위에서 제외한다.
+- 정원은 승인 회원만 집계하며 신청과 승인 시 최신 정원을 검사한다. 기존 UNIQUE·트랜잭션·잠금 구조를 유지한다.
+- 계모임은 기존 status=01 조건을 유지한다. 소모임은 별도 모집 상태를 추가하는 대신 meet_date가 한국 날짜 기준 오늘 또는 미래이고 빈자리가 있을 때 신청을 허용한다. 일정이 없거나 지났으면 신청·승인 불가다.
+- 상세 API에 membershipStatus, canApply, joinRestrictionCode, joinRestrictionMessage를 추가한다. 비로그인·본인 관계 없음은 membershipStatus=null이며, 승인 역할 myRole과 신청 상태를 분리한다. 실제 신청도 기존 공통 검증 함수를 재사용한다.
+- REJECTED와 EXPELLED의 기존 오류 코드 JOIN_REAPPLICATION_FORBIDDEN은 유지하며 거절·추방 안내 문구를 구분한다.
+- 상세 응답은 표시용 판단이며 신청 시 재검사를 생략할 수 없다. 화면 연동과 실제 DB 동시성 검증은 후속 단계다. 상세 계약은 saving-groups-api.md와 small-group-public-detail-api.md를 따른다.

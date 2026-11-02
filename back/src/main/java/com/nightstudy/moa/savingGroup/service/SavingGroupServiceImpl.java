@@ -348,9 +348,15 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             }
             if (!roles.isEmpty()) role = roles.get(0);
         }
+        // AI작성: 공개 조회에서도 본인 관계만 조회해 신청 제한을 안내한다.
+        SavingGroupMembershipRelationRow relation = memberId == null ? null
+                : savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
+        String membershipStatus = relation == null ? null : relation.getMembershipStatus();
+        JoinAvailability availability = evaluateSavingGroupJoin(row, memberId, relation, count);
         return new SavingGroupDetailResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(), row.getDescription(),
                 row.getRegionName(), row.getMaxMembers(), count, row.getDuesAmount(), row.getDuesDay(),
-                row.getStatus(), notices, role);
+                row.getStatus(), notices, role, membershipStatus, availability.canApply(),
+                availability.code(), availability.message());
     }
 
     // AI작성: 모임장을 포함한 승인 회원을 일괄 집계하고 빈 결과는 정상 반환한다.
@@ -644,14 +650,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
 
         // AI작성: 회원 잠금을 먼저 획득해 같은 회원의 여러 모임 동시 신청이 5개 제한을 우회하지 못하게 한다.
         SavingGroupJoinMemberRow member = savingGroupMapper.selectSavingGroupJoinMemberForUpdate(memberId);
-        if (member == null || !ACTIVE_ACCOUNT_STATUS.equals(member.getAccountStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "MEMBER_ACCOUNT_UNAVAILABLE",
-                    "현재 계정 상태에서는 가입 신청할 수 없습니다.");
-        }
-        if (member.getIdentityVerifiedAt() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "IDENTITY_VERIFICATION_REQUIRED",
-                    "본인 인증 완료 후 가입 신청할 수 있습니다.");
-        }
+        validateSavingGroupJoinMember(member);
 
         SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
         if (target == null) {
@@ -671,10 +670,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         boolean isReapplication = isLeftMembership(relation);
         validateExistingMembership(relation);
 
-        long approvedMemberCount = savingGroupMapper.selectApprovedMemberCountForUpdate(target.getGroupId());
-        if (approvedMemberCount >= target.getMaxMembers()) {
-            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_FULL", "계모임 정원이 모두 찼습니다.");
-        }
+        validateSavingGroupJoinCapacity(target.getMaxMembers(),
+                savingGroupMapper.selectApprovedMemberCountForUpdate(target.getGroupId()));
 
         long joinedSavingGroupCount = savingGroupMapper.selectApprovedSavingGroupCount(memberId);
         if (joinedSavingGroupCount >= MAX_JOINED_SAVING_GROUPS) {
@@ -697,6 +694,52 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         }
     }
 
+    // AI작성: 상세 조회와 실제 신청에서 계정·본인 인증 조건을 동일하게 검사한다.
+    private void validateSavingGroupJoinMember(SavingGroupJoinMemberRow member) {
+        if (member == null || !ACTIVE_ACCOUNT_STATUS.equals(member.getAccountStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "MEMBER_ACCOUNT_UNAVAILABLE",
+                    "현재 계정 상태에서는 가입 신청할 수 없습니다.");
+        }
+        if (member.getIdentityVerifiedAt() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "IDENTITY_VERIFICATION_REQUIRED",
+                    "본인 인증 완료 후 가입 신청할 수 있습니다.");
+        }
+    }
+
+    // AI작성: 정원은 승인 인원으로만 판단하고 상세·신청에서 같은 조건을 사용한다.
+    private void validateSavingGroupJoinCapacity(Integer maxMembers, long memberCount) {
+        if (maxMembers == null || maxMembers <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_NOT_CONFIGURED", "계모임 정원이 설정되지 않았습니다.");
+        }
+        if (memberCount >= maxMembers) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_CAPACITY_FULL", "계모임 정원이 모두 찼습니다.");
+        }
+    }
+
+    // AI작성: 제한은 정상 상세 응답에 담고 데이터 오류는 숨기지 않고 기존 예외로 전달한다.
+    private record JoinAvailability(boolean canApply, String code, String message) {}
+
+    private JoinAvailability evaluateSavingGroupJoin(SavingGroupRow row, Long memberId, SavingGroupMembershipRelationRow relation, long memberCount) {
+        try {
+            if (memberId == null || memberId <= 0) {
+                throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+            }
+            validateExistingMembership(relation);
+            validateSavingGroupJoinMember(savingGroupMapper.selectSavingGroupJoinMember(memberId));
+            if (!"01".equals(row.getStatus())) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_JOIN_UNAVAILABLE", "현재 가입 신청할 수 없는 계모임입니다.");
+            }
+            validateSavingGroupJoinCapacity(row.getMaxMembers(), memberCount);
+            if (savingGroupMapper.selectApprovedSavingGroupCountReadOnly(memberId) >= MAX_JOINED_SAVING_GROUPS) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_JOIN_LIMIT_EXCEEDED", "가입 가능한 계모임 수는 최대 5개입니다.");
+            }
+            return new JoinAvailability(true, null, null);
+        } catch (ApiException error) {
+            if (error.getStatus().is5xxServerError()) throw error;
+            return new JoinAvailability(false, error.getCode(), error.getMessage());
+        }
+    }
+
     private boolean isLeftMembership(SavingGroupMembershipRelationRow relation) {
         return relation != null && "LEFT".equals(relation.getMembershipStatus());
     }
@@ -712,10 +755,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_ALREADY_PENDING",
                     "이미 가입 신청한 계모임입니다.");
         }
-        if ("REJECTED".equals(relation.getMembershipStatus())
-                || "EXPELLED".equals(relation.getMembershipStatus())) {
+        // AI작성: 정책은 같아도 거절과 추방의 안내 문구는 구분한다.
+        if ("REJECTED".equals(relation.getMembershipStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REAPPLICATION_FORBIDDEN",
-                    "재신청할 수 없는 계모임입니다.");
+                    "가입 신청이 거절되어 이 모임에 다시 신청할 수 없습니다.");
+        }
+        if ("EXPELLED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REAPPLICATION_FORBIDDEN",
+                    "추방된 모임에는 다시 가입 신청할 수 없습니다.");
         }
         throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "MEMBERSHIP_STATUS_INVALID",
                 "가입 상태 정보를 처리할 수 없습니다.");

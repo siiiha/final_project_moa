@@ -26,4 +26,9 @@ public class SmallGroupDetailResponse {
     private final String myRole;
     // AI작성: 공개 공지 목록 UI에 표시할 최신 4건의 제목·작성자·작성일 요약이다.
     private final List<SmallGroupNoticeSummaryResponse> notices;
+    // AI작성: 본인의 신청 상태와 서버 판단만 제공하며 다른 회원 정보는 포함하지 않는다.
+    private final String membershipStatus;
+    private final boolean canApply;
+    private final String joinRestrictionCode;
+    private final String joinRestrictionMessage;
 }

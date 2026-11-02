@@ -137,7 +137,7 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 5. 기존 관계 상태를 확인한다.
    - `APPROVED`, `PENDING`, `REJECTED`, `EXPELLED`은 신청을 차단한다.
    - `LEFT`만 기존 행을 `PENDING`으로 되돌려 재신청을 허용한다.
-6. 승인된 `OWNER`, `MEMBER` 수가 정원보다 적은지 확인한다.
+6. 일정이 설정되어 있고 한국 날짜 기준 일정이 지나지 않았으며, 승인된 `OWNER`, `MEMBER` 수가 정원보다 적은지 확인한다.
 7. 신규 신청은 `group_member`에 `MEMBER`, `PENDING`, `requested_at`을 저장한다.
 
 `LEFT` 재신청 시에는 이전 `approved_by`, `approved_at`, `joined_at`, `left_at`, `application_message`를 초기화한다. 유니크 제약 충돌은 서버 오류가 아닌 중복 신청으로 처리한다.
@@ -156,6 +156,8 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 | 이미 가입한 MEMBER | `409 ALREADY_JOINED_SMALL_GROUP` |
 | 대기 신청이 이미 있음 | `409 JOIN_REQUEST_ALREADY_PENDING` |
 | REJECTED·EXPELLED 재신청 | `409 JOIN_REAPPLICATION_FORBIDDEN` |
+| 일정 미설정 | `409 SMALL_GROUP_DATE_NOT_CONFIGURED` |
+| 지난 일정 | `409 SMALL_GROUP_MEETING_ENDED` |
 | 정원 미설정 | `409 SMALL_GROUP_CAPACITY_NOT_CONFIGURED` |
 | 정원 도달 | `409 SMALL_GROUP_CAPACITY_FULL` |
 | 저장 행 수 불일치 | `500 JOIN_REQUEST_CREATE_FAILED` |
@@ -171,7 +173,7 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 ### 데이터·후속 TODO
 
 - 기존 `members`, `groups`, `small_group`, `group_member`와 SmallGroup MyBatis Mapper를 재사용하며 DB 마이그레이션을 추가하지 않는다.
-- 소모임에는 모집 상태, 공개 범위, 자동 승인 여부 데이터가 없으므로 해당 가입 제한을 임의로 추가하지 않는다.
+- 별도 모집 상태 컬럼은 추가하지 않는다. 가입 신청·승인은 기존 meet_date와 승인 인원으로 판단하며 공개 범위·자동 승인 정책은 추가하지 않는다.
 - 신청 메시지는 `group_member.application_message` 컬럼이 있어도 이번 API에서 입력·저장하지 않는다.
 - OWNER 전용 가입 신청 목록 조회·개별 승인·개별 거절은 각각 `GET /api/small-groups/{smallGroupId}/join-requests`, `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/approve`, `PATCH /api/small-groups/{smallGroupId}/join-requests/{crewMemberId}/reject`로 제공한다. 취소·일괄 처리 정책은 별도 범위에서 결정한다.
 
@@ -288,10 +290,10 @@ Service는 하나의 트랜잭션에서 신청 식별 → 신청 회원 → 소�
 1. 가입 신청, 신청 회원, 삭제되지 않은 소모임이 존재하는지 확인한다.
 2. 잠금 재조회한 신청의 회원이 최초 식별한 회원과 같고, 해당 소모임에 속하는지 확인한다.
 3. 개설자와 승인된 `OWNER` 관계를 함께 확인한다.
-4. 신청 상태가 `PENDING`이고, 소모임 정원이 양수이며 승인된 `OWNER`·`MEMBER` 수가 정원보다 적은지 확인한다.
+4. 신청 상태가 `PENDING`이고, 한국 날짜 기준 일정이 지나지 않았으며 일정·정원이 설정되어 있고 승인된 `OWNER`·`MEMBER` 수가 정원보다 적은지 확인한다.
 5. `crew_member_id`, `group_id`, `PENDING` 조건이 모두 일치하는 기존 `group_member` 행 하나만 `APPROVED`, `MEMBER`로 갱신한다. `joined_at`, `approved_at`, `approved_by`도 함께 저장한다.
 
-소모임에는 모집 상태와 가입 모임 수 제한 정책이 없으므로 승인 조건에 추가하지 않는다. 기존 신청 행을 갱신하므로 별도 회원 행을 INSERT하지 않는다.
+별도 모집 상태와 가입 모임 수 제한은 추가하지 않는다. 일정과 정원은 승인 시에도 다시 확인한다. 기존 신청 행을 갱신하므로 별도 회원 행을 INSERT하지 않는다.
 
 ### 오류
 
@@ -994,3 +996,34 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 4. 없는·삭제된 소모임은 404, `page=0`, `page=-1`, `page=abc`, 빈 page와 잘못된 ID는 정책에 맞는 오류인지 확인한다. 음수·문자 ID의 비로그인 요청은 공개 숫자 경로와 일치하지 않아 Security에서 먼저 401이 될 수 있다.
 5. 브라우저에서 비회원 후기 탭, 본문 전체·날짜·0·0.5·5점, 스크롤 추가 조회·마지막 안내·실패 재시도·탭/모임 전환 중 요청 취소를 확인한다.
 6. 승인 일반 모임원으로 등록해 모달 종료·완료 안내·첫 페이지 재조회·최상단 새 후기를 확인한다. 중복 등록은 목록을 초기화하지 않고, 일반 등록 실패는 모달 입력을 유지하는지 확인한다.
+
+<!-- AI작성: 2026-11-03 승인된 가입 신청 제한 3단계의 상세 응답 계약입니다. -->
+## 가입 신청 가능 여부 응답 확장 (2026-11-03)
+
+상세 API의 기존 필드에 아래 4개 필드를 추가한다. 본인의 관계만 반환하며 다른 회원의 신청 정보는 포함하지 않는다. 기존 myRole 권한 판정과 공개 상세 조회 권한은 유지한다.
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| membershipStatus | String 또는 null | 본인 관계의 PENDING / APPROVED / REJECTED / LEFT / EXPELLED. 비로그인·관계 없음은 null |
+| canApply | boolean | 조회 시점의 신청 가능 여부. 실제 신청에서는 최신 데이터를 다시 검사 |
+| joinRestrictionCode | String 또는 null | 신청 불가 사유 코드. 신청 가능하면 null |
+| joinRestrictionMessage | String 또는 null | 신청 불가 안내 문구. 신청 가능하면 null |
+
+- 비로그인도 상세 조회는 성공한다. canApply=false, joinRestrictionCode=UNAUTHORIZED, membershipStatus=null을 반환한다. 이 코드는 정상 상세 응답의 데이터이며 HTTP 401 응답을 의미하지 않는다.
+- 로그인한 사용자는 본인 기존 관계 제한을 먼저 안내한다. APPROVED는 가입 완료, PENDING은 심사 중이며 두 상태 모두 신청 불가다.
+- REJECTED와 EXPELLED는 모두 JOIN_REAPPLICATION_FORBIDDEN을 유지하되 안내 문구에 거절·추방 사유를 각각 표시한다.
+- LEFT는 재신청 대기 기간이 없지만 계정·본인 인증·역할·모임·정원 등 나머지 조건을 충족해야 한다. 재신청 성공은 가입 완료가 아닌 PENDING이다.
+- 그다음 계정·본인 인증·역할 등 기존 신청 자격과 모임 조건을 검사한다. 상세 조회에 쓰는 회원·관계·가입 수 조회는 FOR UPDATE 없는 읽기 전용 조회다.
+- 미정의 가입 상태 등 데이터 오류는 신청 불가로 숨기지 않고 기존 서버 오류로 처리한다.
+- 신청·승인 인원 집계 및 중복 방지 구조는 유지한다. 상세 응답은 조회 시점의 안내이므로 신청 또는 승인 성공을 보장하지 않는다.
+- 이번 단계는 서버 응답과 조건 검사까지 구현했다. 상태별 버튼·사유 표시, 신청 후 상세 갱신은 후속 화면 단계에서 연결한다.
+
+### 소모임 일정 기준
+
+- 서버의 Asia/Seoul 날짜를 기준으로 meet_date가 오늘이거나 미래면 날짜 조건을 충족한다. 일정 다음 날부터 신청·승인을 차단한다.
+- meet_date가 null이면 SMALL_GROUP_DATE_NOT_CONFIGURED, 과거면 SMALL_GROUP_MEETING_ENDED로 차단한다. 당일 시간은 LocalDate 데이터에 없으므로 시간 단위 마감은 적용하지 않는다.
+- 실제 신청·승인은 잠금 조회한 meet_date로 재검사한다. 일정이 지났거나 없어졌더라도 심사 대기 상태를 자동 변경하지 않으며 해당 승인 요청을 거절한다.
+- small_group.status의 ACTIVE/RESTRICTED는 운영 상태로 유지하고 모집 마감 의미로 재사용하지 않는다. DB 컬럼·마이그레이션은 추가하지 않는다.
+- 기존 관리자·개설자·운영진 신청 제한과 공개 상세의 MANAGER·중복 관계 오류 처리는 유지한다.
+
+수동 확인: GET /api/small-groups/{smallGroupId}와 POST /api/small-groups/{smallGroupId}/join-requests에 대해 어제·오늘·내일·일정 없음, 빈자리 있음·정원 도달, 본인 관계 상태를 조합해 확인한다. 신청 후 일정이 지났을 때 승인 PATCH도 차단되는지 확인한다.

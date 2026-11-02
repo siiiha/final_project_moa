@@ -687,3 +687,20 @@
 - 검증 방법: 브라우저에서 각 관계 상태의 버튼·사유 및 성공 후 심사 중 전환을 확인한다. Postman POST /api/saving-groups/{savingGroupId}/join-requests와 POST /api/small-groups/{smallGroupId}/join-requests를 상태별·반복 호출하고 DB 행 수를 비교한다. 마지막 빈자리 동시 승인은 실제 DB 환경에서 별도 검증한다.
 - 이번 검증: 소스·기존 테스트·문서·schema.sql 정적 조사만 수행했다. 브라우저·Postman·테스트·실제 DB 실행은 수행하지 않았다. 개발자 검토·수정은 대기 상태이며 커밋은 수행하지 않는다.
 >>>>>>> Stashed changes
+
+<!-- AI작성: 승인된 가입 신청 제한 3단계 서버 구현·검증 기록입니다. -->
+## 2026-11-03 — 계모임·소모임 가입 신청 가능 여부 서버 구현
+
+- 목적·사용자 승인: 추천 상세 응답 확장과 두 모임의 서버·관련 테스트·문서 변경을 승인받았다. 소모임은 별도 모집 상태 대신 일정 날짜와 정원으로 판단하며, 일정 없음은 신청 차단으로 추가 확정했다. 한국 날짜 기준 당일까지 허용한다.
+- API 응답: 기존 상세 응답에 membershipStatus, canApply, joinRestrictionCode, joinRestrictionMessage를 추가했다. 비로그인 상세 조회는 기존처럼 공개하며 canApply=false·UNAUTHORIZED를 데이터에 담는다. 본인 관계가 없으면 membershipStatus=null이다. 타인의 가입 정보나 내부 개설자 식별자를 공개 응답에 추가하지 않았다.
+- 판단: 본인의 APPROVED·PENDING·REJECTED·EXPELLED 제한을 먼저 안내하고 LEFT는 다른 신청 자격이 충족되면 허용한다. 기존 계정·본인 인증·역할·계모임 최대 5개 제한을 유지한다. 거절·추방은 기존 JOIN_REAPPLICATION_FORBIDDEN 코드와 구분된 한국어 안내를 반환한다. 데이터 오류는 정상 제한 응답으로 숨기지 않는다.
+- 재사용: 계정·본인 인증 및 가입 상태 검증을 상세·실제 신청에서 재사용하고 정원 검증을 공통 메서드로 묶었다. 상세 자격 조회는 FOR UPDATE 없는 회원·관계·가입 수 조회를 사용한다. 실제 신청의 트랜잭션·잠금·UNIQUE·LEFT 행 재활성화는 유지했다. 소모임 상세에서는 본인 관계를 한 번 조회해 기존 역할 판정과 신청 상태에 재사용한다.
+- 소모임 날짜: SmallGroupJoinTargetRow와 잠금 조회 SQL에 meet_date를 추가해 상세·신청·승인 모두 Asia/Seoul의 오늘과 비교한다. 과거면 SMALL_GROUP_MEETING_ENDED, null이면 SMALL_GROUP_DATE_NOT_CONFIGURED로 차단한다. 당일·미래는 정원과 나머지 조건을 충족하면 허용한다. 심사 중 일정이 지나면 승인 요청은 차단하되 신청 상태를 자동 변경하지 않는다.
+- 서버 작업 파일(10개): back/src/main/java/com/nightstudy/moa/savingGroup/service/SavingGroupServiceImpl.java, savingGroup/dto/SavingGroupDetailResponse.java, savingGroup/mapper/SavingGroupMapper.java, back/src/main/java/com/nightstudy/moa/smallGroup/SmallGroupServiceImpl.java, smallGroup/dto/SmallGroupDetailResponse.java, smallGroup/dto/SmallGroupDetailRow.java, smallGroup/dto/SmallGroupJoinTargetRow.java, smallGroup/mapper/SmallGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml, SmallGroupMapper.xml. 위 도메인 상대 경로는 back/src/main/java/com/nightstudy/moa 기준이다. 내부 개설자 식별자는 실제 신청과 동일한 개설자 제한 판정에만 사용한다.
+- 테스트 작업 파일(7개): back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupJoinAvailabilityServiceTest.java(신규), SavingGroupJoinRejectionServiceTest.java, back/src/test/java/com/nightstudy/moa/smallGroup/SmallGroupJoinAvailabilityServiceTest.java(신규), SmallGroupServiceImplTest.java, SmallGroupJoinApprovalServiceTest.java, SmallGroupMapperXmlTest.java, SmallGroupSecurityIntegrationTest.java. 같은 행의 파일명은 앞선 도메인 테스트 디렉터리 기준이다.
+- 테스트 내용: 본인 관계 상태, 제한 우선순위, 탈퇴 재신청, 잘못된 상태의 서버 오류 유지, 비로그인 공개 조회·JSON 필드, 계정·본인 인증·역할·계모임 수 제한, 일정 어제·당일·미래·미설정, 직접 신청 및 승인 재검사, 읽기 전용 조회·날짜 SQL 매핑을 검증한다. 기존 권한 실패 테스트의 불필요 stub과 더 이상 존재하지 않는 resultMap 이름 검사를 현재 매핑에 맞게 정리했다.
+- 문서 작업 파일(4개): docs/saving-groups-api.md, docs/small-group-public-detail-api.md, docs/saving-group-join-request-design.md, 본 기록. 상세 계약, 소모임 날짜 기준·오류·승인 재검사 및 후속 화면 범위를 반영했다. 총 21개 파일 변경이며 화면·DB 스키마·의존성·빌드 설정·외부 서비스는 변경하지 않았다.
+- 실행 검증: Java 17 Gradle compileJava 통과. 가입 관련 12개 테스트 클래스 총 114개 통과, 실패·오류 0건. 기존 Gradle 캐시 접근 권한으로 실행했으며 관련 테스트 소스만 지정한 back/build/moa-join-stage3-tests.gradle 임시 init-script를 사용했다. 가입 테스트의 개별 제외는 없다. 이 스크립트는 Git 제외된 build 출력이며 저장소 설정을 바꾸지 않는다. git diff --check 통과.
+- 전체 테스트 제한: 일반 gradlew test는 관련 없는 기존 테스트의 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient import 경로 오류로 compileTestJava에서 중단됐다. 해당 파일들은 이번 범위 밖이라 수정하지 않았다. 관련 테스트의 별도 실행 결과를 전체 테스트 통과로 해석하면 안 된다.
+- Postman 확인: GET /api/saving-groups/{groupId}, GET /api/small-groups/{smallGroupId}에서 비로그인·가입·대기·거절·추방·탈퇴·관계 없음별 새 필드를 확인한다. POST 가입 신청도 동일 상태로 호출하며 소모임은 meet_date 어제·오늘·내일·null과 정원을 조합한다. PATCH 승인도 일정 경과·미설정 시 차단되는지 확인한다. 신청 API는 계모임 savingGroupId와 소모임 smallGroupId를 사용한다.
+- 남은 작업·개발자 검토: 실제 브라우저·Postman·DB 실행 및 동시 요청 검증은 미실행이다. 4단계에서 반복 요청·마지막 빈자리 동시 승인 등을 실제 DB로 검증하고, 5단계에서 상태별 버튼·사유·신청 후 갱신을 연결한다. 개발자 검토·수정 대기이며 커밋은 실행하지 않았다.

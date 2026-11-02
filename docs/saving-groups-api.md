@@ -651,3 +651,28 @@ Java 17이 준비된 환경에서 back 폴더에서 실행한다.
 ```
 
 실제 JWT와 MySQL 통합은 아직 검증하지 않았다. JWT 병합 후에는 유효 토큰의 성공 요청, 비회원·진행중 모임의 실패, `LEFT`와 `left_at` 저장값, 동시 탈퇴 시 조건부 UPDATE·롤백을 별도 테스트 DB에서 확인해야 한다.
+
+<!-- AI작성: 2026-11-03 승인된 가입 신청 제한 3단계의 상세 응답 계약입니다. -->
+## 가입 신청 가능 여부 응답 확장 (2026-11-03)
+
+상세 API의 기존 필드에 아래 4개 필드를 추가한다. 본인의 관계만 반환하며 다른 회원의 신청 정보는 포함하지 않는다. 기존 myRole 권한 판정과 공개 상세 조회 권한은 유지한다.
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| membershipStatus | String 또는 null | 본인 관계의 PENDING / APPROVED / REJECTED / LEFT / EXPELLED. 비로그인·관계 없음은 null |
+| canApply | boolean | 조회 시점의 신청 가능 여부. 실제 신청에서는 최신 데이터를 다시 검사 |
+| joinRestrictionCode | String 또는 null | 신청 불가 사유 코드. 신청 가능하면 null |
+| joinRestrictionMessage | String 또는 null | 신청 불가 안내 문구. 신청 가능하면 null |
+
+- 비로그인도 상세 조회는 성공한다. canApply=false, joinRestrictionCode=UNAUTHORIZED, membershipStatus=null을 반환한다. 이 코드는 정상 상세 응답의 데이터이며 HTTP 401 응답을 의미하지 않는다.
+- 로그인한 사용자는 본인 기존 관계 제한을 먼저 안내한다. APPROVED는 가입 완료, PENDING은 심사 중이며 두 상태 모두 신청 불가다.
+- REJECTED와 EXPELLED는 모두 JOIN_REAPPLICATION_FORBIDDEN을 유지하되 안내 문구에 거절·추방 사유를 각각 표시한다.
+- LEFT는 재신청 대기 기간이 없지만 계정·본인 인증·역할·모임·정원 등 나머지 조건을 충족해야 한다. 재신청 성공은 가입 완료가 아닌 PENDING이다.
+- 그다음 계정·본인 인증·역할 등 기존 신청 자격과 모임 조건을 검사한다. 상세 조회에 쓰는 회원·관계·가입 수 조회는 FOR UPDATE 없는 읽기 전용 조회다.
+- 미정의 가입 상태 등 데이터 오류는 신청 불가로 숨기지 않고 기존 서버 오류로 처리한다.
+- 신청·승인 인원 집계 및 중복 방지 구조는 유지한다. 상세 응답은 조회 시점의 안내이므로 신청 또는 승인 성공을 보장하지 않는다.
+- 이번 단계는 서버 응답과 조건 검사까지 구현했다. 상태별 버튼·사유 표시, 신청 후 상세 갱신은 후속 화면 단계에서 연결한다.
+
+계모임은 기존과 같이 status=01일 때만 신규 신청할 수 있다. 정원 미설정·정원 도달과 최대 5개 가입 제한을 동일하게 반영한다. 상세 URL은 groupId, 가입 신청 URL은 savingGroupId를 사용하므로 두 식별자를 혼용하지 않는다.
+
+수동 확인: GET /api/saving-groups/{groupId}를 비로그인·가입·심사 대기·거절·추방·탈퇴·관계 없음으로 각각 조회한다. POST /api/saving-groups/{savingGroupId}/join-requests에서도 같은 제한이 유지되는지 확인한다.
