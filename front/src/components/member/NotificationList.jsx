@@ -53,64 +53,6 @@ const HeaderActions = styled.div`
   flex-wrap: wrap;
 `;
 
-const ReadAllButton = styled.button`
-  min-height: 36px;
-  padding: 7px 12px;
-  color: ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) => theme.colors.primarySoft};
-  border: 1px solid ${({ theme }) => theme.colors.primary};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    color: ${({ theme }) => theme.colors.white};
-    background: ${({ theme }) => theme.colors.primary};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.colors.primary};
-    outline-offset: 2px;
-  }
-
-  &:disabled {
-    color: ${({ theme }) => theme.colors.muted};
-    background: ${({ theme }) => theme.colors.background};
-    border-color: ${({ theme }) => theme.colors.border};
-    cursor: not-allowed;
-  }
-`;
-
-const DeleteReadButton = styled.button`
-  min-height: 36px;
-  padding: 7px 12px;
-  color: ${({ theme }) => theme.colors.white};
-  background: ${({ theme }) => theme.colors.primary};
-  border: 1px solid ${({ theme }) => theme.colors.primary};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: ${({ theme }) => theme.colors.primaryDark};
-    border-color: ${({ theme }) => theme.colors.primaryDark};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.colors.primary};
-    outline-offset: 2px;
-  }
-
-  &:disabled {
-    color: ${({ theme }) => theme.colors.muted};
-    background: ${({ theme }) => theme.colors.background};
-    border-color: ${({ theme }) => theme.colors.border};
-    cursor: not-allowed;
-  }
-`;
-
 const List = styled.ul`
   margin-top: 14px;
   display: grid;
@@ -247,21 +189,23 @@ function NotificationList({
         <Title>내 알림</Title>
         <HeaderActions>
           {/* AI작성: 읽지 않은 알림이 있을 때 현재 회원의 알림을 한 번에 읽음 처리합니다. */}
-          <ReadAllButton
+          <Button
             type="button"
+            $variant="primarySoft"
             onClick={onReadAll}
             disabled={!hasUnreadNotifications || markingAllRead || deletingRead}
           >
             {markingAllRead ? '처리 중…' : '전체 읽음'}
-          </ReadAllButton>
+          </Button>
           {/* AI작성: 읽은 알림이 있을 때만 일괄 삭제를 실행할 수 있도록 상태를 구분합니다. */}
-          <DeleteReadButton
+          <Button
             type="button"
+            $variant="primary"
             onClick={onDeleteAllRead}
             disabled={notifications.length === 0 || deletingRead || markingAllRead}
           >
             {deletingRead ? '삭제 중…' : '읽은 알림 삭제'}
-          </DeleteReadButton>
+          </Button>
         </HeaderActions>
       </ListHeader>
 
