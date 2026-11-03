@@ -129,16 +129,28 @@ function SmallGroupCreateForm({
   interests,
   isRegionLoading,
   regionLoadError,
+  onRegionRetry,
   onSubmit,
   onCancel,
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isRegionUnavailable = isRegionLoading || Boolean(regionLoadError) || regions.length === 0;
+  // AI작성: 현재 상위 지역에 속한 구·동만 선택하며 동 미선택 시 구의 정규 지역명을 전달한다.
+  const [province, setProvince] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const [townId, setTownId] = useState('');
+  const provinces = [...new Set(regions.map((item) => item.provinceName).filter(Boolean))];
+  const districts = regions.filter((item) => item.provinceName === province && !item.townName);
+  const district = districts.find((item) => String(item.regionId) === districtId);
+  const towns = district ? regions.filter((item) => item.townName
+    && item.provinceName === district.provinceName && item.districtName === district.districtName) : [];
+  const town = towns.find((item) => String(item.regionId) === townId);
+  const selectedRegion = townId ? town : district;
 
   // AI작성: 비동기 생성 요청이 끝날 때까지 버튼을 잠가 중복 저장과 취소 이동을 막는다.
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || isRegionUnavailable || !selectedRegion?.regionName) return;
 
     setIsSubmitting(true);
     try {
@@ -153,29 +165,12 @@ function SmallGroupCreateForm({
       <CardTitle>소모임 정보 입력</CardTitle>
       <Description>이웃과 함께할 소모임의 기본 정보를 입력해주세요.</Description>
       <Form onSubmit={handleSubmit} aria-busy={isSubmitting}>
+        {/* AI작성: 기존 페이지의 region → regionName 변환과 생성 요청 계약을 유지한다. */}
+        <input type="hidden" name="region" value={selectedRegion?.regionName || ''} />
         <FieldGrid>
           <Field>
             소모임 이름
             <Control name="name" required placeholder="소모임 이름을 입력하세요" />
-          </Field>
-          <Field>
-            활동 지역
-            <Select name="region" required defaultValue="" disabled={isRegionUnavailable}>
-              <option value="" disabled>
-                {isRegionLoading
-                  ? '활동 지역을 불러오는 중입니다.'
-                  : regionLoadError
-                    ? '활동 지역을 불러오지 못했습니다.'
-                    : regions.length === 0
-                      ? '등록된 활동 지역이 없습니다.'
-                      : '활동 지역을 선택하세요'}
-              </option>
-              {regions.map((region) => (
-                <option key={region.regionId} value={region.regionName}>
-                  {region.regionName}
-                </option>
-              ))}
-            </Select>
           </Field>
           <Field>
             관심사 카테고리
@@ -191,6 +186,49 @@ function SmallGroupCreateForm({
             </Select>
           </Field>
         </FieldGrid>
+
+        {/* AI작성: 지역 세 항목은 같은 줄에 배치하고 상위 변경 시 하위 선택을 초기화한다. */}
+        <DetailFieldGrid>
+          <Field>
+            활동 지역 시·도 (필수)
+            <Select required value={province} disabled={isRegionUnavailable || isSubmitting}
+              onChange={(event) => {
+                setProvince(event.target.value);
+                setDistrictId('');
+                setTownId('');
+              }}>
+              <option value="">시·도를 선택하세요</option>
+              {provinces.map((item) => <option key={item} value={item}>{item}</option>)}
+            </Select>
+          </Field>
+          <Field>
+            활동 지역 시·군·구 (필수)
+            <Select required value={districtId} disabled={!province || isRegionUnavailable || isSubmitting}
+              onChange={(event) => {
+                setDistrictId(event.target.value);
+                setTownId('');
+              }}>
+              <option value="">시·군·구를 선택하세요</option>
+              {districts.map((item) => <option key={item.regionId} value={item.regionId}>
+                {item.districtName || `${item.provinceName} 전체`}
+              </option>)}
+            </Select>
+          </Field>
+          <Field>
+            활동 지역 읍·면·동 (선택)
+            <Select value={townId} disabled={!district || isRegionUnavailable || isSubmitting || towns.length === 0}
+              onChange={(event) => setTownId(event.target.value)}>
+              <option value="">{district && towns.length === 0 ? '선택 가능한 읍·면·동이 없습니다' : '선택하지 않음 (구 단위 활동)'}</option>
+              {towns.map((item) => <option key={item.regionId} value={item.regionId}>{item.townName}</option>)}
+            </Select>
+          </Field>
+        </DetailFieldGrid>
+        {/* AI작성: 조회 실패 후 다른 입력을 보존하면서 지역 목록만 다시 불러온다. */}
+        {isRegionLoading && <Description role="status">활동 지역을 불러오는 중입니다.</Description>}
+        {regionLoadError && <div role="alert">
+          <Description>{regionLoadError}</Description>
+          <ActionButton type="button" onClick={onRegionRetry}>지역 다시 불러오기</ActionButton>
+        </div>}
 
         <FullField>
           소모임 소개글
