@@ -189,7 +189,7 @@ function NotificationPage() {
     setDeletingRead(true);
 
     try {
-      const deletedCount = await deleteReadNotifications();
+      await deleteReadNotifications();
 
       // AI작성: 삭제로 현재 커서가 사라질 수 있으므로 첫 페이지부터 다시 조회합니다.
       setNotifications([]);
