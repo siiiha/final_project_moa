@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FiBell } from 'react-icons/fi';
+import { FiBell, FiChevronRight } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import {
@@ -7,6 +7,7 @@ import {
   getUnreadNotificationCount,
   readNotification,
 } from '../api/notifications';
+import { NOTIFICATION_UPDATED_EVENT } from '../constants/notification';
 import useAuthStore from '../store/authStore';
 import formatNotificationDate from '../utils/formatNotificationDate';
 
@@ -87,19 +88,44 @@ const NotificationList = styled.ul`
   overflow-y: auto;
 `;
 
-const NotificationButton = styled.button`
+const NotificationItem = styled.div`
   width: 100%;
-  padding: 15px 18px;
-  display: block;
+  display: grid;
+  grid-template-columns: ${({ $hasTarget }) => ($hasTarget ? 'minmax(0, 1fr) 46px' : '1fr')};
   color: ${({ theme }) => theme.colors.text};
   background: ${({ $read, theme }) => ($read ? theme.colors.white : theme.colors.primarySoft)};
-  border: 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const NotificationReadButton = styled.button`
+  min-width: 0;
+  padding: 15px 18px;
+  display: block;
+  color: inherit;
+  background: transparent;
+  border: 0;
   text-align: left;
   cursor: pointer;
 
   &:hover,
   &:focus-visible {
+    background: ${({ theme }) => theme.colors.background};
+  }
+`;
+
+const NotificationMoveButton = styled.button`
+  width: 46px;
+  display: grid;
+  place-items: center;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  background: transparent;
+  border: 0;
+  border-left: 1px solid ${({ theme }) => theme.colors.border};
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.colors.primary};
     background: ${({ theme }) => theme.colors.background};
   }
 `;
@@ -186,7 +212,13 @@ function NotificationBell() {
 
     // AI작성: SSE 인증 방식 확정 전까지 주기적으로 새 알림을 확인합니다.
     const intervalId = window.setInterval(loadNotifications, NOTIFICATION_POLL_INTERVAL_MS);
-    return () => window.clearInterval(intervalId);
+    // AI작성: 전체 알림 화면에서 읽음 상태가 바뀌면 헤더 배지를 즉시 다시 조회합니다.
+    window.addEventListener(NOTIFICATION_UPDATED_EVENT, loadNotifications);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener(NOTIFICATION_UPDATED_EVENT, loadNotifications);
+    };
   }, [loadNotifications]);
 
   const handleBellClick = () => {
@@ -194,7 +226,7 @@ function NotificationBell() {
     if (!open) loadNotifications();
   };
 
-  const handleNotificationClick = async (notification) => {
+  const handleNotificationRead = async (notification) => {
     if (!notification.read) {
       try {
         await readNotification(notification.notificationId);
@@ -206,9 +238,16 @@ function NotificationBell() {
         setUnreadCount((current) => Math.max(current - 1, 0));
       } catch {
         setLoadFailed(true);
-        return;
+        return false;
       }
     }
+
+    return true;
+  };
+
+  const handleNotificationMove = async (notification) => {
+    const readSucceeded = await handleNotificationRead(notification);
+    if (!readSucceeded) return;
 
     setOpen(false);
 
@@ -247,16 +286,31 @@ function NotificationBell() {
             <NotificationList>
               {items.map((notification) => (
                 <li key={notification.notificationId}>
-                  <NotificationButton
-                    type="button"
+                  <NotificationItem
                     $read={notification.read}
-                    onClick={() => handleNotificationClick(notification)}
+                    $hasTarget={notification.targetUrl?.startsWith('/')}
                   >
-                    <Message $read={notification.read}>{notification.message}</Message>
-                    <DateText dateTime={notification.createdAt}>
-                      {formatNotificationDate(notification.createdAt)}
-                    </DateText>
-                  </NotificationButton>
+                    <NotificationReadButton
+                      type="button"
+                      onClick={() => handleNotificationRead(notification)}
+                      aria-label="알림 읽음 처리"
+                    >
+                      <Message $read={notification.read}>{notification.message}</Message>
+                      <DateText dateTime={notification.createdAt}>
+                        {formatNotificationDate(notification.createdAt)}
+                      </DateText>
+                    </NotificationReadButton>
+                    {notification.targetUrl?.startsWith('/') && (
+                      <NotificationMoveButton
+                        type="button"
+                        onClick={() => handleNotificationMove(notification)}
+                        aria-label="알림 연결 화면으로 이동"
+                        title="연결 화면으로 이동"
+                      >
+                        <FiChevronRight size={20} aria-hidden="true" />
+                      </NotificationMoveButton>
+                    )}
+                  </NotificationItem>
                 </li>
               ))}
             </NotificationList>

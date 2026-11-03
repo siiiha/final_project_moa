@@ -11,6 +11,7 @@ import {
 import MemberSidebar from '../components/layout/MemberSidebar';
 import NotificationList from '../components/member/NotificationList';
 import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
+import { NOTIFICATION_UPDATED_EVENT } from '../constants/notification';
 
 const NOTIFICATIONS_PER_REQUEST = 10;
 const NOTIFICATIONS_LOOKAHEAD_SIZE = NOTIFICATIONS_PER_REQUEST + 1;
@@ -169,6 +170,8 @@ function NotificationPage() {
             : item
         )));
         setUnreadCount((current) => Math.max(current - 1, 0));
+        // AI작성: 헤더 알림 배지가 즉시 최신 개수를 조회하도록 변경 사실을 알립니다.
+        window.dispatchEvent(new Event(NOTIFICATION_UPDATED_EVENT));
       } catch {
         // AI작성: 읽음 처리 실패를 목록 조회 실패 상태와 분리해 잘못된 재조회 버튼이 표시되지 않게 합니다.
         window.alert('알림을 읽음 처리하지 못했습니다. 잠시 후 다시 시도해주세요.');
@@ -192,6 +195,7 @@ function NotificationPage() {
       setNotifications([]);
       setHasMore(false);
       await loadNotifications();
+      window.dispatchEvent(new Event(NOTIFICATION_UPDATED_EVENT));
       window.alert(`읽은 알림 ${deletedCount}개를 삭제했습니다.`);
     } catch {
       window.alert('읽은 알림을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
@@ -211,6 +215,7 @@ function NotificationPage() {
         notification.read ? notification : { ...notification, read: true }
       )));
       setUnreadCount(0);
+      window.dispatchEvent(new Event(NOTIFICATION_UPDATED_EVENT));
     } catch {
       window.alert('알림을 읽음 처리하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {

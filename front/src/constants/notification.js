@@ -1,4 +1,6 @@
 // AI작성: 알림 유형별 사용자 표시 문구를 여러 알림 화면에서 재사용하도록 관리합니다.
+export const NOTIFICATION_UPDATED_EVENT = 'moa:notification-updated';
+
 export const NOTIFICATION_TYPE_LABELS = {
   SAVING_GROUP_JOIN_REQUEST: '계모임 가입 신청',
   SAVING_GROUP_JOIN_APPROVED: '계모임 가입 승인',
