@@ -196,7 +196,6 @@ function NotificationPage() {
       setHasMore(false);
       await loadNotifications();
       window.dispatchEvent(new Event(NOTIFICATION_UPDATED_EVENT));
-      window.alert(`읽은 알림 ${deletedCount}개를 삭제했습니다.`);
     } catch {
       window.alert('읽은 알림을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {

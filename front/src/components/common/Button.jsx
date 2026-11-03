@@ -16,8 +16,8 @@ const variants = {
     background: ${({ theme }) => theme.colors.primarySoft};
     border-color: ${({ theme }) => theme.colors.primary};
     &:hover {
-      color: ${({ theme }) => theme.colors.white};
-      background: ${({ theme }) => theme.colors.primary};
+      color: ${({ theme }) => theme.colors.primary};
+      background: ${({ theme }) => theme.colors.primarySoftHover};
     }
   `,
   secondary: css`
