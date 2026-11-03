@@ -1,6 +1,7 @@
 package com.nightstudy.moa.smallGroup;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCreationResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupCategoryResponse;
@@ -48,10 +49,15 @@ public class SmallGroupCreationServiceImpl implements SmallGroupCreationService 
             throw new ApiException(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "회원 정보를 찾을 수 없습니다.");
         }
 
-        Long regionId = smallGroupMapper.selectRegionIdByName(request.getRegionName().strip());
-        if (regionId == null) {
+        // AI작성: 화면 검증을 우회한 광역 지역·누락·모호한 이름은 저장 전에 거절한다.
+        if (request.getRegionName() == null || request.getRegionName().isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REGION_NOT_FOUND", "활동 지역을 다시 선택해 주세요.");
         }
+        List<MemberRegionDto> regions = smallGroupMapper.selectCreationRegionsByName(request.getRegionName().strip());
+        if (regions.size() != 1 || !isCreationRegion(regions.get(0))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REGION_NOT_FOUND", "활동 지역을 다시 선택해 주세요.");
+        }
+        MemberRegionDto region = regions.get(0);
 
         // AI작성: 종료 상태가 없는 현재 구조에서는 삭제되지 않은 생성 소모임을 최대 5개 제한 대상으로 본다.
         if (smallGroupMapper.selectActiveCreatedSmallGroupCount(request.getMemberId())
@@ -60,7 +66,9 @@ public class SmallGroupCreationServiceImpl implements SmallGroupCreationService 
                     "소모임은 최대 5개까지 만들 수 있습니다.");
         }
 
-        normalizeRequest(request, regionId);
+        // AI작성: 입력된 지역 ID는 신뢰하지 않고 DB에서 검증한 ID와 정규 이름을 사용한다.
+        request.setRegionName(region.getRegionName());
+        normalizeRequest(request, region.getRegionId());
         if (smallGroupMapper.insertGroup(request) != 1
                 || smallGroupMapper.insertSmallGroup(request) != 1
                 || smallGroupMapper.insertOwnerMembership(request.getGroupId(), request.getMemberId()) != 1) {
@@ -72,6 +80,15 @@ public class SmallGroupCreationServiceImpl implements SmallGroupCreationService 
                 request.getSmallGroupId(), request.getGroupId(), request.getGroupName(), request.getRegionName(),
                 request.getLikeCategory(), request.getDescription(), request.getMaxMembers(), request.getMeetDate(),
                 request.getLocation(), "OWNER");
+    }
+
+    // AI작성: 구 또는 그 하위 동을 허용하며 구가 없는 세종만 빈 구 이름을 허용한다.
+    private boolean isCreationRegion(MemberRegionDto region) {
+        return region.getRegionId() != null
+                && region.getProvinceName() != null && !region.getProvinceName().isBlank()
+                && region.getDistrictName() != null
+                && (!region.getDistrictName().isBlank()
+                    || ("세종특별자치시".equals(region.getProvinceName()) && region.getDistrictName().isEmpty()));
     }
 
     private void normalizeRequest(SmallGroupCreationRequest request, Long regionId) {

@@ -57,6 +57,10 @@ public interface SmallGroupMapper {
 
     Long selectRegionIdByName(@Param("regionName") String regionName);
 
+    // AI작성: 구·동 선택 검증에 필요한 상위 정보를 기존 지역 DTO로 조회한다.
+    List<com.nightstudy.moa.member.dto.region.MemberRegionDto> selectCreationRegionsByName(
+            @Param("regionName") String regionName);
+
     boolean existsActiveMember(@Param("memberId") Long memberId);
 
     // AI작성: 종료 상태가 없는 현재 구조에서는 삭제되지 않은 생성 소모임을 생성 한도에 포함한다.

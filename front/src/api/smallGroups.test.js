@@ -800,6 +800,31 @@ test('소모임 생성은 입력값만 API 본문에 전달하고 생성 결과�
   }
 });
 
+// AI작성: 최종 구·동·세종 이름을 기존 JSON 필드로 전달하고 서버 지역 오류를 보존한다.
+test('소모임 생성은 최종 지역명 하나를 전달하고 지역 검증 실패를 알린다', async () => {
+  const originalPost = client.post;
+  try {
+    for (const regionName of ['서울특별시 강남구', '서울특별시 강남구 역삼동', '부산광역시 해운대구', '세종특별자치시']) {
+      const request = { groupName: '검증 모임', regionName, likeCategory: '독서',
+        description: '지역 검증', maxMembers: 10, meetDate: '2099-01-01', location: '지역 도서관' };
+      client.post = async (path, payload) => {
+        assert.equal(path, '/small-groups');
+        assert.deepEqual(payload, request);
+        assert.equal(payload.regionName, regionName);
+        return { data: { success: true, data: { smallGroupId: 200, ...payload } } };
+      };
+      assert.equal((await createSmallGroup(request)).regionName, regionName);
+    }
+    client.post = async () => {
+      const error = new Error('지역 오류');
+      error.response = { data: { error: { code: 'REGION_NOT_FOUND', message: '활동 지역을 다시 선택해 주세요.' } } };
+      throw error;
+    };
+    await assert.rejects(createSmallGroup({ regionName: '서울특별시' }),
+      (error) => error.code === 'REGION_NOT_FOUND' && error.message === '활동 지역을 다시 선택해 주세요.');
+  } finally { client.post = originalPost; }
+});
+
 test('소모임 생성 실패는 서버의 최대 생성 수 오류 코드와 메시지를 보존한다', async () => {
   const originalPost = client.post;
   try {

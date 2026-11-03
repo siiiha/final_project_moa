@@ -81,6 +81,15 @@
         WHERE region_name = #{regionName}
     </select>
 
+    <!-- AI작성: 중복 이름은 임의 선택하지 않고 서비스에서 거절하도록 최대 두 행을 조회한다. -->
+    <select id="selectCreationRegionsByName" resultType="com.nightstudy.moa.member.dto.region.MemberRegionDto">
+        SELECT region_id AS regionId, region_name AS regionName,
+               province_name AS provinceName, district_name AS districtName, town_name AS townName
+        FROM region
+        WHERE region_name = #{regionName}
+        LIMIT 2
+    </select>
+
     <select id="existsActiveMember" resultType="boolean">
         SELECT EXISTS(
             SELECT 1

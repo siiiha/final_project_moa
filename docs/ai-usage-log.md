@@ -1,6 +1,17 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+<!-- AI작성: 소모임 생성 지역 3단계 서버 검증과 테스트를 기록한다. -->
+## 2026-11-03 — 소모임 생성 지역 서버 검증 (3단계)
+
+- 목적·승인: 사용자 요청에 따라 생성 요청과 서버 저장에서 구·동 단위 지역을 검증했다.
+- AI 제안·작성: SmallGroupCreationServiceImpl에서 이름 누락·미등록·중복·상위 정보 누락·광역 지역만 선택을 REGION_NOT_FOUND로 거절한다. 세종의 빈 구 예외와 동 미선택 구 저장을 허용한다. 검증된 지역 ID·정규 이름을 사용하며 기존 인증·생성 한도·트랜잭션·API 필드·DB 스키마는 유지한다. SmallGroupMapper에 기존 MemberRegionDto를 반환하는 조회를 추가했다.
+- 변경 파일: back/src/main/java/com/nightstudy/moa/smallGroup/SmallGroupCreationServiceImpl.java, back/src/main/java/com/nightstudy/moa/smallGroup/mapper/SmallGroupMapper.java, back/src/main/resources/mappers/SmallGroupMapper.xml, back/src/test/java/com/nightstudy/moa/smallGroup/SmallGroupCreationServiceImplTest.java(신규), front/src/api/smallGroups.test.js, docs/small-group-public-detail-api.md, 본 기록.
+- 테스트 작성: 구·동·세종 정상 저장과 ID 덮어쓰기, 지역 누락·미등록·중복·상위 정보 누락·빈 구·ID 누락의 저장 차단을 검증한다. 프론트는 구·동·부산·세종 JSON 요청과 서버 지역 오류 전달을 검증한다.
+- 실행 검증: 프론트 API 테스트 55개·변경 테스트 oxlint·Mapper XML 파싱·git diff --check 통과. 실제 HTTP·브라우저·DB 검증은 미실행이다.
+- 서버 검증 제한: Gradle의 SmallGroupCreationServiceImplTest 실행은 Java 17 toolchain 부재로 컴파일 전에 중단됐다. 서버 테스트 통과·컴파일·실제 SQL 실행은 확인하지 못했으며 설치나 설정 변경은 하지 않았다.
+- 개발자 검토·수정: 검토 대기. Postman에서 구·동 생성 및 잘못된 지역 400, DB의 groups.region_id를 확인해야 한다. 상세·새로고침 확인은 4단계다. 의존성·설정 변경·커밋 미수행.
+
 <!-- AI작성: 첨부 화면 기준 소모임 생성 제목 정렬을 기록한다. -->
 ## 2026-11-03 — 소모임 생성 제목과 카드 정렬
 
