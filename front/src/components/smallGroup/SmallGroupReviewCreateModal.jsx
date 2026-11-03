@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FaStar, FaRegStar } from 'react-icons/fa';
+import { FaStar, FaRegStar, FaUndo } from 'react-icons/fa';
 import styled from 'styled-components';
 import ConfirmModal from '../common/ConfirmModal';
 import { createSmallGroupReview } from '../../api/smallGroups';
@@ -79,17 +79,24 @@ const HalfStarButton = styled.button`
   &:disabled { cursor: wait; }
 `;
 
-const ZeroButton = styled.button`
+// AI작성: 작은 초기화 아이콘에 테마 초록색을 적용하고 누르기 쉬운 44px 영역은 유지한다.
+const ResetRatingButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
   min-height: 44px;
-  margin-top: 8px;
-  padding: 8px 12px;
-  color: ${({ theme }) => theme.colors.text};
-  background: ${({ $selected, theme }) => ($selected ? theme.colors.primarySoft : theme.colors.white)};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  margin-left: 4px;
+  padding: 8px;
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primarySoft};
+  border: 1px solid ${({ theme }) => theme.colors.primary};
   border-radius: ${({ theme }) => theme.radius.sm};
   font: inherit;
+  font-size: 16px;
   cursor: pointer;
   &:focus-visible { outline: 3px solid ${({ theme }) => theme.colors.primary}; outline-offset: 2px; }
+  &:disabled { cursor: wait; }
 `;
 
 const Hint = styled.p`
@@ -241,15 +248,18 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
                   })}
                 </Star>
               ))}
+              {/* AI작성: 초기화하면 미선택 상태로 돌아가며 등록 시 기존 정책에 따라 0점으로 전송한다. */}
+              <ResetRatingButton
+                type="button"
+                aria-label="별점 초기화"
+                title="별점 초기화"
+                onClick={() => handleRatingChange('')}
+                disabled={isSubmitting}
+              >
+                <FaUndo aria-hidden="true" />
+              </ResetRatingButton>
             </Stars>
             <Hint id="small-group-review-rating-help" role="status">{rating === '' ? '별점을 선택하지 않으면 0점으로 등록됩니다.' : `${rating}점 / 5점`}</Hint>
-            <ZeroButton
-              type="button"
-              $selected={rating === '0'}
-              aria-pressed={rating === '0'}
-              onClick={() => handleRatingChange('0')}
-              disabled={isSubmitting}
-            >0점 선택</ZeroButton>
             {ratingError && <ErrorMessage id="small-group-review-rating-error" role="alert">{ratingError}</ErrorMessage>}
           </RatingField>
           <label>
