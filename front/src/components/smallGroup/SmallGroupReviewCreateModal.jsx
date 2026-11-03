@@ -199,7 +199,7 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
       >
         <Form onSubmit={handleSubmit} aria-busy={isSubmitting}>
           <RatingField disabled={isSubmitting} aria-describedby="small-group-review-rating-help">
-            <legend>별점 (필수)</legend>
+            <legend>별점</legend>
             <Stars>
               {Array.from({ length: 5 }, (_, index) => (
                 <Star key={index}>
@@ -227,7 +227,6 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
               ))}
             </Stars>
             <Hint role="status">{rating === '' ? '별점을 선택해 주세요.' : `${rating}점 / 5점`}</Hint>
-            <Hint id="small-group-review-rating-help">별의 왼쪽은 반 점, 오른쪽은 한 점입니다.</Hint>
             <ZeroButton
               type="button"
               $selected={rating === '0'}
