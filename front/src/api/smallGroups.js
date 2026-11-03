@@ -508,12 +508,18 @@ export function getSmallGroupPages(currentPage, totalPages) {
 }
 
 // AI작성: 서버가 검색·필터·페이징을 처리하므로 프론트는 요청 조건과 응답 유효성만 관리한다.
-export async function getSmallGroups({ keyword, regionCode, likeCategory, page = 1, signal } = {}) {
+export async function getSmallGroups({ keyword, regionCode, provinceName, districtName, townName, likeCategory, page = 1, signal } = {}) {
+  // AI작성: 미선택 지역은 생략하며 세종의 빈 구 이름과 기존 코드 요청은 보존한다.
+  const areaParams = {};
+  if (provinceName) areaParams.provinceName = provinceName;
+  if (districtName != null) areaParams.districtName = districtName;
+  if (townName) areaParams.townName = townName;
   try {
     const response = await client.get('/small-groups', {
       params: {
         keyword: keyword || undefined,
         regionCode: regionCode || undefined,
+        ...areaParams,
         likeCategory: likeCategory || undefined,
         page,
       },

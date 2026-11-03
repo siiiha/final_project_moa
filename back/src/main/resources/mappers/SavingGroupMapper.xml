@@ -51,12 +51,25 @@
         <if test="regionName != null">
             AND r.region_name = #{regionName}
         </if>
+        <!-- AI작성: 시만 선택하면 구·동 조건을 생략해 그 시에 속한 모임을 모두 포함한다. -->
+        <if test="provinceName != null">AND r.province_name = #{provinceName}</if>
+        <if test="districtName != null">AND r.district_name = #{districtName}</if>
+        <if test="townName != null">AND r.town_name = #{townName}</if>
     </sql>
     <!-- AI작성: 생성 신청은 공개 목록에 노출하지 않고 00(심사중) 상태로만 저장한다. -->
     <select id="selectRegionIdByName" resultType="long">
         SELECT region_id
         FROM region
         WHERE region_name = #{regionName}
+    </select>
+
+    <!-- AI작성: 최종 선택 지역 한 행의 상위 지역 정보를 함께 검증한다. 중복 이름은 임의 선택하지 않는다. -->
+    <select id="selectCreationRegionsByName" resultType="com.nightstudy.moa.member.dto.region.MemberRegionDto">
+        SELECT region_id AS regionId, region_name AS regionName,
+               province_name AS provinceName, district_name AS districtName, town_name AS townName
+        FROM region
+        WHERE region_name = #{regionName}
+        LIMIT 2
     </select>
 
     <select id="existsMember" resultType="boolean">

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { createSmallGroup, fetchSmallGroupRegions } from '../api/smallGroups';
+import { createSmallGroup } from '../api/smallGroups';
+import { getMemberRegions } from '../api/member';
 import SmallGroupCreateForm from '../components/smallGroup/SmallGroupCreateForm';
 import { smallGroupInterests } from '../mocks/smallGroups';
 
+// AI작성: 페이지 최대 너비를 폼 카드와 맞춰 제목·설명·경로 안내의 왼쪽을 정렬한다.
 const Page = styled.div`
-  width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
+  width: min(100% - 32px, 1040px);
   margin: 0 auto;
   padding: 24px 0 48px;
 `;
@@ -53,18 +55,23 @@ function SmallGroupCreatePage() {
   const [regions, setRegions] = useState([]);
   const [isRegionLoading, setIsRegionLoading] = useState(true);
   const [regionLoadError, setRegionLoadError] = useState('');
+  // AI작성: 다른 입력을 유지한 채 기존 지역 API 조회를 재시도한다.
+  const [regionRetry, setRegionRetry] = useState(0);
 
   useEffect(() => {
     let isCurrentPage = true;
 
-    // AI작성: 페이지 진입 시 로그인 토큰으로 DB의 팔도 지역 목록을 조회해 선택지로 사용한다.
+    // AI작성: 계모임·검색 화면과 같은 시·구·동 정보를 조회하고 빈 목록도 오류로 안내한다.
     const loadRegions = async () => {
       try {
-        const loadedRegions = await fetchSmallGroupRegions();
+        const loadedRegions = await getMemberRegions();
+        if (!Array.isArray(loadedRegions) || loadedRegions.length === 0) {
+          throw new Error('등록된 활동 지역이 없습니다. 다시 시도해 주세요.');
+        }
         if (isCurrentPage) setRegions(loadedRegions);
-      } catch (error) {
+      } catch {
         if (isCurrentPage) {
-          setRegionLoadError(error.message || '활동 지역을 불러오지 못했습니다.');
+          setRegionLoadError('활동 지역을 불러오지 못했습니다. 다시 시도해 주세요.');
         }
       } finally {
         if (isCurrentPage) setIsRegionLoading(false);
@@ -75,7 +82,7 @@ function SmallGroupCreatePage() {
     return () => {
       isCurrentPage = false;
     };
-  }, []);
+  }, [regionRetry]);
 
   // AI작성: 기존 폼 name을 백엔드 소모임 생성 DTO 필드명으로 변환한다.
   const handleSubmit = async (event) => {
@@ -117,10 +124,15 @@ function SmallGroupCreatePage() {
           interests={smallGroupInterests}
           isRegionLoading={isRegionLoading}
           regionLoadError={regionLoadError}
+          onRegionRetry={() => {
+            setRegions([]);
+            setRegionLoadError('');
+            setIsRegionLoading(true);
+            setRegionRetry((value) => value + 1);
+          }}
           onSubmit={handleSubmit}
           onCancel={() => navigate('/small-groups')}
         />
-        {regionLoadError && <ErrorNotice role="alert">{regionLoadError}</ErrorNotice>}
         {submissionError && <ErrorNotice role="alert">{submissionError}</ErrorNotice>}
       </Content>
     </Page>

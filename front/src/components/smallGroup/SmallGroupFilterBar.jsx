@@ -4,7 +4,8 @@ import Button from '../common/Button';
 const Form = styled.form`
   padding: 16px;
   display: grid;
-  grid-template-columns: minmax(220px, 1.7fr) minmax(150px, 1fr) minmax(150px, 1fr) auto;
+  /* AI작성: 검색어·세 단계 지역·관심사를 화면 너비에 맞춰 배치한다. */
+  grid-template-columns: minmax(160px, 1.5fr) repeat(4, minmax(0, 1fr)) auto;
   align-items: end;
   gap: 12px;
   background: ${({ theme }) => theme.colors.white};
@@ -78,7 +79,16 @@ const SearchButton = styled(Button)`
   }
 `;
 
-function SmallGroupFilterBar({ keyword, region, interest, regions, interests, onKeywordChange, onRegionChange, onInterestChange, onSearch }) {
+// AI작성: 기존 회원 지역 조회 응답으로 선택지를 만들고 구 ID로 세종의 빈 구 이름도 구분한다.
+function SmallGroupFilterBar({ keyword, province, districtId, townId, interest, regions, interests,
+  regionsLoading, regionsError, onKeywordChange, onProvinceChange, onDistrictChange, onTownChange,
+  onInterestChange, onSearch }) {
+  const provinces = [...new Set(regions.map((item) => item.provinceName).filter(Boolean))];
+  const districts = regions.filter((item) => item.provinceName === province && !item.townName);
+  const district = districts.find((item) => item.regionId === Number(districtId));
+  const towns = district ? regions.filter((item) => item.townName
+    && item.provinceName === district.provinceName && item.districtName === district.districtName) : [];
+  const unavailable = regionsLoading || Boolean(regionsError);
   return (
     <Form onSubmit={onSearch}>
       <Field>
@@ -92,9 +102,29 @@ function SmallGroupFilterBar({ keyword, region, interest, regions, interests, on
         />
       </Field>
       <Field>
-        지역
-        <Select value={region} onChange={(event) => onRegionChange(event.target.value)} aria-label="소모임 지역">
-          {regions.map((item) => <option key={item} value={item}>{item}</option>)}
+        시·도
+        <Select value={province} onChange={(event) => onProvinceChange(event.target.value)}
+          disabled={unavailable} aria-label="소모임 시·도">
+          <option value="">시·도 전체</option>
+          {provinces.map((item) => <option key={item} value={item}>{item}</option>)}
+        </Select>
+      </Field>
+      <Field>
+        시·군·구
+        <Select value={districtId} onChange={(event) => onDistrictChange(event.target.value)}
+          disabled={!province || unavailable} aria-label="소모임 시·군·구">
+          <option value="">시·군·구 전체</option>
+          {districts.map((item) => <option key={item.regionId} value={item.regionId}>
+            {item.districtName || `${item.provinceName} 전체`}
+          </option>)}
+        </Select>
+      </Field>
+      <Field>
+        읍·면·동
+        <Select value={townId} onChange={(event) => onTownChange(event.target.value)}
+          disabled={!districtId || unavailable} aria-label="소모임 읍·면·동">
+          <option value="">읍·면·동 전체</option>
+          {towns.map((item) => <option key={item.regionId} value={item.regionId}>{item.townName}</option>)}
         </Select>
       </Field>
       <Field>
