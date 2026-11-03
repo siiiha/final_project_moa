@@ -41,4 +41,9 @@ public interface NotificationMapper {
     int markAllRead(
             @Param("receiverId") Long receiverId
     );
+
+    // AI작성: 해당 회원이 이미 읽은 알림을 완전히 삭제하고 삭제 건수를 반환합니다.
+    int deleteAllRead(
+            @Param("receiverId") Long receiverId
+    );
 }

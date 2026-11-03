@@ -70,6 +70,7 @@ function NotificationPage() {
   const [loading, setLoading] = useState(!restoredCache);
   const [loadFailed, setLoadFailed] = useState(false);
   const [hasMore, setHasMore] = useState(restoredCache?.hasMore ?? false);
+  const [deletingRead, setDeletingRead] = useState(false);
 
   // AI작성: 마지막 알림 번호를 커서로 전달해 중복 없이 다음 알림 목록을 이어 붙입니다.
   const loadNotifications = useCallback(async (lastNotificationId = null) => {
@@ -155,6 +156,23 @@ function NotificationPage() {
     }
   };
 
+  const handleDeleteAllRead = async () => {
+    setDeletingRead(true);
+
+    try {
+      const response = await client.delete('/v1/notifications/read');
+      const deletedCount = Number(response.data?.data ?? 0);
+
+      // AI작성: 서버에서 삭제가 끝난 뒤 현재 화면에서도 읽은 알림만 제거합니다.
+      setNotifications((current) => current.filter((notification) => !notification.read));
+      window.alert(`읽은 알림 ${deletedCount}개를 삭제했습니다.`);
+    } catch {
+      window.alert('읽은 알림을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setDeletingRead(false);
+    }
+  };
+
   return (
     <Page>
       <Heading>
@@ -174,7 +192,10 @@ function NotificationPage() {
             loading={loading}
             loadFailed={loadFailed}
             hasMore={hasMore}
+            hasReadNotifications={notifications.some((notification) => notification.read)}
+            deletingRead={deletingRead}
             onNotificationClick={handleNotificationClick}
+            onDeleteAllRead={handleDeleteAllRead}
             onLoadMore={handleLoadMore}
             onRetry={() => loadNotifications()}
           />

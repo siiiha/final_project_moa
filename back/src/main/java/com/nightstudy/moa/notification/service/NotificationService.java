@@ -30,4 +30,7 @@ public interface NotificationService {
     void read(Long receiverId, Long notificationId);
 
     void readAll(Long receiverId);
+
+    // AI작성: 해당 회원이 읽은 알림을 모두 삭제하고 실제 삭제 건수를 반환합니다.
+    int deleteAllRead(Long receiverId);
 }

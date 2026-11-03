@@ -97,4 +97,10 @@ public class NotificationServiceImpl implements NotificationService {
     public void readAll(Long receiverId) {
         notificationMapper.markAllRead(receiverId);
     }
+
+    // AI작성: 회원 본인의 읽은 알림만 삭제하고 삭제된 알림 개수를 호출자에게 전달합니다.
+    @Override
+    public int deleteAllRead(Long receiverId) {
+        return notificationMapper.deleteAllRead(receiverId);
+    }
 }

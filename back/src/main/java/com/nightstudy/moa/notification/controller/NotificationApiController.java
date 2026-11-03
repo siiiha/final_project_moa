@@ -8,6 +8,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -77,6 +78,16 @@ public class NotificationApiController {
     ) {
         notificationService.readAll(memberId);
         return ApiResponse.ok(null);
+    }
+
+    // AI작성: 인증된 회원 본인의 읽은 알림만 삭제하고 삭제 건수를 반환합니다.
+    @DeleteMapping("/read")
+    public ApiResponse<Integer> deleteAllRead(
+            @AuthenticationPrincipal Long memberId
+    ) {
+        return ApiResponse.ok(
+                notificationService.deleteAllRead(memberId)
+        );
     }
 
     // 확인용 — 발표 전 삭제하거나 개발 환경에서만 사용해야 합니다.

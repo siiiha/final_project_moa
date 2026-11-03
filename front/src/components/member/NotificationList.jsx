@@ -31,11 +31,47 @@ const Panel = styled.section`
   }
 `;
 
-const Title = styled.h2`
+const ListHeader = styled.div`
   padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+
+const Title = styled.h2`
   color: ${({ theme }) => theme.colors.text};
   font-size: 16px;
   font-weight: 800;
+`;
+
+const DeleteReadButton = styled.button`
+  min-height: 36px;
+  padding: 7px 12px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.danger};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: ${({ theme }) => theme.colors.white};
+    background: ${({ theme }) => theme.colors.danger};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.danger};
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    color: ${({ theme }) => theme.colors.muted};
+    background: ${({ theme }) => theme.colors.background};
+    border-color: ${({ theme }) => theme.colors.border};
+    cursor: not-allowed;
+  }
 `;
 
 const List = styled.ul`
@@ -159,13 +195,26 @@ function NotificationList({
   loading,
   loadFailed,
   hasMore,
+  hasReadNotifications,
+  deletingRead,
   onNotificationClick,
+  onDeleteAllRead,
   onLoadMore,
   onRetry,
 }) {
   return (
     <Panel>
-      <Title>내 알림</Title>
+      <ListHeader>
+        <Title>내 알림</Title>
+        {/* AI작성: 읽은 알림이 있을 때만 일괄 삭제를 실행할 수 있도록 상태를 구분합니다. */}
+        <DeleteReadButton
+          type="button"
+          onClick={onDeleteAllRead}
+          disabled={!hasReadNotifications || deletingRead}
+        >
+          {deletingRead ? '삭제 중…' : '읽은 알림 삭제'}
+        </DeleteReadButton>
+      </ListHeader>
 
       {notifications.length > 0 && (
         <List>
