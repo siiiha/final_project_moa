@@ -44,29 +44,58 @@ const List = styled.ul`
   gap: 10px;
 `;
 
-const NotificationButton = styled.button`
+const NotificationItem = styled.div`
   width: 100%;
   min-height: 88px;
-  padding: 14px 12px;
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 48px;
   align-items: center;
-  gap: 10px;
   color: ${({ theme }) => theme.colors.text};
   background: ${({ $read, theme }) => ($read ? theme.colors.white : theme.colors.primarySoft)};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
+  overflow: hidden;
+`;
+
+const ReadButton = styled.button`
+  min-width: 0;
+  min-height: 86px;
+  padding: 14px 12px;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  background: transparent;
+  border: 0;
   text-align: left;
   cursor: pointer;
 
-  &:hover,
   &:focus-visible {
-    border-color: ${({ theme }) => theme.colors.primary};
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: -2px;
+  }
+`;
+
+const MoveButton = styled.button`
+  width: 48px;
+  min-height: 86px;
+  display: grid;
+  place-items: center;
+  color: ${({ theme }) => theme.colors.secondaryText};
+  background: transparent;
+  border: 0;
+  border-left: 1px solid ${({ theme }) => theme.colors.border};
+  cursor: pointer;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.primarySoft};
   }
 
   &:focus-visible {
     outline: 2px solid ${({ theme }) => theme.colors.primary};
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
 `;
 
@@ -142,24 +171,38 @@ function NotificationList({
         <List>
           {notifications.map((notification) => (
             <li key={notification.notificationId}>
-              <NotificationButton
-                type="button"
-                $read={notification.read}
-                onClick={() => onNotificationClick(notification)}
-              >
-                <Dot $read={notification.read} aria-hidden="true" />
-                <span>
-                  <NotificationTitle>
-                    {TYPE_LABELS[notification.type] ?? '알림'}
-                  </NotificationTitle>
-                  <Message>{notification.message}</Message>
-                  <DateText dateTime={notification.createdAt}>
-                    {formatCreatedAt(notification.createdAt)}
-                    {!notification.read && ' · 새 알림'}
-                  </DateText>
-                </span>
-                <FiChevronRight size={20} aria-hidden="true" />
-              </NotificationButton>
+              <NotificationItem $read={notification.read}>
+                <ReadButton
+                  type="button"
+                  onClick={() => {
+                    // AI작성: 알림 내용 영역은 페이지 이동 없이 읽음 처리만 수행합니다.
+                    onNotificationClick({ ...notification, targetUrl: null });
+                  }}
+                  aria-label={`${TYPE_LABELS[notification.type] ?? '알림'} 읽음 처리`}
+                >
+                  <Dot $read={notification.read} aria-hidden="true" />
+                  <span>
+                    <NotificationTitle>
+                      {TYPE_LABELS[notification.type] ?? '알림'}
+                    </NotificationTitle>
+                    <Message>{notification.message}</Message>
+                    <DateText dateTime={notification.createdAt}>
+                      {formatCreatedAt(notification.createdAt)}
+                      {!notification.read && ' · 새 알림'}
+                    </DateText>
+                  </span>
+                </ReadButton>
+                {notification.targetUrl?.startsWith('/') && (
+                  <MoveButton
+                    type="button"
+                    onClick={() => onNotificationClick(notification)}
+                    aria-label={`${TYPE_LABELS[notification.type] ?? '알림'} 연결 화면으로 이동`}
+                    title="연결 화면으로 이동"
+                  >
+                    <FiChevronRight size={22} aria-hidden="true" />
+                  </MoveButton>
+                )}
+              </NotificationItem>
             </li>
           ))}
         </List>
