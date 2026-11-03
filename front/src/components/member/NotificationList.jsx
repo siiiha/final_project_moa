@@ -232,7 +232,6 @@ function NotificationList({
   loading,
   loadFailed,
   hasMore,
-  hasReadNotifications,
   hasUnreadNotifications,
   markingAllRead,
   deletingRead,
@@ -259,7 +258,7 @@ function NotificationList({
           <DeleteReadButton
             type="button"
             onClick={onDeleteAllRead}
-            disabled={!hasReadNotifications || deletingRead || markingAllRead}
+            disabled={notifications.length === 0 || deletingRead || markingAllRead}
           >
             {deletingRead ? '삭제 중…' : '읽은 알림 삭제'}
           </DeleteReadButton>

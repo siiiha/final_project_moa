@@ -212,7 +212,6 @@ function NotificationPage() {
             loading={loading}
             loadFailed={loadFailed}
             hasMore={hasMore}
-            hasReadNotifications={notifications.some((notification) => notification.read)}
             hasUnreadNotifications={notifications.some((notification) => !notification.read)}
             markingAllRead={markingAllRead}
             deletingRead={deletingRead}
