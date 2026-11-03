@@ -9,6 +9,7 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListItem
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,14 +35,21 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
     @Override
     @Transactional
     public boolean applyForCreationSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest) {
-        Long regionId = savingGroupMapper.selectRegionIdByName(savingGroupCreationRequest.getRegionName());
-        if (regionId == null) {
+        // AI작성: 화면 검증을 우회해도 광역 지역만 저장할 수 없으며 클라이언트의 regionId는 신뢰하지 않는다.
+        String regionName = savingGroupCreationRequest.getRegionName();
+        if (regionName == null || regionName.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REGION_NOT_FOUND", "활동 지역을 다시 선택해 주세요.");
         }
+        List<MemberRegionDto> regions = savingGroupMapper.selectCreationRegionsByName(regionName.strip());
+        if (regions.size() != 1 || !isCreationRegion(regions.get(0))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REGION_NOT_FOUND", "활동 지역을 다시 선택해 주세요.");
+        }
+        MemberRegionDto region = regions.get(0);
         if (!savingGroupMapper.existsMember(savingGroupCreationRequest.getMemberId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "신청자 정보를 찾을 수 없습니다.");
         }
-        savingGroupCreationRequest.setRegionId(regionId);
+        savingGroupCreationRequest.setRegionId(region.getRegionId());
+        savingGroupCreationRequest.setRegionName(region.getRegionName());
         savingGroupCreationRequest.setGroupName(savingGroupCreationRequest.getGroupName().strip());
         savingGroupCreationRequest.setDescription(savingGroupCreationRequest.getDescription().strip());
         MultipartFile groupImage = savingGroupCreationRequest.getGroupImage();
@@ -66,6 +74,15 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             );
         }
         return true;
+    }
+
+    // AI작성: 구 단위와 그 하위 동을 허용한다. 구가 없는 세종만 빈 구 이름을 허용하고 null은 거절한다.
+    private boolean isCreationRegion(MemberRegionDto region) {
+        return region.getRegionId() != null
+                && region.getProvinceName() != null && !region.getProvinceName().isBlank()
+                && region.getDistrictName() != null
+                && (!region.getDistrictName().isBlank()
+                    || ("세종특별자치시".equals(region.getProvinceName()) && region.getDistrictName().isEmpty()));
     }
 
     @Override

@@ -61,6 +61,8 @@ class SmallGroupMapperXmlTest {
         assertThat(configuration.hasStatement(NAMESPACE + "updateSmallGroupVoteParticipationTime")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteSelectedOptionIds")).isTrue();
         assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupVoteOptionVoterNicknames")).isTrue();
-        assertThat(configuration.getResultMapNames()).contains(NAMESPACE + "smallGroupSettings");
+        // AI작성: 삭제된 resultMap 이름 대신 현재 상세 신청 자격 조회의 statement 계약을 검사한다.
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupJoinMember")).isTrue();
+        assertThat(configuration.hasStatement(NAMESPACE + "selectSmallGroupCurrentSettings")).isTrue();
     }
 }

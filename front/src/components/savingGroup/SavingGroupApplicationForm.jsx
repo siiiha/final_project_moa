@@ -234,9 +234,28 @@ const ActionButton = styled(Button)`
   font-size: 13px;
 `;
 
-function SavingGroupApplicationForm({ regions, onSubmit, onCancel, isSubmitting }) {
+function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onRegionRetry, onSubmit, onCancel, isSubmitting }) {
   const [imageName, setImageName] = useState('선택된 이미지가 없습니다.');
   const [groupType, setGroupType] = useState('');
+  // AI작성: 시·구는 필수, 동은 선택이며 현재 상위 지역에 속한 항목만 제출한다.
+  const [province, setProvince] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const [townId, setTownId] = useState('');
+  const provinces = [...new Set(regions.map((item) => item.provinceName).filter(Boolean))];
+  const districts = regions.filter((item) => item.provinceName === province && !item.townName);
+  const district = districts.find((item) => String(item.regionId) === districtId);
+  const towns = district ? regions.filter((item) => item.townName
+    && item.provinceName === district.provinceName && item.districtName === district.districtName) : [];
+  const town = towns.find((item) => String(item.regionId) === townId);
+  const selectedRegion = townId ? town : district;
+  const regionUnavailable = regionsLoading || Boolean(regionsError);
+  const handleSubmit = (event) => {
+    if (regionUnavailable || !selectedRegion?.regionName) {
+      event.preventDefault();
+      return;
+    }
+    onSubmit(event);
+  };
 
   const handleImageChange = (event) => {
     const [image] = event.target.files;
@@ -247,7 +266,9 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel, isSubmitting 
     <Card>
       <CardTitle>계모임 개설 신청</CardTitle>
       <Description>모임 정보를 작성하면 관리자 심사 후 개설 여부가 안내됩니다.</Description>
-      <Form onSubmit={onSubmit}>
+      <Form onSubmit={handleSubmit}>
+        {/* AI작성: 기존 생성 API의 regionName 계약에 최종 선택한 구 또는 동의 정규 이름을 전달한다. */}
+        <input type="hidden" name="regionName" value={selectedRegion?.regionName || ''} />
         <FieldGrid>
           <Field>
             계모임 이름
@@ -282,24 +303,45 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel, isSubmitting 
               </TypeOption>
             </TypeOptions>
           </TypeField>
+          {/* AI작성: 첫 줄은 이름·종류·모집 인원, 둘째 줄은 시·구·동 순서로 배치한다. */}
           <Field>
-            활동 지역
-            <Select name="regionName" required defaultValue="">
-              <option value="" disabled>
-                지역을 선택하세요
-              </option>
-              {regions
-                .filter((region) => region !== '전체')
-                .map((region) => (
-                  <option key={region} value={region}>
-                    {region}
-                  </option>
-                ))}
+            모집 인원
+            <Input name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명" />
+          </Field>
+          <Field>
+            활동 지역 시·도 (필수)
+            <Select required value={province} disabled={regionUnavailable || isSubmitting}
+              onChange={(event) => {
+                // AI작성: 시 변경 시 기존 구·동 선택을 함께 초기화한다.
+                setProvince(event.target.value);
+                setDistrictId('');
+                setTownId('');
+              }}>
+              <option value="">시·도를 선택하세요</option>
+              {provinces.map((item) => <option key={item} value={item}>{item}</option>)}
             </Select>
           </Field>
           <Field>
-            월 회비
-            <Input name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000" />
+            활동 지역 시·군·구 (필수)
+            <Select required value={districtId} disabled={!province || regionUnavailable || isSubmitting}
+              onChange={(event) => {
+                // AI작성: 구 변경 시 기존 동 선택을 초기화한다. 세종은 전체 항목으로 선택한다.
+                setDistrictId(event.target.value);
+                setTownId('');
+              }}>
+              <option value="">시·군·구를 선택하세요</option>
+              {districts.map((item) => <option key={item.regionId} value={item.regionId}>
+                {item.districtName || `${item.provinceName} 전체`}
+              </option>)}
+            </Select>
+          </Field>
+          <Field>
+            활동 지역 읍·면·동 (선택)
+            <Select value={townId} disabled={!district || regionUnavailable || isSubmitting || towns.length === 0}
+              onChange={(event) => setTownId(event.target.value)}>
+              <option value="">{district && towns.length === 0 ? '선택 가능한 읍·면·동이 없습니다' : '미선택 시 (구 단위 활동)'}</option>
+              {towns.map((item) => <option key={item.regionId} value={item.regionId}>{item.townName}</option>)}
+            </Select>
           </Field>
           <Field>
             납부일
@@ -315,10 +357,16 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel, isSubmitting 
             </Select>
           </Field>
           <Field>
-            모집 인원
-            <Input name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명" />
+            월 회비
+            <Input name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000" />
           </Field>
         </FieldGrid>
+        {/* AI작성: 지역 조회 상태를 안내하고 입력한 다른 내용을 유지한 채 재시도한다. */}
+        {regionsLoading && <HelpText role="status">지역을 불러오는 중입니다.</HelpText>}
+        {regionsError && <div role="alert">
+          <HelpText>{regionsError}</HelpText>
+          <ActionButton type="button" onClick={onRegionRetry}>지역 다시 불러오기</ActionButton>
+        </div>}
 
         <FullField>
           계모임 소개
@@ -344,7 +392,7 @@ function SavingGroupApplicationForm({ regions, onSubmit, onCancel, isSubmitting 
         </FullField>
 
         <Actions>
-          <ActionButton type="submit" disabled={isSubmitting}>
+          <ActionButton type="submit" disabled={isSubmitting || regionUnavailable}>
             {isSubmitting ? '신청 중...' : '개설 신청'}
           </ActionButton>
           <ActionButton type="button" $variant="secondary" onClick={onCancel} disabled={isSubmitting}>

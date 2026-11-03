@@ -71,11 +71,14 @@ class SmallGroupSecurityIntegrationTest {
         SmallGroupDetailResponse response = new SmallGroupDetailResponse(
                 1L, 2L, "동네 걷기", "함께 걷는 소모임입니다.", "서울", "운동",
                 LocalDate.of(2026, 11, 1), "한강 공원", 10, 2L,
-                "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0), null, List.of());
+                "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0), null, List.of(), null, false, "UNAUTHORIZED", "로그인이 필요합니다.");
         when(smallGroupService.getSmallGroupDetail(1L, null)).thenReturn(response);
 
+        // AI작성: 비로그인 공개 상세도 신청 불가 여부와 사유를 정상 응답으로 전달한다.
         mockMvc.perform(get("/api/small-groups/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canApply").value(false))
+                .andExpect(jsonPath("$.data.joinRestrictionCode").value("UNAUTHORIZED"));
 
         verify(smallGroupService).getSmallGroupDetail(1L, null);
     }

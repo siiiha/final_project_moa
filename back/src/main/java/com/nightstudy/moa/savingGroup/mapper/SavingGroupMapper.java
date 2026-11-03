@@ -9,6 +9,12 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 공개 상세 조회에서는 행 잠금 없이 본인의 신청 조건만 읽는다.
+    SavingGroupJoinMemberRow selectSavingGroupJoinMember(@Param("memberId") Long memberId);
+    SavingGroupMembershipRelationRow selectSavingGroupMembership(
+            @Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    long selectApprovedSavingGroupCountReadOnly(@Param("memberId") Long memberId);
+
     // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
     int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
@@ -16,6 +22,9 @@ public interface SavingGroupMapper {
                                                   @Param("memberId") Long memberId);
     int insertSavingGroupCreationApproval(@Param("groupId") Long groupId);
     Long selectRegionIdByName(@Param("regionName") String regionName);
+    // AI작성: 기존 지역 DTO로 구·동 소속 정보를 조회하며 중복 지역명도 서비스에서 검증한다.
+    List<com.nightstudy.moa.member.dto.region.MemberRegionDto> selectCreationRegionsByName(
+            @Param("regionName") String regionName);
     boolean existsMember(@Param("memberId") Long memberId);
     int selectSavingGroupCreationApplicationCount(SavingGroupCreationApplicationListCondition condition);
     List<SavingGroupCreationApplicationListItemResponse> selectSavingGroupCreationApplications(

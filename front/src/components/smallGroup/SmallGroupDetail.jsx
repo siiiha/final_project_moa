@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import GroupReportButton from '../common/GroupReportButton';
+import GroupJoinAction, { GroupJoinReason } from '../common/GroupJoinAction';
 import SmallGroupMenuTabs, { getSmallGroupMenuItems } from './SmallGroupMenuTabs';
 import SmallGroupSettingsForm from './SmallGroupSettingsForm';
 import SmallGroupJoinRequestsPanel from './SmallGroupJoinRequestsPanel';
@@ -465,6 +466,8 @@ function SmallGroupDetail({
   onRetryVotes,
   onVoteDetail,
 }) {
+  // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
+  const joinReasonId = useId();
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
   const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
   // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
@@ -493,8 +496,6 @@ function SmallGroupDetail({
     ? (myRole === 'OWNER' ? '소모임 개설자는 후기를 작성할 수 없습니다.' : '승인된 일반 모임원만 후기를 작성할 수 있습니다.')
     : !group.meetDate ? '모임 날짜가 설정되지 않아 후기를 작성할 수 없습니다.'
       : group.meetDate >= todayInKorea ? '후기는 모임 다음 날부터 작성할 수 있습니다.' : '';
-  // AI작성: 이미 승인된 OWNER·MEMBER는 재신청할 수 없으므로 상세 화면에서 버튼을 노출하지 않는다.
-  const canRequestJoin = !['OWNER', 'MEMBER'].includes(myRole);
   // AI작성: 역할 변경 또는 URL 전환 후 권한 밖 탭이 남아도 공개 기본 탭으로 되돌린다.
   const currentMenu = allowedMenuItems.some((item) => item.id === activeMenu) ? activeMenu : 'notice';
   const activeLabel = {
@@ -528,22 +529,16 @@ function SmallGroupDetail({
             </Meta>
           </TitleBlock>
           <ProfileActions>
-            {canRequestJoin && (
-              <JoinButton
-                type="button"
-                onClick={onJoinRequest}
-                disabled={isJoinSubmitting}
-                aria-busy={isJoinSubmitting}
-              >
-                {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
-              </JoinButton>
-            )}
+            {/* AI작성: 가입 완료 상태도 표시하며 기존 JoinButton의 크기는 유지한다. */}
+            <GroupJoinAction group={group} onJoinRequest={onJoinRequest}
+              isSubmitting={isJoinSubmitting} ButtonComponent={JoinButton} reasonId={joinReasonId} />
             {/* AI작성: OWNER의 본인 신고 진입을 숨기고 그 외 사용자는 공통 신고 흐름을 재사용한다. */}
             {myRole !== 'OWNER' && (
               <GroupReportButton groupId={groupId} groupLabel="소모임" />
             )}
           </ProfileActions>
         </ProfileTop>
+        <GroupJoinReason group={group} isSubmitting={isJoinSubmitting} id={joinReasonId} />
         <SmallGroupMenuTabs myRole={myRole} activeMenu={currentMenu} onMenuChange={onMenuChange} />
       </Profile>
 

@@ -1,5 +1,6 @@
 package com.nightstudy.moa.smallGroup.dto;
 
+import java.time.LocalDate;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,4 +14,6 @@ public class SmallGroupJoinTargetRow {
     private Long groupId;
     private Long creatorMemberId;
     private Integer maxMembers;
+    // AI작성: 신청·승인 직전에 잠근 일정으로 종료 여부를 재검사한다.
+    private LocalDate meetDate;
 }

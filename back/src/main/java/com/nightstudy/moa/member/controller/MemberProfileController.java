@@ -1,6 +1,7 @@
 package com.nightstudy.moa.member.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
 import com.nightstudy.moa.member.dto.profile.MemberPasswordUpdateRequest;
 import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.profile.MemberProfileUpdateRequest;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import com.nightstudy.moa.member.dto.region.RegionVerificationRequest;
 import com.nightstudy.moa.member.dto.identity.IdentityVerificationRequest;
 import com.nightstudy.moa.member.dto.identity.IdentityVerificationStartResponse;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/members")
@@ -35,6 +38,14 @@ public class MemberProfileController {
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
+    // 로그인한 회원의 참여 모임을 조회
+    @GetMapping("/me/joined-groups")
+    public ResponseEntity<ApiResponse<List<MemberJoinedGroupResponse>>>getMyJoinedGruops(
+            @RequestAttribute("memberId") Long memberId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(memberService.getMyJoinedGroups(memberId))
+                );
+    }
     // 로그인한 회원의 지역 인증 처리
     @PostMapping("/me/region-verification")
     public ResponseEntity<ApiResponse<MemberProfileResponse>> verifyRegion(

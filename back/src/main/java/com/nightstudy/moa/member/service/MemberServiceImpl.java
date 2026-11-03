@@ -31,6 +31,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.member.dto.region.MemberRegionDto;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
 
 import java.util.List;
 
@@ -357,6 +358,12 @@ public class MemberServiceImpl implements MemberService {
         );
 
         return profile;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberJoinedGroupResponse> getMyJoinedGroups(Long memberId) {
+        return memberMapper.findJoinedGroupsByMemberId(memberId);
     }
 
     // 위치 정확도와 가입 활동 지역을 확인한 뒤 인증 시각 저장

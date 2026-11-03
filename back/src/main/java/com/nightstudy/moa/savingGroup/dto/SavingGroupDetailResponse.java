@@ -22,4 +22,9 @@ public class SavingGroupDetailResponse {
     private final String status;
     private final List<SavingGroupNoticeSummaryResponse> notices;
     private final String myRole;
+    // AI작성: 본인의 신청 상태와 서버 판단만 제공하며 다른 회원 정보는 포함하지 않는다.
+    private final String membershipStatus;
+    private final boolean canApply;
+    private final String joinRestrictionCode;
+    private final String joinRestrictionMessage;
 }

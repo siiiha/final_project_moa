@@ -16,6 +16,10 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationSearchCo
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
+import java.util.List;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,10 +40,15 @@ class SavingGroupCreationServiceImplTest {
     @InjectMocks
     private SavingGroupCreationServiceImpl savingGroupCreationService;
 
-    @Test
-    void applyForCreationAddsPendingOwnerMembership() {
+    // AI작성: 구만 선택·동 선택·세종 모두 저장되며 위조한 지역 ID 대신 조회된 ID를 사용한다.
+    @ParameterizedTest
+    @CsvSource({"서울특별시,강남구,", "서울특별시,강남구,역삼동", "세종특별자치시,'',", "세종특별자치시,'',어진동"})
+    void applyForCreationAddsPendingOwnerMembership(String province, String district, String town) {
         SavingGroupCreationRequest request = creationRequest();
-        when(savingGroupMapper.selectRegionIdByName("서울")).thenReturn(1L);
+        MemberRegionDto region = creationRegion(province, district, town);
+        request.setRegionName("  " + region.getRegionName() + "  ");
+        request.setRegionId(999L);
+        when(savingGroupMapper.selectCreationRegionsByName(region.getRegionName())).thenReturn(List.of(region));
         when(savingGroupMapper.existsMember(10L)).thenReturn(true);
         doAnswer(invocation -> {
             invocation.<SavingGroupCreationRequest>getArgument(0).setGroupId(100L);
@@ -50,8 +59,57 @@ class SavingGroupCreationServiceImplTest {
         when(savingGroupMapper.insertSavingGroupCreationApproval(100L)).thenReturn(1);
 
         assertThat(savingGroupCreationService.applyForCreationSavingGroup(request)).isTrue();
+        assertThat(request.getRegionId()).isEqualTo(1L);
+        assertThat(request.getRegionName()).isEqualTo(region.getRegionName());
+        verify(savingGroupMapper).insertGroups(request);
 
         verify(savingGroupMapper).insertSavingGroupCreationOwnerMembership(100L, 10L);
+    }
+
+    // AI작성: 존재하지 않거나 모호한 지역, 상위 지역 정보가 없는 데이터는 저장·파일 처리 전에 거절한다.
+    @ParameterizedTest
+    @CsvSource({"missing", "duplicate", "provinceOnly", "nullProvince", "nullDistrict", "blankDistrict", "nullId"})
+    void rejectsInvalidCreationRegionBeforeSaving(String kind) {
+        SavingGroupCreationRequest request = creationRequest();
+        MemberRegionDto region = creationRegion("서울특별시", "강남구", null);
+        if (kind.equals("provinceOnly")) region.setDistrictName("");
+        if (kind.equals("nullProvince")) region.setProvinceName(null);
+        if (kind.equals("nullDistrict")) region.setDistrictName(null);
+        if (kind.equals("blankDistrict")) region.setDistrictName("  ");
+        if (kind.equals("nullId")) region.setRegionId(null);
+        List<MemberRegionDto> regions = kind.equals("missing") ? List.of()
+                : kind.equals("duplicate") ? List.of(region, region) : List.of(region);
+        when(savingGroupMapper.selectCreationRegionsByName(request.getRegionName())).thenReturn(regions);
+
+        ApiException exception = catchThrowableOfType(
+                () -> savingGroupCreationService.applyForCreationSavingGroup(request), ApiException.class);
+        assertThat(exception.getCode()).isEqualTo("REGION_NOT_FOUND");
+        verify(savingGroupMapper, never()).insertGroups(any());
+        org.mockito.Mockito.verifyNoInteractions(fileStorageService);
+    }
+
+    // AI작성: 서비스 직접 호출에서도 누락된 지역은 조회·저장 전에 거절한다.
+    @Test
+    void rejectsMissingRegionName() {
+        for (String name : new String[] {null, "", "  "}) {
+            SavingGroupCreationRequest request = creationRequest();
+            request.setRegionName(name);
+            ApiException exception = catchThrowableOfType(
+                    () -> savingGroupCreationService.applyForCreationSavingGroup(request), ApiException.class);
+            assertThat(exception.getCode()).isEqualTo("REGION_NOT_FOUND");
+        }
+        org.mockito.Mockito.verifyNoInteractions(savingGroupMapper, fileStorageService);
+    }
+
+    // AI작성: 실제 개인정보 없이 지역 계층별 저장 검증 데이터를 구성한다.
+    private MemberRegionDto creationRegion(String province, String district, String town) {
+        MemberRegionDto region = new MemberRegionDto();
+        region.setRegionId(1L);
+        region.setProvinceName(province);
+        region.setDistrictName(district);
+        region.setTownName(town);
+        region.setRegionName(province + (district.isEmpty() ? "" : " " + district) + (town == null ? "" : " " + town));
+        return region;
     }
 
     @Test
@@ -254,7 +312,7 @@ class SavingGroupCreationServiceImplTest {
         SavingGroupCreationRequest request = new SavingGroupCreationRequest();
         request.setMemberId(10L);
         request.setGroupName("테스트 계모임");
-        request.setRegionName("서울");
+        request.setRegionName("서울특별시 강남구");
         request.setMaxMembers(10);
         request.setDescription("계모임 소개");
         request.setGroupType("친목계");

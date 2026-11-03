@@ -672,14 +672,8 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 smallGroupId, crewMemberId, memberId, "승인");
         SmallGroupJoinApprovalTargetRow request = decision.request();
         SmallGroupJoinTargetRow target = decision.target();
-        if (target.getMaxMembers() == null || target.getMaxMembers() <= 0) {
-            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_NOT_CONFIGURED",
-                    "소모임 정원이 설정되지 않았습니다.");
-        }
-        if (smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(target.getGroupId())
-                >= target.getMaxMembers()) {
-            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_FULL", "소모임 정원이 모두 찼습니다.");
-        }
+        validateSmallGroupJoinCapacity(target.getMeetDate(), target.getMaxMembers(),
+                smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(target.getGroupId()));
 
         int affectedRows = smallGroupMapper.approveSmallGroupJoinRequest(
                 request.getCrewMemberId(), request.getGroupId(), memberId);
@@ -774,17 +768,24 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 소모임이 없습니다.");
         }
 
-        String myRole = memberId == null ? null : resolveMemberRole(row.getGroupId(), memberId);
+        // AI작성: 본인 관계를 한 번만 읽어 역할 검증과 신청 상태 표시가 같은 결과를 사용한다.
+        List<SmallGroupMemberRelationRow> relations = memberId == null ? List.of()
+                : smallGroupMapper.selectSmallGroupMemberRelations(row.getGroupId(), memberId);
+        String myRole = memberId == null ? null : resolveMemberRole(relations);
         long memberCount = smallGroupMapper.selectApprovedSmallGroupMemberCount(row.getGroupId());
         // AI작성: 비회원도 제목·작성자·작성일을 볼 수 있도록 역할과 무관하게 공지 요약을 함께 조회한다.
         List<SmallGroupNoticeSummaryResponse> notices =
                 smallGroupMapper.selectRecentSmallGroupNotices(row.getGroupId());
 
+        // AI작성: 역할과 별도로 본인의 대기·거절·탈퇴·추방 상태를 전달한다.
+        SmallGroupMemberRelationRow relation = relations.isEmpty() ? null : relations.get(0);
+        String membershipStatus = relation == null ? null : relation.getMembershipStatus();
+        JoinAvailability availability = evaluateSmallGroupJoin(row, memberId, memberCount, relation);
         return new SmallGroupDetailResponse(
                 row.getSmallGroupId(), row.getGroupId(), row.getGroupName(), row.getDescription(),
                 row.getRegionName(), row.getLikeCategory(), row.getMeetDate(), row.getLocation(),
                 row.getMaxMembers(), memberCount, row.getCreatorNickname(), row.getCreatedAt(), myRole,
-                notices);
+                notices, membershipStatus, availability.canApply(), availability.code(), availability.message());
     }
 
     // AI작성: 소모임에는 상태별 설정 제한이 없으므로 삭제 여부와 개설자·승인 OWNER 권한만 확인한다.
@@ -872,18 +873,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         }
 
         SmallGroupJoinMemberRow member = smallGroupMapper.selectSmallGroupJoinMemberForUpdate(memberId);
-        if (member == null || !ACTIVE_ACCOUNT_STATUS.equals(member.getAccountStatus())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "MEMBER_ACCOUNT_UNAVAILABLE",
-                    "현재 계정 상태에서는 가입 신청할 수 없습니다.");
-        }
-        if (member.getIdentityVerifiedAt() == null) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "IDENTITY_VERIFICATION_REQUIRED",
-                    "본인 인증 완료 후 가입 신청할 수 있습니다.");
-        }
-        if ("ADMIN".equals(member.getSystemRole())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_JOIN_ADMIN_NOT_ALLOWED",
-                    "관리자 계정은 소모임 가입 신청을 할 수 없습니다.");
-        }
+        validateSmallGroupJoinMember(member);
 
         SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
         if (target == null) {
@@ -904,12 +894,9 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         boolean isReapplication = isLeftMembership(relation);
         validateExistingMembership(relation);
 
-        long approvedMemberCount = smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(target.getGroupId());
-        if (approvedMemberCount >= target.getMaxMembers()) {
-            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_FULL", "소모임 정원이 모두 찼습니다.");
-        }
+        validateSmallGroupJoinCapacity(target.getMeetDate(), target.getMaxMembers(),
+                smallGroupMapper.selectApprovedSmallGroupMemberCountForUpdate(target.getGroupId()));
 
-        // TODO: 소모임 모집 상태·공개 범위·자동 승인 여부가 확정되면 대상 잠금 조회 결과를 기준으로 가입 가능 조건을 추가한다.
         try {
             int affectedRows = isReapplication
                     ? smallGroupMapper.reactivateLeftSmallGroupMembership(target.getGroupId(), memberId)
@@ -940,6 +927,61 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         }
     }
 
+    // AI작성: 상세 조회와 실제 신청에서 계정·본인 인증 조건을 동일하게 검사한다.
+    private void validateSmallGroupJoinMember(SmallGroupJoinMemberRow member) {
+        if (member == null || !ACTIVE_ACCOUNT_STATUS.equals(member.getAccountStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "MEMBER_ACCOUNT_UNAVAILABLE",
+                    "현재 계정 상태에서는 가입 신청할 수 없습니다.");
+        }
+        if (member.getIdentityVerifiedAt() == null) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "IDENTITY_VERIFICATION_REQUIRED",
+                    "본인 인증 완료 후 가입 신청할 수 있습니다.");
+        }
+        if ("ADMIN".equals(member.getSystemRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_JOIN_ADMIN_NOT_ALLOWED",
+                    "관리자 계정은 소모임 가입 신청을 할 수 없습니다.");
+        }
+    }
+
+    // AI작성: 정원은 승인 인원으로만 판단하고 상세·신청·승인에서 같은 조건을 사용한다.
+    private void validateSmallGroupJoinCapacity(LocalDate meetDate, Integer maxMembers, long memberCount) {
+        // AI작성: 일정 당일은 허용하며 한국 날짜 기준으로 지난 일정과 미정 일정은 차단한다.
+        if (meetDate == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_DATE_NOT_CONFIGURED", "소모임 일정이 설정되지 않았습니다.");
+        }
+        if (meetDate.isBefore(LocalDate.now(KOREA_ZONE_ID))) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_MEETING_ENDED", "일정이 지난 소모임에는 가입 신청할 수 없습니다.");
+        }
+        if (maxMembers == null || maxMembers <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_NOT_CONFIGURED", "소모임 정원이 설정되지 않았습니다.");
+        }
+        if (memberCount >= maxMembers) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_CAPACITY_FULL", "소모임 정원이 모두 찼습니다.");
+        }
+    }
+
+    // AI작성: 제한은 정상 상세 응답에 담고 데이터 오류는 숨기지 않고 기존 예외로 전달한다.
+    private record JoinAvailability(boolean canApply, String code, String message) {}
+
+    private JoinAvailability evaluateSmallGroupJoin(SmallGroupDetailRow row, Long memberId, long memberCount, SmallGroupMemberRelationRow relation) {
+        try {
+            if (memberId == null || memberId <= 0) {
+                throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+            }
+            validateExistingMembership(relation);
+            validateSmallGroupJoinRole(relation);
+            validateSmallGroupJoinMember(smallGroupMapper.selectSmallGroupJoinMember(memberId));
+            if (Objects.equals(row.getCreatorMemberId(), memberId)) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_OPERATOR_JOIN_NOT_ALLOWED", "개설자 또는 운영진은 자신의 소모임에 가입 신청할 수 없습니다.");
+            }
+            validateSmallGroupJoinCapacity(row.getMeetDate(), row.getMaxMembers(), memberCount);
+            return new JoinAvailability(true, null, null);
+        } catch (ApiException error) {
+            if (error.getStatus().is5xxServerError()) throw error;
+            return new JoinAvailability(false, error.getCode(), error.getMessage());
+        }
+    }
+
     private boolean isLeftMembership(SmallGroupMemberRelationRow relation) {
         return relation != null && "LEFT".equals(relation.getMembershipStatus());
     }
@@ -955,10 +997,14 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_ALREADY_PENDING",
                     "이미 가입 신청한 소모임입니다.");
         }
-        if ("REJECTED".equals(relation.getMembershipStatus())
-                || "EXPELLED".equals(relation.getMembershipStatus())) {
+        // AI작성: 정책은 같아도 거절과 추방의 안내 문구는 구분한다.
+        if ("REJECTED".equals(relation.getMembershipStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REAPPLICATION_FORBIDDEN",
-                    "재신청할 수 없는 소모임입니다.");
+                    "가입 신청이 거절되어 이 모임에 다시 신청할 수 없습니다.");
+        }
+        if ("EXPELLED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "JOIN_REAPPLICATION_FORBIDDEN",
+                    "추방된 모임에는 다시 가입 신청할 수 없습니다.");
         }
         throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "MEMBERSHIP_STATUS_INVALID",
                 "가입 상태 정보를 처리할 수 없습니다.");
@@ -1013,7 +1059,11 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     private String resolveMemberRole(Long groupId, Long memberId) {
         List<SmallGroupMemberRelationRow> relations =
                 smallGroupMapper.selectSmallGroupMemberRelations(groupId, memberId);
+        return resolveMemberRole(relations);
+    }
 
+    // AI작성: 상세 조회에서 이미 읽은 본인 관계를 재사용해 기존 권한 검증을 유지한다.
+    private String resolveMemberRole(List<SmallGroupMemberRelationRow> relations) {
         if (relations.stream().anyMatch(relation -> "MANAGER".equals(relation.getMemberRole()))) {
             throw new ApiException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "접근 권한이 없습니다.");
         }
@@ -1038,7 +1088,10 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         String regionName = request.getRegionCode() == null ? null
                 : REGIONS.get(Integer.parseInt(request.getRegionCode()) - 1);
         SmallGroupListCondition condition = new SmallGroupListCondition(
-                escapeKeyword(request.getKeyword()), regionName, request.getLikeCategory(), 0, PAGE_SIZE);
+                // AI작성: 기존 코드 검색과 관심사를 유지하고 새 지역 조건을 함께 전달한다.
+                escapeKeyword(request.getKeyword()), regionName,
+                request.getProvinceName(), request.getDistrictName(), request.getTownName(),
+                request.getLikeCategory(), 0, PAGE_SIZE);
         int total = smallGroupMapper.selectSmallGroupCount(condition);
         PageMeta pageMeta = PageMeta.of(request.getPage(), PAGE_SIZE, total);
         // AI작성: 계모임 목록과 동일하게 범위 초과는 offset 계산 전에 빈 목록으로 반환한다.
