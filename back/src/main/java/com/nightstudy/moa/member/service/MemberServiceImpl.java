@@ -757,7 +757,7 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        if (!newPassword.equals(request.getConfirmNewPassword())) {
+        if (!newPassword.equals(confirmNewPassword)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "PASSWORD_CONFIRM_MISMATCH",

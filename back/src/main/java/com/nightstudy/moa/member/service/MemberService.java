@@ -51,6 +51,7 @@ public interface MemberService {
 
     MemberProfileResponse updateMyProfile(
             Long memberId,
+            String sessionId,
             MemberProfileUpdateRequest request
     );
 
@@ -67,6 +68,7 @@ public interface MemberService {
     void resetPassword(PasswordResetRequest request);
 
     List<MemberTermDto> getTerms();
+
     List<MemberRegionDto> getRegions();
 
     IdentityVerificationStartResponse startIdentityVerification(

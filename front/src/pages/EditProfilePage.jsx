@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { getMyProfile, verifyMypagePassword } from '../api/member';
 import ConfirmModal from '../components/common/ConfirmModal';
+import PasswordInput from '../components/common/PasswordInput';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import EditProfileForm from '../components/member/EditProfileForm';
 import { memberMenuItems } from '../mocks/mypage';
@@ -46,6 +47,7 @@ function EditProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -122,20 +124,32 @@ function EditProfilePage() {
 
       {access === 'locked' && (
         <ConfirmModal
-          title="현재 비밀번호를 입력해 주세요"
-          description="비밀번호를 확인하면 내 정보를 수정할 수 있습니다."
-          confirmLabel="확인"
+          title="비밀번호 확인"
+          description="내 정보를 수정하려면 현재 비밀번호를 확인해 주세요."
+          confirmLabel={isVerifying ? '확인 중…' : '확인'}
+          cancelFirst
           onConfirm={handleVerify}
           onCancel={() => navigate('/member/mypage', { replace: true })}
           isBusy={isVerifying}
         >
-          <label htmlFor="edit-profile-password">현재 비밀번호</label>
-          <input
+          <PasswordInput
             id="edit-profile-password"
-            type="password"
+            label="현재 비밀번호"
+            placeholder="현재 비밀번호를 입력해 주세요"
             autoComplete="current-password"
             value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
+            onChange={(event) => {
+              setCurrentPassword(event.target.value);
+              setErrorMessage('');
+            }}
+            isVisible={isPasswordVisible}
+            onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                handleVerify();
+              }
+            }}
             disabled={isVerifying}
             autoFocus
           />
