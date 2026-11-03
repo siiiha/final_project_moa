@@ -10,6 +10,7 @@ import {
   toSmallGroupReviewListItem,
   SmallGroupReviewCreateError,
   createSmallGroupVote,
+  closeSmallGroupVote,
   deleteSmallGroupVote,
   getSmallGroupVoteDetail,
   getSmallGroupVoteStatus,
@@ -20,6 +21,7 @@ import {
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
   SmallGroupVoteCreateError,
+  SmallGroupVoteCloseError,
   SmallGroupVoteDeleteError,
   SmallGroupVoteDetailLoadError,
   SmallGroupVoteParticipationError,
@@ -237,6 +239,81 @@ test('소모임 후기 등록은 네트워크 실패를 안내 오류로 변환�
   } finally {
     client.post = originalPost;
   }
+});
+
+// AI작성: 종료 요청의 경로 인코딩·본문 없음·재요청 성공과 오류 보존을 기존 client 대역으로 검증한다.
+test('소모임 투표 종료는 본문 없이 인코딩한 경로로 PATCH 요청하며 재요청도 성공한다', async () => {
+  const originalPatch = client.patch;
+  let calls = 0;
+  try {
+    client.patch = async (...args) => {
+      assert.deepEqual(args, ['/small-groups/7%2F8/votes/11%3F12/close']);
+      calls += 1;
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+    assert.equal(await closeSmallGroupVote('7/8', '11?12'), undefined);
+    assert.equal(await closeSmallGroupVote('7/8', '11?12'), undefined);
+    assert.equal(calls, 2);
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 HTTP 오류의 서버 코드와 메시지를 보존한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    for (const [status, code] of [
+      [400, 'BAD_REQUEST'], [401, 'LOGIN_REQUIRED'], [403, 'SMALL_GROUP_VOTE_CLOSE_FORBIDDEN'],
+      [404, 'SMALL_GROUP_NOT_FOUND'], [404, 'SMALL_GROUP_VOTE_NOT_FOUND'], [500, 'SMALL_GROUP_VOTE_CLOSE_FAILED'],
+    ]) {
+      const message = `종료 요청 오류 ${status}`;
+      client.patch = async () => {
+        throw { response: { status, data: { success: false, error: { code, message } } } };
+      };
+      await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+        && error.code === code && error.message === message);
+    }
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 실패 응답 봉투의 코드와 메시지도 보존한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    client.patch = async () => ({ data: { success: false,
+      error: { code: 'SMALL_GROUP_VOTE_CLOSE_FORBIDDEN', message: '종료 권한이 없습니다.' } } });
+    await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+      && error.code === 'SMALL_GROUP_VOTE_CLOSE_FORBIDDEN' && error.message === '종료 권한이 없습니다.');
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 불명확한 성공 응답을 거절한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    for (const data of [null, {}, { success: false }, { success: 'true' }, { success: 1 }]) {
+      client.patch = async () => ({ data });
+      await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+        && error.code === 'SMALL_GROUP_VOTE_CLOSE_FAILED');
+    }
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 네트워크 오류를 종료 전용 오류와 기본 안내로 변환한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    client.patch = async () => { throw new Error('Network Error'); };
+    await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+      && error.code === 'SMALL_GROUP_VOTE_CLOSE_FAILED'
+      && error.message === '투표를 종료하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 취소 오류와 기존 종료 오류 객체를 그대로 전달한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    for (const original of [Object.assign(new Error('cancelled'), { code: 'ERR_CANCELED' }),
+      new SmallGroupVoteCloseError('SMALL_GROUP_VOTE_CLOSE_FAILED', '종료 오류')]) {
+      client.patch = async () => { throw original; };
+      await assert.rejects(closeSmallGroupVote(7, 11), (error) => error === original);
+    }
+  } finally { client.patch = originalPatch; }
 });
 
 test('소모임 투표 삭제는 두 식별자로 DELETE 요청을 전송한다', async () => {

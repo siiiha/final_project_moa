@@ -264,6 +264,15 @@ export class SmallGroupVoteDetailLoadError extends Error {
   }
 }
 
+// AI작성: 종료 요청의 서버 오류 코드와 메시지를 화면까지 보존한다.
+export class SmallGroupVoteCloseError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'SmallGroupVoteCloseError';
+    this.code = code;
+  }
+}
+
 // AI작성: 소모임 투표 삭제 실패 코드와 메시지를 목록·상세 화면까지 보존하기 위한 오류 객체다.
 export class SmallGroupVoteDeleteError extends Error {
   constructor(code, message) {
@@ -400,6 +409,16 @@ function toSmallGroupVoteDetailLoadError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
   return new SmallGroupVoteDetailLoadError(
     responseError?.code || 'SMALL_GROUP_VOTE_DETAIL_LOAD_FAILED',
+    responseError?.message || fallbackMessage,
+  );
+}
+
+// AI작성: 기존 인증 client의 취소 오류는 유지하고 종료 전용 오류로 변환한다.
+function toSmallGroupVoteCloseError(error, fallbackMessage) {
+  if (error instanceof SmallGroupVoteCloseError || error.code === 'ERR_CANCELED') return error;
+  const responseError = error.response?.data?.error;
+  return new SmallGroupVoteCloseError(
+    responseError?.code || 'SMALL_GROUP_VOTE_CLOSE_FAILED',
     responseError?.message || fallbackMessage,
   );
 }
@@ -691,6 +710,23 @@ export async function getSmallGroupVoteDetail(smallGroupId, smallGroupVoteId, { 
     return toSmallGroupVoteDetail(response.data.data);
   } catch (error) {
     throw toSmallGroupVoteDetailLoadError(error, '투표 상세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 종료 권한·서버 종료 시각은 백엔드가 결정하며 본문 없이 PATCH 요청한다. 이미 종료된 재요청도 성공 응답을 따른다.
+export async function closeSmallGroupVote(smallGroupId, smallGroupVoteId) {
+  try {
+    const response = await client.patch(
+      `/small-groups/${encodeURIComponent(smallGroupId)}/votes/${encodeURIComponent(smallGroupVoteId)}/close`,
+    );
+    if (response.data?.success !== true) {
+      throw new SmallGroupVoteCloseError(
+        response.data?.error?.code || 'SMALL_GROUP_VOTE_CLOSE_FAILED',
+        response.data?.error?.message || '투표를 종료하지 못했습니다.',
+      );
+    }
+  } catch (error) {
+    throw toSmallGroupVoteCloseError(error, '투표를 종료하지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
 
