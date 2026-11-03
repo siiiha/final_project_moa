@@ -1,9 +1,11 @@
+import { useId } from 'react';
 import { formatSavingGroupAmount, getSavingGroupMenus } from '../../api/savingGroups.js';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import GroupReportButton from '../common/GroupReportButton';
+import GroupJoinAction, { GroupJoinReason } from '../common/GroupJoinAction';
 import SavingGroupMenuTabs from './SavingGroupMenuTabs';
 import SavingGroupJoinRequestsPanel from './SavingGroupJoinRequestsPanel';
 import SavingGroupMembersPanel from './SavingGroupMembersPanel';
@@ -239,6 +241,8 @@ const ActionButton = styled(Button)`
 
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack }) {
+  // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
+  const joinReasonId = useId();
   const allowedMenus = getSavingGroupMenus(group.myRole);
   // AI작성: 허용되지 않은 탭 상태가 남아 있어도 공지로 되돌려 계주 전용 패널을 렌더링하지 않는다.
   const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
@@ -255,15 +259,16 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
             <StatusBadge $ongoing={group.status === '02'}>{statusLabel}</StatusBadge>
           </TitleLine>
           <HeaderActions>
-            <JoinButton type="button" onClick={onJoinRequest} disabled={isJoinSubmitting} aria-busy={isJoinSubmitting}>
-              {isJoinSubmitting ? '가입 신청 중...' : '가입 신청하기'}
-            </JoinButton>
+            {/* AI작성: 기존 JoinButton의 스타일을 그대로 사용하고 상태·동작만 연결한다. */}
+            <GroupJoinAction group={group} onJoinRequest={onJoinRequest}
+              isSubmitting={isJoinSubmitting} ButtonComponent={JoinButton} reasonId={joinReasonId} />
             {/* AI작성: 모임장은 본인 모임을 신고할 수 없으므로 일반 사용자에게만 공통 신고 버튼을 제공한다. */}
             {group.myRole !== 'OWNER' && (
               <GroupReportButton groupId={group.groupId} groupLabel="계모임" />
             )}
           </HeaderActions>
         </HeaderTop>
+        <GroupJoinReason group={group} isSubmitting={isJoinSubmitting} id={joinReasonId} />
         <Description>{group.description?.trim() || '소개글이 없습니다.'}</Description>
         <MetaList>
           <Meta><FiMapPin size={16} aria-hidden="true" /> {group.regionName}</Meta>

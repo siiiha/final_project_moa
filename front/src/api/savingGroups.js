@@ -332,9 +332,14 @@ export function getSavingGroupPages(currentPage, totalPages) {
 }
 
 // AI작성: 공통 응답 실패를 검사하고 공개 조회에는 별도 토큰을 요구하지 않는다.
-export async function getSavingGroups({ keyword, regionCode, page, signal }) {
+export async function getSavingGroups({ keyword, regionCode, provinceName, districtName, townName, page, signal }) {
+  // AI작성: 미선택 단계는 생략하되 세종의 빈 구 이름은 보존하고 기존 호출 형태도 유지한다.
+  const areaParams = {};
+  if (provinceName) areaParams.provinceName = provinceName;
+  if (districtName != null) areaParams.districtName = districtName;
+  if (townName) areaParams.townName = townName;
   const response = await client.get('/saving-groups', {
-    params: { keyword: keyword || undefined, regionCode: regionCode || undefined, page },
+    params: { keyword: keyword || undefined, regionCode: regionCode || undefined, ...areaParams, page },
     signal,
   });
   if (!response.data.success) {

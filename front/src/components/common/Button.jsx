@@ -10,6 +10,16 @@ const variants = {
       border-color: ${({ theme }) => theme.colors.primaryDark};
     }
   `,
+  // AI작성: 주요 기능과 같은 계열이지만 강조도를 낮춘 보조 동작에 사용합니다.
+  primarySoft: css`
+    color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.primarySoft};
+    border-color: ${({ theme }) => theme.colors.primary};
+    &:hover {
+      color: ${({ theme }) => theme.colors.primary};
+      background: ${({ theme }) => theme.colors.primarySoftHover};
+    }
+  `,
   secondary: css`
     color: ${({ theme }) => theme.colors.text};
     background: ${({ theme }) => theme.colors.white};
@@ -49,7 +59,22 @@ const Button = styled.button`
   &:active {
     transform: translateY(1px);
   }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 2px;
+  }
+
   ${({ $variant = 'primary' }) => variants[$variant]}
+
+  /* AI작성: 공통 버튼의 비활성 상태가 유형별 hover 스타일보다 우선하도록 통일합니다. */
+  &:disabled {
+    color: ${({ theme }) => theme.colors.muted};
+    background: ${({ theme }) => theme.colors.background};
+    border-color: ${({ theme }) => theme.colors.border};
+    cursor: not-allowed;
+    transform: none;
+  }
 `;
 
 export default Button;

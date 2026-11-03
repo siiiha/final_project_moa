@@ -4,10 +4,8 @@ import styled from 'styled-components';
 import Button from '../components/common/Button';
 import SavingGroupFilterBar from '../components/savingGroup/SavingGroupFilterBar';
 import SavingGroupList from '../components/savingGroup/SavingGroupList';
-import { getSavingGroups, savingGroupRegionOptions } from '../api/savingGroups';
-
-// AI작성: 목록 화면의 지역 선택은 실제 API 코드표를 사용한다.
-const savingGroupRegions = ['전체', ...savingGroupRegionOptions.map((item) => item.name)];
+import { getSavingGroups } from '../api/savingGroups';
+import { getMemberRegions } from '../api/member';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -74,7 +72,12 @@ const Result = styled.p`
 // AI작성: 검색 조건과 서버 페이징을 연결하고 이전 요청의 응답을 폐기한다.
 function SavingGroupsPage() {
   const navigate = useNavigate();
-  const [region, setRegion] = useState('전체');
+  // AI작성: 회원가입과 같은 지역 목록을 사용하며 구·동은 필수가 아니다.
+  const [province, setProvince] = useState('');
+  const [districtId, setDistrictId] = useState('');
+  const [townId, setTownId] = useState('');
+  const [regionState, setRegionState] = useState({ items: [], loading: true, error: '' });
+  const [regionRetry, setRegionRetry] = useState(0);
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,9 +85,26 @@ function SavingGroupsPage() {
   const [result, setResult] = useState({ items: [], totalElements: 0, totalPages: 0, requestKey: null, error: '' });
   const [searchError, setSearchError] = useState('');
   const [retry, setRetry] = useState(0);
-  const requestKey = JSON.stringify([region, submittedKeyword, currentPage, retry]);
+  // AI작성: ID는 선택 UI에서만 사용하고 검색은 정규 지역명으로 상위 범위를 지정한다.
+  const selectedDistrict = regionState.items.find((item) => item.regionId === Number(districtId));
+  const selectedTown = regionState.items.find((item) => item.regionId === Number(townId));
+  const districtName = districtId ? selectedDistrict?.districtName : undefined;
+  const townName = townId ? selectedTown?.townName : undefined;
+  const requestKey = JSON.stringify([submittedKeyword, province, districtName, townName, currentPage, retry]);
   const loading = result.requestKey !== requestKey;
   const error = result.error;
+
+  // AI작성: 화면 이탈·재시도 뒤 도착한 지역 응답은 무시한다.
+  useEffect(() => {
+    let active = true;
+    getMemberRegions().then((items) => {
+      if (!Array.isArray(items) || items.length === 0) throw new Error('지역 목록이 비어 있습니다.');
+      if (active) setRegionState({ items, loading: false, error: '' });
+    }).catch(() => {
+      if (active) setRegionState({ items: [], loading: false, error: '지역을 불러오지 못했습니다. 다시 시도해 주세요.' });
+    });
+    return () => { active = false; };
+  }, [regionRetry]);
 
   // AI작성: 조건 변경·화면 이탈 시 요청을 취소하고 오래된 성공·실패 결과를 무시한다.
   useEffect(() => {
@@ -92,7 +112,9 @@ function SavingGroupsPage() {
     let active = true;
     getSavingGroups({
       keyword: submittedKeyword,
-      regionCode: savingGroupRegionOptions.find((item) => item.name === region)?.code,
+      provinceName: province || undefined,
+      districtName,
+      townName,
       page: currentPage, signal: controller.signal,
     }).then((data) => {
       if (active) setResult({ ...data, requestKey, error: '' });
@@ -102,7 +124,7 @@ function SavingGroupsPage() {
           || '목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
     });
     return () => { active = false; controller.abort(); };
-  }, [region, submittedKeyword, currentPage, retry, requestKey]);
+  }, [submittedKeyword, province, districtName, townName, currentPage, retry, requestKey]);
 
   // AI작성: 서버와 동일하게 앞뒤 공백 제거 후 길이를 검사한다.
   const handleSearch = (event) => {
@@ -121,6 +143,18 @@ function SavingGroupsPage() {
     navigate('/saving-groups/new');
   };
 
+  // AI작성: 빈 결과에서 검색어·지역·페이지를 초기화하고 전체 목록을 다시 조회한다.
+  const handleResetSearch = () => {
+    setKeyword('');
+    setSubmittedKeyword('');
+    setProvince('');
+    setDistrictId('');
+    setTownId('');
+    setSearchError('');
+    setCurrentPage(1);
+    setRetry((value) => value + 1);
+  };
+
   return (
     <Page>
       <Breadcrumb>계모임 &gt; 계모임 목록</Breadcrumb>
@@ -135,16 +169,42 @@ function SavingGroupsPage() {
       </Heading>
       <Content>
         <SavingGroupFilterBar
-          region={region}
+          province={province}
+          districtId={districtId}
+          townId={townId}
           keyword={keyword}
-          regions={savingGroupRegions}
-          onRegionChange={(value) => {
-            setRegion(value);
+          regions={regionState.items}
+          regionsLoading={regionState.loading}
+          regionsError={regionState.error}
+          onProvinceChange={(value) => {
+            // AI작성: 상위 지역 변경 시 이전 하위 선택을 남기지 않는다.
+            setProvince(value);
+            setDistrictId('');
+            setTownId('');
+            setCurrentPage(1);
+          }}
+          onDistrictChange={(value) => {
+            setDistrictId(value);
+            setTownId('');
+            setCurrentPage(1);
+          }}
+          onTownChange={(value) => {
+            setTownId(value);
             setCurrentPage(1);
           }}
           onKeywordChange={setKeyword}
           onSearch={handleSearch}
         />
+        {regionState.loading && <Result role="status">지역을 불러오는 중입니다.</Result>}
+        {regionState.error && (
+          <div role="alert">
+            <Result>{regionState.error}</Result>
+            <Button type="button" onClick={() => {
+              setRegionState({ items: [], loading: true, error: '' });
+              setRegionRetry((value) => value + 1);
+            }}>지역 다시 불러오기</Button>
+          </div>
+        )}
         {searchError && <Result role="alert">{searchError}</Result>}
         {loading ? <Result role="status">계모임 목록을 불러오는 중입니다.</Result> : error ? (
           <div role="alert">
@@ -160,6 +220,10 @@ function SavingGroupsPage() {
               totalPages={result.totalPages}
               onPageChange={setCurrentPage}
             />
+            {/* AI작성: 범위 초과는 기존 첫 페이지 이동을 사용하고 정상 빈 결과에만 초기화를 제공한다. */}
+            {result.items.length === 0 && result.totalPages === 0 && (
+              <Button type="button" $variant="secondary" onClick={handleResetSearch}>검색 조건 초기화</Button>
+            )}
           </>
         )}
       </Content>

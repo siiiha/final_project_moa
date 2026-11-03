@@ -158,8 +158,17 @@ const TargetButton = styled.button`
 `;
 
 const StatusBadge = styled(Badge)`
-  color: ${({ $pending, theme }) => ($pending ? theme.colors.warning : theme.colors.primary)};
-  background: ${({ $pending, theme }) => ($pending ? theme.colors.warningSoft : theme.colors.primarySoft)};
+  /* AI작성: 신고 처리 상태를 대기·승인·반려별 색상으로 구분해 빠르게 식별하도록 한다. */
+  color: ${({ $status, theme }) => {
+    if ($status === 'PENDING') return theme.colors.warning;
+    if ($status === 'REJECTED') return theme.colors.danger;
+    return theme.colors.primary;
+  }};
+  background: ${({ $status, theme }) => {
+    if ($status === 'PENDING') return theme.colors.warningSoft;
+    if ($status === 'REJECTED') return theme.colors.dangerSoft;
+    return theme.colors.primarySoft;
+  }};
 `;
 
 const Pagination = styled.nav`
@@ -231,7 +240,7 @@ function AdminReportTable({ reports, totalCount, currentPage, totalPages, onPage
                       {report.createdAt}
                     </td>
                     <td data-label="처리 상태">
-                      <StatusBadge $pending={report.statusCode === 'PENDING'}>{report.status}</StatusBadge>
+                      <StatusBadge $status={report.statusCode}>{report.status}</StatusBadge>
                     </td>
                   </tr>
                 ))}

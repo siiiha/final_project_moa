@@ -1,6 +1,7 @@
 package com.nightstudy.moa.smallGroup.dto;
 
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -18,6 +19,27 @@ public class SmallGroupSearchCondition {
 
     @Pattern(regexp = "0[1-9]|10", message = "지역을 다시 선택해 주세요.")
     private String regionCode;
+
+    // AI작성: 계모임과 같은 지역 조건이며 선택하지 않은 단계는 조회에서 제외한다.
+    @Size(max = 30, message = "시·도 지역명을 다시 선택해 주세요.")
+    private String provinceName;
+    @Size(max = 50, message = "시·군·구 지역명을 다시 선택해 주세요.")
+    private String districtName;
+    @Size(max = 50, message = "읍·면·동 지역명을 다시 선택해 주세요.")
+    private String townName;
+
+    public void setProvinceName(String value) { this.provinceName = normalize(value); }
+    // AI작성: 세종의 빈 구 이름과 구 조건 미전달을 구분한다.
+    public void setDistrictName(String value) { this.districtName = value == null ? null : value.strip(); }
+    public void setTownName(String value) { this.townName = normalize(value); }
+
+    @AssertTrue(message = "상위 지역을 선택하고 기존 지역 코드와 새 지역 조건 중 하나만 사용해 주세요.")
+    public boolean isRegionSelectionValid() {
+        boolean hasArea = provinceName != null || districtName != null || townName != null;
+        return !(regionCode != null && hasArea)
+                && (districtName == null || provinceName != null)
+                && (townName == null || (provinceName != null && districtName != null));
+    }
 
     @Size(max = 50, message = "관심사는 50자 이내로 입력해 주세요.")
     private String likeCategory;

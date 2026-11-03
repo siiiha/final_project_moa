@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { FiBell } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
+import NotificationBell from '../NotificationBell';
 import { logoutMember } from '../../api/member';
 import useAuthStore, { isAdminToken } from '../../store/authStore';
 
@@ -122,24 +122,6 @@ const LoggedInActions = styled.div`
   }
 `;
 
-const NotificationLink = styled(Link)`
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-`;
-
-const NotificationCount = styled.span`
-  width: 15px;
-  height: 15px;
-  display: grid;
-  place-items: center;
-  color: ${({ theme }) => theme.colors.white};
-  background: #d94b45;
-  border-radius: 50%;
-  font-size: 9px;
-`;
-
 const LogoutButton = styled.button`
   padding: 0;
   background: transparent;
@@ -203,9 +185,8 @@ function Header() {
 
         {isLoggedIn ? (
           <LoggedInActions>
-            <NotificationLink to="/member/notification" aria-label="알림">
-              <FiBell size={15} aria-hidden="true" /> 알림
-            </NotificationLink>
+            {/* AI작성: 정적 알림 링크 대신 조회·읽음 처리가 가능한 공통 알림 벨을 사용합니다. */}
+            <NotificationBell />
             <Link to="/member/mypage">마이페이지</Link>
             {isAdmin && <Link to="/admin/members">관리자 페이지</Link>}
             <LogoutButton

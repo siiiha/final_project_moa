@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import {
@@ -147,6 +147,7 @@ function PostDetailPage() {
   const [reportErrorMessage, setReportErrorMessage] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportNotice, setReportNotice] = useState('');
+  const postDetailRequestRef = useRef(null);
   const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
   const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
 
@@ -210,8 +211,15 @@ function PostDetailPage() {
       setErrorMessage('');
 
       try {
+        // AI작성: 개발 모드의 중복 Effect가 같은 상세 API를 두 번 호출하지 않도록 진행 중인 요청을 공유한다.
+        let request = postDetailRequestRef.current;
+        if (!request || request.postId !== id) {
+          request = { postId: id, promise: getPostDetail(id) };
+          postDetailRequestRef.current = request;
+        }
+
         // AI작성: 상세 API 응답을 기존 PostDetail 컴포넌트의 표시 형식으로 변환합니다.
-        const response = await getPostDetail(id);
+        const response = await request.promise;
         if (!response.success) {
           throw new Error(response.error?.message || '게시글을 불러오지 못했습니다.');
         }
@@ -236,6 +244,9 @@ function PostDetailPage() {
           error.response?.data?.error?.message || error.message || '게시글을 불러오지 못했습니다.'
         );
       } finally {
+        if (postDetailRequestRef.current?.postId === id) {
+          postDetailRequestRef.current = null;
+        }
         if (isActive) setIsLoading(false);
       }
     }
@@ -356,6 +367,19 @@ function PostDetailPage() {
     }
   };
 
+  // AI작성: 댓글 등록 후 서버의 최신 댓글 목록과 전체 개수를 다시 동기화합니다.
+  const refreshComments = async () => {
+    const response = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
+    if (!response.success) {
+      throw new Error(response.error?.message || '최신 댓글을 불러오지 못했습니다.');
+    }
+
+    setComments((response.data?.comments || []).map(mapComment));
+    setCommentPage(response.meta?.page || 1);
+    setCommentTotal(response.data?.totalCommentCount || 0);
+    setCommentTotalPages(response.meta?.totalPages || 0);
+  };
+
   const handleCommentSubmit = async (event) => {
     event.preventDefault();
     if (!token) {
@@ -392,6 +416,16 @@ function PostDetailPage() {
       setCommentText('');
       if (commentDraftKey) sessionStorage.removeItem(commentDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
+
+      try {
+        await refreshComments();
+      } catch (refreshError) {
+        setCommentErrorMessage(
+          refreshError.response?.data?.error?.message ||
+            refreshError.message ||
+            '댓글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
+        );
+      }
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '댓글 등록에 실패했습니다.'
@@ -467,6 +501,16 @@ function PostDetailPage() {
       setReplyText('');
       if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
+
+      try {
+        await refreshComments();
+      } catch (refreshError) {
+        setCommentErrorMessage(
+          refreshError.response?.data?.error?.message ||
+            refreshError.message ||
+            '답글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
+        );
+      }
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '답글 등록에 실패했습니다.'

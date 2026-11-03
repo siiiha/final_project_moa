@@ -56,7 +56,8 @@
     <select id="selectPostList" parameterType="PostSearchCondition" resultType="PostDto">
         SELECT p.post_id, p.writer_id, p.category_id, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,
-        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        <!-- AI작성: 게시글 작성일을 댓글과 동일한 날짜·시간 형식으로 반환한다. -->
+        DATE_FORMAT(p.created_at, '%Y. %m. %d. %H:%i') AS created_at_str,
         m.nickname AS writer_nickname,
         pc.category_name
         FROM post p
@@ -79,7 +80,8 @@
     <select id="selectPostDetail" parameterType="long" resultType="PostDto">
         SELECT p.post_id, p.category_id, p.writer_id, m.nickname AS writer_nickname, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,
-        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        <!-- AI작성: 게시글 상세 작성일도 목록과 동일한 날짜·시간 형식으로 반환한다. -->
+        DATE_FORMAT(p.created_at, '%Y. %m. %d. %H:%i') AS created_at_str,
         DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str,
         pc.category_name
         FROM post p

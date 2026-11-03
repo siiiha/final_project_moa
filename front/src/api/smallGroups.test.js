@@ -3,6 +3,7 @@ import test from 'node:test';
 import client from './client.js';
 import {
   createSmallGroup,
+  getSmallGroups,
   createSmallGroupReview,
   getSmallGroupReviews,
   hasWrittenSmallGroupReview,
@@ -1220,3 +1221,38 @@ async function assertDetailLoadError(code, message) {
     client.get = originalGet;
   }
 }
+
+// AI작성: 부분 지역 검색과 기존 코드·관심사·취소 신호를 실제 통신 없이 검증한다.
+test('소모임 전체·시·구·동 검색은 선택 단계만 전달하고 기존 지역 코드를 유지한다', async () => {
+  const original = client.get;
+  const signal = new AbortController().signal;
+  const conditions = [
+    {},
+    { provinceName: '서울특별시' },
+    { provinceName: '서울특별시', districtName: '강남구' },
+    { provinceName: '서울특별시', districtName: '강남구', townName: '역삼동' },
+    { provinceName: '세종특별자치시', districtName: '', townName: '어진동' },
+    { regionCode: '01' },
+  ];
+  try {
+    for (const area of conditions) {
+      client.get = async (path, options) => {
+        assert.equal(path, '/small-groups');
+        assert.deepEqual(options.params, {
+          keyword: '산책', regionCode: undefined, ...area, likeCategory: '운동', page: 2,
+        });
+        assert.equal(options.signal, signal);
+        return { data: { success: true, data: [], meta: { page: 2, size: 6, total: 7, totalPages: 2 } } };
+      };
+      const result = await getSmallGroups({ keyword: '산책', ...area, likeCategory: '운동', page: 2, signal });
+      assert.equal(result.totalElements, 7);
+      assert.equal(result.currentPage, 2);
+      assert.deepEqual(result.items, []);
+    }
+    client.get = async () => ({ data: { success: false, error: { code: 'BAD_REQUEST', message: '지역 조건 오류' } } });
+    await assert.rejects(() => getSmallGroups({ provinceName: '서울특별시' }), /지역 조건 오류/);
+    const canceled = Object.assign(new Error('취소'), { code: 'ERR_CANCELED' });
+    client.get = async () => { throw canceled; };
+    await assert.rejects(() => getSmallGroups({ signal }), (error) => error === canceled);
+  } finally { client.get = original; }
+});

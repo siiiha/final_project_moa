@@ -3,6 +3,7 @@ const theme = {
     primary: '#176b5b',
     primaryDark: '#0f5547',
     primarySoft: '#e6f3ee',
+    primarySoftHover: '#d7eae3',
     heroBackground: '#e9f5f0',
     up: '#dc2626',
     danger: '#c9463f',

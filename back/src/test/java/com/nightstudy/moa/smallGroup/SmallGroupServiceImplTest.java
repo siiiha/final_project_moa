@@ -831,6 +831,8 @@ class SmallGroupServiceImplTest {
         row.setSmallGroupId(SMALL_GROUP_ID);
         row.setGroupId(GROUP_ID);
         row.setCreatorMemberId(creatorMemberId);
+        // AI작성: 기본 가입 대상은 한국 날짜 기준 내일로 두어 실행일에 영향받지 않는다.
+        row.setMeetDate(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(1));
         row.setMaxMembers(maxMembers);
         return row;
     }

@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS `notification` (
 	`type`	VARCHAR(50)	NOT NULL,
 	`message`	TEXT	NOT NULL,
 	`target_url`	VARCHAR(255)	NULL,
-	`is_read`	BOOLEAN	NOT NULL	DEFAULT FALSE,
+	`read_at`	DATETIME NULL,
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (`notification_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

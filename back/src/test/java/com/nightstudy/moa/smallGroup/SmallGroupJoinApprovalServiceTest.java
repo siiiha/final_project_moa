@@ -47,10 +47,10 @@ class SmallGroupJoinApprovalServiceTest {
 
     @Test
     void approveSmallGroupJoinRejectsNonCreator() {
-        mockApprovalRequest(OWNER_ID, GROUP_ID, "PENDING", 10);
+        mockApprovalRequest(OWNER_ID + 1, GROUP_ID, "PENDING", 10);
 
         ApiException exception = catchThrowableOfType(
-                () -> smallGroupService.approveSmallGroupJoin(SMALL_GROUP_ID, REQUEST_ID, OWNER_ID + 1),
+                () -> smallGroupService.approveSmallGroupJoin(SMALL_GROUP_ID, REQUEST_ID, OWNER_ID),
                 ApiException.class);
 
         assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_OWNER_REQUIRED");
@@ -125,6 +125,35 @@ class SmallGroupJoinApprovalServiceTest {
         assertThat(exception.getCode()).isEqualTo("JOIN_REQUEST_APPROVAL_FAILED");
     }
 
+    // AI작성: 신청 후 일정이 지나거나 일정이 제거되어도 승인으로 우회할 수 없다.
+    @Test
+    void approveSmallGroupJoinRejectsElapsedOrMissingMeeting() {
+        mockApprovalRequest(OWNER_ID, GROUP_ID, "PENDING", 10);
+        for (java.time.LocalDate date : new java.time.LocalDate[] {
+                java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1), null }) {
+            SmallGroupJoinTargetRow target = target(OWNER_ID, 10);
+            target.setMeetDate(date);
+            when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID)).thenReturn(target);
+            ApiException error = catchThrowableOfType(
+                    () -> smallGroupService.approveSmallGroupJoin(SMALL_GROUP_ID, REQUEST_ID, OWNER_ID), ApiException.class);
+            assertThat(error.getCode()).isEqualTo(date == null
+                    ? "SMALL_GROUP_DATE_NOT_CONFIGURED" : "SMALL_GROUP_MEETING_ENDED");
+        }
+        verify(smallGroupMapper, never()).approveSmallGroupJoinRequest(REQUEST_ID, GROUP_ID, OWNER_ID);
+    }
+
+    // AI작성: 한국 날짜 기준 일정 당일은 가입 승인을 허용한다.
+    @Test
+    void approveSmallGroupJoinAllowsMeetingToday() {
+        mockApprovalRequest(OWNER_ID, GROUP_ID, "PENDING", 10);
+        SmallGroupJoinTargetRow target = target(OWNER_ID, 10);
+        target.setMeetDate(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID)).thenReturn(target);
+        when(smallGroupMapper.approveSmallGroupJoinRequest(REQUEST_ID, GROUP_ID, OWNER_ID)).thenReturn(1);
+        smallGroupService.approveSmallGroupJoin(SMALL_GROUP_ID, REQUEST_ID, OWNER_ID);
+        verify(smallGroupMapper).approveSmallGroupJoinRequest(REQUEST_ID, GROUP_ID, OWNER_ID);
+    }
+
     private void mockApprovalRequest(long ownerId, long requestGroupId, String requestStatus, int maxMembers) {
         when(smallGroupMapper.selectSmallGroupJoinApprovalTarget(REQUEST_ID))
                 .thenReturn(request(requestGroupId, requestStatus));
@@ -133,8 +162,11 @@ class SmallGroupJoinApprovalServiceTest {
                 .thenReturn(target(ownerId, maxMembers));
         when(smallGroupMapper.selectSmallGroupJoinApprovalTargetForUpdate(REQUEST_ID))
                 .thenReturn(request(requestGroupId, requestStatus));
-        when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, ownerId))
-                .thenReturn(owner());
+        // AI작성: 소속·개설자 검사에서 먼저 차단되는 경우에는 실행되지 않는 관계 조회를 준비하지 않는다.
+        if (ownerId == OWNER_ID && requestGroupId == GROUP_ID) {
+            when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, ownerId))
+                    .thenReturn(owner());
+        }
     }
 
     private SmallGroupJoinApprovalTargetRow request(long groupId, String membershipStatus) {
@@ -157,6 +189,8 @@ class SmallGroupJoinApprovalServiceTest {
         row.setSmallGroupId(SMALL_GROUP_ID);
         row.setGroupId(GROUP_ID);
         row.setCreatorMemberId(creatorMemberId);
+        // AI작성: 기본 가입 대상은 한국 날짜 기준 내일로 두어 실행일에 영향받지 않는다.
+        row.setMeetDate(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(1));
         row.setMaxMembers(maxMembers);
         return row;
     }
