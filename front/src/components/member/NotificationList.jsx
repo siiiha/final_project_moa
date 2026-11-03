@@ -48,21 +48,21 @@ const Title = styled.h2`
 const DeleteReadButton = styled.button`
   min-height: 36px;
   padding: 7px 12px;
-  color: ${({ theme }) => theme.colors.danger};
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.danger};
+  color: ${({ theme }) => theme.colors.white};
+  background: ${({ theme }) => theme.colors.primary};
+  border: 1px solid ${({ theme }) => theme.colors.primary};
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    color: ${({ theme }) => theme.colors.white};
-    background: ${({ theme }) => theme.colors.danger};
+    background: ${({ theme }) => theme.colors.primaryDark};
+    border-color: ${({ theme }) => theme.colors.primaryDark};
   }
 
   &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.colors.danger};
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
     outline-offset: 2px;
   }
 
@@ -267,7 +267,7 @@ function NotificationList({
             다시 시도
           </Button>
         )}
-        {!loadFailed && hasMore && (
+        {!loadFailed && hasMore && notifications.length > 0 && (
           <Button type="button" $variant="secondary" $size="small" onClick={onLoadMore} disabled={loading}>
             {loading ? '불러오는 중…' : '알림 더 보기'}
           </Button>
