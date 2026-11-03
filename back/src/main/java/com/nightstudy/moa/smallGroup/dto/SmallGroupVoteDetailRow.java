@@ -15,8 +15,9 @@ public class SmallGroupVoteDetailRow {
     private Long creatorMemberId;
     private String creatorNickname;
     private String title;
-    private boolean multipleChoice;
-    private boolean anonymous;
+    // AI작성: DB의 is_ 접두사 컬럼과 MyBatis 자동 매핑을 맞추고 기존 boolean 접근자 이름은 유지한다.
+    private boolean isMultipleChoice;
+    private boolean isAnonymous;
     private LocalDateTime endsAt;
     private String status;
     private LocalDateTime closedAt;
