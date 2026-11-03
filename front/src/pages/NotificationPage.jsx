@@ -11,7 +11,10 @@ import {
 import MemberSidebar from '../components/layout/MemberSidebar';
 import NotificationList from '../components/member/NotificationList';
 import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
-import { NOTIFICATION_UPDATED_EVENT } from '../constants/notification';
+import {
+  NOTIFICATION_RECEIVED_EVENT,
+  NOTIFICATION_UPDATED_EVENT,
+} from '../constants/notification';
 
 const NOTIFICATIONS_PER_REQUEST = 10;
 const NOTIFICATIONS_LOOKAHEAD_SIZE = NOTIFICATIONS_PER_REQUEST + 1;
@@ -152,6 +155,38 @@ function NotificationPage() {
       ...pageStateRef.current,
       scrollY: window.scrollY,
       savedAt: Date.now(),
+    };
+  }, []);
+
+  useEffect(() => {
+    // AI작성: 알림 페이지를 열어둔 동안 SSE로 받은 알림을 목록 맨 위에 즉시 추가합니다.
+    const handleNotificationReceived = (event) => {
+      const notification = event.detail;
+      if (!notification?.notificationId) return;
+
+      setNotifications((current) => {
+        const alreadyExists = current.some(
+          (item) => item.notificationId === notification.notificationId,
+        );
+
+        return alreadyExists ? current : [notification, ...current];
+      });
+
+      if (!notification.read) {
+        setUnreadCount((current) => current + 1);
+      }
+    };
+
+    window.addEventListener(
+      NOTIFICATION_RECEIVED_EVENT,
+      handleNotificationReceived,
+    );
+
+    return () => {
+      window.removeEventListener(
+        NOTIFICATION_RECEIVED_EVENT,
+        handleNotificationReceived,
+      );
     };
   }, []);
 

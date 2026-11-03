@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -78,6 +79,14 @@ public class GlobalExceptionHandler {
     ) {
         return ResponseEntity.badRequest()
                 .body(ApiResponse.fail("BAD_REQUEST", "요청 값이 올바르지 않습니다."));
+    }
+
+    // AI작성: SSE 연결 종료는 정상적인 클라이언트 이탈이므로 이미 시작된 event-stream에 JSON 오류를 쓰지 않습니다.
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleDisconnectedAsyncRequest(
+            AsyncRequestNotUsableException e
+    ) {
+        log.debug("SSE 클라이언트 연결 종료: {}", e.getMessage());
     }
 
     // 그 밖의 모든 예외 → 500. 원인은 서버 로그에만 남기고 응답에는 노출하지 않는다.

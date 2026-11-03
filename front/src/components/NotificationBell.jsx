@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FiBell, FiChevronRight } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -7,7 +7,11 @@ import {
   getUnreadNotificationCount,
   readNotification,
 } from '../api/notifications';
-import { NOTIFICATION_UPDATED_EVENT } from '../constants/notification';
+import { subscribeNotifications } from '../api/notificationSse';
+import {
+  NOTIFICATION_RECEIVED_EVENT,
+  NOTIFICATION_UPDATED_EVENT,
+} from '../constants/notification';
 import useAuthStore from '../store/authStore';
 import formatNotificationDate from '../utils/formatNotificationDate';
 
@@ -165,6 +169,7 @@ const AllNotificationsButton = styled.button`
 function NotificationBell() {
   const token = useAuthStore((state) => state.token);
   const navigate = useNavigate();
+  const notificationIdsRef = useRef(new Set());
   const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -176,6 +181,7 @@ function NotificationBell() {
     if (!token) {
       setItems([]);
       setUnreadCount(0);
+      notificationIdsRef.current.clear();
       return;
     }
 
@@ -191,6 +197,9 @@ function NotificationBell() {
       if (listResult.status === 'rejected') throw listResult.reason;
 
       const notifications = listResult.value;
+      notificationIdsRef.current = new Set(
+        notifications.map((notification) => notification.notificationId),
+      );
       setItems(notifications);
       // AI작성: 개수 조회만 실패해도 목록은 표시하고 현재 목록의 미확인 개수를 임시 사용합니다.
       setUnreadCount(
@@ -210,7 +219,7 @@ function NotificationBell() {
   useEffect(() => {
     loadNotifications();
 
-    // AI작성: SSE 인증 방식 확정 전까지 주기적으로 새 알림을 확인합니다.
+    // AI작성: SSE 연결 누락이나 일시적인 장애를 보완하기 위해 60초 주기 조회를 유지합니다.
     const intervalId = window.setInterval(loadNotifications, NOTIFICATION_POLL_INTERVAL_MS);
     // AI작성: 전체 알림 화면에서 읽음 상태가 바뀌면 헤더 배지를 즉시 다시 조회합니다.
     window.addEventListener(NOTIFICATION_UPDATED_EVENT, loadNotifications);
@@ -220,6 +229,38 @@ function NotificationBell() {
       window.removeEventListener(NOTIFICATION_UPDATED_EVENT, loadNotifications);
     };
   }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    // AI작성: SSE로 받은 새 알림을 헤더에 즉시 추가하고 전체 알림 화면에도 전달합니다.
+    const unsubscribe = subscribeNotifications(
+      (notification) => {
+        if (notificationIdsRef.current.has(notification.notificationId)) return;
+
+        notificationIdsRef.current.add(notification.notificationId);
+        setItems((current) => (
+          [notification, ...current].slice(0, NOTIFICATION_PANEL_SIZE)
+        ));
+
+        if (!notification.read) {
+          setUnreadCount((current) => current + 1);
+        }
+
+        window.dispatchEvent(
+          new CustomEvent(NOTIFICATION_RECEIVED_EVENT, {
+            detail: notification,
+          }),
+        );
+      },
+      (error) => {
+        // SSE가 실패해도 기존 60초 조회가 알림 누락을 보완합니다.
+        console.warn('실시간 알림 연결 오류:', error.message);
+      },
+    );
+
+    return unsubscribe;
+  }, [token]);
 
   const handleBellClick = () => {
     setOpen((current) => !current);
