@@ -164,8 +164,10 @@ function NotificationPage() {
       const response = await client.delete('/v1/notifications/read');
       const deletedCount = Number(response.data?.data ?? 0);
 
-      // AI작성: 서버에서 삭제가 끝난 뒤 현재 화면에서도 읽은 알림만 제거합니다.
-      setNotifications((current) => current.filter((notification) => !notification.read));
+      // AI작성: 삭제로 현재 커서가 사라질 수 있으므로 첫 페이지부터 다시 조회합니다.
+      setNotifications([]);
+      setHasMore(false);
+      await loadNotifications();
       window.alert(`읽은 알림 ${deletedCount}개를 삭제했습니다.`);
     } catch {
       window.alert('읽은 알림을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.');
