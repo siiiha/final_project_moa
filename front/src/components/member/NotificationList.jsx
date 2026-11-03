@@ -1,23 +1,7 @@
 import { FiChevronRight } from 'react-icons/fi';
 import styled from 'styled-components';
+import { NOTIFICATION_TYPE_LABELS } from '../../constants/notification';
 import Button from '../common/Button';
-
-const TYPE_LABELS = {
-  SAVING_GROUP_JOIN_REQUEST: '계모임 가입 신청',
-  SAVING_GROUP_JOIN_APPROVED: '계모임 가입 승인',
-  SAVING_GROUP_JOIN_REJECTED: '계모임 가입 거절',
-  SMALL_GROUP_JOIN_REQUEST: '소모임 가입 신청',
-  SMALL_GROUP_JOIN_APPROVED: '소모임 가입 승인',
-  SMALL_GROUP_JOIN_REJECTED: '소모임 가입 거절',
-  SCHEDULE_CREATED: '새 일정',
-  NOTICE_CREATED: '새 공지',
-  VOTE_CREATED: '새 투표',
-  DUES_PAYMENT_DUE: '회비 납부 안내',
-  REPORT_PROCESSED: '신고 처리 결과',
-  MEMBER_RESTRICTED: '이용 제한 안내',
-  MEMBER_RESTRICTION_RELEASED: '이용 제한 해제',
-  TEST: '테스트 알림',
-};
 
 const Panel = styled.section`
   padding: 22px 14px 14px;
@@ -220,12 +204,12 @@ function NotificationList({
                     // AI작성: 알림 내용 영역은 페이지 이동 없이 읽음 처리만 수행합니다.
                     onNotificationClick({ ...notification, targetUrl: null });
                   }}
-                  aria-label={`${TYPE_LABELS[notification.type] ?? '알림'} 읽음 처리`}
+                  aria-label={`${NOTIFICATION_TYPE_LABELS[notification.type] ?? '알림'} 읽음 처리`}
                 >
                   <Dot $read={notification.read} aria-hidden="true" />
                   <span>
                     <NotificationTitle>
-                      {TYPE_LABELS[notification.type] ?? '알림'}
+                      {NOTIFICATION_TYPE_LABELS[notification.type] ?? '알림'}
                     </NotificationTitle>
                     <Message>{notification.message}</Message>
                     <DateText dateTime={notification.createdAt}>
@@ -238,7 +222,7 @@ function NotificationList({
                   <MoveButton
                     type="button"
                     onClick={() => onNotificationClick(notification)}
-                    aria-label={`${TYPE_LABELS[notification.type] ?? '알림'} 연결 화면으로 이동`}
+                    aria-label={`${NOTIFICATION_TYPE_LABELS[notification.type] ?? '알림'} 연결 화면으로 이동`}
                     title="연결 화면으로 이동"
                   >
                     <FiChevronRight size={22} aria-hidden="true" />
