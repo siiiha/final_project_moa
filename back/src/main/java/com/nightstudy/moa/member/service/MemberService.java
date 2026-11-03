@@ -32,7 +32,13 @@ public interface MemberService {
     Long signupSocial(SocialSignupRequest request);
 
     List<MemberJoinedGroupResponse> getMyJoinedGroups(Long memberId);
+
+    void verifyMypagePassword(Long memberId, String sessionId, String currentPassword);
+
+    boolean hasRecentMypageVerification(Long memberId, String sessionId);
+
     MemberProfileResponse getMyProfile(Long memberId);
+
     MemberProfileResponse verifyRegion(
             Long memberId,
             RegionVerificationRequest request

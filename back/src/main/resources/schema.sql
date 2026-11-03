@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS member_auth_session (
     member_id BIGINT NOT NULL,
     expires_at_ms BIGINT NOT NULL,
     revoked_at DATETIME(6) NULL,
+    mypage_verified_at DATETIME(6) NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     PRIMARY KEY (session_id),

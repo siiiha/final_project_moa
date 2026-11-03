@@ -17,6 +17,7 @@ import com.nightstudy.moa.member.dto.identity.IdentityVerificationRequest;
 import com.nightstudy.moa.member.dto.identity.IdentityVerificationStartResponse;
 import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
 import java.util.List;
+import com.nightstudy.moa.member.dto.profile.MypagePasswordVerificationRequest;
 
 @RestController
 @RequestMapping("/api/members")
@@ -26,6 +27,30 @@ public class MemberProfileController {
 
     public MemberProfileController(MemberService memberService) {
         this.memberService = memberService;
+    }
+
+    @PostMapping("/me/mypage-verification")
+    public ResponseEntity<Void> verifyMypagePassword(
+            @RequestAttribute("memberId") Long memberId,
+            @RequestAttribute(value = "sessionId", required = false) String sessionId,
+            @Valid @RequestBody MypagePasswordVerificationRequest request
+    ) {
+        memberService.verifyMypagePassword(
+                memberId,
+                sessionId,
+                request.currentPassword()
+        );
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/me/mypage-verification")
+    public ResponseEntity<ApiResponse<Boolean>> getMypageVerification(
+            @RequestAttribute("memberId") Long memberId,
+            @RequestAttribute(value = "sessionId", required = false) String sessionId
+    ) {
+        boolean verified = memberService.hasRecentMypageVerification(memberId, sessionId);
+        return ResponseEntity.ok(ApiResponse.ok(verified));
     }
 
     @GetMapping("/me")
