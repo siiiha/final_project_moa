@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import client from '../api/client';
@@ -7,6 +7,21 @@ import NotificationList from '../components/member/NotificationList';
 import { memberMenuItems } from '../mocks/mypage';
 
 const NOTIFICATIONS_PER_REQUEST = 10;
+const NOTIFICATION_CACHE_TTL = 5 * 60 * 1000;
+
+let notificationPageCache = null;
+
+function getNotificationPageCache() {
+  if (!notificationPageCache) return null;
+
+  const cacheExpired = Date.now() - notificationPageCache.savedAt > NOTIFICATION_CACHE_TTL;
+  if (cacheExpired) {
+    notificationPageCache = null;
+    return null;
+  }
+
+  return notificationPageCache;
+}
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -48,11 +63,13 @@ const Grid = styled.div`
 
 function NotificationPage() {
   const navigate = useNavigate();
+  const restoredCache = useRef(getNotificationPageCache()).current;
+  const pageStateRef = useRef(null);
   const [activeMenu, setActiveMenu] = useState('alerts');
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState(restoredCache?.notifications ?? []);
+  const [loading, setLoading] = useState(!restoredCache);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
+  const [hasMore, setHasMore] = useState(restoredCache?.hasMore ?? false);
 
   // AI작성: 마지막 알림 번호를 커서로 전달해 중복 없이 다음 알림 목록을 이어 붙입니다.
   const loadNotifications = useCallback(async (lastNotificationId = null) => {
@@ -83,8 +100,34 @@ function NotificationPage() {
   }, []);
 
   useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+    if (!restoredCache) loadNotifications();
+  }, [loadNotifications, restoredCache]);
+
+  useEffect(() => {
+    if (!restoredCache) return undefined;
+
+    // AI작성: 상세 화면에서 뒤로 돌아오면 더보기 목록과 기존 스크롤 위치를 복원합니다.
+    const frameId = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: restoredCache.scrollY, behavior: 'auto' });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [restoredCache]);
+
+  useEffect(() => {
+    pageStateRef.current = { notifications, hasMore };
+  }, [notifications, hasMore]);
+
+  useEffect(() => () => {
+    if (!pageStateRef.current) return;
+
+    // AI작성: 페이지를 떠나기 직전 목록과 위치를 잠시 저장해 뒤로가기 사용성을 유지합니다.
+    notificationPageCache = {
+      ...pageStateRef.current,
+      scrollY: window.scrollY,
+      savedAt: Date.now(),
+    };
+  }, []);
 
   const handleLoadMore = () => {
     const lastNotification = notifications.at(-1);
