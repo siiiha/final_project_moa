@@ -218,7 +218,7 @@ function SmallGroupCreateForm({
             활동 지역 읍·면·동 (선택)
             <Select value={townId} disabled={!district || isRegionUnavailable || isSubmitting || towns.length === 0}
               onChange={(event) => setTownId(event.target.value)}>
-              <option value="">{district && towns.length === 0 ? '선택 가능한 읍·면·동이 없습니다' : '선택하지 않음 (구 단위 활동)'}</option>
+              <option value="">{district && towns.length === 0 ? '선택 가능한 읍·면·동이 없습니다' : '미선택 시 (구 단위 활동)'}</option>
               {towns.map((item) => <option key={item.regionId} value={item.regionId}>{item.townName}</option>)}
             </Select>
           </Field>
