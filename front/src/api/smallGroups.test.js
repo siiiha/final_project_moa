@@ -924,6 +924,37 @@ test('소모임 상세는 smallGroupId로 공개 API를 호출하고 최근 공�
   }
 });
 
+// AI작성: 생성 응답의 smallGroupId로 상세를 재조회해 구·동·세종·기존 광역 지역명을 보존한다.
+test('소모임 생성 후 상세 조회와 재조회는 서버 지역명을 그대로 유지한다', async () => {
+  const originalPost = client.post;
+  const originalGet = client.get;
+  let detailCalls = 0;
+  try {
+    for (const regionName of ['서울특별시 강남구', '서울특별시 강남구 역삼동', '세종특별자치시', '서울']) {
+      const request = { groupName: '지역 검증 모임', regionName, likeCategory: '독서',
+        description: '지역 표시 검증', maxMembers: 10, meetDate: '2099-01-01', location: '지역 도서관' };
+      const created = { smallGroupId: 200, groupId: 100, ...request };
+      client.post = async () => ({ data: { success: true, data: created } });
+      client.get = async (path, options) => {
+        assert.equal(path, '/small-groups/200');
+        assert.ok(options.signal instanceof AbortSignal);
+        detailCalls += 1;
+        return { data: { success: true, data: { ...created, notices: [], myRole: 'OWNER' } } };
+      };
+      const result = await createSmallGroup(request);
+      const first = await getSmallGroupDetail(result.smallGroupId, { signal: new AbortController().signal });
+      const reloaded = await getSmallGroupDetail(result.smallGroupId, { signal: new AbortController().signal });
+      assert.equal(first.regionName, regionName);
+      assert.equal(reloaded.regionName, regionName);
+      assert.notEqual(first, reloaded);
+    }
+    assert.equal(detailCalls, 8);
+  } finally {
+    client.post = originalPost;
+    client.get = originalGet;
+  }
+});
+
 test('소모임 상세는 공지가 없으면 빈 배열을 유지한다', () => {
   const detail = toSmallGroupDetail({ smallGroupId: 7, notices: [] });
 
