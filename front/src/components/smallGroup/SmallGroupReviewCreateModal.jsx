@@ -117,6 +117,13 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  // AI작성: 별점 오류를 분리해 별점을 선택할 때 다른 입력·서버 오류는 유지한다.
+  const [ratingError, setRatingError] = useState('');
+
+  const handleRatingChange = (value) => {
+    setRating(value);
+    setRatingError('');
+  };
 
   // AI작성: 모달 안으로 초점을 이동·제한하고 닫힌 뒤 작성 버튼으로 돌려준다.
   useEffect(() => {
@@ -157,11 +164,15 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
   const handleSubmit = async (event) => {
     event?.preventDefault();
     if (submitLockRef.current) return;
-    const score = Number(rating);
-    if (rating === '' || !Number.isFinite(score) || score < 0 || score > 5 || !Number.isInteger(score * 2)) {
-      setErrorMessage('별점을 0~5점, 0.5점 단위로 선택해 주세요.');
+    // AI작성: 별점을 선택하지 않으면 0점으로 전송하고 선택한 점수는 기존 범위로 검증한다.
+    const score = rating === '' ? 0 : Number(rating);
+    if (!Number.isFinite(score) || score < 0 || score > 5 || !Number.isInteger(score * 2)) {
+      setErrorMessage('');
+      setRatingError('별점을 0~5점, 0.5점 단위로 선택해 주세요.');
+      containerRef.current?.querySelector('[data-rating-choice]')?.focus();
       return;
     }
+    setRatingError('');
     if (!content.trim() || content.length > 30) {
       setErrorMessage('코멘트를 1자 이상 30자 이하로 입력해 주세요.');
       return;
@@ -198,7 +209,12 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
         isBusy={isSubmitting}
       >
         <Form onSubmit={handleSubmit} aria-busy={isSubmitting}>
-          <RatingField disabled={isSubmitting} aria-describedby="small-group-review-rating-help">
+          {/* AI작성: 미선택 시 0점 처리 안내와 점수 오류를 별점 영역에 연결한다. */}
+          <RatingField
+            disabled={isSubmitting}
+            aria-invalid={Boolean(ratingError)}
+            aria-describedby={`small-group-review-rating-help${ratingError ? ' small-group-review-rating-error' : ''}`}
+          >
             <legend>별점</legend>
             <Stars>
               {Array.from({ length: 5 }, (_, index) => (
@@ -219,21 +235,22 @@ function SmallGroupReviewCreateModal({ smallGroupId, onClose, onRegistered }) {
                         aria-pressed={rating !== '' && Number(rating) === score}
                         disabled={isSubmitting}
                         title={`${score}점`}
-                        onClick={() => setRating(String(score))}
+                        onClick={() => handleRatingChange(String(score))}
                       />
                     );
                   })}
                 </Star>
               ))}
             </Stars>
-            <Hint role="status">{rating === '' ? '별점을 선택해 주세요.' : `${rating}점 / 5점`}</Hint>
+            <Hint id="small-group-review-rating-help" role="status">{rating === '' ? '별점을 선택하지 않으면 0점으로 등록됩니다.' : `${rating}점 / 5점`}</Hint>
             <ZeroButton
               type="button"
               $selected={rating === '0'}
               aria-pressed={rating === '0'}
-              onClick={() => setRating('0')}
+              onClick={() => handleRatingChange('0')}
               disabled={isSubmitting}
             >0점 선택</ZeroButton>
+            {ratingError && <ErrorMessage id="small-group-review-rating-error" role="alert">{ratingError}</ErrorMessage>}
           </RatingField>
           <label>
             코멘트 (필수)
