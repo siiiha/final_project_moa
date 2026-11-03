@@ -563,7 +563,8 @@
     <select id="selectSmallGroupVoteListTarget"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow">
         SELECT sg.small_group_id,
-               sg.group_id
+               sg.group_id,
+               g.member_id AS creator_member_id
         FROM small_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.small_group_id = #{smallGroupId}

@@ -245,7 +245,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     }
 
     // AI작성: 탈퇴·대기·추방 관계와 OWNER·MEMBER 이외의 역할은 투표 목록·상세를 볼 수 없다.
-    private void validateSmallGroupVoteMember(
+    private SmallGroupMemberRelationRow validateSmallGroupVoteMember(
             Long groupId, Long memberId, String errorCode, String errorMessage) {
         List<SmallGroupMemberRelationRow> relations =
                 smallGroupMapper.selectSmallGroupMemberRelations(groupId, memberId);
@@ -255,6 +255,8 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (!isApprovedMember) {
             throw new ApiException(HttpStatus.FORBIDDEN, errorCode, errorMessage);
         }
+        // AI작성: 이미 검증한 관계를 상세 응답의 종료 권한 판단에도 재사용한다.
+        return relations.get(0);
     }
 
     // AI작성: 소속·권한·마감 공개 범위를 검증한 뒤 익명 여부와 참여 여부에 맞는 상세 정보만 조합한다.
@@ -287,7 +289,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
         }
-        validateSmallGroupVoteMember(
+        SmallGroupMemberRelationRow relation = validateSmallGroupVoteMember(
                 target.getGroupId(), memberId, "SMALL_GROUP_VOTE_DETAIL_FORBIDDEN",
                 "승인된 소모임 회원만 투표 상세를 조회할 수 있습니다.");
 
@@ -319,6 +321,13 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                         .map(option -> toSmallGroupVoteOptionDetailResponse(option, voterNicknamesByOptionId))
                         .toList();
 
+        // AI작성: 버튼 표시는 안내용이며 실제 종료 시에는 변경 API에서 권한·상태를 다시 검증한다.
+        LocalDateTime now = LocalDateTime.now(KOREA_ZONE_ID);
+        boolean canClose = "OWNER".equals(relation.getMemberRole())
+                && Objects.equals(memberId, vote.getCreatorMemberId())
+                && Objects.equals(memberId, target.getCreatorMemberId())
+                && "OPEN".equals(vote.getStatus()) && vote.getClosedAt() == null
+                && !isVoteClosed(vote, now);
         return new SmallGroupVoteDetailResponse(
                 vote.getSmallGroupVoteId(),
                 vote.getTitle(),
@@ -327,10 +336,11 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 vote.isAnonymous(),
                 vote.getCreatedAt(),
                 vote.getEndsAt(),
-                isVoteClosed(vote, LocalDateTime.now(KOREA_ZONE_ID)) ? "CLOSED" : "OPEN",
+                isVoteClosed(vote, now) ? "CLOSED" : "OPEN",
                 smallGroupMapper.selectSmallGroupVoteParticipantCount(smallGroupVoteId),
                 new SmallGroupVoteMyParticipationResponse(participated, selectedOptionIds),
-                options);
+                options,
+                canClose);
     }
 
     // AI작성: 기존 변경 경로처럼 소모임을 먼저 잠그고 작성자·개설자·승인 OWNER를 검증한 뒤 종료한다.
