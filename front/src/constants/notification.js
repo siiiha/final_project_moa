@@ -16,4 +16,7 @@ export const NOTIFICATION_TYPE_LABELS = {
   REPORT_PROCESSED: '신고 처리 결과',
   MEMBER_RESTRICTED: '이용 제한 안내',
   MEMBER_RESTRICTION_RELEASED: '이용 제한 해제',
+  // AI작성: 댓글과 대댓글 실시간 알림에 표시할 사용자용 유형 문구입니다.
+  POST_COMMENT_CREATED: '새 댓글',
+  COMMENT_REPLY_CREATED: '새 답글',
 };

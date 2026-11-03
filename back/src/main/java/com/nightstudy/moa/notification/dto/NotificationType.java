@@ -4,22 +4,30 @@ package com.nightstudy.moa.notification.dto;
 // 오타가 날 수 있는 문자열 대신 컴파일러가 검사 할 수 있는 enum을 사용한다.
 public enum NotificationType {
 
+    // AI작성: 계모임 가입 신청이 접수되거나 신청 결과가 결정되었을 때 사용하는 알림입니다.
     SAVING_GROUP_JOIN_REQUEST,
     SAVING_GROUP_JOIN_APPROVED,
     SAVING_GROUP_JOIN_REJECTED,
 
+    // AI작성: 소모임 가입 신청이 접수되거나 신청 결과가 결정되었을 때 사용하는 알림입니다.
     SMALL_GROUP_JOIN_REQUEST,
     SMALL_GROUP_JOIN_APPROVED,
     SMALL_GROUP_JOIN_REJECTED,
 
+    // AI작성: 참여 중인 모임에 일정, 공지 또는 투표가 새로 등록되었을 때 사용하는 알림입니다.
     SCHEDULE_CREATED,
     NOTICE_CREATED,
     VOTE_CREATED,
 
+    // AI작성: 회비 납부 안내 또는 신고 처리 결과를 전달할 때 사용하는 알림입니다.
     DUES_PAYMENT_DUE,
     REPORT_PROCESSED,
 
     // AI작성: 관리자가 회원 제재를 적용하거나 해제한 결과를 당사자에게 알립니다.
     MEMBER_RESTRICTED,
-    MEMBER_RESTRICTION_RELEASED
+    MEMBER_RESTRICTION_RELEASED,
+
+    // AI작성: 작성한 게시글에 댓글이 등록되거나 댓글에 답글이 등록되었을 때 사용하는 알림입니다.
+    POST_COMMENT_CREATED,
+    COMMENT_REPLY_CREATED
 }
