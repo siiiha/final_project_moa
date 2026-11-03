@@ -686,6 +686,8 @@ export function toSmallGroupVoteDetail(data) {
   ));
   if (!hasVoteId || typeof data?.title !== 'string' || typeof data?.creatorNickname !== 'string'
     || typeof data?.multipleChoice !== 'boolean' || typeof data?.anonymous !== 'boolean'
+    // AI작성: 종료 가능 여부는 서버 boolean만 신뢰하고 누락·문자열 응답은 거절한다.
+    || typeof data?.canClose !== 'boolean'
     || typeof data?.createdAt !== 'string' || !hasValidEndsAt
     || !['OPEN', 'CLOSED'].includes(data?.status) || !hasValidParticipantCount
     || !hasValidParticipation || !hasValidOptions) {

@@ -316,6 +316,17 @@ test('소모임 투표 종료는 취소 오류와 기존 종료 오류 객체를
   } finally { client.patch = originalPatch; }
 });
 
+// AI작성: 권한 필드는 boolean으로만 받아 true·false를 보존하고 누락을 허용하지 않는다.
+test('소모임 투표 상세의 canClose는 서버 boolean만 허용한다', () => {
+  for (const canClose of [true, false]) {
+    assert.equal(toSmallGroupVoteDetail({ ...voteDetail(), canClose }).canClose, canClose);
+  }
+  for (const canClose of [undefined, null, 'true', 1]) {
+    assert.throws(() => toSmallGroupVoteDetail({ ...voteDetail(), canClose }),
+      (error) => error instanceof SmallGroupVoteDetailLoadError && error.code === 'INVALID_RESPONSE');
+  }
+});
+
 test('소모임 투표 삭제는 두 식별자로 DELETE 요청을 전송한다', async () => {
   const originalDelete = client.delete;
 
@@ -1166,6 +1177,8 @@ test('소모임 설정 수정은 서버 정원 축소 오류 코드와 메시지
 function voteDetail() {
   return {
     smallGroupVoteId: 11,
+    // AI작성: 상세·현황 응답에 서버 계산 종료 권한을 포함한다.
+    canClose: false,
     title: '11월 모임 장소',
     creatorNickname: '모임장',
     multipleChoice: true,
