@@ -277,13 +277,14 @@ function SmallGroupVoteDetail({
   vote, onBack, selectedOptionIds, onSelectOption, onSubmit, isSubmitting,
   isResultOpen, resultVote, isStatusLoading, statusError, onShowResults, actionError,
   canDelete, onDelete, isDeleting,
+  canClose, onClose, isClosing,
 }) {
   const isClosed = vote.status === 'CLOSED';
   const selectedOptionIdSet = new Set(selectedOptionIds);
   const result = resultVote || vote;
   const resultSelectedOptionIdSet = new Set(result.myParticipation.selectedOptionIds);
   const canShowVoterNicknames = !result.anonymous && result.myParticipation.participated;
-  const choiceDisabled = isClosed || isSubmitting;
+  const choiceDisabled = isClosed || isSubmitting || isClosing || isDeleting;
 
   return (
     <Card>
@@ -296,12 +297,18 @@ function SmallGroupVoteDetail({
             <Title>{vote.title}</Title>
             <HeaderActions>
               <Status $closed={isClosed}>{isClosed ? '마감' : '진행 중'}</Status>
+              {/* AI작성: 서버가 종료를 허용한 진행 중 투표에만 확인창 진입 버튼을 표시한다. */}
+              {canClose && !isClosed && (
+                <Button type="button" onClick={onClose} disabled={isClosing || isSubmitting || isDeleting}>
+                  {isClosing ? '종료 중...' : '투표 닫기'}
+                </Button>
+              )}
               {canDelete && (
                 <DeleteButton
                   type="button"
                   $variant="danger"
                   onClick={onDelete}
-                  disabled={isDeleting}
+                  disabled={isDeleting || isClosing || isSubmitting}
                 >
                   {isDeleting ? '삭제 중...' : '투표 삭제'}
                 </DeleteButton>
@@ -347,7 +354,7 @@ function SmallGroupVoteDetail({
             ) : (
               <Button
                 type="button"
-                disabled={selectedOptionIds.length === 0 || isSubmitting}
+                disabled={selectedOptionIds.length === 0 || isSubmitting || isClosing || isDeleting}
                 onClick={onSubmit}
               >
                 {isSubmitting ? '처리 중...' : vote.myParticipation.participated ? '투표 수정' : '투표하기'}
@@ -356,7 +363,7 @@ function SmallGroupVoteDetail({
             <Button
               type="button"
               $variant="secondary"
-              disabled={!vote.myParticipation.participated || isStatusLoading}
+              disabled={!vote.myParticipation.participated || isStatusLoading || isClosing || isDeleting}
               onClick={onShowResults}
             >
               {isStatusLoading ? '불러오는 중...' : isClosed ? '결과 보기' : '현황 보기'}

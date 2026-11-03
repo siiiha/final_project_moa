@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import {
+  closeSmallGroupVote,
   deleteSmallGroupVote,
   getSmallGroupDetail,
   getSmallGroupVoteDetail,
@@ -66,6 +67,20 @@ function SmallGroupVoteDetailPage() {
   const [isVoteDeleteModalOpen, setIsVoteDeleteModalOpen] = useState(false);
   const [isVoteDeleting, setIsVoteDeleting] = useState(false);
   const [voteDeleteError, setVoteDeleteError] = useState(null);
+  // AI작성: 종료 상태는 소모임·투표별로 구분하고 ref로 같은 틱의 중복 요청과 늦은 응답을 차단한다.
+  const routeKey = `${smallGroupId}:${voteId}`;
+  const [closeAction, setCloseAction] = useState(null);
+  const closeRequestRef = useRef(null);
+  const scopeRef = useRef(null);
+  const resultSequenceRef = useRef(0);
+  const currentClose = closeAction?.key === routeKey && closeAction.scope?.active ? closeAction : null;
+  const isVoteClosing = Boolean(currentClose?.busy);
+
+  useEffect(() => {
+    const scope = { active: true };
+    scopeRef.current = scope;
+    return () => { scope.active = false; };
+  }, [smallGroupId, voteId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -136,7 +151,8 @@ function SmallGroupVoteDetailPage() {
 
   // AI작성: 진행 중 투표는 기존 참여 회원도 선택을 바꿀 수 있으며, 저장 전 결과 패널은 닫아 오래된 현황을 숨긴다.
   const handleSelectOption = (optionId) => {
-    if (!currentVote || currentVote.status === 'CLOSED' || isVoteSubmitting) return;
+    if (!currentVote || currentVote.status === 'CLOSED' || isVoteSubmitting || isVoteDeleting
+      || closeRequestRef.current?.active || isVoteClosing) return;
 
     setVoteView((previous) => {
       const previousIds = previous.voteId === voteId
@@ -157,7 +173,8 @@ function SmallGroupVoteDetailPage() {
 
   // AI작성: 선택 변경을 포함한 참여 요청 후 상세를 다시 읽어 서버가 확정한 내 선택·참여 여부를 반영한다.
   const handleVoteSubmit = async () => {
-    if (!currentVote || selectedOptionIds.length === 0 || isVoteSubmitting) return;
+    if (!currentVote || currentVote.status === 'CLOSED' || selectedOptionIds.length === 0
+      || isVoteSubmitting || isVoteDeleting || closeRequestRef.current?.active || isVoteClosing) return;
 
     setIsVoteSubmitting(true);
     setVoteActionError(null);
@@ -175,19 +192,22 @@ function SmallGroupVoteDetailPage() {
 
   // AI작성: 현황은 참여 완료 회원 전용 API에서 다시 읽어 마감 전에도 최신 득표 수와 닉네임을 표시한다.
   const handleShowResults = async () => {
-    if (!currentVote?.myParticipation.participated) return;
+    if (!currentVote?.myParticipation.participated || isVoteClosing || closeRequestRef.current?.active) return;
+    const sequence = ++resultSequenceRef.current;
+    const scope = scopeRef.current;
     setStatusView({ requestKey, loading: true });
     try {
       const vote = await getSmallGroupVoteStatus(smallGroupId, voteId);
-      setStatusView({ requestKey, vote });
+      if (scope?.active && sequence === resultSequenceRef.current) setStatusView({ requestKey, vote });
     } catch (error) {
-      setStatusView({ requestKey, error });
+      if (scope?.active && sequence === resultSequenceRef.current) setStatusView({ requestKey, error });
     }
   };
 
   // AI작성: 확인 뒤에만 삭제 API를 호출하고, 성공 시 논리 삭제된 투표가 제외된 목록으로 돌아간다.
   const handleVoteDeleteConfirm = async () => {
-    if (!currentVote || !canDeleteVote || isVoteDeleting) return;
+    if (!currentVote || !canDeleteVote || isVoteDeleting || isVoteSubmitting
+      || isVoteClosing || closeRequestRef.current?.active) return;
 
     setIsVoteDeleting(true);
     try {
@@ -199,6 +219,34 @@ function SmallGroupVoteDetailPage() {
       setVoteDeleteError(error.message || '투표를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setIsVoteDeleting(false);
+    }
+  };
+
+  // AI작성: 확인 후 종료하며 오래된 현황·미저장 선택을 초기화하고 서버 상세를 다시 조회한다.
+  const handleVoteCloseConfirm = async () => {
+    if (!currentVote?.canClose || currentVote.status !== 'OPEN' || isVoteSubmitting
+      || isVoteDeleting || closeRequestRef.current?.active || isVoteClosing) return;
+    const scope = scopeRef.current;
+    if (!scope?.active) return;
+    closeRequestRef.current = scope;
+    setCloseAction({ key: routeKey, scope, open: true, busy: true });
+    resultSequenceRef.current += 1;
+    setStatusView(null);
+    try {
+      await closeSmallGroupVote(smallGroupId, voteId);
+      if (!scope.active) return;
+      setCloseAction(null);
+      setVoteView({ voteId: null, selectedOptionIds: [] });
+      setVoteActionError(null);
+      setRetry((value) => value + 1);
+    } catch (error) {
+      if (!scope.active) return;
+      setCloseAction({ key: routeKey, scope, error: error.message || '투표를 종료하지 못했습니다. 잠시 후 다시 시도해 주세요.' });
+      if (['SMALL_GROUP_VOTE_CLOSE_FORBIDDEN', 'SMALL_GROUP_VOTE_NOT_FOUND', 'SMALL_GROUP_NOT_FOUND'].includes(error.code)) {
+        setRetry((value) => value + 1);
+      }
+    } finally {
+      if (closeRequestRef.current === scope) closeRequestRef.current = null;
     }
   };
 
@@ -233,9 +281,33 @@ function SmallGroupVoteDetailPage() {
             canDelete={canDeleteVote}
             onDelete={() => setIsVoteDeleteModalOpen(true)}
             isDeleting={isVoteDeleting}
+            canClose={currentVote.canClose && currentVote.status === 'OPEN'}
+            onClose={() => setCloseAction({ key: routeKey, scope: scopeRef.current, open: true })}
+            isClosing={isVoteClosing}
           />
         )}
       </Content>
+      {currentClose?.open && currentVote && (
+        <ConfirmModal
+          title="투표 닫기"
+          description={`'${currentVote.title}' 투표를 닫으시겠어요? 닫은 뒤에는 참여하거나 다시 열 수 없습니다.`}
+          confirmLabel={isVoteClosing ? '종료 중...' : '투표 닫기'}
+          cancelFirst
+          isBusy={isVoteClosing}
+          onConfirm={handleVoteCloseConfirm}
+          onCancel={() => { if (!isVoteClosing) setCloseAction(null); }}
+        />
+      )}
+      {currentClose?.error && (
+        <ConfirmModal
+          title="투표 종료 실패"
+          description={currentClose.error}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setCloseAction(null)}
+          onCancel={() => setCloseAction(null)}
+        />
+      )}
       {isVoteDeleteModalOpen && currentVote && (
         <ConfirmModal
           title="투표 삭제"
