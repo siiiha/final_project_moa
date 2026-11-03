@@ -159,7 +159,8 @@ function NotificationBell() {
 
     try {
       const [listResponse, countResponse] = await Promise.all([
-        client.get('/v1/notifications', { params: { size: 10 } }),
+        // AI작성: 작은 알림 패널에서도 백엔드 허용 최대치인 최근 50개까지 확인합니다.
+        client.get('/v1/notifications', { params: { size: 50 } }),
         client.get('/v1/notifications/unread-count'),
       ]);
 

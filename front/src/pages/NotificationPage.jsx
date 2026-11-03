@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import client from '../api/client';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import NotificationList from '../components/member/NotificationList';
-import { memberMenuItems, notificationItems } from '../mocks/mypage';
+import { memberMenuItems } from '../mocks/mypage';
 
-const NOTIFICATIONS_PER_PAGE = 5;
+const NOTIFICATIONS_PER_REQUEST = 10;
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -48,30 +49,67 @@ const Grid = styled.div`
 function NotificationPage() {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState('alerts');
-  const [notifications, setNotifications] = useState(notificationItems);
-  const [expandedIds, setExpandedIds] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
-  const totalPages = Math.max(Math.ceil(notifications.length / NOTIFICATIONS_PER_PAGE), 1);
-  const visibleNotifications = notifications.slice(
-    (currentPage - 1) * NOTIFICATIONS_PER_PAGE,
-    currentPage * NOTIFICATIONS_PER_PAGE
-  );
+  // AI작성: 마지막 알림 번호를 커서로 전달해 중복 없이 다음 알림 목록을 이어 붙입니다.
+  const loadNotifications = useCallback(async (lastNotificationId = null) => {
+    setLoading(true);
 
-  const handleToggle = (notificationId) => {
-    setExpandedIds((ids) =>
-      ids.includes(notificationId) ? ids.filter((id) => id !== notificationId) : [...ids, notificationId]
-    );
+    try {
+      const response = await client.get('/v1/notifications', {
+        params: {
+          size: NOTIFICATIONS_PER_REQUEST,
+          ...(lastNotificationId ? { lastNotificationId } : {}),
+        },
+      });
+      const received = Array.isArray(response.data?.data) ? response.data.data : [];
+
+      setNotifications((current) => {
+        if (!lastNotificationId) return received;
+
+        const existingIds = new Set(current.map((item) => item.notificationId));
+        return [...current, ...received.filter((item) => !existingIds.has(item.notificationId))];
+      });
+      setHasMore(received.length === NOTIFICATIONS_PER_REQUEST);
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  const handleLoadMore = () => {
+    const lastNotification = notifications.at(-1);
+    if (lastNotification) loadNotifications(lastNotification.notificationId);
   };
 
-  const handleDelete = (notificationId) => {
-    // TODO: Spring Boot 알림 삭제 API 요청이 성공한 뒤 목록 상태를 갱신합니다.
-    const remainingItems = notifications.filter((item) => item.id !== notificationId);
-    const remainingPages = Math.max(Math.ceil(remainingItems.length / NOTIFICATIONS_PER_PAGE), 1);
+  const handleNotificationClick = async (notification) => {
+    if (!notification.read) {
+      try {
+        await client.patch(`/v1/notifications/${notification.notificationId}/read`);
+        setNotifications((current) => current.map((item) => (
+          item.notificationId === notification.notificationId
+            ? { ...item, read: true }
+            : item
+        )));
+      } catch {
+        setLoadFailed(true);
+        return;
+      }
+    }
 
-    setNotifications(remainingItems);
-    setCurrentPage((page) => Math.min(page, remainingPages));
-    setExpandedIds((ids) => ids.filter((id) => id !== notificationId));
+    // AI작성: 알림에 저장된 모아 내부 주소만 이동 대상으로 사용합니다.
+    if (notification.targetUrl?.startsWith('/')) {
+      navigate(notification.targetUrl);
+    }
   };
 
   return (
@@ -89,13 +127,13 @@ function NotificationPage() {
         />
         <main>
           <NotificationList
-            notifications={visibleNotifications}
-            expandedIds={expandedIds}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onToggle={handleToggle}
-            onDelete={handleDelete}
-            onPageChange={setCurrentPage}
+            notifications={notifications}
+            loading={loading}
+            loadFailed={loadFailed}
+            hasMore={hasMore}
+            onNotificationClick={handleNotificationClick}
+            onLoadMore={handleLoadMore}
+            onRetry={() => loadNotifications()}
           />
         </main>
       </Grid>
