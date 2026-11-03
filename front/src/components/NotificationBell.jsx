@@ -156,14 +156,22 @@ function NotificationBell() {
     setLoading(true);
 
     try {
-      const [notifications, count] = await Promise.all([
+      const [listResult, countResult] = await Promise.allSettled([
         // AI작성: 작은 알림 패널에서도 백엔드 허용 최대치인 최근 50개까지 확인합니다.
         getNotifications({ size: NOTIFICATION_PANEL_SIZE }),
         getUnreadNotificationCount(),
       ]);
 
+      if (listResult.status === 'rejected') throw listResult.reason;
+
+      const notifications = listResult.value;
       setItems(notifications);
-      setUnreadCount(count);
+      // AI작성: 개수 조회만 실패해도 목록은 표시하고 현재 목록의 미확인 개수를 임시 사용합니다.
+      setUnreadCount(
+        countResult.status === 'fulfilled'
+          ? countResult.value
+          : notifications.filter((notification) => !notification.read).length,
+      );
       setLoadFailed(false);
     } catch {
       // AI작성: 헤더 보조 기능의 실패가 전체 화면을 중단시키지 않도록 패널 안에서만 안내합니다.

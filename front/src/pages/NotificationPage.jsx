@@ -10,9 +10,10 @@ import {
 } from '../api/notifications';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import NotificationList from '../components/member/NotificationList';
-import { memberMenuItems } from '../mocks/mypage';
+import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
 
 const NOTIFICATIONS_PER_REQUEST = 10;
+const NOTIFICATIONS_LOOKAHEAD_SIZE = NOTIFICATIONS_PER_REQUEST + 1;
 const NOTIFICATION_CACHE_TTL = 5 * 60 * 1000;
 
 let notificationPageCache = null;
@@ -85,22 +86,36 @@ function NotificationPage() {
     setLoading(true);
 
     try {
-      const [received, totalUnreadCount] = await Promise.all([
+      const [listResult, unreadCountResult] = await Promise.allSettled([
         getNotifications({
-          size: NOTIFICATIONS_PER_REQUEST,
+          // AI작성: 표시 개수보다 한 건 더 조회해 다음 알림 존재 여부를 정확히 판단합니다.
+          size: NOTIFICATIONS_LOOKAHEAD_SIZE,
           lastNotificationId,
         }),
         lastNotificationId ? Promise.resolve(null) : getUnreadNotificationCount(),
       ]);
 
+      if (listResult.status === 'rejected') throw listResult.reason;
+
+      const received = listResult.value;
+      const visibleNotifications = received.slice(0, NOTIFICATIONS_PER_REQUEST);
+
       setNotifications((current) => {
-        if (!lastNotificationId) return received;
+        if (!lastNotificationId) return visibleNotifications;
 
         const existingIds = new Set(current.map((item) => item.notificationId));
-        return [...current, ...received.filter((item) => !existingIds.has(item.notificationId))];
+        return [
+          ...current,
+          ...visibleNotifications.filter((item) => !existingIds.has(item.notificationId)),
+        ];
       });
-      setHasMore(received.length === NOTIFICATIONS_PER_REQUEST);
-      if (totalUnreadCount !== null) setUnreadCount(totalUnreadCount);
+      setHasMore(received.length > NOTIFICATIONS_PER_REQUEST);
+      if (unreadCountResult.status === 'fulfilled' && unreadCountResult.value !== null) {
+        setUnreadCount(unreadCountResult.value);
+      } else if (!lastNotificationId) {
+        // AI작성: 전체 개수 조회만 실패하면 현재 목록의 미확인 개수로 버튼 기능을 유지합니다.
+        setUnreadCount(visibleNotifications.filter((notification) => !notification.read).length);
+      }
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
@@ -211,7 +226,7 @@ function NotificationPage() {
       </Heading>
       <Grid>
         <MemberSidebar
-          items={memberMenuItems}
+          items={MEMBER_MENU_ITEMS}
           activeItem={activeMenu}
           onSelect={setActiveMenu}
           onWithdraw={() => navigate('/member/mypage/delete')}

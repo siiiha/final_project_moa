@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import EditProfileForm from '../components/member/EditProfileForm';
-import { memberMenuItems } from '../mocks/mypage';
+import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -47,7 +47,7 @@ function EditProfilePage() {
       </Heading>
       <Grid>
         <MemberSidebar
-          items={memberMenuItems}
+          items={MEMBER_MENU_ITEMS}
           activeItem={activeMenu}
           onSelect={setActiveMenu}
           onWithdraw={() => navigate('/member/mypage/delete')}

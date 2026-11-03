@@ -5,7 +5,8 @@ import MemberSidebar from '../components/layout/MemberSidebar';
 import MeetingList from '../components/member/MeetingList';
 import ProfileSummary from '../components/member/ProfileSummary';
 import QuickLinks from '../components/member/QuickLinks';
-import { memberMenuItems, participatingMeetings, quickLinks } from '../mocks/mypage';
+import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
+import { participatingMeetings, quickLinks } from '../mocks/mypage';
 import { getMyProfile } from '../api/member';
 import useAuthStore from '../store/authStore';
 
@@ -143,7 +144,7 @@ function MyPage() {
 
       <Grid>
         <MemberSidebar
-          items={memberMenuItems}
+          items={MEMBER_MENU_ITEMS}
           activeItem={activeMenu}
           onSelect={setActiveMenu}
           onWithdraw={() => navigate('/member/mypage/delete')}

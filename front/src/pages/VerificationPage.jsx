@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import VerificationStatusList from '../components/member/VerificationStatusList';
-import { memberMenuItems } from '../mocks/mypage';
+import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
 import RegionMap from '../components/member/RegionMap';
 import SectionCard from '../components/common/SectionCard';
 import Button from '../components/common/Button';
@@ -726,7 +726,7 @@ function VerificationPage() {
       </Heading>
       <Grid>
         <MemberSidebar
-          items={memberMenuItems}
+          items={MEMBER_MENU_ITEMS}
           activeItem={activeMenu}
           onSelect={setActiveMenu}
           onWithdraw={() => navigate('/member/mypage/delete')}
