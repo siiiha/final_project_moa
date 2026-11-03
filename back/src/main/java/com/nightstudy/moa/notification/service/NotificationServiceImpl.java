@@ -40,6 +40,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         notificationMapper.insert(notification);
 
+        //createdAt 같은 값을 얻기 위해서 다시 조회
         NotificationDto saved =
                 notificationMapper.findById(notification.getNotificationId());
 

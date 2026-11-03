@@ -35,6 +35,7 @@ public class NotificationApiController {
     )
     public SseEmitter subscribe(
             @AuthenticationPrincipal Long memberId
+            //Spring Security가 인증한 현재 로그인 사용자 정보를 Controller 매개변수에 넣어주는 어노테이션
     ) {
         return notificationService.subscribe(memberId);
     }
@@ -83,6 +84,7 @@ public class NotificationApiController {
             @AuthenticationPrincipal Long memberId
     ) {
         notificationService.readAll(memberId);
+
         return ApiResponse.ok(null);
     }
 
