@@ -205,6 +205,12 @@ function SmallGroupDetailPage() {
       await createSmallGroupVote(id, request);
       setVoteRetry((value) => value + 1);
       setIsVoteCreateSuccessModalOpen(true);
+    } catch (error) {
+      // AI작성: 생성 한도 오류 시 서버 기준 목록을 다시 읽고, 입력값과 오류 안내는 생성 모달에 유지한다.
+      if (error.code === 'SMALL_GROUP_OPEN_VOTE_LIMIT_EXCEEDED') {
+        setVoteRetry((value) => value + 1);
+      }
+      throw error;
     } finally {
       setIsVoteCreating(false);
     }
