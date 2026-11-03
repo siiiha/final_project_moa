@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import MeetingList from '../components/member/MeetingList';
@@ -43,6 +43,55 @@ const Grid = styled.div`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     grid-template-columns: 1fr;
+  }
+`;
+
+// AI작성: 프로필 카드와 같은 스타일로 참여 모임의 빈 상태를 표시한다.
+const EmptyMeetings = styled.section`
+  margin-top: 16px;
+  padding: 20px 24px 28px;
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.md};
+  box-shadow: ${({ theme }) => theme.shadow.card};
+  text-align: center;
+
+  h2 {
+    text-align: left;
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  p {
+    margin: 20px 0 4px;
+    font-weight: 700;
+  }
+
+  span {
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 13px;
+  }
+
+  div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  a {
+    padding: 8px 12px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    color: ${({ theme }) => theme.colors.primary};
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  a:hover {
+    background: ${({ theme }) => theme.colors.primarySoft};
   }
 `;
 
@@ -162,6 +211,12 @@ function MyPage() {
           label: '선택한 관심사',
           value: `${profile.interests?.length ?? 0}개`,
         },
+        {
+          label: '참여 모임',
+          value: joinedGroupsLoading || joinedGroupsError
+            ? '-'
+            : `${joinedGroups.length}개`,
+        },
       ],
     }
     : null;
@@ -201,7 +256,15 @@ function MyPage() {
 
           {!joinedGroupsLoading && !joinedGroupsError && (
             joinedGroups.length === 0 ? (
-              <p>아직 참여 중인 모임이 없습니다.</p>
+              <EmptyMeetings aria-labelledby="empty-meetings-title">
+                <h2 id="empty-meetings-title">내 참여 모임</h2>
+                <p>아직 참여 중인 모임이 없어요.</p>
+                <span>관심 있는 모임을 둘러보고 참여해 보세요.</span>
+                <div>
+                  <Link to="/saving-groups">계모임 둘러보기</Link>
+                  <Link to="/small-groups">소모임 둘러보기</Link>
+                </div>
+              </EmptyMeetings>
             ) : (
               <MeetingList
                 meetings={joinedGroups.map((group) => ({
