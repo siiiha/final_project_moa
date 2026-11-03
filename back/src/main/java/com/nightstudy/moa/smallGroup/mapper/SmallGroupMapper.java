@@ -34,6 +34,9 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
+    // AI작성: 공개 상세 조회에서는 행 잠금 없이 본인의 신청 조건만 읽는다.
+    SmallGroupJoinMemberRow selectSmallGroupJoinMember(@Param("memberId") Long memberId);
+
     // AI작성: 같은 소모임 조건으로 후기 전체 건수를 조회해 공통 페이징 정보를 구성한다.
     int selectSmallGroupReviewCount(SmallGroupReviewListCondition condition);
 

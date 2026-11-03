@@ -217,6 +217,7 @@
     <select id="selectSmallGroupDetail" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow">
         SELECT sg.small_group_id,
                g.group_id,
+               g.member_id AS creator_member_id,
                g.group_name,
                g.description,
                r.region_name,
@@ -255,6 +256,18 @@
     </select>
 
     <!-- AI작성: 가입 신청 중 회원 계정·본인 인증·시스템 권한 변경과 경합하지 않도록 회원 행을 잠가 조회한다. -->
+    <!-- AI작성: 상세 화면의 본인 신청 자격은 읽기 전용으로 조회한다. -->
+    <select id="selectSmallGroupJoinMember"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow">
+        SELECT member_id,
+               account_status,
+               identity_verified_at,
+               system_role
+        FROM members
+        WHERE member_id = #{memberId}
+          AND deleted_at IS NULL
+    </select>
+
     <select id="selectSmallGroupJoinMemberForUpdate"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow">
         SELECT member_id,
@@ -273,7 +286,8 @@
         SELECT sg.small_group_id,
                sg.group_id,
                g.member_id AS creator_member_id,
-               g.max_members
+               g.max_members,
+               sg.meet_date
         FROM small_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.small_group_id = #{smallGroupId}

@@ -9,6 +9,12 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 공개 상세 조회에서는 행 잠금 없이 본인의 신청 조건만 읽는다.
+    SavingGroupJoinMemberRow selectSavingGroupJoinMember(@Param("memberId") Long memberId);
+    SavingGroupMembershipRelationRow selectSavingGroupMembership(
+            @Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    long selectApprovedSavingGroupCountReadOnly(@Param("memberId") Long memberId);
+
     // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
     int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
