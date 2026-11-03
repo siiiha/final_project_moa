@@ -718,3 +718,16 @@
 - 실행 방법: 기존 Gradle 캐시 접근 권한으로 실행했다. Git 제외 back/build/moa-join-stage4-tests.gradle 임시 init-script로 가입 관련 소스만 컴파일했다. 전체 테스트는 기존 무관한 import 오류가 있어 통과를 주장하지 않는다.
 - 수동 검증: 브라우저·Postman에서 반복 신청 후 관계 1행, 마지막 자리 동시 승인 후 정원 이하, 승인·거절 경합 후 최종 상태 일치를 확인한다. 이번 실제 브라우저·Postman·DB 실행은 미실행이다.
 - 개발자 검토·수정: 검토 대기. 4단계는 테스트 준비 완료이며 전용 DB 확인 후 새 테스트 14개를 실제 실행해야 완료한다. 서비스 보완이 필요하면 대상과 이유를 먼저 공유한다. 커밋은 실행하지 않았다.
+
+<!-- AI작성: 사용자의 버튼 크기 유지 요청을 반영한 5단계 재작업입니다. -->
+## 2026-11-03 — 기존 가입 버튼 크기를 유지한 5단계 재적용
+
+- 목적·승인: 사용자가 4단계 ce82d65로 돌아간 상태에서 5단계를 다시 요청했다. 기존 승인된 8개 파일 범위를 재사용하되 버튼 크기는 수정하지 말라는 최신 지시를 우선했다. 기존 5단계 커밋 전체를 재적용하지 않고 페이지의 요청 처리만 재사용하고 버튼 연결을 새로 구성했다.
+- 작업 파일(8개): front/src/components/common/GroupJoinAction.jsx(신규), front/src/components/savingGroup/SavingGroupDetail.jsx, front/src/components/smallGroup/SmallGroupDetail.jsx, front/src/pages/SavingGroupDetailPage.jsx, front/src/pages/SmallGroupDetailPage.jsx, docs/saving-groups-api.md, docs/small-group-public-detail-api.md, 본 기록.
+- AI 제안·작성: 공통 GroupJoinAction은 버튼 상태·동작만 처리하고 호스트의 기존 JoinButton을 받아 렌더한다. GroupJoinReason은 헤더 아래에 별도로 표시해 버튼 영역을 넓히지 않는다. 가입·대기·거절·추방·정원·모집·일정·로그인·인증 조건과 응답 누락 시 차단을 반영했다. 신청 성공·실패 후 상세 재조회, ref 중복 클릭 잠금, 모임·계정 변경 후 이전 안내 차단, 소모임 네 필드 전달도 복구했다.
+- 크기 유지 근거: 두 상세 컴포넌트의 JoinButton 및 모든 기존 styled CSS 블록을 작업 시작 시 HEAD(4단계)와 비교해 문자 단위로 동일함을 확인했다. 기존 너비·최소 높이·padding·font-size·모바일 규칙·헤더 배치는 바꾸지 않았다. 새 공통 파일에는 버튼 크기를 지정하는 CSS나 고정 너비 래퍼가 없다. 기본 '가입 신청하기' 문구도 유지한다.
+- 브라우저 실측: 로컬 합성 API 환경에서 데스크톱 두 모임 모두 기본 버튼 너비 약 100px·높이 38px·글자 13px·padding 8px 14px였다. 375px 모바일에서 소모임은 높이 34px·글자 12px·padding 7px 10px, 계모임은 38px·13px·8px 14px로 기존 규칙과 일치했다. 계모임에 기존부터 있던 모바일 width=100%는 그대로 유지했다.
+- 실행 검증: 변경 JSX 5개 oxlint 오류 0건(기존 경고 4건 유지), npm run build 통과(기존 번들 크기 경고), 기존 계모임·소모임 API 테스트 81개 통과. 실제 브라우저에서 상태별 활성/비활성·사유 22건, 두 모임의 빠른 두 번 클릭 후 처리 중 차단·심사 중 전환, 정원 충돌 후 마감 전환을 확인했다. 두 모임 NEW·CONFLICT 각각 GET=2·POST=1로 중복 전송이 없었다. git diff --check를 확인했다.
+- 검증 환경·산출물: computer-use 내장 브라우저와 기존 Git 제외 back/build/moa-stage6-ui-check.cjs를 재사용했다. 모든 /api 요청을 로컬에서 처리하거나 차단해 실제 외부 API·DB를 호출하지 않았다. back/build/moa-stage5-redo-original-button.jpg, moa-stage5-redo-results.json, moa-stage5-redo-api-metrics.json에 화면·상태·요청 수를 저장했다. 검증 후 임시 서버·탭·뷰포트 설정을 정리했다.
+- 수동 확인: 실제 화면에서 기본 가입 버튼의 원래 크기, 상태별 안내, 신청 후 새로고침해도 심사 중 유지, 정원 충돌·조회 실패 후 재조회, 로그인·본인 인증 이동, 요청 중 모임·계정 변경을 확인한다. 실제 Spring·MySQL 연결과 4단계 동시성 테스트 14개 실행은 이번 작업에 포함하지 않았다.
+- 개발자 검토·수정: 검토 대기. 서버·API 경로·스키마·의존성·공통 Button·테마·기존 스타일 값은 변경하지 않았다. 커밋은 실행하지 않았다.

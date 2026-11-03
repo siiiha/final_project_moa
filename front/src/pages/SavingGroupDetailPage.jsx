@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
+import useAuthStore from '../store/authStore';
 import { getSavingGroupDetail, requestSavingGroupJoin } from '../api/savingGroups.js';
 
 const Page = styled.div`
@@ -39,47 +40,74 @@ const EmptyCard = styled.section`
 function SavingGroupDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+  // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
+  const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
   const [menu, setMenu] = useState({ id, value: 'notice' });
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  const [isJoinSubmitting, setIsJoinSubmitting] = useState(false);
-  const [joinErrorMessage, setJoinErrorMessage] = useState(null);
-  const [isIdentityVerificationModalOpen, setIsIdentityVerificationModalOpen] = useState(false);
+
+  // AI작성: 동일 렌더의 연속 클릭은 ref로 차단하고 안내는 모임·계정별로 구분한다.
+  const joinLock = useRef(null);
+  const joinScope = useRef(null);
+  const [joinState, setJoinState] = useState(null);
+  const currentJoin = joinState?.id === id && joinState?.authVersion === authVersion ? joinState : null;
+  const isJoinSubmitting = currentJoin?.status === 'submitting';
+  const isJoinModalOpen = currentJoin?.status === 'success';
+  const isIdentityVerificationModalOpen = currentJoin?.status === 'verification';
+  const joinErrorMessage = currentJoin?.status === 'error' ? currentJoin.message : null;
+
+  // AI작성: 이미 전송된 POST는 취소로 되돌릴 수 없으므로 화면 이탈 후의 안내·재조회만 차단한다.
+  useEffect(() => {
+    const scope = { active: true };
+    joinScope.current = scope;
+    return () => {
+      scope.active = false;
+      // AI작성: 다른 모임으로 갔다가 돌아와도 이전 완료·실패 안내가 다시 열리지 않게 한다.
+      setJoinState(null);
+    };
+  }, [id, authVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
     getSavingGroupDetail(id, { signal: controller.signal })
       .then((group) => {
-        if (active) setResult({ id, retry, group });
+        if (active) setResult({ id, retry, authVersion, group });
       })
       .catch((error) => {
-        if (active && !controller.signal.aborted) setResult({ id, retry, error });
+        if (active && !controller.signal.aborted) setResult({ id, retry, authVersion, error });
       });
     return () => { active = false; controller.abort(); };
-  }, [id, retry]);
+  }, [id, retry, authVersion]);
 
   const handleJoinRequest = async () => {
-    if (isJoinSubmitting) return;
+    const scope = joinScope.current;
+    if (!scope?.active || joinLock.current?.scope === scope || current?.group?.canApply !== true) return;
 
-    setIsJoinSubmitting(true);
+    const request = { scope };
+    joinLock.current = request;
+    setJoinState({ id, authVersion, status: 'submitting' });
     try {
-      await requestSavingGroupJoin(current?.group?.savingGroupId);
-      setIsJoinModalOpen(true);
+      await requestSavingGroupJoin(current.group.savingGroupId);
+      if (!scope.active) return;
+      setJoinState({ id, authVersion, status: 'success' });
+      // AI작성: 신청 성공은 가입 완료가 아니므로 서버의 최신 심사 상태를 다시 조회한다.
+      setRetry((value) => value + 1);
     } catch (error) {
-      // AI작성: 본인 인증 오류만 별도 안내해 사용자가 선택할 때 인증 화면으로 이동하게 한다.
-      if (error.code === 'IDENTITY_VERIFICATION_REQUIRED') {
-        setIsIdentityVerificationModalOpen(true);
-      } else {
-        setJoinErrorMessage(error.message || '가입 신청 처리에 실패했습니다.');
-      }
+      if (!scope.active) return;
+      setJoinState({
+        id, authVersion,
+        status: error.code === 'IDENTITY_VERIFICATION_REQUIRED' ? 'verification' : 'error',
+        message: error.message || '가입 신청 처리에 실패했습니다.',
+      });
+      // AI작성: 정원·가입 상태 변경 또는 응답 유실 후에는 POST를 반복하지 않고 상세부터 확인한다.
+      setRetry((value) => value + 1);
     } finally {
-      setIsJoinSubmitting(false);
+      if (joinLock.current === request) joinLock.current = null;
     }
   };
 
-  const current = result?.id === id && result?.retry === retry ? result : null;
+  const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion ? result : null;
   const errorStatus = current?.error?.response?.status;
   const errorMessage = errorStatus === 404 ? '조회할 수 있는 계모임이 없습니다.'
     : errorStatus === 403 ? '이 계모임에 접근할 수 없습니다.'
@@ -111,10 +139,10 @@ function SavingGroupDetailPage() {
       </Content>
       {isJoinModalOpen && (
         <ConfirmModal title="가입 신청 완료"
-          description="가입 신청이 완료되었습니다."
+          description="가입 신청이 접수되었습니다. 모임 운영자의 심사를 기다려 주세요."
           confirmLabel="확인" showCancel={false}
-          onConfirm={() => setIsJoinModalOpen(false)}
-          onCancel={() => setIsJoinModalOpen(false)}
+          onConfirm={() => setJoinState(null)}
+          onCancel={() => setJoinState(null)}
         />
       )}
       {isIdentityVerificationModalOpen && (
@@ -125,7 +153,7 @@ function SavingGroupDetailPage() {
           cancelLabel="닫기"
           cancelFirst
           onConfirm={() => navigate('/member/verify')}
-          onCancel={() => setIsIdentityVerificationModalOpen(false)}
+          onCancel={() => setJoinState(null)}
         />
       )}
       {joinErrorMessage && (
@@ -134,8 +162,8 @@ function SavingGroupDetailPage() {
           description={joinErrorMessage}
           confirmLabel="확인"
           showCancel={false}
-          onConfirm={() => setJoinErrorMessage(null)}
-          onCancel={() => setJoinErrorMessage(null)}
+          onConfirm={() => setJoinState(null)}
+          onCancel={() => setJoinState(null)}
         />
       )}
     </Page>
