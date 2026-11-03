@@ -9,12 +9,6 @@ export const memberSummary = {
   ],
 };
 
-export const memberMenuItems = [
-  { id: 'overview', label: '마이페이지', icon: 'overview' },
-  { id: 'verify', label: '인증관리', icon: 'verify' },
-  { id: 'alerts', label: '알림 목록', icon: 'alerts' },
-];
-
 export const participatingMeetings = [
   { id: 1, title: '성동 이웃 친목계', description: '이웃과 좋은 정보를 나누는 친목 모임', meta: '12명 · 서울 성동구' },
   {

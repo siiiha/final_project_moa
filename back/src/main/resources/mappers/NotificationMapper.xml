@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nightstudy.moa.notification.mapper.NotificationMapper">
+
+    <insert id="insert"
+            useGeneratedKeys="true"
+            keyProperty="notificationId">
+        INSERT INTO notification (
+        receiver_id,
+        type,
+        message,
+        target_url
+        )
+        VALUES (
+        #{receiverId},
+        #{type},
+        #{message},
+        #{targetUrl}
+        )
+    </insert>
+
+    <select id="findById" resultType="NotificationDto">
+        SELECT
+        notification_id,
+        receiver_id,
+        type,
+        message,
+        target_url,
+        read_at,
+        created_at
+        FROM notification
+        WHERE notification_id = #{notificationId}
+    </select>
+
+    <!-- AI작성: 마지막으로 조회한 알림 번호보다 작은 알림을 다음 목록으로 조회합니다. -->
+    <select id="findRecent" resultType="NotificationDto">
+        SELECT
+        notification_id,
+        receiver_id,
+        type,
+        message,
+        target_url,
+        read_at,
+        created_at
+        FROM notification
+        WHERE receiver_id = #{receiverId}
+        <!-- 알림 목록의 “더 보기” 기능 -->
+        <if test="lastNotificationId != null">
+            AND notification_id &lt; #{lastNotificationId}
+        </if>
+        ORDER BY notification_id DESC
+        LIMIT #{size}
+    </select>
+
+    <select id="countUnread" resultType="int">
+        SELECT COUNT(*)
+        FROM notification
+        WHERE receiver_id = #{receiverId}
+        AND read_at IS NULL
+    </select>
+
+    <!-- AI작성: 다른 회원의 알림을 읽음 처리하지 않도록 소유 여부를 확인합니다. -->
+    <select id="existsByIdAndReceiverId" resultType="boolean">
+        SELECT EXISTS (
+        SELECT 1
+        FROM notification
+        WHERE notification_id = #{notificationId}
+        AND receiver_id = #{receiverId}
+        )
+    </select>
+
+    <update id="markRead">
+        UPDATE notification
+        SET read_at = NOW()
+        WHERE notification_id = #{notificationId}
+        AND receiver_id = #{receiverId}
+        AND read_at IS NULL
+    </update>
+
+    <update id="markAllRead">
+        UPDATE notification
+        SET read_at = NOW()
+        WHERE receiver_id = #{receiverId}
+        AND read_at IS NULL
+    </update>
+
+    <!-- AI작성: 로그인 회원 본인의 읽은 알림만 완전히 삭제하고 읽지 않은 알림은 보존합니다. -->
+    <delete id="deleteAllRead">
+        DELETE FROM notification
+        WHERE receiver_id = #{receiverId}
+        AND read_at IS NOT NULL
+    </delete>
+
+</mapper>

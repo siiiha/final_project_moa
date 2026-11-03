@@ -6,7 +6,8 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import PasswordInput from '../components/common/PasswordInput';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import WithdrawalPanel from '../components/member/WithdrawalPanel';
-import { memberMenuItems, withdrawalStatus } from '../mocks/mypage';
+import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
+import { withdrawalStatus } from '../mocks/mypage';
 import { withdrawMyAccount } from '../api/member';
 import useAuthStore from '../store/authStore';
 
@@ -180,7 +181,7 @@ function DeleteAccountPage() {
       </Heading>
       <Grid>
         <MemberSidebar
-          items={memberMenuItems}
+          items={MEMBER_MENU_ITEMS}
           activeItem={activeMenu}
           onSelect={setActiveMenu}
           onWithdraw={() => navigate('/member/mypage/delete')}
