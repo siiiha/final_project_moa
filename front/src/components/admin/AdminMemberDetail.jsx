@@ -201,6 +201,16 @@ const ListButton = styled(Button)`
   min-height: 34px;
   padding: 7px 11px;
   font-size: 11px;
+
+  /* AI작성: 처리할 수 없는 관리자 계정의 버튼은 비활성 상태를 회색으로 명확히 표시한다. */
+  &:disabled,
+  &:disabled:hover {
+    color: ${({ theme }) => theme.colors.muted};
+    background: ${({ theme }) => theme.colors.background};
+    border-color: ${({ theme }) => theme.colors.border};
+    cursor: not-allowed;
+    transform: none;
+  }
 `;
 
 const BackActions = styled.div`
@@ -225,6 +235,7 @@ function AdminMemberDetail({
   onBack,
 }) {
   const actionIsRestrict = action === '이용 제한';
+  const isAdminMember = member.systemRole === 'ADMIN';
 
   return (
     <>
@@ -298,7 +309,7 @@ function AdminMemberDetail({
               ))}
         </RestrictionList>
         <ManagementForm onSubmit={onSubmit}>
-          <Control aria-label="회원 상태 처리" value={action} onChange={(event) => onActionChange(event.target.value)}>
+          <Control aria-label="회원 상태 처리" value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting || isAdminMember}>
             <option value="이용 제한">이용 제한</option>
             <option value="제한 해제">제한 해제</option>
           </Control>
@@ -306,7 +317,7 @@ function AdminMemberDetail({
             aria-label="이용 제한 영역"
             value={restrictionScope}
             onChange={(event) => onRestrictionScopeChange(event.target.value)}
-            disabled={submitting}
+            disabled={submitting || isAdminMember}
           >
             <option value="CONTENT">게시글·댓글</option>
             <option value="CHAT">채팅</option>
@@ -317,7 +328,7 @@ function AdminMemberDetail({
               aria-label="이용 제한 기간"
               value={restrictionType}
               onChange={(event) => onRestrictionTypeChange(event.target.value)}
-              disabled={submitting}
+              disabled={submitting || isAdminMember}
             >
               <option value="7_DAYS">7일</option>
               <option value="30_DAYS">30일</option>
@@ -330,9 +341,9 @@ function AdminMemberDetail({
             placeholder="처리 사유를 입력해주세요"
             maxLength={500}
             required
-            disabled={submitting}
+            disabled={submitting || isAdminMember}
           />
-          <ListButton type="submit" $variant={actionIsRestrict ? 'danger' : 'primary'} disabled={submitting}>
+          <ListButton type="submit" $variant={actionIsRestrict ? 'danger' : 'primary'} disabled={submitting || isAdminMember}>
             {submitting ? '처리 중...' : action}
           </ListButton>
         </ManagementForm>

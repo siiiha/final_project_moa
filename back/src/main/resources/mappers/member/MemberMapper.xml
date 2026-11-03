@@ -447,4 +447,48 @@
         DELETE FROM email_verification
         WHERE email = #{email}
     </delete>
+
+    <!-- 개설했거나 가입 승인된 모임을 마이페이지에 표시 -->
+    <select id="findJoinedGroupsByMemberId"
+            resultType="com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse">
+        SELECT
+        g.group_id AS groupId,
+        CASE WHEN sg.saving_group_id IS NOT NULL
+        THEN 'SAVING' ELSE 'SMALL'
+        END AS groupType,
+        CASE WHEN sg.saving_group_id IS NOT NULL
+        THEN g.group_id ELSE sm.small_group_id
+        END AS detailId,
+        g.group_name AS title,
+        g.description,
+        r.region_name AS regionName,
+        (
+        SELECT COUNT(DISTINCT gm.member_id)
+        FROM group_member gm
+        WHERE gm.group_id = g.group_id
+        AND gm.membership_status = 'APPROVED'
+        AND (
+        sg.saving_group_id IS NOT NULL
+        OR gm.member_role IN ('OWNER', 'MEMBER')
+        )
+        ) AS memberCount,
+        sg.group_image AS imageUrl
+        FROM `groups` g
+        LEFT JOIN saving_group sg ON sg.group_id = g.group_id
+        LEFT JOIN small_group sm ON sm.group_id = g.group_id
+        LEFT JOIN region r ON r.region_id = g.region_id
+        WHERE g.deleted_at IS NULL
+        AND (sg.status IN ('01', '02') OR sm.small_group_id IS NOT NULL)
+        AND (
+        g.member_id = #{memberId}
+        OR EXISTS (
+        SELECT 1
+        FROM group_member membership
+        WHERE membership.group_id = g.group_id
+        AND membership.member_id = #{memberId}
+        AND membership.membership_status = 'APPROVED'
+        )
+        )
+        ORDER BY g.created_at DESC, g.group_id DESC
+    </select>
 </mapper>

@@ -1,8 +1,9 @@
+// AI작성: 관리자 업무 흐름에 맞춰 회원·모임·콘텐츠·신고 관리 순서로 배치한다.
 export const adminMenuItems = [
   { id: 'members', label: '회원 관리', icon: 'members' },
+  { id: 'groups', label: '소모임 관리', icon: 'groups' },
   { id: 'gatherings', label: '계모임 관리', icon: 'gatherings' },
   { id: 'gathering-review', label: '계모임 심사', icon: 'review' },
-  { id: 'groups', label: '소모임 관리', icon: 'groups' },
   { id: 'posts', label: '게시글 관리', icon: 'posts' },
   { id: 'comments', label: '댓글 관리', icon: 'comments' },
   { id: 'reports', label: '회원 신고', icon: 'reports' },

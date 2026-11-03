@@ -2,6 +2,22 @@ import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 
+// AI작성: 게시글 상세에서도 목록과 동일한 파스텔 카테고리 색상을 사용한다.
+function getCategoryTone(category, theme) {
+  if (category === '자유게시판') return { color: theme.colors.primary, background: theme.colors.primarySoft };
+  if (category?.includes('질문')) return { color: '#b4234d', background: '#fff0f5' };
+  if (category?.includes('동네')) return { color: '#9a5b08', background: '#fff4dd' };
+  if (category?.includes('거래') || category?.includes('나눔')) {
+    return { color: '#2457a6', background: '#edf4ff' };
+  }
+  return { color: theme.colors.secondaryText, background: theme.colors.background };
+}
+
+const CategoryBadge = styled(Badge)`
+  color: ${({ $category, theme }) => getCategoryTone($category, theme).color};
+  background: ${({ $category, theme }) => getCategoryTone($category, theme).background};
+`;
+
 const ArticleCard = styled.article`
   padding: 22px 18px 14px;
   background: ${({ theme }) => theme.colors.white};
@@ -96,11 +112,26 @@ const Author = styled.h3`
   font-weight: 800;
 `;
 
+const AuthorInfo = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+`;
+
+const CommentDate = styled.time`
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 12px;
+`;
+
 const CommentText = styled.p`
   margin-top: 7px;
   color: ${({ theme }) => theme.colors.secondaryText};
   font-size: 15px;
   line-height: 1.6;
+  /* AI작성: 댓글·대댓글에 저장된 줄바꿈을 유지하고 긴 문자열은 영역 안에서 줄바꿈한다. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 `;
 
 const Reply = styled.div`
@@ -191,6 +222,21 @@ const ReplyForm = styled(CommentEditForm)`
   border-left: 2px solid ${({ theme }) => theme.colors.primarySoft};
 `;
 
+// AI작성: 댓글과 대댓글 작성일을 동일한 한국어 날짜·시간 형식으로 표시한다.
+function formatCommentDate(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
 function PostDetail({
   post,
   memberId,
@@ -226,7 +272,7 @@ function PostDetail({
   return (
     <>
       <ArticleCard>
-        <Badge>{post.category}</Badge>
+        <CategoryBadge $category={post.category}>{post.category}</CategoryBadge>
         <Meta>
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>
@@ -256,7 +302,10 @@ function PostDetail({
           {comments.map((comment) => (
             <Comment key={comment.id}>
               <CommentHeader>
-                <Author>{comment.author}</Author>
+                <AuthorInfo>
+                  <Author>{comment.author}</Author>
+                  <CommentDate dateTime={comment.createdAt}>{formatCommentDate(comment.createdAt)}</CommentDate>
+                </AuthorInfo>
                 {!comment.deleted && (
                   <ReplyActions>
                     {/* AI작성: 원댓글에만 한 단계 답글 작성 버튼을 제공합니다. */}
@@ -326,7 +375,10 @@ function PostDetail({
               {comment.replies.map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>
-                    <Author>↳ {reply.author}</Author>
+                    <AuthorInfo>
+                      <Author>↳ {reply.author}</Author>
+                      <CommentDate dateTime={reply.createdAt}>{formatCommentDate(reply.createdAt)}</CommentDate>
+                    </AuthorInfo>
                     {!reply.deleted && (
                       <ReplyActions>
                         {/* AI작성: 대댓글은 한 단계만 허용하므로 수정과 삭제 기능만 제공합니다. */}
