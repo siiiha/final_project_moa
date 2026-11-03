@@ -6,7 +6,7 @@ import MeetingList from '../components/member/MeetingList';
 import ProfileSummary from '../components/member/ProfileSummary';
 import QuickLinks from '../components/member/QuickLinks';
 import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
-import { memberMenuItems, participatingMeetings, quickLinks } from '../mocks/mypage';
+import { participatingMeetings, quickLinks } from '../mocks/mypage';
 import { getMyJoinedGroups, getMyProfile } from '../api/member';
 import useAuthStore from '../store/authStore';
 
