@@ -547,13 +547,15 @@
         </foreach>
     </insert>
 
-    <!-- AI작성: closed_at이 없는 진행 중 투표만 잠가 최대 5개 제한을 동시 생성 요청에도 일관되게 적용한다. -->
+    <!-- AI작성: 삭제·종료·시간 만료 투표를 제외하고 소모임별 진행 중 투표의 최대 5개 제한에 사용할 개수를 조회한다. -->
     <select id="selectOpenSmallGroupVoteCountForUpdate" resultType="long">
         SELECT COUNT(*)
         FROM small_group_vote
         WHERE small_group_id = #{smallGroupId}
+          AND status = 'OPEN'
           AND closed_at IS NULL
           AND deleted_at IS NULL
+          AND (ends_at IS NULL OR ends_at > CURRENT_TIMESTAMP())
         FOR UPDATE
     </select>
 
@@ -568,20 +570,29 @@
           AND g.deleted_at IS NULL
     </select>
 
-    <!-- AI작성: 투표 목록은 상세 이동용 식별자와 제목·상태·마감 시각을 등록 최신순으로 반환한다. -->
+    <!-- AI작성: 실제 마감 여부를 상태에 반영하며 종료 기준 시각(closed_at 우선, 없으면 ends_at)부터 24시간 초과 시 숨긴다.
+         종료 시각이 모두 없는 CLOSED 투표는 제외하고, 정확히 24시간인 투표는 유지한다. -->
     <select id="selectSmallGroupVoteList"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse">
         SELECT small_group_vote_id,
                title,
-               status,
+               CASE
+                   WHEN status = 'CLOSED'
+                     OR closed_at IS NOT NULL
+                     OR ends_at &lt;= CURRENT_TIMESTAMP()
+                   THEN 'CLOSED'
+                   ELSE 'OPEN'
+               END AS status,
                ends_at
         FROM small_group_vote
         WHERE small_group_id = #{smallGroupId}
           AND deleted_at IS NULL
-        AND (
-            closed_at IS NULL
-            OR closed_at >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
-        )
+          AND (
+              (status = 'OPEN'
+               AND closed_at IS NULL
+               AND (ends_at IS NULL OR ends_at > CURRENT_TIMESTAMP()))
+              OR COALESCE(closed_at, ends_at) >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
+          )
         ORDER BY created_at DESC, small_group_vote_id DESC
     </select>
 
