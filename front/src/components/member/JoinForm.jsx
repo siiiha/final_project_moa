@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -22,17 +22,8 @@ import { interestIcons } from './interestsIcons';
 
 const Form = styled.form`
   width: 100%;
-`;
-
-const DetailsGrid = styled.div`
-  display: grid;
-  grid-template-columns: ${({ $isSocialSignup }) =>
-    $isSocialSignup ? '1fr' : 'repeat(2, minmax(0, 1fr))'};
-  gap: 16px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: 1fr;
-  }
+  max-width: ${({ $isDetailsStep }) => ($isDetailsStep ? '560px' : 'none')};
+  margin-inline: auto;
 `;
 
 const FieldList = styled.div`
@@ -101,37 +92,67 @@ const VerifyButton = styled(Button)`
   font-size: 11px;
 `;
 
-const GenderField = styled.div`
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+const GenderPicker = styled.button`
+  min-height: 42px;
+  margin-bottom: 28px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 `;
 
-const GenderLabel = styled.p`
-  grid-column: 1;
+const GenderDialog = styled.dialog`
+  box-sizing: border-box;
+  inset: 0;
+  margin: auto;
+  width: min(400px, calc(100% - 32px));
+  padding: 28px 24px 20px;
+  border: 0;
+  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.white};
   color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: -0.35px;
-`;
 
-const GenderOptions = styled.div`
-  grid-column: 2;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-`;
+  &::backdrop {
+    background: rgb(0 0 0 / 40%);
+  }
 
-const GenderButton = styled.button`
-  height: 42px;
-  color: ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.secondaryText)};
-  background: ${({ $selected, theme }) => ($selected ? theme.colors.primarySoft : theme.colors.white)};
-  border: 1px solid ${({ $selected, theme }) => ($selected ? theme.colors.primary : theme.colors.border)};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-  font-weight: 700;
+  h3 {
+    margin: 0 30px 16px 0;
+    font-size: 18px;
+  }
+
+  button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    font-size: 24px;
+  }
+
+  .option {
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: 8px;
+    text-align: left;
+  }
+
+  .option:hover,
+  .option[aria-pressed='true'] {
+    background: ${({ theme }) => theme.colors.primarySoft};
+  }
 `;
 
 const InterestCard = styled(SectionCard)`
@@ -207,6 +228,47 @@ const Chip = styled.button`
   }
 `;
 
+const TermsStep = styled.div`
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+
+  > button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+`;
+
+const AllAgreement = styled.div`
+  padding: 4px 12px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.colors.primarySoft};
+
+    > label {
+    min-height: 48px;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 800;
+
+    > span {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+    }
+  }
+`;
+
+const TermsHint = styled.p`
+  margin: 12px 0 0;
+  color: #9a3412;
+  font-size: 14px;
+  line-height: 1.5;
+
+  &:empty {
+    margin: 0;
+  }
+`;
+
 const AgreementCard = styled(SectionCard)`
   margin-top: 16px;
 
@@ -227,6 +289,28 @@ const AgreementRow = styled.div`
   gap: 16px;
 `;
 
+// AI작성: 약관 목록 아래에서 개인정보 이용 목적을 펼쳐 볼 수 있다.
+const PrivacyNotice = styled.details`
+  margin-top: 20px;
+  padding: 14px 16px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.colors.primarySoft};
+  color: ${({ theme }) => theme.colors.secondaryText};
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+
+  summary {
+    cursor: pointer;
+    color: ${({ theme }) => theme.colors.text};
+    font-weight: 700;
+  }
+
+  p {
+    margin: 8px 0 0;
+  }
+`;
+
 const DetailButton = styled.button`
   min-height: 28px;
   padding: 5px 10px;
@@ -245,6 +329,87 @@ const SubmitButton = styled(Button)`
   font-size: 13px;
 `;
 
+const SignupPreviousFields = styled.dl`
+  display: grid;
+  gap: 14px;
+  margin: 0 0 24px;
+
+  > div {
+    padding-bottom: 10px;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  }
+
+  dt {
+    margin-bottom: 6px;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    font-size: 13px;
+  }
+
+  dd {
+    margin: 0;
+    color: ${({ theme }) => theme.colors.text};
+    font-size: 16px;
+  }
+`;
+
+const SignupInputCard = styled.section`
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 520px;
+  min-height: 460px;
+  margin-inline: auto;
+  padding: clamp(24px, 6vw, 50px);
+  display: flex;
+  flex-direction: column;
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 20px;
+
+  h2 {
+    margin: 0 0 40px;
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  label,
+  p {
+    color: ${({ theme }) => theme.colors.secondaryText};
+  }
+
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 0;
+    border: 0;
+    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: 0;
+    background: transparent;
+    font: inherit;
+  }
+
+  input:focus {
+    outline: none;
+    border-bottom-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  p {
+    margin: 10px 0 24px;
+    font-size: 14px;
+  }
+
+  ${SubmitButton} {
+    min-height: 48px;
+    margin-top: auto;
+    font-size: 15px;
+  }
+
+  ${SubmitButton}:disabled {
+    background: #f3f3f3;
+    border-color: transparent;
+    color: #666;
+  }
+`;
+
 function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const navigate = useNavigate();
   const setToken = useAuthStore((state) => state.setToken);
@@ -252,14 +417,38 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [code, setCode] = useState('');
   const [verificationRequestId, setVerificationRequestId] = useState(null);
   const [emailVerificationToken, setEmailVerificationToken] = useState('');
+  const [verificationDeadline, setVerificationDeadline] = useState(0);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!verificationRequestId || !verificationDeadline || emailVerificationToken) {
+      return;
+    }
+
+    const updateRemaining = () => {
+      const seconds = Math.max(0, Math.ceil((verificationDeadline - Date.now()) / 1000));
+      setRemainingSeconds(seconds);
+      return seconds;
+    };
+
+    if (updateRemaining() === 0) return;
+
+    const timerId = window.setInterval(() => {
+      if (updateRemaining() === 0) window.clearInterval(timerId);
+    }, 250);
+
+    return () => window.clearInterval(timerId);
+  }, [verificationRequestId, verificationDeadline, emailVerificationToken]);
   const [isEmailBusy, setIsEmailBusy] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
   const [emailError, setEmailError] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [gender, setGender] = useState('');
+  const genderDialogRef = useRef(null);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [agreements, setAgreements] = useState({});
+  const [signupStep, setSignupStep] = useState('terms');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
@@ -283,6 +472,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [termsError, setTermsError] = useState('');
   // AI작성: 사용자가 선택한 약관을 내용 보기 모달에 표시한다.
   const [selectedTerm, setSelectedTerm] = useState(null);
+  const missingRequiredTerms = memberTermOptions.filter(
+    (term) => term.required && !agreements[term.termId],
+  );
 
   useEffect(() => {
     let active = true;
@@ -389,6 +581,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
         throw new Error('인증 요청 번호가 없습니다.');
       }
 
+      setVerificationDeadline(Date.now() + 180_000);
+      setRemainingSeconds(180);
       setVerificationRequestId(requestId);
       setEmailMessage(
         '인증번호를 발송했습니다. 3분 안에 입력해주세요.',
@@ -427,9 +621,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       }
 
       setEmailVerificationToken(token);
-      setEmailMessage(
-        '이메일 인증이 완료됐습니다. 5분 안에 회원가입을 완료해주세요.',
-      );
+      setEmailMessage('이메일 인증이 완료됐어요.');
     } catch (error) {
       setEmailError(
         error.response?.data?.error?.message ??
@@ -479,6 +671,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   // AI작성: 인증 완료 토큰과 회원정보를 서버로 전송합니다.
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (signupStep !== 'details') return;
 
     if (isSubmitting || isEmailBusy || isCheckingNickname) return;
 
@@ -670,133 +863,546 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   };
 
   return (
-    <Form onSubmit={handleSubmit}>
+    <Form onSubmit={handleSubmit} $isDetailsStep={signupStep !== 'terms'}>
       <fieldset
         disabled={isSubmitting || isCheckingNickname}
         style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
       >
-        <DetailsGrid $isSocialSignup={isSocialSignup}>
-          {!isSocialSignup && (
-            <SectionCard title="계정 정보">
-              <FieldList>
-                <TextInput
-                  id="join-email"
-                  label="이메일"
-                  type="email"
-                  placeholder="이메일 입력"
-                  value={email}
-                  onChange={(event) => {
-                    setEmail(event.target.value);
-                    setVerificationRequestId(null);
-                    setEmailVerificationToken('');
-                    setCode('');
-                    setEmailMessage('');
-                    setEmailError('');
+        {signupStep === 'details' && (
+          <>
+            
+
+            <InterestCard title="관심사">
+              <InterestContent>
+                <InterestDescription>
+                  <h3>어떤 활동에 관심이 있으신가요?</h3>
+                  <p aria-live="polite">
+                    최대 3개 선택 · 선택사항 · 선택 {selectedInterests.length}/3
+                  </p>
+                </InterestDescription>
+
+                <ChipList aria-label="관심사 선택">
+                  {memberInterestOptions.map((interest) => {
+                    const selected = selectedInterests.includes(
+                      interest.interestId,
+                    );
+                    const InterestIcon = interestIcons[interest.interestId];
+                    return (
+                      <Chip
+                        key={interest.interestId}
+                        type="button"
+                        $selected={selected}
+                        onClick={() => handleInterestToggle(interest.interestId)}
+                        aria-pressed={selected}
+                        disabled={!selected && selectedInterests.length >= 3}
+                      >
+                        {InterestIcon && (
+                          <InterestIcon size={18} aria-hidden="true" />
+                        )}
+                        <span>{interest.interestName}</span>
+                      </Chip>
+                    );
+                  })}
+                </ChipList>
+              </InterestContent>
+            </InterestCard>
+            <SignupPreviousFields style={{ marginTop: 24 }}>
+              {[
+                [
+                  '활동 지역',
+                  memberRegionOptions.find((region) => region.regionId === Number(regionId))
+                    ?.regionName,
+                ],
+                ['닉네임', nickname.trim()],
+                ...(!isSocialSignup ? [['이메일', email.trim()]] : []),
+                ['전화번호', phone],
+                ['성별', gender === 'MALE' ? '남성' : '여성'],
+                ['생년월일', birthDate.replaceAll('-', '.')],
+                ['이름', name.trim()],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </SignupPreviousFields>
+          </>
+        )}
+        {signupStep === 'terms' && (
+          <TermsStep>
+            <AgreementCard title="회원가입을 위한 약관 동의가 필요해요">
+              {isTermsLoading && (
+                <p role="status">약관을 불러오고 있습니다.</p>
+              )}
+              {termsError && <p role="alert">{termsError}</p>}
+
+              {memberTermOptions.length > 0 && (
+                <>
+                  <AgreementList>
+                    <AllAgreement>
+                      <Checkbox
+                        id="agreement-all"
+                        label="전체 동의하기"
+                        checked={memberTermOptions.every(
+                          (term) => Boolean(agreements[term.termId]),
+                        )}
+                        onChange={() => {
+                          setAgreements((current) => {
+                            const allChecked = memberTermOptions.every(
+                              (term) => Boolean(current[term.termId]),
+                            );
+                            return Object.fromEntries(
+                              memberTermOptions.map((term) => [term.termId, !allChecked]),
+                            );
+                          });
+                        }}
+                      />
+                    </AllAgreement>
+
+                    {memberTermOptions.map((term) => (
+                      <AgreementRow key={term.termId}>
+                        <Checkbox
+                          id={`agreement-${term.termId}`}
+                          label={`${term.required ? '[필수]' : '[선택]'} ${term.title}`}
+                          checked={Boolean(agreements[term.termId])}
+                          onChange={() => handleAgreementChange(term.termId)}
+                          required={term.required}
+                        />
+                        <DetailButton
+                          type="button"
+                          aria-label={`${term.title} 전문 보기`}
+                          onClick={() => setSelectedTerm(term)}
+                        >
+                          보기
+                        </DetailButton>
+                      </AgreementRow>
+                    ))}
+                  </AgreementList>
+
+                  <PrivacyNotice>
+                    <summary>개인정보 수집·이용 안내</summary>
+                    <p>
+                      가입 시 입력한 정보는 회원 식별, 계정 관리, 활동 지역에
+                      맞는 서비스 제공에 사용합니다. 수집 항목과 보유 기간은
+                      위의 개인정보 수집·이용 동의 전문에서 확인할 수 있습니다.
+                    </p>
+                  </PrivacyNotice>
+                </>
+              )}
+            </AgreementCard>
+
+            <TermsHint aria-live="polite">
+              {Object.values(agreements).some(Boolean) &&
+                missingRequiredTerms.length > 0 &&
+                (missingRequiredTerms.length === 1
+                  ? `‘${missingRequiredTerms[0].title}’ 항목에 동의해 주세요.`
+                  : '남은 필수 약관에 모두 동의해 주세요.')}
+            </TermsHint>
+
+            <SubmitButton
+              type="button"
+              disabled={
+                isTermsLoading ||
+                Boolean(termsError) ||
+                memberTermOptions.length === 0 ||
+                memberTermOptions.some(
+                  (term) => term.required && !agreements[term.termId],
+                )
+              }
+              onClick={() => {
+                setSignupError('');
+                setSignupStep('name');
+              }}
+            >
+              다음
+            </SubmitButton>
+          </TermsStep>
+        )}
+
+        {signupStep === 'name' && (
+          <SignupInputCard aria-labelledby="signup-name-title">
+            <h2 id="signup-name-title">이름을 입력해 주세요</h2>
+
+            <label htmlFor="join-name">이름</label>
+            <input
+              id="join-name"
+              autoComplete="name"
+              aria-describedby="signup-name-hint"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={10}
+              required
+            />
+            <p id="signup-name-hint">
+              실제 이름을 입력해 주세요. (특수기호, 공백 사용 불가)
+            </p>
+
+            <SubmitButton
+              type="button"
+              disabled={!/^[\p{L}\p{M}]+$/u.test(name)}
+              onClick={() => setSignupStep('birthDate')}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
+        {signupStep === 'birthDate' && (
+          <SignupInputCard aria-labelledby="signup-birth-title">
+            <h2 id="signup-birth-title">생년월일을 입력해 주세요</h2>
+
+            <input
+              id="birth-date"
+              aria-label="생년월일"
+              aria-describedby="signup-birth-hint"
+              type="text"
+              inputMode="numeric"
+              placeholder="0000.00.00"
+              autoFocus
+              value={birthDate.replaceAll('-', '.')}
+              onChange={(event) => {
+                const digits = event.target.value.replace(/\D/g, '').slice(0, 8);
+                const parts = [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6)];
+
+                setBirthDate(parts.filter(Boolean).join('-'));
+                setSignupError('');
+              }}
+            />
+            <p id="signup-birth-hint">생년월일은 8자리 숫자로 입력해 주세요.</p>
+
+            <label htmlFor="signup-birth-name">이름</label>
+            <input id="signup-birth-name" value={name.trim()} readOnly />
+
+            <SubmitButton
+              type="button"
+              disabled={birthDate.length !== 10}
+              onClick={() => {
+                const date = new Date(`${birthDate}T00:00:00Z`);
+                if (
+                  Number.isNaN(date.getTime()) ||
+                  date.toISOString().slice(0, 10) !== birthDate
+                ) {
+                  setSignupError('올바른 생년월일을 입력해 주세요.');
+                  return;
+                }
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (new Date(`${birthDate}T00:00:00`) >= today) {
+                  setSignupError('생년월일은 오늘보다 이전 날짜여야 합니다.');
+                  return;
+                }
+
+                setSignupError('');
+                setSignupStep('gender');
+              }}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
+
+        {signupStep === 'gender' && (
+          <SignupInputCard aria-labelledby="signup-gender-title">
+            <h2 id="signup-gender-title">성별을 선택해 주세요</h2>
+
+            <GenderPicker
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => genderDialogRef.current.showModal()}
+            >
+              {gender === 'MALE' ? '남성' : gender === 'FEMALE' ? '여성' : '성별'}
+            </GenderPicker>
+
+            <GenderDialog ref={genderDialogRef} aria-labelledby="gender-picker-title">
+              <button
+                type="button"
+                className="close"
+                aria-label="성별 선택 닫기"
+                onClick={() => genderDialogRef.current.close()}
+              >
+                ×
+              </button>
+              <h3 id="gender-picker-title">성별을 선택해 주세요</h3>
+
+              {[
+                ['MALE', '남성'],
+                ['FEMALE', '여성'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="option"
+                  aria-pressed={gender === value}
+                  onClick={() => {
+                    setGender(value);
+                    genderDialogRef.current.close();
                   }}
-                  maxLength={40}
-                  required
-                  disabled={isEmailBusy}
-                  inline
-                  compact
-                  action={
-                    <VerifyButton
-                      type="button"
-                      $variant="secondary"
-                      onClick={handleVerification}
-                      disabled={isEmailBusy}
-                    >
-                      {isEmailBusy ? '처리 중…' : '인증번호 받기'}
-                    </VerifyButton>
-                  }
-                />
+                >
+                  {label}
+                </button>
+              ))}
+            </GenderDialog>
 
-                <TextInput
-                  id="verification-code"
-                  label="인증번호"
-                  inputMode="numeric"
-                  placeholder="6자리 입력"
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  maxLength={6}
-                  disabled={
-                    isEmailBusy ||
-                    !verificationRequestId ||
-                    Boolean(emailVerificationToken)
-                  }
-                  inline
-                  compact
-                  helpText="메일로 받은 인증번호를 입력해주세요."
-                  action={
-                    <VerifyButton
-                      type="button"
-                      $variant="secondary"
-                      onClick={handleCodeVerification}
-                      disabled={
-                        isEmailBusy ||
-                        !verificationRequestId ||
-                        Boolean(emailVerificationToken)
-                      }
-                    >
-                      {emailVerificationToken ? '인증 완료' : '인증 확인'}
-                    </VerifyButton>
-                  }
-                />
+            <label htmlFor="signup-gender-birth">생년월일</label>
+            <input
+              id="signup-gender-birth"
+              value={birthDate.replaceAll('-', '.')}
+              readOnly
+            />
 
-                {emailMessage && <p role="status">{emailMessage}</p>}
-                {emailError && <p role="alert">{emailError}</p>}
-                {/* AI작성: 일반 가입에서만 비밀번호 입력란을 표시한다. */}
-                {!isSocialSignup && (
-                  <>
-                    <PasswordInput
-                      id="join-password"
-                      label="비밀번호"
-                      placeholder="8자 이상 입력"
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      minLength={8}
-                      required
-                      inline
-                      compact
-                      isVisible={isPasswordVisible}
-                      onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
-                    />
+            <label htmlFor="signup-gender-name">이름</label>
+            <input id="signup-gender-name" value={name.trim()} readOnly />
 
-                    <PasswordInput
-                      id="join-password-confirm"
-                      label="비밀번호 확인"
-                      placeholder="비밀번호를 다시 입력"
-                      autoComplete="new-password"
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                      required
-                      inline
-                      compact
-                      isVisible={isConfirmPasswordVisible}
-                      onToggleVisibility={() =>
-                        setIsConfirmPasswordVisible((value) => !value)
-                      }
-                    />
-                  </>
-                )}
+            <SubmitButton
+              type="button"
+              disabled={!gender}
+              onClick={() => setSignupStep('phone')}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
+        {signupStep === 'phone' && (
+          <SignupInputCard aria-labelledby="signup-phone-title">
+            <h2 id="signup-phone-title">전화번호를 입력해 주세요</h2>
 
-              </FieldList>
-            </SectionCard>
-          )}
-          <SectionCard title="기본 정보">
+            <label htmlFor="signup-phone">전화번호</label>
+            <input
+              id="signup-phone"
+              type="tel"
+              autoComplete="tel"
+              placeholder="010-1234-5678"
+              aria-describedby="signup-phone-hint"
+              value={phone}
+              onChange={(event) => {
+                const digits = event.target.value.replace(/\D/g, '').slice(0, 11);
+                const parts = [digits.slice(0, 3), digits.slice(3, 7), digits.slice(7)];
+
+                setPhone(parts.filter(Boolean).join('-'));
+              }}
+              required
+            />
+            <p id="signup-phone-hint">사용 중인 전화번호를 입력해 주세요.</p>
+            <SignupPreviousFields>
+              <div>
+                <dt>성별</dt>
+                <dd>{gender === 'MALE' ? '남성' : '여성'}</dd>
+              </div>
+              <div>
+                <dt>생년월일</dt>
+                <dd>{birthDate.replaceAll('-', '.')}</dd>
+              </div>
+              <div>
+                <dt>이름</dt>
+                <dd>{name.trim()}</dd>
+              </div>
+            </SignupPreviousFields>
+            <SubmitButton
+              type="button"
+              disabled={!phone.trim()}
+              onClick={() => setSignupStep(isSocialSignup ? 'nickname' : 'email')}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
+        {signupStep === 'email' && (
+          <SignupInputCard aria-labelledby="signup-email-title">
+            <h2 id="signup-email-title">이메일을 인증해 주세요</h2>
+
             <FieldList>
               <TextInput
-                id="join-name"
-                label="이름"
-                placeholder="이름 입력"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                maxLength={10}
+                id="join-email"
+                label="이메일"
+                type="email"
+                placeholder="이메일 입력"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setVerificationRequestId(null);
+                  setEmailVerificationToken('');
+                  setCode('');
+                  setEmailMessage('');
+                  setEmailError('');
+                }}
+                maxLength={40}
+                required
+                disabled={isEmailBusy}
+                inline
+                compact
+                action={
+                  <VerifyButton
+                    type="button"
+                    $variant="secondary"
+                    onClick={handleVerification}
+                    disabled={isEmailBusy}
+                  >
+                    {isEmailBusy ? '처리 중…' : '인증번호 받기'}
+                  </VerifyButton>
+                }
+              />
+
+              <TextInput
+                id="verification-code"
+                label="인증번호"
+                inputMode="numeric"
+                placeholder="6자리 입력"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                maxLength={6}
+                disabled={
+                  isEmailBusy ||
+                  !verificationRequestId ||
+                  Boolean(emailVerificationToken)
+                }
+                inline
+                compact
+                helpText="메일로 받은 인증번호를 입력해주세요."
+                action={
+                  <VerifyButton
+                    type="button"
+                    $variant="secondary"
+                    onClick={handleCodeVerification}
+                    disabled={
+                      isEmailBusy ||
+                      !verificationRequestId ||
+                      remainingSeconds === 0 ||
+                      Boolean(emailVerificationToken)
+                    }
+                  >
+                    {emailVerificationToken ? '인증 완료' : '인증 확인'}
+                  </VerifyButton>
+                }
+              />
+
+              {emailMessage && <p role="status">{emailMessage}</p>}
+              {verificationRequestId && !emailVerificationToken && (
+                remainingSeconds > 0 ? (
+                  <p
+                    style={{
+                      color: remainingSeconds <= 30 ? '#B42318' : '#166457',
+                      fontWeight: 700,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    남은 시간 {Math.floor(remainingSeconds / 60)}:
+                    {String(remainingSeconds % 60).padStart(2, '0')}
+                  </p>
+                ) : (
+                  <p role="status">인증번호가 만료됐습니다. 인증번호를 다시 받아 주세요.</p>
+                )
+              )}
+              {emailError && <p role="alert">{emailError}</p>}
+            </FieldList>
+
+            <SignupPreviousFields style={{ marginTop: 24 }}>
+              <div>
+                <dt>전화번호</dt>
+                <dd>{phone}</dd>
+              </div>
+              <div>
+                <dt>성별</dt>
+                <dd>{gender === 'MALE' ? '남성' : '여성'}</dd>
+              </div>
+              <div>
+                <dt>생년월일</dt>
+                <dd>{birthDate.replaceAll('-', '.')}</dd>
+              </div>
+              <div>
+                <dt>이름</dt>
+                <dd>{name.trim()}</dd>
+              </div>
+            </SignupPreviousFields>
+
+            <SubmitButton
+              type="button"
+              disabled={!emailVerificationToken || isEmailBusy}
+              onClick={() => setSignupStep('password')}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
+        {signupStep === 'password' && (
+          <SignupInputCard aria-labelledby="signup-password-title">
+            <h2 id="signup-password-title">비밀번호를 설정해 주세요</h2>
+
+            <FieldList>
+              <PasswordInput
+                id="join-password"
+                label="비밀번호"
+                placeholder="8자 이상 입력"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength={8}
                 required
                 inline
                 compact
+                isVisible={isPasswordVisible}
+                onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
               />
 
+              <PasswordInput
+                id="join-password-confirm"
+                label="비밀번호 확인"
+                placeholder="비밀번호를 다시 입력"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                required
+                inline
+                compact
+                isVisible={isConfirmPasswordVisible}
+                onToggleVisibility={() =>
+                  setIsConfirmPasswordVisible((value) => !value)
+                }
+              />
+            </FieldList>
+
+            <p>비밀번호는 8자 이상으로 설정해 주세요. 영문, 숫자, 특수문자를 각각 하나 이상 포함해야 합니다.</p>
+
+            <SignupPreviousFields>
+              <div>
+                <dt>이메일</dt>
+                <dd>{email.trim()}</dd>
+              </div>
+              <div>
+                <dt>전화번호</dt>
+                <dd>{phone}</dd>
+              </div>
+              <div>
+                <dt>성별</dt>
+                <dd>{gender === 'MALE' ? '남성' : '여성'}</dd>
+              </div>
+              <div>
+                <dt>생년월일</dt>
+                <dd>{birthDate.replaceAll('-', '.')}</dd>
+              </div>
+              <div>
+                <dt>이름</dt>
+                <dd>{name.trim()}</dd>
+              </div>
+            </SignupPreviousFields>
+
+            <SubmitButton
+              type="button"
+              disabled={
+                password.length < 8 ||
+                new TextEncoder().encode(password).length > 72 ||
+                password !== confirmPassword
+              }
+              onClick={() => setSignupStep('nickname')}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
+        {signupStep === 'nickname' && (
+          <SignupInputCard aria-labelledby="signup-nickname-title">
+            <h2 id="signup-nickname-title">닉네임을 입력해 주세요</h2>
+
+            <FieldList>
               <TextInput
                 id="nickname"
                 label="닉네임"
@@ -824,290 +1430,256 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
               />
 
               {nicknameMessage && <p role="status">{nicknameMessage}</p>}
-
-              <TextInput
-                id="phone"
-                label="전화번호"
-                type="tel"
-                placeholder="전화번호 입력"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                maxLength={20}
-                required
-                inline
-                compact
-              />
-
-              <TextInput
-                id="birth-date"
-                label="생년월일"
-                type="date"
-                value={birthDate}
-                onChange={(event) => setBirthDate(event.target.value)}
-                required
-                inline
-                compact
-              />
-
-              <GenderField>
-                <GenderLabel>성별</GenderLabel>
-                <GenderOptions>
-                  <GenderButton
-                    type="button"
-                    $selected={gender === 'FEMALE'}
-                    onClick={() => setGender('FEMALE')}
-                    aria-pressed={gender === 'FEMALE'}
-                  >
-                    여성
-                  </GenderButton>
-                  <GenderButton
-                    type="button"
-                    $selected={gender === 'MALE'}
-                    onClick={() => setGender('MALE')}
-                    aria-pressed={gender === 'MALE'}
-                  >
-                    남성
-                  </GenderButton>
-                </GenderOptions>
-              </GenderField>
-
-              <RegionField>
-                <p>활동 지역</p>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                    gap: '10px',
-                    marginTop: '8px',
-                  }}
-                >
-                  <label htmlFor="join-province">
-                    시·도
-                    <select
-                      id="join-province"
-                      value={provinceName}
-                      onChange={(event) => {
-                        setProvinceName(event.target.value);
-                        setDistrictRegionId('');
-                        setRegionId('');
-                      }}
-                      disabled={isRegionsLoading || Boolean(regionsError) || isSubmitting}
-                      required
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        minHeight: '44px',
-                        marginTop: '6px',
-                        padding: '8px',
-                      }}
-                    >
-                      <option value="">시·도 선택</option>
-                      {[...new Set(memberRegionOptions.map((region) => region.provinceName))]
-                        .map((province) => (
-                          <option key={province} value={province}>
-                            {province}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-
-                  <label htmlFor="join-region">
-                    시·군·구
-                    <select
-                      id="join-region"
-                      value={districtRegionId}
-                      onChange={(event) => {
-                        setDistrictRegionId(event.target.value);
-                        setRegionId('');
-                      }}
-                      disabled={
-                        !provinceName ||
-                        isRegionsLoading ||
-                        Boolean(regionsError) ||
-                        isSubmitting
-                      }
-                      required
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        minHeight: '44px',
-                        marginTop: '6px',
-                        padding: '8px',
-                      }}
-                    >
-                      <option value="">시·군·구 선택</option>
-                      {memberRegionOptions
-                        .filter(
-                          (region) =>
-                            region.provinceName === provinceName &&
-                            !region.townName,
-                        )
-                        .map((region) => (
-                          <option key={region.regionId} value={region.regionId}>
-                            {region.districtName || '세종특별자치시 전체'}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-
-                  <label htmlFor="join-town">
-                    읍·면·동
-                    <select
-                      id="join-town"
-                      value={regionId}
-                      onChange={(event) => setRegionId(event.target.value)}
-                      disabled={
-                        !districtRegionId ||
-                        isRegionsLoading ||
-                        Boolean(regionsError) ||
-                        isSubmitting
-                      }
-                      required
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        minHeight: '44px',
-                        marginTop: '6px',
-                        padding: '8px',
-                      }}
-                    >
-                      <option value="">읍·면·동 선택</option>
-                      {memberRegionOptions
-                        .filter((region) => {
-                          const district = memberRegionOptions.find(
-                            (item) =>
-                              item.regionId === Number(districtRegionId),
-                          );
-
-                          return (
-                            district &&
-                            region.townName &&
-                            region.provinceName === district.provinceName &&
-                            region.districtName === district.districtName
-                          );
-                        })
-                        .map((region) => (
-                          <option key={region.regionId} value={region.regionId}>
-                            {region.townName}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                </div>
-
-                {isRegionsLoading && (
-                  <p role="status">지역 목록을 불러오고 있습니다.</p>
-                )}
-                {regionsError && <p role="alert">{regionsError}</p>}
-              </RegionField>
             </FieldList>
-          </SectionCard>
-        </DetailsGrid>
+            <p>모아에서 사용할 닉네임을 2~12자로 입력해 주세요.</p>
 
-        <InterestCard title="관심사">
-          <InterestContent>
-            <InterestDescription>
-              <h3>어떤 활동에 관심이 있으신가요?</h3>
-              <p aria-live="polite">
-                최대 3개 선택 · 선택사항 · 선택 {selectedInterests.length}/3
-              </p>
-            </InterestDescription>
+            <SignupPreviousFields>
+              {!isSocialSignup && (
+                <div>
+                  <dt>이메일</dt>
+                  <dd>{email.trim()}</dd>
+                </div>
+              )}
+              <div>
+                <dt>전화번호</dt>
+                <dd>{phone}</dd>
+              </div>
+              <div>
+                <dt>성별</dt>
+                <dd>{gender === 'MALE' ? '남성' : '여성'}</dd>
+              </div>
+              <div>
+                <dt>생년월일</dt>
+                <dd>{birthDate.replaceAll('-', '.')}</dd>
+              </div>
+              <div>
+                <dt>이름</dt>
+                <dd>{name.trim()}</dd>
+              </div>
+            </SignupPreviousFields>
 
-            <ChipList aria-label="관심사 선택">
-              {memberInterestOptions.map((interest) => {
-                const selected = selectedInterests.includes(
-                  interest.interestId,
-                );
-                const InterestIcon = interestIcons[interest.interestId];
-                return (
-                  <Chip
-                    key={interest.interestId}
-                    type="button"
-                    $selected={selected}
-                    onClick={() => handleInterestToggle(interest.interestId)}
-                    aria-pressed={selected}
-                    disabled={!selected && selectedInterests.length >= 3}
+            <SubmitButton
+              type="button"
+              disabled={nickname.trim().length < 2 || nickname.trim().length > 12 || isCheckingNickname}
+              onClick={() => setSignupStep('region')}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
+
+        {signupStep === 'region' && (
+          <SignupInputCard aria-labelledby="signup-region-title">
+            <h2 id="signup-region-title">활동 지역을 선택해 주세요</h2>
+
+            <RegionField>
+              <p>활동 지역</p>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: '10px',
+                  marginTop: '8px',
+                }}
+              >
+                <label htmlFor="join-province">
+                  시·도
+                  <select
+                    id="join-province"
+                    value={provinceName}
+                    onChange={(event) => {
+                      setProvinceName(event.target.value);
+                      setDistrictRegionId('');
+                      setRegionId('');
+                    }}
+                    disabled={isRegionsLoading || Boolean(regionsError) || isSubmitting}
+                    required
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      minHeight: '44px',
+                      marginTop: '6px',
+                      padding: '8px',
+                    }}
                   >
-                    {InterestIcon && (
-                      <InterestIcon size={18} aria-hidden="true" />
-                    )}
-                    <span>{interest.interestName}</span>
-                  </Chip>
-                );
-              })}
-            </ChipList>
-          </InterestContent>
-        </InterestCard>
+                    <option value="">시·도 선택</option>
+                    {[...new Set(memberRegionOptions.map((region) => region.provinceName))]
+                      .map((province) => (
+                        <option key={province} value={province}>
+                          {province}
+                        </option>
+                      ))}
+                  </select>
+                </label>
 
-        <AgreementCard title="약관 동의">
-          {isTermsLoading && (
-            <p role="status">약관을 불러오고 있습니다.</p>
-          )}
-          {termsError && <p role="alert">{termsError}</p>}
+                <label htmlFor="join-region">
+                  시·군·구
+                  <select
+                    id="join-region"
+                    value={districtRegionId}
+                    onChange={(event) => {
+                      setDistrictRegionId(event.target.value);
+                      setRegionId('');
+                    }}
+                    disabled={
+                      !provinceName ||
+                      isRegionsLoading ||
+                      Boolean(regionsError) ||
+                      isSubmitting
+                    }
+                    required
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      minHeight: '44px',
+                      marginTop: '6px',
+                      padding: '8px',
+                    }}
+                  >
+                    <option value="">시·군·구 선택</option>
+                    {memberRegionOptions
+                      .filter(
+                        (region) =>
+                          region.provinceName === provinceName &&
+                          !region.townName,
+                      )
+                      .map((region) => (
+                        <option key={region.regionId} value={region.regionId}>
+                          {region.districtName || '세종특별자치시 전체'}
+                        </option>
+                      ))}
+                  </select>
+                </label>
 
-          <AgreementList>
-            {memberTermOptions.map((term) => (
-              <AgreementRow key={term.termId}>
-                <Checkbox
-                  id={`agreement-${term.termId}`}
-                  label={`${term.required ? '[필수]' : '[선택]'} ${term.title}`}
-                  checked={Boolean(agreements[term.termId])}
-                  onChange={() => handleAgreementChange(term.termId)}
-                  required={term.required}
-                />
-                <DetailButton
-                  type="button"
-                  onClick={() => setSelectedTerm(term)}
-                >
-                  내용 보기
-                </DetailButton>
-              </AgreementRow>
-            ))}
-          </AgreementList>
-        </AgreementCard>
+                <label htmlFor="join-town">
+                  읍·면·동
+                  <select
+                    id="join-town"
+                    value={regionId}
+                    onChange={(event) => setRegionId(event.target.value)}
+                    disabled={
+                      !districtRegionId ||
+                      isRegionsLoading ||
+                      Boolean(regionsError) ||
+                      isSubmitting
+                    }
+                    required
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      minHeight: '44px',
+                      marginTop: '6px',
+                      padding: '8px',
+                    }}
+                  >
+                    <option value="">읍·면·동 선택</option>
+                    {memberRegionOptions
+                      .filter((region) => {
+                        const district = memberRegionOptions.find(
+                          (item) =>
+                            item.regionId === Number(districtRegionId),
+                        );
+
+                        return (
+                          district &&
+                          region.townName &&
+                          region.provinceName === district.provinceName &&
+                          region.districtName === district.districtName
+                        );
+                      })
+                      .map((region) => (
+                        <option key={region.regionId} value={region.regionId}>
+                          {region.townName}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+
+              {isRegionsLoading && (
+                <p role="status">지역 목록을 불러오고 있습니다.</p>
+              )}
+              {regionsError && <p role="alert">{regionsError}</p>}
+            </RegionField>
+
+            <SignupPreviousFields style={{ marginTop: 24 }}>
+              {[
+                ['닉네임', nickname.trim()],
+                ...(!isSocialSignup ? [['이메일', email.trim()]] : []),
+                ['전화번호', phone],
+                ['성별', gender === 'MALE' ? '남성' : '여성'],
+                ['생년월일', birthDate.replaceAll('-', '.')],
+                ['이름', name.trim()],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </SignupPreviousFields>
+
+            <SubmitButton
+              type="button"
+              disabled={
+                isRegionsLoading ||
+                !memberRegionOptions.some(
+                  (region) => region.regionId === Number(regionId) && region.townName,
+                )
+              }
+              onClick={() => setSignupStep('details')}
+            >
+              다음
+            </SubmitButton>
+          </SignupInputCard>
+        )}
 
         {signupError && <p role="alert">{signupError}</p>}
-
-        <SubmitButton
-          type="submit"
-          disabled={
-            isSubmitting ||
-            isEmailBusy ||
-            isCheckingNickname ||
-            isTermsLoading ||
-            Boolean(termsError) ||
-            memberTermOptions.length === 0
-          }
-        >
-          {isSubmitting ? '가입 처리 중…' : '회원가입'}
-        </SubmitButton>
+        {signupStep === 'details' && (
+          <>
+            <SubmitButton
+              type="submit"
+              disabled={
+                isSubmitting ||
+                isEmailBusy ||
+                isCheckingNickname ||
+                isTermsLoading ||
+                Boolean(termsError) ||
+                memberTermOptions.length === 0
+              }
+            >
+              {isSubmitting ? '가입 처리 중…' : '회원가입'}
+            </SubmitButton>
+          </>
+        )}
       </fieldset>
       {/* AI작성: 약관 본문을 확인하고 닫아도 동의 여부는 직접 선택한다. */}
-      {selectedTerm && (
-        <ConfirmModal
-          title={selectedTerm.title}
-          description={`버전: ${selectedTerm.version}`}
-          size="wide"
-          confirmLabel="닫기"
-          showCancel={false}
-          onConfirm={() => setSelectedTerm(null)}
-          onCancel={() => setSelectedTerm(null)}
-        >
-          <div
-            style={{
-              maxHeight: '50vh',
-              overflowY: 'auto',
-              whiteSpace: 'pre-wrap',
-              overflowWrap: 'anywhere',
-              lineHeight: 1.7,
-            }}
+      {
+        selectedTerm && (
+          <ConfirmModal
+            title={selectedTerm.title}
+            description={`버전: ${selectedTerm.version}`}
+            size="wide"
+            confirmLabel="닫기"
+            showCancel={false}
+            onConfirm={() => setSelectedTerm(null)}
+            onCancel={() => setSelectedTerm(null)}
           >
-            {selectedTerm.content}
-          </div>
-        </ConfirmModal>
-      )}
-    </Form>
+            <div
+              style={{
+                maxHeight: '50vh',
+                overflowY: 'auto',
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'anywhere',
+                lineHeight: 1.7,
+              }}
+            >
+              {selectedTerm.content}
+            </div>
+          </ConfirmModal>
+        )
+      }
+    </Form >
   );
 }
 
