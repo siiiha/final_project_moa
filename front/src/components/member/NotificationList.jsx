@@ -45,6 +45,43 @@ const Title = styled.h2`
   font-weight: 800;
 `;
 
+const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const ReadAllButton = styled.button`
+  min-height: 36px;
+  padding: 7px 12px;
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primarySoft};
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: ${({ theme }) => theme.colors.white};
+    background: ${({ theme }) => theme.colors.primary};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    color: ${({ theme }) => theme.colors.muted};
+    background: ${({ theme }) => theme.colors.background};
+    border-color: ${({ theme }) => theme.colors.border};
+    cursor: not-allowed;
+  }
+`;
+
 const DeleteReadButton = styled.button`
   min-height: 36px;
   padding: 7px 12px;
@@ -196,8 +233,11 @@ function NotificationList({
   loadFailed,
   hasMore,
   hasReadNotifications,
+  hasUnreadNotifications,
+  markingAllRead,
   deletingRead,
   onNotificationClick,
+  onReadAll,
   onDeleteAllRead,
   onLoadMore,
   onRetry,
@@ -206,14 +246,24 @@ function NotificationList({
     <Panel>
       <ListHeader>
         <Title>내 알림</Title>
-        {/* AI작성: 읽은 알림이 있을 때만 일괄 삭제를 실행할 수 있도록 상태를 구분합니다. */}
-        <DeleteReadButton
-          type="button"
-          onClick={onDeleteAllRead}
-          disabled={!hasReadNotifications || deletingRead}
-        >
-          {deletingRead ? '삭제 중…' : '읽은 알림 삭제'}
-        </DeleteReadButton>
+        <HeaderActions>
+          {/* AI작성: 읽지 않은 알림이 있을 때 현재 회원의 알림을 한 번에 읽음 처리합니다. */}
+          <ReadAllButton
+            type="button"
+            onClick={onReadAll}
+            disabled={!hasUnreadNotifications || markingAllRead || deletingRead}
+          >
+            {markingAllRead ? '처리 중…' : '전체 읽음'}
+          </ReadAllButton>
+          {/* AI작성: 읽은 알림이 있을 때만 일괄 삭제를 실행할 수 있도록 상태를 구분합니다. */}
+          <DeleteReadButton
+            type="button"
+            onClick={onDeleteAllRead}
+            disabled={!hasReadNotifications || deletingRead || markingAllRead}
+          >
+            {deletingRead ? '삭제 중…' : '읽은 알림 삭제'}
+          </DeleteReadButton>
+        </HeaderActions>
       </ListHeader>
 
       {notifications.length > 0 && (

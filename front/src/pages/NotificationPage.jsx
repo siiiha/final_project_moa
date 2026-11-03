@@ -70,6 +70,7 @@ function NotificationPage() {
   const [loading, setLoading] = useState(!restoredCache);
   const [loadFailed, setLoadFailed] = useState(false);
   const [hasMore, setHasMore] = useState(restoredCache?.hasMore ?? false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const [deletingRead, setDeletingRead] = useState(false);
 
   // AI작성: 마지막 알림 번호를 커서로 전달해 중복 없이 다음 알림 목록을 이어 붙입니다.
@@ -173,6 +174,23 @@ function NotificationPage() {
     }
   };
 
+  const handleReadAll = async () => {
+    setMarkingAllRead(true);
+
+    try {
+      await client.patch('/v1/notifications/read-all');
+
+      // AI작성: 서버의 전체 읽음 처리가 끝나면 현재 화면의 모든 알림도 읽음 상태로 맞춥니다.
+      setNotifications((current) => current.map((notification) => (
+        notification.read ? notification : { ...notification, read: true }
+      )));
+    } catch {
+      window.alert('알림을 읽음 처리하지 못했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
+
   return (
     <Page>
       <Heading>
@@ -193,8 +211,11 @@ function NotificationPage() {
             loadFailed={loadFailed}
             hasMore={hasMore}
             hasReadNotifications={notifications.some((notification) => notification.read)}
+            hasUnreadNotifications={notifications.some((notification) => !notification.read)}
+            markingAllRead={markingAllRead}
             deletingRead={deletingRead}
             onNotificationClick={handleNotificationClick}
+            onReadAll={handleReadAll}
             onDeleteAllRead={handleDeleteAllRead}
             onLoadMore={handleLoadMore}
             onRetry={() => loadNotifications()}
