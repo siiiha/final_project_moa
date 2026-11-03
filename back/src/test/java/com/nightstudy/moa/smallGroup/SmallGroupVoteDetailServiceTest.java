@@ -232,6 +232,30 @@ class SmallGroupVoteDetailServiceTest {
         }
     }
 
+    // AI작성: 작성자·현재 개설자·승인 OWNER와 진행 상태가 모두 맞는 경우에만 종료 가능 여부를 반환한다.
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "OWNER,40,40,OPEN,false,false,true", "MEMBER,40,40,OPEN,false,false,false",
+            "OWNER,50,40,OPEN,false,false,false", "OWNER,40,50,OPEN,false,false,false",
+            "OWNER,40,40,CLOSED,false,false,false", "OWNER,40,40,OPEN,true,false,false",
+            "OWNER,40,40,OPEN,false,true,false"})
+    void canCloseRequiresFullAuthorityAndOpenVote(String role, long author, long creator,
+            String status, boolean ended, boolean hasClosedAt, boolean expected) {
+        mockApprovedMember(role);
+        SmallGroupVoteListTargetRow target = voteTarget();
+        target.setCreatorMemberId(creator);
+        when(smallGroupMapper.selectSmallGroupVoteListTarget(SMALL_GROUP_ID)).thenReturn(target);
+        SmallGroupVoteDetailRow row = vote(false, LocalDateTime.now(KOREA_ZONE_ID).plusHours(1), null);
+        row.setCreatorMemberId(author);
+        row.setStatus(status);
+        if (ended) row.setEndsAt(LocalDateTime.now(KOREA_ZONE_ID).minusMinutes(1));
+        if (hasClosedAt) row.setClosedAt(LocalDateTime.now(KOREA_ZONE_ID).minusMinutes(1));
+        when(smallGroupMapper.selectSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID)).thenReturn(row);
+        when(smallGroupMapper.selectSmallGroupVoteDetailOptions(VOTE_ID)).thenReturn(List.of());
+        assertThat(smallGroupService.getSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID, MEMBER_ID).isCanClose())
+                .isEqualTo(expected);
+    }
+
     private void mockApprovedMember(String role) {
         when(smallGroupMapper.selectSmallGroupVoteListTarget(SMALL_GROUP_ID)).thenReturn(voteTarget());
         when(smallGroupMapper.selectSmallGroupMemberRelations(GROUP_ID, MEMBER_ID))
