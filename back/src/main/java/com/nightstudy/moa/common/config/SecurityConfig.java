@@ -70,8 +70,10 @@ public class SecurityConfig {
                 // API 접근 규칙
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(
+                                DispatcherType.ASYNC,
                                 DispatcherType.ERROR
                         ).permitAll()
+
 
                         .requestMatchers(
                                 HttpMethod.OPTIONS, "/**"
