@@ -94,16 +94,15 @@ public class MemberProfileController {
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
-    // 로그인한 회원의 비밀번호를 확인하고 회원정보 수정
+    // 현재 로그인 세션으로 회원정보 수정
     @PutMapping("/me")
-    public ResponseEntity<ApiResponse<MemberProfileResponse>>
-    updateMyProfile(
+    public ResponseEntity<ApiResponse<MemberProfileResponse>> updateMyProfile(
             @RequestAttribute("memberId") Long memberId,
-            @Valid @RequestBody MemberProfileUpdateRequest
-                    request
+            @RequestAttribute(value = "sessionId", required = false) String sessionId,
+            @Valid @RequestBody MemberProfileUpdateRequest request
     ) {
         MemberProfileResponse profile =
-                memberService.updateMyProfile(memberId, request);
+                memberService.updateMyProfile(memberId, sessionId, request);
 
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }

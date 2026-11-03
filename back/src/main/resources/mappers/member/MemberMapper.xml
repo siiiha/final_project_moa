@@ -181,6 +181,7 @@
         m.member_id AS memberId,
         m.name,
         m.email,
+        (m.password_hash IS NOT NULL) AS hasPassword,
         m.phone,
         m.nickname,
         TIMESTAMPDIFF(YEAR, m.birth_date, CURRENT_DATE()) AS age,

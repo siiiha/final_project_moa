@@ -568,6 +568,7 @@ public class MemberServiceImpl implements MemberService {
     @Transactional
     public MemberProfileResponse updateMyProfile(
             Long memberId,
+            String sessionId,
             MemberProfileUpdateRequest request
     ) {
         MemberLoginDto member =
@@ -589,7 +590,14 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        verifyCurrentPassword(member, request.getCurrentPassword());
+        if (member.getPasswordHash() != null
+                && !authSessionService.hasRecentMypageVerification(sessionId, memberId)) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "MYPAGE_VERIFICATION_REQUIRED",
+                    "비밀번호 확인 시간이 지났습니다. 내 정보 수정에서 다시 확인해 주세요."
+            );
+        }
 
         String nickname = request.getNickname();
 
@@ -675,14 +683,15 @@ public class MemberServiceImpl implements MemberService {
                         && !confirmNewPassword.isEmpty());
 
         if (passwordChangeRequested) {
-            MemberPasswordUpdateRequest passwordRequest =
-                    new MemberPasswordUpdateRequest();
+            if (member.getPasswordHash() == null) {
+                throw new ApiException(
+                        HttpStatus.FORBIDDEN,
+                        "PASSWORD_CHANGE_NOT_AVAILABLE",
+                        "이 계정은 비밀번호를 변경할 수 없습니다."
+                );
+            }
 
-            passwordRequest.setCurrentPassword(request.getCurrentPassword());
-            passwordRequest.setNewPassword(newPassword);
-            passwordRequest.setConfirmNewPassword(confirmNewPassword);
-
-            updatePassword(memberId, passwordRequest);
+            saveNewPassword(memberId, member, newPassword, confirmNewPassword);
         }
 
         return getMyProfile(memberId);
@@ -714,24 +723,21 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        String currentPassword = request.getCurrentPassword();
+        verifyCurrentPassword(member, request.getCurrentPassword());
+        saveNewPassword(
+                memberId,
+                member,
+                request.getNewPassword(),
+                request.getConfirmNewPassword()
+        );
+    }
 
-        if (currentPassword == null
-                || currentPassword.isBlank()
-                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
-                || member.getPasswordHash() == null
-                || !passwordEncoder.matches(
-                currentPassword,
-                member.getPasswordHash()
-        )) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_CURRENT_PASSWORD",
-                    "현재 비밀번호가 올바르지 않습니다."
-            );
-        }
-
-        String newPassword = request.getNewPassword();
+    private void saveNewPassword(
+            Long memberId,
+            MemberLoginDto member,
+            String newPassword,
+            String confirmNewPassword
+    ) {
 
         if (newPassword == null
                 || newPassword.isBlank()
