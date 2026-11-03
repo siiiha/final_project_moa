@@ -1,6 +1,7 @@
 import { FiChevronRight } from 'react-icons/fi';
 import styled from 'styled-components';
 import { NOTIFICATION_TYPE_LABELS } from '../../constants/notification';
+import formatNotificationDate from '../../utils/formatNotificationDate';
 import Button from '../common/Button';
 
 const Panel = styled.section`
@@ -141,18 +142,6 @@ const Actions = styled.div`
   justify-content: center;
 `;
 
-function formatCreatedAt(createdAt) {
-  if (!createdAt) return '';
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(createdAt));
-}
-
 function NotificationList({
   notifications,
   loading,
@@ -213,7 +202,7 @@ function NotificationList({
                     </NotificationTitle>
                     <Message>{notification.message}</Message>
                     <DateText dateTime={notification.createdAt}>
-                      {formatCreatedAt(notification.createdAt)}
+                      {formatNotificationDate(notification.createdAt, { includeYear: true })}
                       {!notification.read && ' · 새 알림'}
                     </DateText>
                   </span>

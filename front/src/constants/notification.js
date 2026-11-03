@@ -13,5 +13,4 @@ export const NOTIFICATION_TYPE_LABELS = {
   REPORT_PROCESSED: '신고 처리 결과',
   MEMBER_RESTRICTED: '이용 제한 안내',
   MEMBER_RESTRICTION_RELEASED: '이용 제한 해제',
-  TEST: '테스트 알림',
 };

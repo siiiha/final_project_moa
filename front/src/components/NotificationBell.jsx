@@ -2,8 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { FiBell } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import client from '../api/client';
+import {
+  getNotifications,
+  getUnreadNotificationCount,
+  readNotification,
+} from '../api/notifications';
 import useAuthStore from '../store/authStore';
+import formatNotificationDate from '../utils/formatNotificationDate';
 
 // AI작성: 작은 알림창의 조회 범위와 자동 갱신 주기를 한 곳에서 관리합니다.
 const NOTIFICATION_PANEL_SIZE = 50;
@@ -131,17 +136,6 @@ const AllNotificationsButton = styled.button`
   cursor: pointer;
 `;
 
-function formatCreatedAt(createdAt) {
-  if (!createdAt) return '';
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(createdAt));
-}
-
 function NotificationBell() {
   const token = useAuthStore((state) => state.token);
   const navigate = useNavigate();
@@ -162,14 +156,14 @@ function NotificationBell() {
     setLoading(true);
 
     try {
-      const [listResponse, countResponse] = await Promise.all([
+      const [notifications, count] = await Promise.all([
         // AI작성: 작은 알림 패널에서도 백엔드 허용 최대치인 최근 50개까지 확인합니다.
-        client.get('/v1/notifications', { params: { size: NOTIFICATION_PANEL_SIZE } }),
-        client.get('/v1/notifications/unread-count'),
+        getNotifications({ size: NOTIFICATION_PANEL_SIZE }),
+        getUnreadNotificationCount(),
       ]);
 
-      setItems(Array.isArray(listResponse.data?.data) ? listResponse.data.data : []);
-      setUnreadCount(Number.isInteger(countResponse.data?.data) ? countResponse.data.data : 0);
+      setItems(notifications);
+      setUnreadCount(count);
       setLoadFailed(false);
     } catch {
       // AI작성: 헤더 보조 기능의 실패가 전체 화면을 중단시키지 않도록 패널 안에서만 안내합니다.
@@ -195,7 +189,7 @@ function NotificationBell() {
   const handleNotificationClick = async (notification) => {
     if (!notification.read) {
       try {
-        await client.patch(`/v1/notifications/${notification.notificationId}/read`);
+        await readNotification(notification.notificationId);
         setItems((current) => current.map((item) => (
           item.notificationId === notification.notificationId
             ? { ...item, read: true }
@@ -252,7 +246,7 @@ function NotificationBell() {
                   >
                     <Message $read={notification.read}>{notification.message}</Message>
                     <DateText dateTime={notification.createdAt}>
-                      {formatCreatedAt(notification.createdAt)}
+                      {formatNotificationDate(notification.createdAt)}
                     </DateText>
                   </NotificationButton>
                 </li>

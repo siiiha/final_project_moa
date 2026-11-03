@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import client from '../api/client';
+import {
+  deleteReadNotifications,
+  getNotifications,
+  getUnreadNotificationCount,
+  readAllNotifications,
+  readNotification,
+} from '../api/notifications';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import NotificationList from '../components/member/NotificationList';
 import { memberMenuItems } from '../mocks/mypage';
@@ -70,6 +76,7 @@ function NotificationPage() {
   const [loading, setLoading] = useState(!restoredCache);
   const [loadFailed, setLoadFailed] = useState(false);
   const [hasMore, setHasMore] = useState(restoredCache?.hasMore ?? false);
+  const [unreadCount, setUnreadCount] = useState(restoredCache?.unreadCount ?? 0);
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [deletingRead, setDeletingRead] = useState(false);
 
@@ -78,13 +85,13 @@ function NotificationPage() {
     setLoading(true);
 
     try {
-      const response = await client.get('/v1/notifications', {
-        params: {
+      const [received, totalUnreadCount] = await Promise.all([
+        getNotifications({
           size: NOTIFICATIONS_PER_REQUEST,
-          ...(lastNotificationId ? { lastNotificationId } : {}),
-        },
-      });
-      const received = Array.isArray(response.data?.data) ? response.data.data : [];
+          lastNotificationId,
+        }),
+        lastNotificationId ? Promise.resolve(null) : getUnreadNotificationCount(),
+      ]);
 
       setNotifications((current) => {
         if (!lastNotificationId) return received;
@@ -93,6 +100,7 @@ function NotificationPage() {
         return [...current, ...received.filter((item) => !existingIds.has(item.notificationId))];
       });
       setHasMore(received.length === NOTIFICATIONS_PER_REQUEST);
+      if (totalUnreadCount !== null) setUnreadCount(totalUnreadCount);
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
@@ -117,8 +125,8 @@ function NotificationPage() {
   }, [restoredCache]);
 
   useEffect(() => {
-    pageStateRef.current = { notifications, hasMore };
-  }, [notifications, hasMore]);
+    pageStateRef.current = { notifications, hasMore, unreadCount };
+  }, [notifications, hasMore, unreadCount]);
 
   useEffect(() => () => {
     if (!pageStateRef.current) return;
@@ -139,12 +147,13 @@ function NotificationPage() {
   const handleNotificationClick = async (notification) => {
     if (!notification.read) {
       try {
-        await client.patch(`/v1/notifications/${notification.notificationId}/read`);
+        await readNotification(notification.notificationId);
         setNotifications((current) => current.map((item) => (
           item.notificationId === notification.notificationId
             ? { ...item, read: true }
             : item
         )));
+        setUnreadCount((current) => Math.max(current - 1, 0));
       } catch {
         // AI작성: 읽음 처리 실패를 목록 조회 실패 상태와 분리해 잘못된 재조회 버튼이 표시되지 않게 합니다.
         window.alert('알림을 읽음 처리하지 못했습니다. 잠시 후 다시 시도해주세요.');
@@ -162,8 +171,7 @@ function NotificationPage() {
     setDeletingRead(true);
 
     try {
-      const response = await client.delete('/v1/notifications/read');
-      const deletedCount = Number(response.data?.data ?? 0);
+      const deletedCount = await deleteReadNotifications();
 
       // AI작성: 삭제로 현재 커서가 사라질 수 있으므로 첫 페이지부터 다시 조회합니다.
       setNotifications([]);
@@ -181,12 +189,13 @@ function NotificationPage() {
     setMarkingAllRead(true);
 
     try {
-      await client.patch('/v1/notifications/read-all');
+      await readAllNotifications();
 
       // AI작성: 서버의 전체 읽음 처리가 끝나면 현재 화면의 모든 알림도 읽음 상태로 맞춥니다.
       setNotifications((current) => current.map((notification) => (
         notification.read ? notification : { ...notification, read: true }
       )));
+      setUnreadCount(0);
     } catch {
       window.alert('알림을 읽음 처리하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -213,7 +222,7 @@ function NotificationPage() {
             loading={loading}
             loadFailed={loadFailed}
             hasMore={hasMore}
-            hasUnreadNotifications={notifications.some((notification) => !notification.read)}
+            hasUnreadNotifications={unreadCount > 0}
             markingAllRead={markingAllRead}
             deletingRead={deletingRead}
             onNotificationClick={handleNotificationClick}
