@@ -146,7 +146,8 @@ function NotificationPage() {
             : item
         )));
       } catch {
-        setLoadFailed(true);
+        // AI작성: 읽음 처리 실패를 목록 조회 실패 상태와 분리해 잘못된 재조회 버튼이 표시되지 않게 합니다.
+        window.alert('알림을 읽음 처리하지 못했습니다. 잠시 후 다시 시도해주세요.');
         return;
       }
     }
