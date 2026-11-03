@@ -19,5 +19,9 @@ public enum NotificationType {
     DUES_PAYMENT_DUE,
     REPORT_PROCESSED,
 
+    // AI작성: 관리자가 회원 제재를 적용하거나 해제한 결과를 당사자에게 알립니다.
+    MEMBER_RESTRICTED,
+    MEMBER_RESTRICTION_RELEASED,
+
     TEST
 }
