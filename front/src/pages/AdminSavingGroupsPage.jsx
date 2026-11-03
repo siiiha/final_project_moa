@@ -91,6 +91,13 @@ function AdminSavingGroupsPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [notice, setNotice] = useState('');
 
+  // AI작성: 계모임 제한·해제 성공 안내는 확인 버튼을 누르지 않아도 3초 후 자동으로 닫는다.
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(''), 3000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   useEffect(() => {
     getMemberRegions().then((items) => {
       if (Array.isArray(items)) setRegions(items);

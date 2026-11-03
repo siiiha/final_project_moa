@@ -1088,7 +1088,10 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         String regionName = request.getRegionCode() == null ? null
                 : REGIONS.get(Integer.parseInt(request.getRegionCode()) - 1);
         SmallGroupListCondition condition = new SmallGroupListCondition(
-                escapeKeyword(request.getKeyword()), regionName, request.getLikeCategory(), 0, PAGE_SIZE);
+                // AI작성: 기존 코드 검색과 관심사를 유지하고 새 지역 조건을 함께 전달한다.
+                escapeKeyword(request.getKeyword()), regionName,
+                request.getProvinceName(), request.getDistrictName(), request.getTownName(),
+                request.getLikeCategory(), 0, PAGE_SIZE);
         int total = smallGroupMapper.selectSmallGroupCount(condition);
         PageMeta pageMeta = PageMeta.of(request.getPage(), PAGE_SIZE, total);
         // AI작성: 계모임 목록과 동일하게 범위 초과는 offset 계산 전에 빈 목록으로 반환한다.

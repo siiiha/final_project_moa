@@ -163,6 +163,10 @@
         <if test="regionName != null">
             AND r.region_name = #{regionName}
         </if>
+        <!-- AI작성: 선택한 상위 지역 조건만 적용해 소속 구·동을 모두 포함한다. -->
+        <if test="provinceName != null">AND r.province_name = #{provinceName}</if>
+        <if test="districtName != null">AND r.district_name = #{districtName}</if>
+        <if test="townName != null">AND r.town_name = #{townName}</if>
         <if test="likeCategory != null">
             AND sg.like_category = #{likeCategory}
         </if>
