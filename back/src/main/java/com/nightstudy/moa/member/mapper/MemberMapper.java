@@ -1,6 +1,7 @@
 package com.nightstudy.moa.member.mapper;
 
 import com.nightstudy.moa.member.dto.auth.MemberLoginDto;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
 import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.signup.MemberInsertDto;
 import com.nightstudy.moa.member.dto.terms.MemberTermDto;
@@ -59,6 +60,10 @@ public interface MemberMapper {
     MemberLoginDto findByEmail(@Param("email") String email);
 
     MemberProfileResponse findProfileByMemberId(
+            @Param("memberId") Long memberId
+    );
+
+    List<MemberJoinedGroupResponse> findJoinedGroupsByMemberId(
             @Param("memberId") Long memberId
     );
 

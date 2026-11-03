@@ -19,6 +19,11 @@ export async function getMyProfile(token) {
     return response.data.data;
 }
 
+// AI작성: 로그인한 회원의 참여 모임 목록을 조회한다.
+export async function getMyJoinedGroups({ signal } = {}) {
+    const response = await client.get('/members/me/joined-groups', { signal });
+    return response.data.data;
+}
 
 // AI작성: 현재 좌표와 정확도를 서버에 전달해 지역 인증을 요청한다.
 export async function verifyMyRegion(token, position) {

@@ -12,6 +12,7 @@ import com.nightstudy.moa.member.dto.region.MemberRegionUpdateRequest;
 import com.nightstudy.moa.member.dto.region.RegionVerificationRequest;
 import com.nightstudy.moa.member.dto.signup.MemberSignupRequest;
 import com.nightstudy.moa.member.dto.social.SocialSignupRequest;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
 
 import com.nightstudy.moa.member.dto.terms.MemberTermDto;
 import com.nightstudy.moa.member.dto.withdrawal.MemberWithdrawalRequest;
@@ -30,6 +31,7 @@ public interface MemberService {
 
     Long signupSocial(SocialSignupRequest request);
 
+    List<MemberJoinedGroupResponse> getMyJoinedGroups(Long memberId);
     MemberProfileResponse getMyProfile(Long memberId);
     MemberProfileResponse verifyRegion(
             Long memberId,
