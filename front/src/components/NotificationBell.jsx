@@ -6,8 +6,8 @@ import {
   getNotifications,
   getUnreadNotificationCount,
   readNotification,
-} from '../api/notifications';
-import { subscribeNotifications } from '../api/notificationSse';
+} from '../api/notification/notifications';
+import { subscribeNotifications } from '../api/notification/subscribeNotifications';
 import {
   NOTIFICATION_RECEIVED_EVENT,
   NOTIFICATION_UPDATED_EVENT,

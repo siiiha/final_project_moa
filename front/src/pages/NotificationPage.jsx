@@ -7,7 +7,7 @@ import {
   getUnreadNotificationCount,
   readAllNotifications,
   readNotification,
-} from '../api/notifications';
+} from '../api/notification/notifications';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import NotificationList from '../components/member/NotificationList';
 import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';

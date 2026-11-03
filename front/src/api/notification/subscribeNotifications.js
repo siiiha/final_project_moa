@@ -1,6 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { getUnreadNotificationCount } from './notifications';
-import useAuthStore from '../store/authStore';
+import useAuthStore from '../../store/authStore';
 
 // AI작성: access token이 만료되어 재발급 후 다시 연결해야 하는 경우입니다.
 class RenewTokenError extends Error {}
