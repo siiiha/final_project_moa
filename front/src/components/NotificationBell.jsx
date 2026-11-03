@@ -5,6 +5,10 @@ import styled from 'styled-components';
 import client from '../api/client';
 import useAuthStore from '../store/authStore';
 
+// AI작성: 작은 알림창의 조회 범위와 자동 갱신 주기를 한 곳에서 관리합니다.
+const NOTIFICATION_PANEL_SIZE = 50;
+const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
+
 const Wrap = styled.div`
   position: relative;
 `;
@@ -160,7 +164,7 @@ function NotificationBell() {
     try {
       const [listResponse, countResponse] = await Promise.all([
         // AI작성: 작은 알림 패널에서도 백엔드 허용 최대치인 최근 50개까지 확인합니다.
-        client.get('/v1/notifications', { params: { size: 50 } }),
+        client.get('/v1/notifications', { params: { size: NOTIFICATION_PANEL_SIZE } }),
         client.get('/v1/notifications/unread-count'),
       ]);
 
@@ -179,7 +183,7 @@ function NotificationBell() {
     loadNotifications();
 
     // AI작성: SSE 인증 방식 확정 전까지 주기적으로 새 알림을 확인합니다.
-    const intervalId = window.setInterval(loadNotifications, 60_000);
+    const intervalId = window.setInterval(loadNotifications, NOTIFICATION_POLL_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
   }, [loadNotifications]);
 

@@ -2,7 +2,6 @@ package com.nightstudy.moa.notification.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.notification.dto.NotificationResponse;
-import com.nightstudy.moa.notification.dto.NotificationType;
 import com.nightstudy.moa.notification.service.NotificationService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,6 +20,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
 public class NotificationApiController {
+
+    // AI작성: 알림 목록 요청의 기본값과 허용 범위를 한 곳에서 관리합니다.
+    private static final String DEFAULT_LIST_SIZE = "20";
+    private static final int MIN_LIST_SIZE = 1;
+    private static final int MAX_LIST_SIZE = 50;
 
     private final NotificationService notificationService;
 
@@ -41,9 +44,12 @@ public class NotificationApiController {
     public ApiResponse<List<NotificationResponse>> list(
             @AuthenticationPrincipal Long memberId,
             @RequestParam(required = false) Long lastNotificationId,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = DEFAULT_LIST_SIZE) int size
     ) {
-        int normalizedSize = Math.min(Math.max(size, 1), 50);
+        int normalizedSize = Math.min(
+                Math.max(size, MIN_LIST_SIZE),
+                MAX_LIST_SIZE
+        );
 
         return ApiResponse.ok(
                 notificationService.getRecent(
@@ -90,18 +96,4 @@ public class NotificationApiController {
         );
     }
 
-    // 확인용 — 발표 전 삭제하거나 개발 환경에서만 사용해야 합니다.
-    @PostMapping("/test")
-    public ApiResponse<Void> test(
-            @AuthenticationPrincipal Long memberId
-    ) {
-        notificationService.send(
-                memberId,
-                NotificationType.TEST,
-                "테스트 알림입니다.",
-                "/mypage"
-        );
-
-        return ApiResponse.ok(null);
-    }
 }
