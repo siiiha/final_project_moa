@@ -13,6 +13,7 @@ import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
 import SavingGroupPaymentStatusPanel from './SavingGroupPaymentStatusPanel';
 import SavingGroupTransactionHistoryPanel from './SavingGroupTransactionHistoryPanel';
 import SavingGroupDashboardPanel from './SavingGroupDashboardPanel';
+import SavingGroupNoticeCreateForm from './SavingGroupNoticeCreateForm';
 
 const HeaderCard = styled.section`
   padding: 22px;
@@ -240,7 +241,7 @@ const ActionButton = styled(Button)`
 `;
 
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
-function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack }) {
+function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh }) {
   // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
   const joinReasonId = useId();
   const allowedMenus = getSavingGroupMenus(group.myRole);
@@ -308,6 +309,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
             </Card>
             <Card>
               <CardTitle><FiBell size={18} aria-hidden="true" /> 최근 공지</CardTitle>
+              {/* AI작성: 공지 작성은 실제 계모임 API만 사용하며 역할·회원 상태·모임 상태에 따라 표시한다. */}
+              <SavingGroupNoticeCreateForm group={group} onRefresh={onNoticeRefresh} />
               {group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
                 : group.notices.map((notice) => (
                   <Notice key={notice.noticeId}><strong>{notice.title}</strong></Notice>

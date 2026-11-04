@@ -108,6 +108,12 @@ function SavingGroupDetailPage() {
   };
 
   const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion ? result : null;
+  // AI작성: 등록 후 조회만 갱신해 실패 시 폼 상태를 보존하고 모임·계정 변경 뒤 이전 응답은 반영하지 않는다.
+  const handleNoticeRefresh = async () => {
+    const scope = joinScope.current;
+    const group = await getSavingGroupDetail(id);
+    if (scope?.active && joinScope.current === scope) setResult({ id, retry, authVersion, group });
+  };
   const errorStatus = current?.error?.response?.status;
   const errorMessage = errorStatus === 404 ? '조회할 수 있는 계모임이 없습니다.'
     : errorStatus === 403 ? '이 계모임에 접근할 수 없습니다.'
@@ -129,11 +135,12 @@ function SavingGroupDetailPage() {
               <Button type="button" $variant="secondary" onClick={() => navigate('/saving-groups')}>계모임 목록으로</Button>
             </EmptyCard>
           ) : (
-            <SavingGroupDetail key={id} group={current.group}
+            <SavingGroupDetail key={`${id}-${authVersion}`} group={current.group}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               onMenuChange={(value) => setMenu({ id, value })}
               onJoinRequest={handleJoinRequest}
               isJoinSubmitting={isJoinSubmitting}
+              onNoticeRefresh={handleNoticeRefresh}
               onBack={() => navigate('/saving-groups')} />
           )}
       </Content>
