@@ -904,3 +904,17 @@
 - 실제 동작 검증 한계: 프론트 테스트는 client 대역, Service는 Mapper 대역, Controller는 JWT 필터 없는 standalone MockMvc다. SQL 소속 조건·작성자 조인·인증 필터·실제 HTTP·브라우저 상호작용·모바일·로그아웃 시 본문 제거는 실제 환경에서 추가 확인해야 한다. API 명세에 Postman·브라우저·DB 수동 검증 절차를 정리했다.
 - 남은 TODO·제외: Java 17 환경의 백엔드 테스트, 실제 DB·브라우저 검증, BIGINT 응답 숫자 정밀도 기존 한계가 남는다. 없는 수정일·고정·첨부파일·조회 수·삭제/비공개 컬럼은 추가하지 않았다. 작성·수정·삭제·전체 목록·댓글·알림 연계는 이번 상세 범위 밖이다.
 - 개발자 검토·수정: 사용자가 각 단계를 요청했으며 커밋 이력 996620e(Mapper), d49a930(Service), 6e42e16(Controller), adbcc29(React API), 950bb07(화면)을 확인했다. 개발자의 별도 코드 수정 내용과 실제 동작 최종 검토 완료 여부는 확인되지 않았다. 문서 최종 검토·커밋은 개발자가 수행하며 AI는 커밋하지 않았다.
+
+<!-- AI작성: 사용자 승인에 따라 공지 페이징·고정 단계의 작업을 마지막에 일괄 기록한다. -->
+## 2026-11-04 — 계모임 공지 페이징 및 고정 지정·해제
+
+- 목적·승인: 사용자가 기존 계모임 홈 공지 API를 수정해 일반 4개 페이징·최신순/과거순·3개 페이지 묶음 이동·상세 복귀 상태 유지를 요청했다. 페이징 완료 후 고정 기능을 구현하도록 순서를 확정했다. 고정은 모든 페이지 별도 영역, 일반 개수 제외, 모임당 2개, 승인 OWNER/MANAGER만 변경한다. 남은 단계별 구현·커밋과 마지막 일괄 문서화도 승인했다.
+- DB: 최초 제안했던 스키마·ALTER 파일 변경은 사용자가 되돌렸다. 이후 사용자가 DB 담당자의 is_pinned TINYINT(1) NOT NULL DEFAULT 0 확정·DB 반영을 확인했다. 이번 구현에서 DB·schema.sql을 수정하거나 실제 DB에 접속하지 않았다. 저장소 기준 스키마 동기화는 DB 담당자 확인이 필요하다.
+- 페이징 AI 제안·작성: 조건 DTO·전체 개수/페이지 Mapper, PageMeta를 조합하는 Service와 내부 상세 결과 DTO, 기존 상세 GET의 쿼리 검증·meta 응답, React API/정렬/3개 묶음 버튼/URL 복원/요청 취소/작성 후 갱신을 구현했다. 새로운 목록 GET은 만들지 않았고 공통 PageMeta·기존 권한·필드·5개 묶음 전체 목록 계산은 유지했다.
+- 고정 AI 제안·작성: 변경 요청·상태 DTO, 별도 고정 조회와 일반 공지 필터, 모임/공지 잠금·현재 고정 ID 조회·명시 상태 UPDATE, 승인 권한·상태·2개 제한·동일 상태 재요청 성공 Service, 고정 PATCH Controller와 React 요청/화면을 구현했다. 상세 응답에 pinnedNotices를 추가하고 기존 생성자 사용을 유지했다. 고정 변경 중 중복 요청을 막고 성공 후 조회 실패는 변경을 반복하지 않고 조회만 재시도한다.
+- 주요 파일: back의 SavingGroupNoticeSearchCondition, SavingGroupDetailPageResponse, SavingGroupDetailResponse, SavingGroupNoticePinRequest/Row, SavingGroupMapper.java/XML, SavingGroupService/Impl, SavingGroupController 및 관련 테스트. front의 api/savingGroups.js/test.js, SavingGroupDetailPage.jsx, SavingGroupNoticeDetailPage.jsx, SavingGroupDetail.jsx, SavingGroupNoticeCreateForm.jsx. 문서는 docs/saving-groups-api.md와 이 파일이다. API 문서에 단계별 파일·커밋 표를 기록했다.
+- 커밋: 사용자가 완료한 페이징 96c46a7·894c413·8fb8c64, 고정 1단계 d7ced79를 확인했다. 사용자 요청으로 AI가 페이징 b36fdb8·230dbf6·a64d083 및 고정 f6b00dc·a12d449·47d4c5a·a07d2e7을 커밋했다. 마지막 문서화도 별도 커밋한다. 푸시는 하지 않는다.
+- 검증: Java 17 경로를 실행 인자로 지정해 운영 코드 컴파일·공지 관련 테스트 208건 통과. 기존 무관한 테스트의 누락 클래스 import 오류를 피하기 위해 임시 Gradle init script로 관련 소스만 컴파일·실행했으며 전체 테스트 통과는 아니다. 신규 고정 Service 35건·Controller 21건·Mapper/Validation 9건이 포함된다.
+- 프론트 검증: 최종 API 테스트 47건·프로덕션 빌드·diff 공백 검사 통과. 변경 파일 lint에는 기존 미사용 스타일 경고 2건만 남고 번들 크기 경고도 유지했다. 임시 Vite SSR 렌더링으로 고정 2+일반 4개, 권한별 버튼·링크, 처리 중 비활성·재조회·고정만 있는 상태를 확인했다. 의존성·프로젝트 설정은 변경하지 않았다.
+- 한계·후속 검증: Service는 Mapper 대역, Controller는 JWT 필터 없는 standalone MockMvc, API는 client 대역, 화면은 정적 렌더링이다. 실제 MySQL 조회·잠금·동시성, JWT 포함 HTTP, 브라우저 클릭·모바일·응답 유실은 미검증이며 API 문서에 수동 절차를 남겼다. 임시 테스트 파일과 실행 설정은 정리한다. 기존 BIGINT 숫자 정밀도와 저장소 스키마 동기화는 별도 확인 항목이다.
+- 개발자 검토·수정: 사용자가 정책·DB 반영을 확인하고 단계별 구현과 커밋을 요청했다. 개발자의 이번 코드 별도 수정·실제 환경 최종 검토 완료 여부는 확인되지 않았다. 최종 코드·문서와 수동 검증 결과 검토가 필요하다.

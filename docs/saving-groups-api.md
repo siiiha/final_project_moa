@@ -2,6 +2,9 @@
 # 계모임 목록 조회 API
 # 계모임 조회 API
 
+<!-- AI작성: 공지 페이징·고정의 현재 계약을 과거 단계별 기록과 구분한다. -->
+> 공지 목록·고정 기능은 문서 하단의 [2026-11-04 페이징·고정 최신 계약](#notice-pagination-and-pin)을 우선한다. 아래 기존 기록의 최신 4건·meta 없음·고정 제외는 당시 구현 범위다.
+
 ## 2026-10-20 상세 조회 확장 — 최신 계약
 
 <!-- AI작성: 구현 중 사용자 정정 사항을 반영한다. 아래 기존 목록 구현 기록보다 이 절을 우선한다. -->
@@ -998,3 +1001,125 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 6. 긴 제목·본문·닉네임, 줄바꿈·HTML 문자 텍스트 표시, 모바일·키보드 초점·가독성을 확인한다.
 
 수정일·고정·첨부파일·조회 수·공지 삭제/비공개 상태는 테이블에 없어 추가하지 않았다. 향후 필요 시 별도 정책·DB 설계를 확정해야 한다. 작성·수정·삭제·전체 목록·댓글·알림·SSE 연계는 이번 상세 조회 범위 밖이다.
+
+<!-- AI작성: 사용자 확정 정책에 따라 페이징·고정 구현을 완료하고 마지막 단계에서 일괄 문서화한다. -->
+<a id="notice-pagination-and-pin"></a>
+
+## 계모임 공지 페이징·고정 최신 계약 (2026-11-04)
+
+### 확정 정책과 DB 선행 조건
+
+- 기존 계모임 홈 공지 영역에 일반 공지를 페이지당 4개 표시한다. 고정 공지는 모든 페이지 상단의 별도 영역에 표시하며 일반 목록과 전체 개수에 중복 포함하지 않는다.
+- 고정은 모임당 최대 2개다. 해당 모임의 APPROVED OWNER·MANAGER만 지정·해제한다. APPROVED MEMBER는 본문을 읽을 수 있지만 고정을 변경할 수 없다.
+- DB 담당자가 `group_notice.is_pinned TINYINT(1) NOT NULL DEFAULT 0`을 확정·반영했다고 사용자가 확인했다. 0은 일반, 1은 고정이다. AI는 DB 접속·DDL 실행·schema.sql 변경을 하지 않았다.
+- 저장소의 schema.sql에는 아직 해당 컬럼이 없다. 신규 DB를 schema.sql만으로 생성하는 경우 DB 담당자가 공유하는 최신 스키마 반영이 선행되어야 한다. 소모임 SQL과 공지 작성 INSERT는 변경하지 않았으며 기존 INSERT는 컬럼 기본값 0을 사용한다.
+
+### 기존 상세 GET의 공지 조회 확장
+
+`GET /saving-groups/{id}?noticePage=1&noticeSort=LATEST`
+
+`/api/saving-groups/{id}` 별칭도 동일하다. id는 saving_group_id가 아닌 공통 groups.group_id다. 별도 공지 목록 GET 경로는 추가하지 않았다.
+
+| 항목 | 규칙 |
+| --- | --- |
+| noticePage | Integer, 기본 1, 1 이상. 타입 오류·범위 초과·빈 값·0·음수는 400 BAD_REQUEST |
+| noticeSort | 기본 LATEST. LATEST 또는 OLDEST만 허용하며 빈 값·다른 값은 400 BAD_REQUEST |
+| 페이지 크기 | 서버에서 4 고정. size 변경 파라미터는 제공하지 않음 |
+| data.notices | 현재 페이지의 일반 공지 요약 |
+| data.pinnedNotices | 페이지·일반 정렬과 독립적인 고정 공지 요약, 작성일·공지 ID 내림차순 |
+| meta | 기존 PageMeta. page·size·total·totalPages와 기존 getOffset()의 offset |
+
+두 목록의 항목은 기존 SavingGroupNoticeSummaryResponse(noticeId, title, writerNickname, createdAt)를 재사용한다. 본문·작성자 회원 ID는 포함하지 않는다. 일반 공지 정렬은 작성일과 공지 ID를 함께 ASC 또는 DESC로 정렬한다. members LEFT JOIN으로 작성자 행이 없어도 공지를 유지한다.
+
+기존 상세 데이터 필드와 공개 범위는 유지한다. 고정 목록도 기존 공개 요약 범위이며 공지 본문은 기존 승인 회원 상세 API를 사용한다. 없는 모임·삭제된 모임·상태 01/02 이외의 모임 조회는 기존 404 정책을 유지한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "groupId": 20,
+    "notices": [],
+    "pinnedNotices": [
+      { "noticeId": 40, "title": "예시 고정 공지", "writerNickname": "예시 작성자", "createdAt": "2026-11-04T10:00:00" }
+    ]
+  },
+  "meta": { "page": 1, "size": 4, "total": 0, "totalPages": 0, "offset": 0 },
+  "error": null
+}
+```
+
+예시는 공지 관련 항목만 발췌했다. 실제 data에는 기존 모임 정보·본인 역할·가입 상태 등이 유지된다. 고정만 존재해도 일반 공지 total은 0이다. Service는 빈 목록·범위 초과에서 offset 계산·일반 목록 SQL을 생략하고 요청 페이지의 meta를 유지한다. React는 마지막 유효 페이지(최소 1)로 URL을 보정해 재조회한다. 공통 PageMeta는 수정하지 않았다.
+
+### 고정 지정·해제 PATCH
+
+`PATCH /saving-groups/{groupId}/notices/{noticeId}/pin`
+
+`/api/saving-groups/{groupId}/notices/{noticeId}/pin` 별칭도 지원한다. 두 ID는 양수 Long이다. JWT 인증 계층이 전달하는 요청 속성 memberId만 사용하며 쿼리·본문의 처리자 ID는 권한 근거로 사용하지 않는다.
+
+```json
+{ "pinned": true }
+```
+
+지정은 true, 해제는 false다. pinned는 필수이며 누락·null은 400이다. 성공은 HTTP 200의 기존 ApiResponse.ok()다. 토글이 아니라 목표 상태를 전달하며 이미 같은 상태인 요청은 추가 UPDATE 없이 성공한다.
+
+| HTTP·코드 | 조건 |
+| --- | --- |
+| 400 BAD_REQUEST | 잘못된 ID·필수 고정 여부 누락·입력 검증 실패 |
+| 400 INVALID_REQUEST | 공통 예외 처리기가 처리하는 잘못된 JSON·본문 없음 |
+| 401 UNAUTHORIZED | 인증 회원 없음 |
+| 403 SAVING_GROUP_NOTICE_PIN_FORBIDDEN | 관계 없음, 미승인 관계, 승인 MEMBER 또는 허용되지 않는 역할 |
+| 404 NOT_FOUND | 계모임 없음·삭제 |
+| 404 SAVING_GROUP_NOTICE_NOT_FOUND | 공지 없음 또는 다른 모임의 공지 |
+| 409 SAVING_GROUP_ACTIVITY_RESTRICTED | 계모임 상태가 01·02가 아님 |
+| 409 SAVING_GROUP_NOTICE_PIN_LIMIT_EXCEEDED | 새로운 고정 지정 시 이미 2개 이상 존재 |
+| 500 SAVING_GROUP_NOTICE_PIN_FAILED | 상태 변경 UPDATE 영향 행 수가 예상과 다름 |
+
+Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서로 잠근다. 새로운 고정 지정일 때 FOR UPDATE로 현재 고정 ID 전체를 조회하고 목록 크기로 제한을 검증한다. 모임 잠금은 고정 공지가 0개일 때도 동시 변경을 직렬화하는 기준이다. 해제에는 남은 고정 슬롯을 요구하지 않는다. 공지 UPDATE는 group_id·notice_id를 모두 제한하며 요청 상태와 다른 행만 변경한다. 실제 MySQL의 잠금·동시성 실행 검증은 별도로 필요하다.
+
+### React 화면과 상태 유지
+
+- getSavingGroupDetail은 기존 상세 경로에 noticePage·noticeSort를 전달하고 기존 data 필드를 유지하면서 meta를 noticePageMeta로 전달한다. pinnedNotices는 data의 별도 배열을 그대로 사용한다.
+- 우측 정렬 버튼은 최신순·과거순이며 기본 최신순이다. 선택 상태를 aria-pressed로 표시한다. 정렬 변경은 1페이지로 이동한다.
+- 페이지 번호는 최대 3개 묶음이다. 전체 7페이지에서 1/2/3의 이전은 비활성, 다음은 4/5/6의 4페이지다. 여기서 이전은 1/2/3의 3페이지, 다음은 7페이지다. 7의 이전은 6페이지이고 다음은 비활성이다.
+- 0건·한 페이지 모두 `비활성 이전 | 1 | 비활성 다음`을 표시한다. 페이지 이동은 스크롤을 강제로 옮기지 않는다.
+- URL noticePage·noticeSort를 기준으로 조회한다. 상세 링크에도 두 조건을 전달하며 상세의 돌아가기와 브라우저 뒤로 가기·새로고침에서 복원한다. 직접 상세 진입은 최신순 1페이지로 돌아간다. 직접 입력한 잘못된 프론트 URL 조건은 기본값으로 해석한다.
+- 고정 영역은 [고정] 배지·배경·별도 제목으로 구분한다. 승인 OWNER·MANAGER에게만 고정 지정·해제 버튼을 제공한다. 일반 공지와 동일한 상세 링크·작성자·작성일 표시를 재사용한다.
+- 로딩은 `공지를 불러오는 중입니다.`, 목록 오류는 `공지를 불러오지 못했습니다.`와 `새로 고침`, 전체 0건은 `등록된 공지가 없습니다.`, 고정만 있으면 `등록된 일반 공지가 없습니다.`를 표시한다.
+- 고정 변경 중에는 정렬·페이지·고정·작성 버튼을 비활성화하고 중복 PATCH를 ref로 차단한다. 전송된 PATCH를 화면 이탈로 취소한 것으로 간주하지 않는다.
+- 고정 변경 후 현재 페이지·정렬로 다시 조회하며 페이지가 사라지면 마지막 유효 페이지로 보정한다. 변경 성공 후 재조회 실패는 성공한 PATCH를 반복하지 않고 조회만 재시도한다. 변경 실패·응답 유실도 목록 확인 전까지 추가 고정 변경을 막는다.
+- 작성 성공 후에는 최신순 1페이지로 갱신한다. GET 취소·요청 식별·모임/계정 범위 검사를 사용해 이전 응답을 현재 화면에 반영하지 않는다.
+
+### 단계별 파일·커밋
+
+| 단계 | 주요 파일 | 커밋 |
+| --- | --- | --- |
+| 페이징 DTO·Mapper | SavingGroupNoticeSearchCondition, SavingGroupMapper.java/XML | 96c46a7 |
+| 페이징 Service | SavingGroupService/Impl, SavingGroupDetailPageResponse, PagingServiceTest | 894c413 |
+| 페이징 Controller | SavingGroupController, PagingControllerTest | 8fb8c64 |
+| 페이징 프론트 API | front/src/api/savingGroups.js/test.js | b36fdb8 |
+| 페이징 화면 | SavingGroupDetailPage, SavingGroupDetail, API/계산 테스트 | 230dbf6 |
+| 조회 상태 복원 | 홈·상세 페이지, 상세 컴포넌트, 작성 폼, API/테스트 | a64d083 |
+| 고정 DTO·Mapper | SavingGroupNoticePinRequest/Row, SavingGroupMapper.java/XML, PinMapperTest | d7ced79 |
+| 고정 Service | SavingGroupService/Impl, SavingGroupDetailResponse, PinServiceTest | f6b00dc |
+| 고정 Controller | SavingGroupController, PinControllerTest | a12d449 |
+| 고정 프론트 API | front/src/api/savingGroups.js/test.js | 47d4c5a |
+| 고정 화면 | SavingGroupDetailPage, SavingGroupDetail, SavingGroupNoticeCreateForm | a07d2e7 |
+
+### 검증 결과와 후속 수동 검증
+
+- 설치된 Java 17 경로를 Gradle 실행 인자로 지정했다. 운영 코드 컴파일과 공지 관련 Controller/Service/Mapper·가입 제한 테스트 208건이 통과했다. 프로젝트 빌드 설정은 변경하지 않았다.
+- 전체 테스트는 기존 타 기능의 AuthSessionService 등 클래스 누락으로 컴파일이 막히므로 임시 Gradle init script로 compileTestJava 대상을 관련 파일로 제한했다. 전체 테스트 통과를 의미하지 않는다.
+- `node --test src/api/savingGroups.test.js` 47건, 최종 `npm run build`, `git diff --check` 통과. 변경 파일 lint 오류 없음. 기존 ImagePlaceholder·Schedule 미사용 경고 2건과 번들 크기 경고는 유지했다.
+- 임시 Vite SSR 렌더링으로 고정 2개+일반 4개, 운영진/일반회원/비회원 표시 차이, 복귀 링크, 처리 중 비활성, 오류 재조회, 고정만 있는 상태를 확인했다. 이는 실제 브라우저 클릭 검증이 아니다. 임시 파일·실행 설정은 정리한다.
+- 실제 DB 접속·SQL 실행·JWT 필터 포함 HTTP·브라우저/모바일·동시성 검증은 수행하지 않았다. DB 컬럼 반영은 사용자 확인에 근거한다.
+
+수동 확인 순서:
+
+1. 실제 상세 GET에서 일반 공지 최대 4개, 고정 별도 배열, meta의 일반 공지 개수와 양방향 정렬을 확인한다.
+2. 승인 OWNER와 MANAGER로 고정 지정·해제하고 3번째 지정의 409, 동일 상태 재요청의 성공, MEMBER·미승인·타 모임 요청 차단을 확인한다.
+3. 두 운영진이 동시에 마지막 슬롯을 지정해도 결과가 최대 2개인지 실제 MySQL 환경에서 검증한다.
+4. 7페이지 기준 묶음 이동, 한 페이지·빈 목록, 상세 복귀·뒤로 가기·새로고침을 확인한다.
+5. 고정 변경으로 마지막 일반 페이지가 사라질 때 보정, 통신 실패·PATCH 응답 유실 후 조회만 재시도, 계정 변경·빠른 정렬 전환을 확인한다.
+6. 작은 화면의 긴 제목·작성자·날짜와 키보드 초점, 비활성 버튼·고정 배지 구분을 확인한다.
+
+공지 수정·삭제·첨부·예약·알림/SSE 연계는 이번 범위 밖이다. 기존 BIGINT JSON 숫자 정밀도 한계는 별도 작업이다. DB 담당자의 저장소 기준 스키마 공유도 후속 확인 항목이다.
