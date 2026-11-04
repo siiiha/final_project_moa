@@ -1,6 +1,8 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Header from './Header';
+import ChatbotWidget from '../ChatbotWidget';
+import useAuthStore from '../../store/authStore';
 
 const Main = styled.main`
   min-height: ${({ $isSocialFlow }) =>
@@ -8,6 +10,7 @@ const Main = styled.main`
 `;
 
 function PageLayout() {
+  const token = useAuthStore((state) => state.token);
   const { pathname, search } = useLocation();
   const searchParams = new URLSearchParams(search);
 
@@ -23,6 +26,7 @@ function PageLayout() {
       <Main $isSocialFlow={isSocialFlow}>
         <Outlet />
       </Main>
+      {!isSocialFlow && token && <ChatbotWidget />}
     </>
   );
 }
