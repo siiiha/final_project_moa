@@ -786,4 +786,9 @@
         ORDER BY gn.created_at DESC
         LIMIT 4
     </select>
+    <!-- AI작성: 작성자는 인증 정보에서 결정하고 생성 키를 DTO에 설정한다. -->
+    <insert id="insertSmallGroupNotice" useGeneratedKeys="true" keyProperty="noticeId">
+        INSERT INTO group_notice (group_id, writer_id, title, content)
+        VALUES (#{groupId}, #{writerId}, #{title}, #{content})
+    </insert>
 </mapper>

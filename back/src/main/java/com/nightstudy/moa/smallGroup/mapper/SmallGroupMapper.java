@@ -34,6 +34,9 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
+    // AI작성: 소모임 ID를 공통 모임 ID로 검증한 뒤 공지를 저장한다.
+    int insertSmallGroupNotice(com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeCreateRow row);
+
     // AI작성: 공개 상세 조회에서는 행 잠금 없이 본인의 신청 조건만 읽는다.
     SmallGroupJoinMemberRow selectSmallGroupJoinMember(@Param("memberId") Long memberId);
 
