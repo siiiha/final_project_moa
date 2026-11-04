@@ -202,6 +202,24 @@ export async function createSavingGroupNotice(savingGroupId, { title, content },
 }
 
 // AI작성: 고정 변경 오류의 서버 코드·문구·상태를 유지해 권한 변경과 최대 개수 초과를 안내한다.
+// AI작성: 수정 오류를 작성·고정 오류와 구분하고 서버 코드·상태 및 취소 원본을 유지한다.
+export async function updateSavingGroupNotice(groupId, noticeId, { title, content }, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  try {
+    const response = await client.put(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { title, content }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || '공지를 수정하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    failure.code = serverError?.code || 'SAVING_GROUP_NOTICE_EDIT_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
 function toSavingGroupNoticePinError(error, status) {
   const failure = new Error(error?.message || '공지 고정을 변경하지 못했습니다. 목록을 새로 고침해 주세요.');
   failure.name = 'SavingGroupNoticePinError';

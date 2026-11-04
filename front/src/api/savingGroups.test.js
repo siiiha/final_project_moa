@@ -5,7 +5,40 @@ import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavin
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
   approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,
   createSavingGroupNotice, getSavingGroupNoticeDetail, getSavingGroupNoticePagination,
-  readSavingGroupNoticeQuery, toSavingGroupNoticeSearch, updateSavingGroupNoticePinned } from './savingGroups.js';
+  readSavingGroupNoticeQuery, toSavingGroupNoticeSearch, updateSavingGroupNoticePinned, updateSavingGroupNotice } from './savingGroups.js';
+
+// AI작성: 수정은 공통 groupId·본문·취소 신호를 전달하고 서버 오류를 보존한다.
+test('공지 수정 PUT 경로·본문·응답 및 오류 보존', async () => {
+  const original = client.put;
+  const signal = new AbortController().signal;
+  try {
+    client.put = async (path, body, options) => {
+      assert.equal(path, '/saving-groups/20/notices/40');
+      assert.deepEqual(body, { title: '제목', content: '내용' });
+      assert.deepEqual(options, { signal });
+      return { data: { success: true, data: 40 } };
+    };
+    assert.equal(await updateSavingGroupNotice(20, 40, { title: '제목', content: '내용' }, { signal }), 40);
+    for (const status of [401, 403, 404, 409, 500]) {
+      for (const rejected of [true, false]) {
+        client.put = async () => {
+          const response = { status, data: { success: false, error: { code: 'EDIT_ERROR', message: '수정 실패' } } };
+          if (rejected) throw { response };
+          return response;
+        };
+        await assert.rejects(() => updateSavingGroupNotice(20, 40, { title: '제목', content: '내용' }),
+          (error) => error.code === 'EDIT_ERROR' && error.status === status && error.message === '수정 실패');
+      }
+    }
+    client.put = async () => { throw new Error('network'); };
+    await assert.rejects(() => updateSavingGroupNotice(20, 40, { title: '제목', content: '내용' }),
+      (error) => error.code === 'SAVING_GROUP_NOTICE_EDIT_FAILED');
+    const canceled = { code: 'ERR_CANCELED' };
+    client.put = async () => { throw canceled; };
+    await assert.rejects(() => updateSavingGroupNotice(20, 40, { title: '제목', content: '내용' }), (error) => error === canceled);
+    await assert.rejects(() => updateSavingGroupNotice(0, 40, { title: '제목', content: '내용' }));
+  } finally { client.put = original; }
+});
 
 // AI작성: 공통 groupId·공지 ID의 큰 정수 문자열과 취소 신호, 서버 응답 6개 항목을 보존한다.
 test('공지 상세는 groupId와 noticeId로 요청하고 상세 데이터를 반환한다', async () => {
