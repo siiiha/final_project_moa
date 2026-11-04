@@ -1114,3 +1114,10 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 작성자는 인증 memberId로 결정한다. 삭제되지 않은 소모임의 개설자이면서 APPROVED OWNER만 허용한다.
 - 소모임 ID를 groups ID로 변환해 기존 group_notice에 저장하며 성공 응답은 공통 success=true, data=null이다.
 - 브라우저: 모임장 작성·취소·중복 클릭 방지·오류 시 입력 보존·저장 후 조회 재시도 확인.
+
+
+## AI작성: 소모임 공지 목록 (2026-11-04)
+- GET /api/small-groups/{id}?noticePage=1&noticeSort=LATEST
+- 목록 요약은 기존 공개 상세와 같은 접근 정책이다. 공지 본문은 제외한다.
+- noticePage는 1 이상의 정수, noticeSort는 LATEST 또는 OLDEST. 페이지당 4건, 초과 페이지는 마지막 유효 페이지로 보정한다. 응답 meta는 PageMeta다.
+- 메인 공지에서 정렬·3페이지 번호 묶음을 제공한다. 별도 전체 보기 버튼·화면은 없다. 작성 성공 시 최신순 1페이지, URL로 목록 상태를 보존한다.
