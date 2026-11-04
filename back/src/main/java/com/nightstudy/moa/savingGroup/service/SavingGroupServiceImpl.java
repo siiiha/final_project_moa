@@ -24,12 +24,53 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     private static final int PAGE_SIZE = 6;
     // AI작성: 계모임 전체 목록의 페이지 크기와 별개로 공지는 페이지당 4개를 제공한다.
     private static final int NOTICE_PAGE_SIZE = 4;
+    // AI작성: 고정 영역은 일반 공지 네 개와 별도로 최대 두 개까지 허용한다.
+    private static final int MAX_PINNED_NOTICES = 2;
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final int MAX_JOINED_SAVING_GROUPS = 5;
     private static final String ACTIVE_ACCOUNT_STATUS = "ACTIVE";
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
+
+    // AI작성: 모임 → 승인 관계 → 공지 순서로 잠그고 현재 고정 목록으로 동시 지정의 두 개 제한을 검증한다.
+    @Override
+    @Transactional
+    public void updateSavingGroupNoticePinned(Long groupId, Long noticeId, Long memberId, Boolean pinned) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0 || pinned == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 공지 번호 또는 고정 여부가 올바르지 않습니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        }
+        if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
+        SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
+                || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_PIN_FORBIDDEN", "승인된 계주 또는 운영진만 공지 고정을 변경할 수 있습니다.");
+        }
+        SavingGroupNoticePinRow notice = savingGroupMapper.selectSavingGroupNoticePinForUpdate(groupId, noticeId);
+        if (notice == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        }
+        if (notice.getPinned() == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "서버 오류가 발생했습니다.");
+        }
+        // AI작성: 같은 상태 재요청은 성공으로 처리하며 이미 고정된 공지를 최대 개수 때문에 거절하지 않는다.
+        if (pinned.equals(notice.getPinned())) return;
+        if (pinned && savingGroupMapper.selectSavingGroupPinnedNoticeIdsForUpdate(groupId).size() >= MAX_PINNED_NOTICES) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_NOTICE_PIN_LIMIT_EXCEEDED", "고정 공지는 최대 2개까지 지정할 수 있습니다.");
+        }
+        if (savingGroupMapper.updateSavingGroupNoticePinned(groupId, noticeId, pinned) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_NOTICE_PIN_FAILED", "공지 고정 변경에 실패했습니다.");
+        }
+    }
 
     // AI작성: 공개 상세와 동일한 모임 조건을 적용한 뒤 승인 관계를 확인하고 본문을 조회한다.
     @Override
@@ -447,6 +488,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 row.getRegionName(), row.getMaxMembers(), count, row.getDuesAmount(), row.getDuesDay(),
                 row.getStatus(), notices, role, membershipStatus, availability.canApply(),
                 availability.code(), availability.message());
+        // AI작성: 고정 공지는 페이지·일반 정렬과 관계없이 별도로 반환하고 PageMeta 집계에는 포함하지 않는다.
+        detail.setPinnedNotices(savingGroupMapper.selectSavingGroupPinnedNotices(groupId));
         return new SavingGroupDetailPageResponse(detail, pageMeta);
     }
 
