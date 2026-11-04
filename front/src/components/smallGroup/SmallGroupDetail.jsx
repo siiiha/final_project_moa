@@ -239,13 +239,6 @@ const TextButton = styled.button`
   font-weight: 700;
 `;
 
-const NoticeButton = styled(Button)`
-  min-height: 28px;
-  padding: 5px 8px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 10px;
-`;
-
 const NoticeTable = styled.div`
   margin-top: 12px;
   overflow: hidden;
@@ -660,6 +653,7 @@ function SmallGroupDetail({
       ) : currentMenu !== 'notice' ? (
         <Placeholder>{activeLabel} 기능은 준비 중입니다.</Placeholder>
       ) : (
+        /* AI작성: PC 메인은 왼쪽 소개·공지, 오른쪽 일정·장소 순서로 배치한다. */
         <ContentGrid>
           <Column>
             <Card>
@@ -670,14 +664,23 @@ function SmallGroupDetail({
               </IntroBody>
             </Card>
             <Card>
-              <CardTitle>장소</CardTitle>
-              <PlaceContent>
-                <Place><FiMapPin size={14} aria-hidden="true" /> {location}</Place>
-                {/* AI작성: 길찾기 API가 확정되기 전에는 이동을 발생시키지 않는다. */}
-                <MapButton type="button" $variant="secondary" disabled title="길찾기 기능은 준비 중입니다.">
-                  선택 장소 길찾기 <FiChevronRight size={12} aria-hidden="true" />
-                </MapButton>
-              </PlaceContent>
+              <CardHeading>
+                <CardTitle>최근 공지</CardTitle>
+              </CardHeading>
+              <NoticeTable aria-label="최근 공지 목록">
+                <NoticeRow $header>
+                  <span>제목</span><span>작성자</span><span>작성일</span>
+                </NoticeRow>
+                {group.notices.length === 0 ? (
+                  <NoticeEmpty>등록된 공지가 없습니다.</NoticeEmpty>
+                ) : group.notices.map((notice, index) => (
+                  <NoticeRow key={notice.noticeId} $last={index === group.notices.length - 1}>
+                    <span>{notice.title}</span>
+                    <span>{notice.writerNickname}</span>
+                    <span>{formatDate(notice.createdAt)}</span>
+                  </NoticeRow>
+                ))}
+              </NoticeTable>
             </Card>
           </Column>
 
@@ -697,27 +700,14 @@ function SmallGroupDetail({
               </ScheduleRow>
             </Card>
             <Card>
-              <CardHeading>
-                <CardTitle>최근 공지</CardTitle>
-                {/* AI작성: 공지 목록·상세 API 구현 전에는 이동을 연결하지 않는다. */}
-                <NoticeButton type="button" $variant="secondary" disabled title="공지 목록 기능은 준비 중입니다.">
-                  공지 전체 보기
-                </NoticeButton>
-              </CardHeading>
-              <NoticeTable aria-label="최근 공지 목록">
-                <NoticeRow $header>
-                  <span>제목</span><span>작성자</span><span>작성일</span>
-                </NoticeRow>
-                {group.notices.length === 0 ? (
-                  <NoticeEmpty>등록된 공지가 없습니다.</NoticeEmpty>
-                ) : group.notices.map((notice, index) => (
-                  <NoticeRow key={notice.noticeId} $last={index === group.notices.length - 1}>
-                    <span>{notice.title}</span>
-                    <span>{notice.writerNickname}</span>
-                    <span>{formatDate(notice.createdAt)}</span>
-                  </NoticeRow>
-                ))}
-              </NoticeTable>
+              <CardTitle>장소</CardTitle>
+              <PlaceContent>
+                <Place><FiMapPin size={14} aria-hidden="true" /> {location}</Place>
+                {/* AI작성: 길찾기 API가 확정되기 전에는 이동을 발생시키지 않는다. */}
+                <MapButton type="button" $variant="secondary" disabled title="길찾기 기능은 준비 중입니다.">
+                  선택 장소 길찾기 <FiChevronRight size={12} aria-hidden="true" />
+                </MapButton>
+              </PlaceContent>
             </Card>
           </Column>
         </ContentGrid>
