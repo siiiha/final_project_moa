@@ -9,6 +9,8 @@ import {
   createSmallGroupVote,
   fetchSmallGroupCategories,
   getSmallGroupDetail,
+  readSmallGroupNoticeQuery,
+  toSmallGroupNoticeSearch,
   getSmallGroupSettings,
   getSmallGroupVotes,
   requestSmallGroupJoin,
@@ -72,6 +74,7 @@ function SmallGroupDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
+  const noticeQuery = readSmallGroupNoticeQuery(location.search);
   // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
   const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
@@ -116,21 +119,21 @@ function SmallGroupDetailPage() {
     const controller = new AbortController();
     let active = true;
 
-    getSmallGroupDetail(id, { signal: controller.signal })
+    getSmallGroupDetail(id, { signal: controller.signal, noticePage: noticeQuery.page, noticeSort: noticeQuery.sort })
       .then((group) => {
-        if (active) setResult({ id, retry, authVersion, group });
+        if (active) setResult({ id, retry, authVersion, search: location.search, group });
       })
       .catch((error) => {
-        if (active && !controller.signal.aborted) setResult({ id, retry, authVersion, error });
+        if (active && !controller.signal.aborted) setResult({ id, retry, authVersion, search: location.search, error });
       });
 
     return () => {
       active = false;
       controller.abort();
     };
-  }, [id, retry, authVersion]);
+  }, [id, retry, authVersion, location.search, noticeQuery.page, noticeQuery.sort]);
 
-  const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion ? result : null;
+  const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion && result?.search === location.search ? result : null;
   const isSettingsSelected = current?.group?.myRole === 'OWNER'
     && menu.id === id && menu.value === 'settings';
   const isVoteSelected = ['OWNER', 'MEMBER'].includes(current?.group?.myRole)
@@ -311,10 +314,13 @@ function SmallGroupDetailPage() {
               onCreateVote={handleVoteCreate}
               isVoteCreating={isVoteCreating}
               onRetryVotes={() => setVoteRetry((value) => value + 1)}
+              noticePageMeta={current.group.noticePageMeta}
+              noticeSort={noticeQuery.sort}
+              onNoticeQueryChange={(page, sort) => navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(page, sort, location.search) })}
               onNoticeRefresh={async () => {
                 // AI작성: 저장 성공 후 재등록 없이 상세만 다시 읽고 실패는 작성 폼에서 재시도한다.
                 const data = await getSmallGroupDetail(id);
-                setResult({ id, retry, authVersion, group: data });
+                setResult({ id, retry, authVersion, search: location.search, group: data });
               }}
               onVoteDetail={(smallGroupVoteId) => navigate(`/small-groups/${id}/votes/${smallGroupVoteId}`)}
             />

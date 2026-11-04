@@ -1,3 +1,4 @@
+import { getSmallGroupNoticePagination } from '../../api/smallGroups';
 import SmallGroupNoticeCreateForm from './SmallGroupNoticeCreateForm';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
@@ -460,9 +461,14 @@ function SmallGroupDetail({
   onRetryVotes,
   onVoteDetail,
   onNoticeRefresh,
+  noticePageMeta,
+  noticeSort = 'LATEST',
+  onNoticeQueryChange,
 }) {
   // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
   const joinReasonId = useId();
+  // AI작성: 목록은 계모임과 같은 세 페이지 번호 묶음을 사용한다.
+  const noticePagination = getSmallGroupNoticePagination(noticePageMeta?.page || 1, noticePageMeta?.totalPages || 0);
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
   const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
   // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
@@ -668,7 +674,13 @@ function SmallGroupDetail({
             <Card>
               <SmallGroupNoticeCreateForm group={{ ...group, smallGroupId, myRole }} onRefresh={onNoticeRefresh}
                 heading={<CardTitle>공지</CardTitle>}>
-              <NoticeTable aria-label="최근 공지 목록">
+              {/* AI작성: 전체 보기 화면 없이 메인에서 정렬·페이징한다. */}
+              <div role="group" aria-label="공지 정렬" style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                {['LATEST', 'OLDEST'].map((sort) => <Button key={sort} type="button" $variant="secondary"
+                  aria-pressed={noticeSort === sort} onClick={() => onNoticeQueryChange(1, sort)}>
+                  {sort === 'LATEST' ? '최신순' : '오래된순'}</Button>)}
+              </div>
+              <NoticeTable aria-label="공지 목록">
                 <NoticeRow $header>
                   <span>제목</span><span>작성자</span><span>작성일</span>
                 </NoticeRow>
@@ -682,6 +694,13 @@ function SmallGroupDetail({
                   </NoticeRow>
                 ))}
               </NoticeTable>
+              {noticePageMeta?.totalPages > 0 && <nav aria-label="공지 페이지" style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                {noticePagination.previous && <Button type="button" $variant="secondary" onClick={() => onNoticeQueryChange(noticePagination.previous, noticeSort)}>이전</Button>}
+                {noticePagination.pages.map((page) => <Button key={page} type="button" $variant="secondary"
+                  aria-current={noticePageMeta.page === page ? 'page' : undefined}
+                  onClick={() => onNoticeQueryChange(page, noticeSort)}>{page}</Button>)}
+                {noticePagination.next && <Button type="button" $variant="secondary" onClick={() => onNoticeQueryChange(noticePagination.next, noticeSort)}>다음</Button>}
+              </nav>}
               </SmallGroupNoticeCreateForm>
             </Card>
           </Column>
