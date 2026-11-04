@@ -211,6 +211,8 @@ CREATE TABLE IF NOT EXISTS `group_notice` (
 	`title`	VARCHAR(200)	NOT NULL,
 	`content`	TEXT	NOT NULL,
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NULL DEFAULT NULL,
+    `deleted_at` DATETIME NULL DEFAULT NULL,
 	PRIMARY KEY (`notice_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
