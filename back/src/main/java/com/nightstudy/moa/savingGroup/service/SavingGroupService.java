@@ -10,6 +10,9 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 승인된 OWNER·MANAGER만 모집중·진행중 계모임에 공지를 작성한다. 입력 Validation은 Controller에서 수행한다.
+    void createSavingGroupNotice(Long savingGroupId, Long memberId, String title, String content);
+
     // AI작성: memberId는 인증 계층에서 검증된 ID 또는 비로그인의 null만 받는다.
     SavingGroupDetailResponse getSavingGroupDetail(Long groupId, Long memberId);
     // AI작성: 승인된 계주에게만 신청 목록을 제공하며 상태·페이지는 서버에서 검증한다.

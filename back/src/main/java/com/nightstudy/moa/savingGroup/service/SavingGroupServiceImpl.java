@@ -29,6 +29,41 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
 
+    // AI작성: 모임과 회원 관계를 잠가 권한·상태 검증부터 저장까지 동일한 트랜잭션으로 처리한다.
+    @Override
+    @Transactional
+    public void createSavingGroupNotice(Long savingGroupId, Long memberId, String title, String content) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (savingGroupId == null || savingGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호가 올바르지 않습니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
+        // AI작성: 대상 모임의 승인 관계만 인정해 타 모임 운영진과 대기·탈퇴·추방 회원의 작성을 차단한다.
+        SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(
+                target.getGroupId(), memberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
+                || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_WRITE_FORBIDDEN",
+                    "승인된 계주 또는 운영진만 공지를 작성할 수 있습니다.");
+        }
+        // AI작성: 요청 작성자 값 대신 인증 회원 ID를 사용하고, 게시글과 동일하게 앞뒤 공백을 제거한다.
+        SavingGroupNoticeCreateRow notice = new SavingGroupNoticeCreateRow(
+                target.getGroupId(), memberId, title.trim(), content.trim());
+        if (savingGroupMapper.insertSavingGroupNotice(notice) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_NOTICE_WRITE_FAILED",
+                    "공지 등록에 실패했습니다.");
+        }
+    }
+
     // AI작성: 승인과 거절이 공유하는 잠금 검증 결과를 묶어, 처리별 추가 검증은 각각 분리한다.
     private record SavingGroupJoinDecisionTarget(
             SavingGroupJoinApprovalTargetRow request, SavingGroupJoinTargetRow target) {
