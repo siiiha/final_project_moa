@@ -880,3 +880,14 @@
 - 브라우저·DB 검증 한계: 내장 브라우저 로컬 연결 실패 후 Windows 도구도 현재 URL을 확인하지 못해 컴퓨터 사용이 중단됐다. 실제 UI 상호작용·모바일·Postman·MySQL·동시성 검증은 미완료다. 임시 검증 파일·서버는 정리했다. 문서의 수동 검증 절차에 따라 후속 확인해야 한다.
 - 남은 TODO: 공지 알림은 NOTICE_CREATED enum만 있고 실제 연계가 없어 제외했다. 고정·첨부·공개 범위·예약 발행·일정 연계·수정·삭제·목록·상세·댓글은 제외 범위다. 별도 금칙어 정책·관리자 이용 제한 연계는 담당자 확인이 필요하다.
 - 개발자 검토·수정: 사용자가 단계별 구현을 요청하고 직접 커밋했다. 현재 이력은 f003926(Mapper), b3f4e44(Service), 371eb31(Controller), 9653848(React API), 17899e0(화면)이며 개발자의 구체적인 코드 수정 내용과 실제 동작 최종 검토 완료 여부는 확인되지 않았다. 문서 최종 검토와 6단계 커밋은 개발자가 수행한다. AI는 커밋을 실행하지 않았다.
+
+<!-- AI작성: 사용자가 승인한 공지 작성자·작성일 표시 변경 기록입니다. -->
+## 2026-11-04 — 계모임 최근 공지 작성자·작성일 표시
+
+- 목적·승인: 사용자가 소모임처럼 계모임 공지에 제목·작성자·작성일을 표시하도록 DTO·SQL·화면 및 필요한 테스트·문서 수정을 요청했다.
+- 작업 파일: back/src/main/java/com/nightstudy/moa/savingGroup/dto/SavingGroupNoticeSummaryResponse.java, back/src/main/resources/mappers/SavingGroupMapper.xml, front/src/components/savingGroup/SavingGroupDetail.jsx, docs/saving-groups-api.md, docs/ai-usage-log.md.
+- AI 제안·작성: 공지 요약에 writerNickname·createdAt을 추가하고 생성자 resultMap을 맞췄다. members LEFT JOIN으로 작성자 닉네임을 가져오고 기존 공지가 회원 행 누락으로 사라지지 않게 했다. 최신 4건 정렬은 유지했다. 화면에 제목·작성자·작성일 열, 한국어 날짜, 누락 안내와 긴 문자열 줄바꿈을 추가했다. 작성 폼이 열리면 목록을 숨기고 등록 성공·취소 시 복귀하는 기존 동작을 유지했다.
+- 재사용·변경 한계: 소모임 공지 요약 필드·날짜 형식을 참고했다. DB 구조, 공지 작성 API, Controller·Service·React 요청 함수는 변경하지 않았다. 저장소에서 기존 공지 요약 DTO 생성자를 직접 사용하는 테스트는 발견되지 않아 테스트 파일 수정은 하지 않았다.
+- 검증: Java 17 경로를 실행 인자로 지정한 compileJava 통과. npm run build 및 savingGroups API 테스트 37건 통과. XML 파싱·공지 생성자 매핑과 git diff --check 확인. JSX lint 오류 없음, 기존 ImagePlaceholder·Schedule 미사용 경고 2건 및 번들 크기 경고 유지. API 테스트는 기존 요청 회귀 검증으로 신규 응답의 실제 DB 매핑·화면 표시를 검증한 것은 아니다.
+- 수동 확인·남은 사항: 실제 상세 JSON의 writerNickname·createdAt과 화면 작성자·날짜, 최신 4건·빈 목록, 긴 문자열·모바일, 작성 폼 전환을 확인해야 한다. 실제 MySQL·브라우저 검증은 미실행이다.
+- 개발자 검토·수정: 검토 대기. 개발자의 별도 수정 내용은 아직 확인되지 않았으며 AI는 커밋하지 않았다.
