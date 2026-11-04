@@ -23,6 +23,7 @@ import com.nightstudy.moa.member.dto.withdrawal.MemberWithdrawalRequest;
 import com.nightstudy.moa.member.mapper.MemberMapper;
 import com.nightstudy.moa.member.service.auth.AuthSessionService;
 import com.nightstudy.moa.member.service.email.EmailVerificationService;
+import com.nightstudy.moa.member.service.identity.IdentityCiHasher;
 import com.nightstudy.moa.member.service.identity.PortOneApiClient;
 import com.nightstudy.moa.member.service.social.kakao.KakaoApiClient;
 import org.springframework.dao.DuplicateKeyException;
@@ -62,6 +63,7 @@ public class MemberServiceImpl implements MemberService {
     private final KakaoApiClient kakaoApiClient;
     private final PortOneProperties portOneProperties;
     private final PortOneApiClient portOneApiClient;
+    private final IdentityCiHasher identityCiHasher;
     private final ProfileImageService profileImageService;
 
     public MemberServiceImpl(
@@ -73,7 +75,9 @@ public class MemberServiceImpl implements MemberService {
             KakaoApiClient kakaoApiClient,
             PortOneProperties portOneProperties,
             PortOneApiClient portOneApiClient,
+            IdentityCiHasher identityCiHasher,
             ProfileImageService profileImageService
+
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
@@ -83,6 +87,7 @@ public class MemberServiceImpl implements MemberService {
         this.kakaoApiClient = kakaoApiClient;
         this.portOneProperties = portOneProperties;
         this.portOneApiClient = portOneApiClient;
+        this.identityCiHasher = identityCiHasher;
         this.profileImageService = profileImageService;
     }
 
@@ -1076,6 +1081,13 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        return profile;
+        if (identityCiHasher.isConfigured() && StringUtils.hasText(customer.getCi())) {
+            memberMapper.saveIdentityCiHashIfAbsent(
+                    memberId,
+                    identityCiHasher.hash(customer.getCi())
+            );
+        }
+
+        return getMyProfile(memberId);
     }
 }
