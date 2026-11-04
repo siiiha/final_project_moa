@@ -935,3 +935,21 @@ export function getSmallGroupNoticePagination(page, totalPages) {
   };
 }
 
+
+// AI작성: 공지 본문은 별도 인증 요청으로 조회하며 공개 상세 응답과 혼용하지 않는다.
+export async function getSmallGroupNoticeDetail(groupId, noticeId, { signal } = {}) {
+  try {
+    const response = await client.get('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId), { signal });
+    if (response.data?.success !== true) throw { response };
+    const notice = response.data.data;
+    if (!notice || typeof notice.title !== 'string' || typeof notice.content !== 'string' || notice.writerId == null || notice.noticeId == null) {
+      const error = new Error('공지 응답을 확인하지 못했습니다.'); error.code = 'INVALID_RESPONSE'; throw error;
+    }
+    return notice;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.code === 'INVALID_RESPONSE') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 불러오지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code;
+    throw failure;
+  }
+}
