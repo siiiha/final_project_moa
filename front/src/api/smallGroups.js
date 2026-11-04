@@ -967,3 +967,17 @@ export async function updateSmallGroupNotice(groupId, noticeId, { title, content
     throw failure;
   }
 }
+
+// AI작성: 공지 삭제는 두 식별자만 전달하고 서버의 작성자 검증 오류를 보존한다.
+export async function deleteSmallGroupNotice(groupId, noticeId, { signal } = {}) {
+  try {
+    const response = await client.delete('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId), { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 삭제하지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_DELETE_FAILED';
+    throw failure;
+  }
+}
