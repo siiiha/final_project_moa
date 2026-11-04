@@ -29,8 +29,17 @@ const Body = styled.div`
   color: ${({ theme }) => theme.colors.text};
 `;
 
+// AI작성: 수정·삭제 버튼을 본문 아래 카드 내부 우측에 배치하고 좁은 화면에서는 줄바꿈을 허용한다.
+const Actions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+`;
+
 // AI작성: 작성 폼에서 저장한 일반 텍스트를 HTML로 해석하지 않고 줄바꿈을 유지한다. 내부 ID는 표시하지 않는다.
-export default function SavingGroupNoticeDetail({ notice }) {
+export default function SavingGroupNoticeDetail({ notice, actions }) {
   const date = notice.createdAt ? new Date(notice.createdAt) : null;
   const validDate = date && !Number.isNaN(date.getTime());
   return (
@@ -45,6 +54,7 @@ export default function SavingGroupNoticeDetail({ notice }) {
         ) : '날짜 확인 필요'}</p>
       </Meta>
       <Body>{notice.content}</Body>
+      {actions && <Actions>{actions}</Actions>}
     </Article>
   );
 }

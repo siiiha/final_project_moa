@@ -110,15 +110,18 @@ export default function SavingGroupNoticeDetailPage() {
                     && previous?.authVersion === authVersion ? { ...previous, notice } : previous);
                   setEditing(null); setSaved(scope);
                 }} />
-            ) : <SavingGroupNoticeDetail notice={current.notice} />}
-            {canEdit && editing !== scope && <Actions>
+            ) : <SavingGroupNoticeDetail notice={current.notice} actions={canEdit && (
+              <>
+              {/* AI작성: 기존 권한·동작을 유지한 수정·삭제 버튼을 상세 카드 내부에 전달한다. */}
+
               <Button type="button" onClick={() => { setEditing(scope); setSaved(null); }}>공지 수정</Button>
               {/* AI작성: 삭제는 동일한 작성자 조건에서만 표시하고 성공 후 기존 목록 재조회 흐름으로 복귀한다. */}
               <SavingGroupNoticeDeleteButton key={scope} groupId={id} noticeId={noticeId}
                 onBlocked={() => setBlocked(scope)}
                 onDeleted={() => navigate(`/saving-groups/${encodeURIComponent(id)}?${toSavingGroupNoticeSearch(page, sort)}`,
                   { replace: true, state: { deletedNoticeId: noticeId, deletedNoticeGroupId: id } })} />
-            </Actions>}
+              </>
+            )} />}
           </>
         )}
       <Actions>
