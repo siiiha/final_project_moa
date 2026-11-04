@@ -5,7 +5,43 @@ import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavin
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
   approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,
   createSavingGroupNotice, getSavingGroupNoticeDetail, getSavingGroupNoticePagination,
-  readSavingGroupNoticeQuery, toSavingGroupNoticeSearch, updateSavingGroupNoticePinned, updateSavingGroupNotice } from './savingGroups.js';
+  readSavingGroupNoticeQuery, toSavingGroupNoticeSearch, updateSavingGroupNoticePinned, updateSavingGroupNotice, deleteSavingGroupNotice } from './savingGroups.js';
+
+// AI작성: 본문 없는 삭제 요청·큰 ID·오류·취소 및 잘못된 ID의 요청 차단을 검증한다.
+test('공지 삭제 DELETE 경로·성공·오류·취소 처리', async () => {
+  const original = client.delete;
+  const signal = new AbortController().signal;
+  try {
+    client.delete = async (path, options) => {
+      assert.equal(path, '/saving-groups/9223372036854775807/notices/40');
+      assert.deepEqual(options, { signal });
+      return { data: { success: true, data: null } };
+    };
+    assert.equal(await deleteSavingGroupNotice('9223372036854775807', 40, { signal }), null);
+    for (const status of [401, 403, 404, 409, 500]) {
+      for (const rejected of [true, false]) {
+        client.delete = async () => {
+          const response = { status, data: { success: false, error: { code: 'DELETE_ERROR', message: '삭제 실패' } } };
+          if (rejected) throw { response };
+          return response;
+        };
+        await assert.rejects(() => deleteSavingGroupNotice(20, 40),
+          (error) => error.code === 'DELETE_ERROR' && error.status === status && error.message === '삭제 실패');
+      }
+    }
+    client.delete = async () => { throw new Error('network'); };
+    await assert.rejects(() => deleteSavingGroupNotice(20, 40), (error) => error.code === 'SAVING_GROUP_NOTICE_DELETE_FAILED');
+    const canceled = { code: 'ERR_CANCELED' };
+    client.delete = async () => { throw canceled; };
+    await assert.rejects(() => deleteSavingGroupNotice(20, 40), (error) => error === canceled);
+    let calls = 0;
+    client.delete = async () => { calls += 1; };
+    for (const [groupId, noticeId] of [[0, 40], [20, -1], ['abc', 40], [20, null]]) {
+      await assert.rejects(() => deleteSavingGroupNotice(groupId, noticeId));
+    }
+    assert.equal(calls, 0);
+  } finally { client.delete = original; }
+});
 
 // AI작성: 수정은 공통 groupId·본문·취소 신호를 전달하고 서버 오류를 보존한다.
 test('공지 수정 PUT 경로·본문·응답 및 오류 보존', async () => {
