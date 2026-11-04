@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRequest;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticePinRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
@@ -41,6 +42,17 @@ public class SavingGroupController {
     // AI작성: 목록 조회 서비스만 주입한다.
     public SavingGroupController(SavingGroupService savingGroupService) {
         this.savingGroupService = savingGroupService;
+    }
+
+    // AI작성: 명시적 고정 상태와 양수 ID만 전달하며 권한·최대 개수는 Service 트랜잭션에서 검증한다.
+    @PatchMapping("/{groupId}/notices/{noticeId}/pin")
+    public ApiResponse<Void> pinNotice(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SavingGroupNoticePinRequest request) {
+        savingGroupService.updateSavingGroupNoticePinned(groupId, noticeId, memberId, request.getPinned());
+        return ApiResponse.ok();
     }
 
     // AI작성: 경로의 groupId는 공통 모임 ID이며 공지 소속·승인 회원 권한은 Service에서 검증한다.
