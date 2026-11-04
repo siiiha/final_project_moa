@@ -461,6 +461,7 @@ function SmallGroupDetail({
   onRetryVotes,
   onVoteDetail,
   onNoticeRefresh,
+  onNoticeDetail,
   noticePageMeta,
   noticeSort = 'LATEST',
   onNoticeQueryChange,
@@ -688,7 +689,7 @@ function SmallGroupDetail({
                   <NoticeEmpty>등록된 공지가 없습니다.</NoticeEmpty>
                 ) : group.notices.map((notice, index) => (
                   <NoticeRow key={notice.noticeId} $last={index === group.notices.length - 1}>
-                    <span>{notice.title}</span>
+                    <button type="button" onClick={() => onNoticeDetail(notice.noticeId)} style={{ background: 'none', border: 0, textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer', overflowWrap: 'anywhere' }}>{notice.title}</button>
                     <span>{notice.writerNickname}</span>
                     <span>{formatDate(notice.createdAt)}</span>
                   </NoticeRow>

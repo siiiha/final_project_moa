@@ -1,3 +1,4 @@
+import SmallGroupNoticeDetailPage from './pages/SmallGroupNoticeDetailPage';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
@@ -54,6 +55,8 @@ function App() {
         <Route path="/saving-groups/:id" element={<SavingGroupDetailPage />} />
         <Route path="/small-groups/new" element={<SmallGroupCreatePage />} />
         <Route path="/small-groups/:smallGroupId/votes/:voteId" element={<SmallGroupVoteDetailPage />} />
+        {/* AI작성: 소모임 공지 본문은 별도 경로에서 조회한다. */}
+        <Route path="/small-groups/:id/notices/:noticeId" element={<SmallGroupNoticeDetailPage />} />
         <Route path="/small-groups/:id" element={<SmallGroupDetailPage />} />
         <Route path="/small-groups" element={<SmallGroupsPage />} />
         <Route path="/member/login" element={<LoginPage />} />

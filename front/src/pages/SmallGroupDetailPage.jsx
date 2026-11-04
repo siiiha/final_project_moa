@@ -317,6 +317,7 @@ function SmallGroupDetailPage() {
               onCreateVote={handleVoteCreate}
               isVoteCreating={isVoteCreating}
               onRetryVotes={() => setVoteRetry((value) => value + 1)}
+              onNoticeDetail={(noticeId) => navigate('/small-groups/' + encodeURIComponent(id) + '/notices/' + encodeURIComponent(noticeId) + '?' + toSmallGroupNoticeSearch(current.group.noticePageMeta?.page || noticeQuery.page, noticeQuery.sort))}
               noticePageMeta={current.group.noticePageMeta}
               noticeSort={noticeQuery.sort}
               onNoticeQueryChange={(page, sort) => navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(page, sort, location.search) })}
