@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { Link } from 'react-router-dom';
 import { formatSavingGroupAmount, getSavingGroupMenus } from '../../api/savingGroups.js';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
@@ -173,6 +174,13 @@ const NoticeTable = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
 `;
+// AI작성: 승인 회원에게만 제공하는 공지 상세 링크는 키보드 초점과 긴 제목 줄바꿈을 지원한다.
+const NoticeLink = styled(Link)`
+  color: ${({ theme }) => theme.colors.primary};
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+  &:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+`;
 const NoticeRow = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(64px, 0.4fr) minmax(110px, 0.6fr);
@@ -262,6 +270,9 @@ const ActionButton = styled(Button)`
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh }) {
   // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
   const joinReasonId = useId();
+  // AI작성: 작성 권한과 달리 승인된 일반 계원도 상세 조회 링크를 사용할 수 있다.
+  const canReadNotice = group.membershipStatus === 'APPROVED'
+    && ['OWNER', 'MANAGER', 'MEMBER'].includes(group.myRole) && ['01', '02'].includes(group.status);
   const allowedMenus = getSavingGroupMenus(group.myRole);
   // AI작성: 허용되지 않은 탭 상태가 남아 있어도 공지로 되돌려 계주 전용 패널을 렌더링하지 않는다.
   const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
@@ -339,7 +350,13 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
                       </NoticeRow>
                       {group.notices.map((notice) => (
                         <NoticeRow role="row" key={notice.noticeId}>
-                          <span role="cell">{notice.title}</span>
+                          <span role="cell">
+                            {canReadNotice ? (
+                              <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}`}>
+                                {notice.title}
+                              </NoticeLink>
+                            ) : notice.title}
+                          </span>
                           <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
                           <span role="cell">{formatNoticeDate(notice.createdAt)}</span>
                         </NoticeRow>

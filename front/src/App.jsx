@@ -24,6 +24,7 @@ import AdminReportsPage from './pages/AdminReportsPage';
 import AdminReportDetailPage from './pages/AdminReportDetailPage';
 import SavingGroupsPage from './pages/SavingGroupsPage';
 import SavingGroupDetailPage from './pages/SavingGroupDetailPage';
+import SavingGroupNoticeDetailPage from './pages/SavingGroupNoticeDetailPage';
 import SavingGroupApplicationPage from './pages/SavingGroupApplicationPage';
 import SavingGroupSettingsPage from './pages/SavingGroupSettingsPage';
 import SmallGroupsPage from './pages/SmallGroupsPage';
@@ -51,6 +52,8 @@ function App() {
         <Route path="/saving-groups" element={<SavingGroupsPage />} />
         <Route path="/saving-groups/new" element={<SavingGroupApplicationPage />} />
         <Route path="/saving-groups/:id/settings" element={<SavingGroupSettingsPage />} />
+        {/* AI작성: id는 공통 group_id이며 공지 상세 권한은 서버에서 확인한다. */}
+        <Route path="/saving-groups/:id/notices/:noticeId" element={<SavingGroupNoticeDetailPage />} />
         <Route path="/saving-groups/:id" element={<SavingGroupDetailPage />} />
         <Route path="/small-groups/new" element={<SmallGroupCreatePage />} />
         <Route path="/small-groups/:smallGroupId/votes/:voteId" element={<SmallGroupVoteDetailPage />} />
