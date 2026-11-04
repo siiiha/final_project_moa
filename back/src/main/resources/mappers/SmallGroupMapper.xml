@@ -809,4 +809,14 @@
         FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
         WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL
     </select>
+    <!-- AI작성: 작성자를 SQL에서도 제한하고 원작성자·작성일·고정 여부는 보존한다. -->
+    <select id="selectSmallGroupNoticeForUpdate" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse">
+        SELECT gn.notice_id, gn.title, gn.content, gn.writer_id, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL FOR UPDATE
+    </select>
+    <update id="updateSmallGroupNotice">
+        UPDATE group_notice SET title = #{title}, content = #{content}, updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
+    </update>
 </mapper>
