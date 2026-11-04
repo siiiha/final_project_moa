@@ -370,12 +370,16 @@ export function formatSavingGroupAmount(value) {
 }
 
 // AI작성: URL ID를 숫자로 변환하지 않으며 기존 API 클라이언트와 취소 신호를 재사용한다.
-export async function getSavingGroupDetail(id, { signal } = {}) {
-  const response = await client.get(`/saving-groups/${encodeURIComponent(id)}`, { signal });
+export async function getSavingGroupDetail(id, { signal, noticePage = 1, noticeSort = 'LATEST' } = {}) {
+  // AI작성: 기존 호출은 최신순 1페이지로 유지하고 공지 조건만 기존 상세 API 쿼리로 전달한다.
+  const response = await client.get(`/saving-groups/${encodeURIComponent(id)}`, {
+    params: { noticePage, noticeSort }, signal,
+  });
   if (!response.data.success) {
     throw new Error(response.data.error?.message || '계모임 정보를 불러오지 못했습니다.');
   }
-  return response.data.data;
+  // AI작성: 기존 상세 필드를 유지하면서 공통 meta를 공지 전용 이름으로 화면에 전달한다.
+  return { ...response.data.data, noticePageMeta: response.data.meta ?? null };
 }
 
 // AI작성: 최대 다섯 개의 번호만 생성하고 빈 결과·범위 초과는 번호를 만들지 않는다.

@@ -279,7 +279,7 @@ test('상세 요청은 URL ID와 취소 신호를 보존하고 실패를 숨기�
       assert.equal(options.signal, signal);
       return { data: { success: true, data: detail } };
     };
-    assert.equal(await getSavingGroupDetail(detail.groupId, { signal }), detail);
+    assert.deepEqual(await getSavingGroupDetail(detail.groupId, { signal }), { ...detail, noticePageMeta: null });
     client.get = async () => ({ data: { success: false, error: { message: '상세 오류' } } });
     await assert.rejects(() => getSavingGroupDetail('42'), /상세 오류/);
     for (const status of [400, 403, 404, 500]) {
@@ -511,4 +511,26 @@ test('본인 인증 미완료 응답의 코드와 메시지를 보존한다', as
   } finally {
     client.defaults.adapter = originalAdapter;
   }
+});
+
+// AI작성: 기존 상세 API에 공지 조건과 취소 신호를 전달하고 상세 필드·페이징 정보를 함께 보존한다.
+test('공지 페이지와 정렬을 전달하고 PageMeta를 반환한다', async () => {
+  const original = client.get;
+  const signal = new AbortController().signal;
+  const meta = { page: 4, size: 4, total: 25, totalPages: 7 };
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/saving-groups/42');
+      assert.deepEqual(options.params, { noticePage: 4, noticeSort: 'OLDEST' });
+      assert.equal(options.signal, signal);
+      return { data: { success: true, data: { groupId: '42', notices: [] }, meta } };
+    };
+    assert.deepEqual(await getSavingGroupDetail('42', { noticePage: 4, noticeSort: 'OLDEST', signal }),
+      { groupId: '42', notices: [], noticePageMeta: meta });
+    client.get = async (path, options) => {
+      assert.deepEqual(options.params, { noticePage: 1, noticeSort: 'LATEST' });
+      return { data: { success: true, data: { groupId: '42', notices: [] }, meta: { ...meta, page: 1 } } };
+    };
+    assert.equal((await getSavingGroupDetail('42')).noticePageMeta.page, 1);
+  } finally { client.get = original; }
 });
