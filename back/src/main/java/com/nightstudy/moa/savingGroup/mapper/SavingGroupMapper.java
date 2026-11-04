@@ -9,6 +9,11 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 기존 상세 DTO를 재사용하되 변경 전 공지를 잠그고 미삭제 소속 공지만 수정한다.
+    SavingGroupNoticeDetailResponse selectSavingGroupNoticeForUpdate(
+            @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
+    int updateSavingGroupNotice(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId,
+            @Param("title") String title, @Param("content") String content);
     // AI작성: 공개 상세 조회에서는 행 잠금 없이 본인의 신청 조건만 읽는다.
     SavingGroupJoinMemberRow selectSavingGroupJoinMember(@Param("memberId") Long memberId);
     SavingGroupMembershipRelationRow selectSavingGroupMembership(
