@@ -71,4 +71,30 @@ class TossVirtualAccountIssueServiceImplTest {
         assertThatThrownBy(() -> client.issue(request)).isInstanceOfSatisfying(ApiException.class,
                 e -> { assertThat(e.getCode()).isEqualTo("ACCOUNT_ISSUE_UNKNOWN"); assertThat(e.getMessage()).doesNotContain("private"); });
     }
+
+    // AI작성: KB국민은행의 공식 004 응답은 토스 두 자리 06 설정과 같은 은행이다.
+    @Test void normalizesOfficialThreeDigitBankCode() {
+        props.setBankCode("06");
+        server.expect(anything()).andRespond(withSuccess(response().replace("\"bankCode\":\"00\"", "\"bankCode\":\"004\""), MediaType.APPLICATION_JSON));
+        assertThat(client.issue(request).getBankCode()).isEqualTo("06"); server.verify();
+    }
+
+    // AI작성: 다른 은행·금액·통화·유형·만료 응답과 실계좌 형태가 일반 성공으로 저장되지 않는다.
+    @ParameterizedTest
+    @ValueSource(strings = {"bank", "amount", "currency", "type", "expired", "account", "dueDate"})
+    void rejectsUnsafePaymentFields(String field) {
+        String body = switch (field) {
+            case "bank" -> response().replace("\"bankCode\":\"00\"", "\"bankCode\":\"88\"");
+            case "amount" -> response().replace("1000", "2000");
+            case "currency" -> response().replace("KRW", "USD");
+            case "type" -> response().replace("일반", "고정");
+            case "expired" -> response().replace("\"expired\":false", "\"expired\":true");
+            case "account" -> response().replace("X000000000000", "000000000000");
+            default -> response().replaceAll("\"dueDate\":\"[^\"]+\"", "\"dueDate\":\"2020-01-01T00:00:00+09:00\"");
+        };
+        server.expect(anything()).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> client.issue(request)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.getCode()).isEqualTo("ACCOUNT_RESPONSE_INVALID"));
+        server.verify();
+    }
 }

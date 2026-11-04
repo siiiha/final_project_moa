@@ -14,6 +14,13 @@ import org.springframework.web.client.*;
 // AI작성: 운영 키·임의 주소·자동 재시도를 허용하지 않는 테스트 전용 발급 계층이다.
 @Service
 public class TossVirtualAccountIssueServiceImpl implements VirtualAccountIssueService {
+    // AI작성: 공식 은행 코드의 세 자리 응답을 설정에 사용하는 두 자리 코드로 정규화한다.
+    // KB국민은행은 004 → 06이므로 앞의 0만 제거해서는 안 된다.
+    private static final Map<String, String> BANK_CODES = Map.ofEntries(
+            Map.entry("039", "39"), Map.entry("034", "34"), Map.entry("004", "06"),
+            Map.entry("003", "03"), Map.entry("011", "11"), Map.entry("031", "31"),
+            Map.entry("032", "32"), Map.entry("007", "07"), Map.entry("088", "88"),
+            Map.entry("020", "20"), Map.entry("071", "71"), Map.entry("037", "37"), Map.entry("081", "81"));
     private final TossVirtualAccountProperties properties;
     private final RestClient restClient;
     public TossVirtualAccountIssueServiceImpl(TossVirtualAccountProperties properties) {
@@ -60,7 +67,7 @@ public class TossVirtualAccountIssueServiceImpl implements VirtualAccountIssueSe
                     || !"WAITING_FOR_DEPOSIT".equals(response.getStatus()) || !"KRW".equals(response.getCurrency())
                     || !Integer.valueOf(1000).equals(response.getTotalAmount())
                     || !"일반".equals(account.getAccountType()) || !Boolean.FALSE.equals(account.getExpired())
-                    || !properties.getBankCode().equals(account.getBankCode()) || account.getAccountNumber() == null
+                    || !properties.getBankCode().equals(normalizeBankCode(account.getBankCode())) || account.getAccountNumber() == null
                     || !account.getAccountNumber().matches("X[0-9]{4,19}")) throw new IllegalArgumentException();
             OffsetDateTime due;
             try { due = OffsetDateTime.parse(account.getDueDate()); }
@@ -68,9 +75,13 @@ public class TossVirtualAccountIssueServiceImpl implements VirtualAccountIssueSe
                 due = LocalDateTime.parse(account.getDueDate()).atZone(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
             }
             if (!due.isAfter(OffsetDateTime.now()) || due.isAfter(OffsetDateTime.now().plusDays(8))) throw new IllegalArgumentException();
-            return new VirtualAccountIssueResult(account.getBankCode(), account.getAccountNumber(), due);
+            return new VirtualAccountIssueResult(properties.getBankCode(), account.getAccountNumber(), due);
         } catch (RuntimeException e) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "ACCOUNT_RESPONSE_INVALID", "계좌 발급 응답을 확인할 수 없습니다. 관리자 확인이 필요합니다.");
         }
+    }
+
+    private String normalizeBankCode(String code) {
+        return code != null && code.length() == 3 ? BANK_CODES.get(code) : code;
     }
 }
