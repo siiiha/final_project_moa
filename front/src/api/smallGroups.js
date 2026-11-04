@@ -568,6 +568,8 @@ export function toSmallGroupDetail(data) {
   return {
     ...data,
     notices: data.notices.map(toSmallGroupNoticeSummary),
+    // AI작성: 고정 목록도 본문 없이 같은 요약 필드만 화면으로 전달한다.
+    pinnedNotices: (data.pinnedNotices || []).map(toSmallGroupNoticeSummary),
   };
 }
 
@@ -978,6 +980,21 @@ export async function deleteSmallGroupNotice(groupId, noticeId, { signal } = {})
     if (error.code === 'ERR_CANCELED') throw error;
     const failure = new Error(error.response?.data?.error?.message || '공지를 삭제하지 못했습니다.');
     failure.status = error.response?.status; failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_DELETE_FAILED';
+    throw failure;
+  }
+}
+
+// AI작성: 고정 여부만 PATCH로 전송하고 최대 개수·권한 오류를 그대로 보존한다.
+export async function updateSmallGroupNoticePinned(groupId, noticeId, pinned, { signal } = {}) {
+  if (typeof pinned !== 'boolean') throw new Error('고정 여부를 확인해 주세요.');
+  try {
+    const response = await client.patch('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId) + '/pin', { pinned }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지 고정을 변경하지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_PIN_FAILED';
     throw failure;
   }
 }
