@@ -5,6 +5,7 @@ import com.nightstudy.moa.chatbot.dto.ChatbotRequest;
 import com.nightstudy.moa.chatbot.service.ChatbotService;
 import com.nightstudy.moa.common.dto.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,9 +23,10 @@ public class ChatbotApiController {
 
     @PostMapping("/messages")
     public ApiResponse<ChatbotReply> sendMessage(
+            @AuthenticationPrincipal Long memberId,
             @Valid @RequestBody ChatbotRequest request
     ) {
-        String reply = chatbotService.answer(request.message());
+        String reply = chatbotService.answer(memberId, request.message());
         return ApiResponse.ok(new ChatbotReply(reply));
     }
 }
