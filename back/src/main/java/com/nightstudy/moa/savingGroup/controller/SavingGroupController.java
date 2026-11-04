@@ -5,6 +5,8 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailPageResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
@@ -127,8 +129,11 @@ public class SavingGroupController {
     @GetMapping("/{id}")
     public ApiResponse<SavingGroupDetailResponse> detail(
             @PathVariable("id") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long id,
-            @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupDetail(id, memberId));
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute SavingGroupNoticeSearchCondition condition) {
+        // AI작성: 기존 상세 데이터는 data에 유지하고 검증된 공지 조회 조건의 페이징 정보만 meta로 전달한다.
+        SavingGroupDetailPageResponse result = savingGroupService.getSavingGroupDetail(id, memberId, condition);
+        return ApiResponse.ok(result.getDetail(), result.getPageMeta());
     }
 
     // AI작성: 인증 정보 없이 공개 목록을 조회하고 기존 성공 응답으로 감싼다.
