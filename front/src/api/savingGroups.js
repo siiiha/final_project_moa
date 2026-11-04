@@ -201,6 +201,30 @@ export async function createSavingGroupNotice(savingGroupId, { title, content },
   }
 }
 
+// AI작성: 고정 변경 오류의 서버 코드·문구·상태를 유지해 권한 변경과 최대 개수 초과를 안내한다.
+function toSavingGroupNoticePinError(error, status) {
+  const failure = new Error(error?.message || '공지 고정을 변경하지 못했습니다. 목록을 새로 고침해 주세요.');
+  failure.name = 'SavingGroupNoticePinError';
+  failure.code = error?.code || 'SAVING_GROUP_NOTICE_PIN_FAILED';
+  failure.status = status;
+  return failure;
+}
+
+// AI작성: 토글 대신 목표 상태를 전달해 응답 유실 후 재요청에서도 상태가 뒤집히지 않게 한다.
+export async function updateSavingGroupNoticePinned(groupId, noticeId, pinned, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  if (typeof pinned !== 'boolean') throw toSavingGroupNoticePinError({ code: 'BAD_REQUEST', message: '고정 여부를 확인해 주세요.' }, 400);
+  try {
+    const response = await client.patch(`/saving-groups/${groupPathId}/notices/${noticePathId}/pin`, { pinned }, { signal });
+    if (response.data?.success !== true) throw toSavingGroupNoticePinError(response.data?.error, response.status);
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupNoticePinError') throw error;
+    throw toSavingGroupNoticePinError(error.response?.data?.error, error.response?.status);
+  }
+}
+
 // AI작성: 조회 오류는 작성 오류와 구분하고 서버 코드·문구·HTTP 상태를 유지한다.
 function toSavingGroupNoticeDetailError(error, status) {
   const failure = new Error(error?.message || '공지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');

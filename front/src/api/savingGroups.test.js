@@ -5,7 +5,7 @@ import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavin
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
   approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,
   createSavingGroupNotice, getSavingGroupNoticeDetail, getSavingGroupNoticePagination,
-  readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from './savingGroups.js';
+  readSavingGroupNoticeQuery, toSavingGroupNoticeSearch, updateSavingGroupNoticePinned } from './savingGroups.js';
 
 // AI작성: 공통 groupId·공지 ID의 큰 정수 문자열과 취소 신호, 서버 응답 6개 항목을 보존한다.
 test('공지 상세는 groupId와 noticeId로 요청하고 상세 데이터를 반환한다', async () => {
@@ -558,4 +558,52 @@ test('공지 URL은 페이지와 정렬을 복원하고 서버 범위를 벗어�
   }
   assert.equal(readSavingGroupNoticeQuery('noticePage=2147483647').page, 2147483647);
   assert.deepEqual(readSavingGroupNoticeQuery(toSavingGroupNoticeSearch(1, 'LATEST', search)), { page: 1, sort: 'LATEST' });
+});
+
+// AI작성: 고정 변경은 큰 정수 ID와 명시 상태·취소 신호만 전달하고 오류를 그대로 구분한다.
+test('고정 지정과 해제는 PATCH로 목표 상태만 전달한다', async () => {
+  const original = client.patch;
+  const signal = new AbortController().signal;
+  try {
+    for (const pinned of [true, false]) {
+      client.patch = async (path, body, options) => {
+        assert.equal(path, '/saving-groups/9223372036854775807/notices/9223372036854775806/pin');
+        assert.deepEqual(body, { pinned }); assert.equal(options.signal, signal);
+        return { data: { success: true, data: null } };
+      };
+      assert.equal(await updateSavingGroupNoticePinned('9223372036854775807', '9223372036854775806', pinned, { signal }), null);
+    }
+  } finally { client.patch = original; }
+});
+
+test('고정 변경의 권한·개수 제한·서버 실패와 취소를 보존한다', async () => {
+  const original = client.patch;
+  try {
+    for (const [status, code] of [[401, 'UNAUTHORIZED'], [403, 'SAVING_GROUP_NOTICE_PIN_FORBIDDEN'],
+      [404, 'SAVING_GROUP_NOTICE_NOT_FOUND'], [409, 'SAVING_GROUP_NOTICE_PIN_LIMIT_EXCEEDED'], [500, 'INTERNAL_ERROR']]) {
+      client.patch = async () => { throw { response: { status, data: { error: { code, message: '변경 실패' } } } }; };
+      await assert.rejects(() => updateSavingGroupNoticePinned(20, 40, true), e => e.status === status && e.code === code && e.message === '변경 실패');
+    }
+    client.patch = async () => ({ status: 200, data: { success: false, error: { code: 'FAIL', message: '실패' } } });
+    await assert.rejects(() => updateSavingGroupNoticePinned(20, 40, true), e => e.code === 'FAIL');
+    const canceled = Object.assign(new Error('취소'), { code: 'ERR_CANCELED' });
+    client.patch = async () => { throw canceled; };
+    await assert.rejects(() => updateSavingGroupNoticePinned(20, 40, false), e => e === canceled);
+    client.patch = async () => { throw new Error('통신 실패'); };
+    await assert.rejects(() => updateSavingGroupNoticePinned(20, 40, true), /목록을 새로 고침/);
+  } finally { client.patch = original; }
+});
+
+test('잘못된 고정 ID와 상태는 전송 전에 차단한다', async () => {
+  const original = client.patch;
+  let calls = 0;
+  client.patch = async () => { calls++; };
+  try {
+    for (const id of [null, 0, -1, 'abc', '9223372036854775808']) {
+      await assert.rejects(() => updateSavingGroupNoticePinned(id, 40, true));
+      await assert.rejects(() => updateSavingGroupNoticePinned(20, id, true));
+    }
+    for (const pinned of [null, undefined, 'true', 1]) await assert.rejects(() => updateSavingGroupNoticePinned(20, 40, pinned));
+    assert.equal(calls, 0);
+  } finally { client.patch = original; }
 });
