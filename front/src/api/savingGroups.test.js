@@ -4,7 +4,8 @@ import client from './client.js';
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
   approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,
-  createSavingGroupNotice, getSavingGroupNoticeDetail, getSavingGroupNoticePagination } from './savingGroups.js';
+  createSavingGroupNotice, getSavingGroupNoticeDetail, getSavingGroupNoticePagination,
+  readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from './savingGroups.js';
 
 // AI작성: 공통 groupId·공지 ID의 큰 정수 문자열과 취소 신호, 서버 응답 6개 항목을 보존한다.
 test('공지 상세는 groupId와 noticeId로 요청하고 상세 데이터를 반환한다', async () => {
@@ -543,4 +544,18 @@ test('공지 페이지는 세 개 묶음의 앞 끝과 뒤 시작으로 이동�
   assert.deepEqual(getSavingGroupNoticePagination(7, 7), { pages: [7], previous: 6, next: null });
   assert.deepEqual(getSavingGroupNoticePagination(1, 0), { pages: [1], previous: null, next: null });
   assert.deepEqual(getSavingGroupNoticePagination(1, 1), { pages: [1], previous: null, next: null });
+});
+
+// AI작성: 상세 복귀·새로고침용 URL 조건과 잘못된 직접 입력의 기본값을 확인한다.
+test('공지 URL은 페이지와 정렬을 복원하고 서버 범위를 벗어난 입력은 기본값으로 처리한다', () => {
+  const search = toSavingGroupNoticeSearch(6, 'OLDEST', 'keep=yes');
+  assert.deepEqual(readSavingGroupNoticeQuery(search), { page: 6, sort: 'OLDEST' });
+  assert.equal(new URLSearchParams(search).get('keep'), 'yes');
+  assert.deepEqual(readSavingGroupNoticeQuery(''), { page: 1, sort: 'LATEST' });
+  for (const page of ['0', '-1', '1.5', 'abc', '', '2147483648', '99999999999999999999']) {
+    assert.deepEqual(readSavingGroupNoticeQuery(new URLSearchParams({ noticePage: page, noticeSort: 'UNKNOWN' })),
+      { page: 1, sort: 'LATEST' });
+  }
+  assert.equal(readSavingGroupNoticeQuery('noticePage=2147483647').page, 2147483647);
+  assert.deepEqual(readSavingGroupNoticeQuery(toSavingGroupNoticeSearch(1, 'LATEST', search)), { page: 1, sort: 'LATEST' });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { getSavingGroupNoticeDetail } from '../api/savingGroups.js';
+import { getSavingGroupNoticeDetail, readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from '../api/savingGroups.js';
 import Button from '../components/common/Button';
 import SavingGroupNoticeDetail from '../components/savingGroup/SavingGroupNoticeDetail';
 import useAuthStore from '../store/authStore';
@@ -32,6 +32,9 @@ const Actions = styled.div`
 export default function SavingGroupNoticeDetailPage() {
   const { id, noticeId } = useParams();
   const navigate = useNavigate();
+  // AI작성: 외부 복귀 주소를 받지 않고 같은 계모임의 검증된 공지 조건으로만 돌아간다.
+  const [searchParams] = useSearchParams();
+  const { page, sort } = readSavingGroupNoticeQuery(searchParams);
   const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
@@ -70,8 +73,8 @@ export default function SavingGroupNoticeDetailPage() {
           </Message>
         ) : <SavingGroupNoticeDetail notice={current.notice} />}
       <Actions>
-        {/* AI작성: 직접 URL로 진입해도 같은 계모임의 기본 공지 탭으로 돌아간다. */}
-        <Button type="button" $variant="secondary" onClick={() => navigate(`/saving-groups/${encodeURIComponent(id)}`)}>
+        {/* AI작성: 직접 URL 진입은 최신순 1페이지, 목록에서 진입한 경우 보던 페이지·정렬을 복원한다. */}
+        <Button type="button" $variant="secondary" onClick={() => navigate(`/saving-groups/${encodeURIComponent(id)}?${toSavingGroupNoticeSearch(page, sort)}`)}>
           계모임 공지로 돌아가기
         </Button>
       </Actions>

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import useAuthStore from '../store/authStore';
-import { getSavingGroupDetail, requestSavingGroupJoin } from '../api/savingGroups.js';
+import { getSavingGroupDetail, requestSavingGroupJoin, readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from '../api/savingGroups.js';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -45,10 +45,10 @@ function SavingGroupDetailPage() {
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
   const [menu, setMenu] = useState({ id, value: 'notice' });
-  // AI작성: 공지 조회 조건은 다른 계모임으로 이동할 때 기본값으로 구분한다.
-  const [noticeQuery, setNoticeQuery] = useState({ id, page: 1, sort: 'LATEST' });
-  const noticePage = noticeQuery.id === id ? noticeQuery.page : 1;
-  const noticeSort = noticeQuery.id === id ? noticeQuery.sort : 'LATEST';
+  // AI작성: URL을 조회 조건의 기준으로 삼아 상세 복귀·뒤로 가기·새로고침 때 같은 조건을 복원한다.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { page: noticePage, sort: noticeSort } = readSavingGroupNoticeQuery(searchParams);
+  const noticeRequest = useRef(null);
 
   // AI작성: 동일 렌더의 연속 클릭은 ref로 차단하고 안내는 모임·계정별로 구분한다.
   const joinLock = useRef(null);
@@ -66,28 +66,37 @@ function SavingGroupDetailPage() {
     joinScope.current = scope;
     return () => {
       scope.active = false;
+      noticeRequest.current?.abort();
       // AI작성: 다른 모임으로 갔다가 돌아와도 이전 완료·실패 안내가 다시 열리지 않게 한다.
       setJoinState(null);
     };
   }, [id, authVersion]);
 
   useEffect(() => {
+    // AI작성: 작성 후 갱신을 포함해 먼저 시작한 조회를 취소하고 마지막 요청만 반영한다.
+    noticeRequest.current?.abort();
     const controller = new AbortController();
+    noticeRequest.current = controller;
     let active = true;
     getSavingGroupDetail(id, { signal: controller.signal, noticePage, noticeSort })
       .then((group) => {
-        if (active) setResult({ id, retry, authVersion, noticePage, noticeSort, group });
+        if (!active || controller.signal.aborted || noticeRequest.current !== controller) return;
+        setResult({ id, retry, authVersion, noticePage, noticeSort, group });
+        // AI작성: 공지 수가 줄어 현재 페이지가 사라지면 마지막 유효 페이지로 URL을 보정한다.
+        const lastPage = Math.max(1, group.noticePageMeta?.totalPages ?? 0);
+        if (noticePage > lastPage) setSearchParams((previous) =>
+          toSavingGroupNoticeSearch(lastPage, noticeSort, previous), { replace: true, preventScrollReset: true });
       })
       .catch((error) => {
         // AI작성: 통신·서버 오류 시 같은 계모임 정보는 유지하고 공지 영역에서 재조회한다.
-        if (active && !controller.signal.aborted) setResult((previous) => ({
+        if (active && !controller.signal.aborted && noticeRequest.current === controller) setResult((previous) => ({
           id, retry, authVersion, noticePage, noticeSort, error,
           group: (!error.response?.status || error.response.status >= 500)
             && previous?.id === id && previous?.authVersion === authVersion ? previous.group : null,
         }));
       });
     return () => { active = false; controller.abort(); };
-  }, [id, retry, authVersion, noticePage, noticeSort]);
+  }, [id, retry, authVersion, noticePage, noticeSort, setSearchParams]);
 
   const handleJoinRequest = async () => {
     const scope = joinScope.current;
@@ -120,10 +129,29 @@ function SavingGroupDetailPage() {
   const current = scoped?.retry === retry && scoped.noticePage === noticePage && scoped.noticeSort === noticeSort ? scoped : null;
   const visibleGroup = scoped?.group;
   // AI작성: 등록 후 조회만 갱신해 실패 시 폼 상태를 보존하고 모임·계정 변경 뒤 이전 응답은 반영하지 않는다.
-  const handleNoticeRefresh = async () => {
+  const handleNoticeRefresh = async ({ resetNoticeQuery = false } = {}) => {
     const scope = joinScope.current;
-    const group = await getSavingGroupDetail(id, { noticePage, noticeSort });
-    if (scope?.active && joinScope.current === scope) setResult({ id, retry, authVersion, noticePage, noticeSort, group });
+    const page = resetNoticeQuery ? 1 : noticePage;
+    const sort = resetNoticeQuery ? 'LATEST' : noticeSort;
+    noticeRequest.current?.abort();
+    const controller = new AbortController();
+    noticeRequest.current = controller;
+    try {
+      const group = await getSavingGroupDetail(id, { noticePage: page, noticeSort: sort, signal: controller.signal });
+      if (!scope?.active || joinScope.current !== scope || controller.signal.aborted || noticeRequest.current !== controller) return;
+      setResult({ id, retry, authVersion, noticePage: page, noticeSort: sort, group });
+      // AI작성: 등록 성공 시 새 공지가 보이도록 최신순 1페이지로 전환하며 조회 실패 시 재등록하지 않는다.
+      const lastPage = Math.max(1, group.noticePageMeta?.totalPages ?? 0);
+      setSearchParams((previous) => toSavingGroupNoticeSearch(Math.min(page, lastPage), sort, previous),
+        { replace: true, preventScrollReset: true });
+    } catch (error) {
+      if (scope?.active && joinScope.current === scope && !controller.signal.aborted && noticeRequest.current === controller) {
+        setResult((previous) => ({ id, retry, authVersion, noticePage, noticeSort, error,
+          group: (!error.response?.status || error.response.status >= 500)
+            && previous?.id === id && previous?.authVersion === authVersion ? previous.group : null }));
+      }
+      throw error;
+    }
   };
   const errorStatus = current?.error?.response?.status;
   const errorMessage = errorStatus === 404 ? '조회할 수 있는 계모임이 없습니다.'
@@ -154,8 +182,10 @@ function SavingGroupDetailPage() {
               onNoticeRefresh={handleNoticeRefresh}
               noticePagination={{ page: noticePage, sort: noticeSort, totalPages: visibleGroup.noticePageMeta?.totalPages ?? 0 }}
               noticeLoading={!current} noticeError={Boolean(current?.error)}
-              onNoticePageChange={(page) => setNoticeQuery({ id, page, sort: noticeSort })}
-              onNoticeSortChange={(sort) => setNoticeQuery({ id, page: 1, sort })}
+              onNoticePageChange={(page) => setSearchParams((previous) =>
+                toSavingGroupNoticeSearch(page, noticeSort, previous), { preventScrollReset: true })}
+              onNoticeSortChange={(sort) => setSearchParams((previous) =>
+                toSavingGroupNoticeSearch(1, sort, previous), { preventScrollReset: true })}
               onNoticeRetry={() => setRetry((value) => value + 1)}
               onBack={() => navigate('/saving-groups')} />
           )}

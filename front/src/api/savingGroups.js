@@ -382,7 +382,22 @@ export async function getSavingGroupDetail(id, { signal, noticePage = 1, noticeS
   return { ...response.data.data, noticePageMeta: response.data.meta ?? null };
 }
 
-// AI작성: 최대 다섯 개의 번호만 생성하고 빈 결과·범위 초과는 번호를 만들지 않는다.
+// AI작성: 직접 입력한 URL에서도 서버의 정수 범위와 허용 정렬만 사용하고 나머지는 기본값으로 복원한다.
+export function readSavingGroupNoticeQuery(search) {
+  const params = new URLSearchParams(search);
+  const rawPage = params.get('noticePage') ?? '1';
+  const page = /^[1-9]\d*$/.test(rawPage) && Number(rawPage) <= 2147483647 ? Number(rawPage) : 1;
+  return { page, sort: params.get('noticeSort') === 'OLDEST' ? 'OLDEST' : 'LATEST' };
+}
+
+// AI작성: 공지 조회 조건만 변경해 같은 화면의 다른 쿼리는 유지한다.
+export function toSavingGroupNoticeSearch(page, sort, search = '') {
+  const params = new URLSearchParams(search);
+  params.set('noticePage', String(page));
+  params.set('noticeSort', sort);
+  return params.toString();
+}
+
 // AI작성: 공지 전용 세 페이지 묶음이며 이전은 앞 묶음 끝, 다음은 뒤 묶음 시작으로 이동한다.
 export function getSavingGroupNoticePagination(page, totalPages) {
   const total = Math.max(1, totalPages);

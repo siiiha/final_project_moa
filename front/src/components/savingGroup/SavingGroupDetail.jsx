@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
-import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
+import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination, toSavingGroupNoticeSearch } from '../../api/savingGroups.js';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
@@ -374,8 +374,9 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
                       {group.notices.map((notice) => (
                         <NoticeRow role="row" key={notice.noticeId}>
                           <span role="cell">
+                            {/* AI작성: 상세 URL에도 복귀 조건을 담아 직접 새로고침해도 보던 목록으로 돌아간다. */}
                             {canReadNotice ? (
-                              <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}`}>
+                              <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
                                 {notice.title}
                               </NoticeLink>
                             ) : notice.title}

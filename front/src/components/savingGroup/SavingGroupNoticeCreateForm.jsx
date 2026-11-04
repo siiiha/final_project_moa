@@ -71,7 +71,8 @@ function SavingGroupNoticeCreateForm({ group, onRefresh, heading, children }) {
   const refresh = async (scope, saved) => {
     setPhase('refreshing');
     try {
-      await onRefresh();
+      // AI작성: 등록 완료와 등록 후 재조회는 최신순 1페이지, 권한 재확인은 현재 조회 조건을 유지한다.
+      await onRefresh({ resetNoticeQuery: saved });
       if (!scope.active) return;
       setPhase(saved ? 'saved' : 'idle');
       setBlocked(false);
