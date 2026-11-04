@@ -55,6 +55,17 @@ public class SmallGroupController {
         this.smallGroupService = smallGroupService;
     }
 
+    // AI작성: 명시적인 고정 여부와 인증 회원만 받아 서비스의 모임장 권한을 검증한다.
+    @PatchMapping("/{smallGroupId}/notices/{noticeId}/pin")
+    public ApiResponse<Void> pinNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.smallGroup.dto.SmallGroupNoticePinRequest request) {
+        smallGroupService.updateSmallGroupNoticePinned(smallGroupId, noticeId, memberId, request.getPinned());
+        return ApiResponse.ok(null);
+    }
+
     // AI작성: 삭제 대상·인증 회원만 전달하고 논리 삭제와 권한은 Service에서 처리한다.
     @DeleteMapping("/{smallGroupId}/notices/{noticeId}")
     public ApiResponse<Void> deleteNotice(
@@ -263,6 +274,7 @@ public class SmallGroupController {
         SmallGroupDetailResponse detail = smallGroupService.getSmallGroupDetail(id, memberId);
         var notices = smallGroupService.getSmallGroupNotices(detail.getGroupId(), condition);
         detail.setNotices(notices.getItems());
+        detail.getPinnedNotices().addAll(notices.getPinnedItems());
         return ApiResponse.ok(detail, notices.getPageMeta());
     }
 
