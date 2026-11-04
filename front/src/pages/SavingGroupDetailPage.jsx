@@ -179,6 +179,11 @@ function SavingGroupDetailPage() {
         message: refreshed ? (pinned ? '고정 공지로 지정했습니다.' : '공지 고정을 해제했습니다.')
           : '고정 변경은 완료되었습니다. 목록을 새로 고침해 주세요.' });
     } catch (error) {
+      // AI작성: 서버가 고정 개수 초과로 변경을 거절한 경우 목록 오류 문구 대신 안내 모달만 표시한다.
+      if (scope.active && !changed && error.code === 'SAVING_GROUP_NOTICE_PIN_LIMIT_EXCEEDED') {
+        setPinState({ id, authVersion, phase: 'limit' });
+        return;
+      }
       if (scope.active) setPinState({ id, authVersion, phase: 'error', needsRefresh: true,
         message: changed ? '고정 변경은 완료되었습니다. 목록을 불러오지 못했습니다. 새로 고침해 주세요.'
           : error.message || '공지 고정을 변경하지 못했습니다. 목록을 새로 고침해 주세요.' });
@@ -230,6 +235,15 @@ function SavingGroupDetailPage() {
               onBack={() => navigate('/saving-groups')} />
           )}
       </Content>
+      {/* AI작성: 최대 두 개 제한은 공통 모달로 안내하며 확인·닫기 후 기존 고정을 해제할 수 있다. */}
+      {currentPin?.phase === 'limit' && (
+        <ConfirmModal title="고정 공지 개수 제한"
+          description="고정 공지는 최대 2개까지 지정할 수 있습니다. 기존 고정 공지를 해제한 후 다시 지정해 주세요."
+          confirmLabel="확인" showCancel={false}
+          onConfirm={() => setPinState(null)}
+          onCancel={() => setPinState(null)}
+        />
+      )}
       {isJoinModalOpen && (
         <ConfirmModal title="가입 신청 완료"
           description="가입 신청이 접수되었습니다. 모임 운영자의 심사를 기다려 주세요."
