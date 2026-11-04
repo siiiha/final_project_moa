@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { getSavingGroupNoticeDetail, readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from '../api/savingGroups.js';
+import { getSavingGroupDetail, getSavingGroupNoticeDetail, readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from '../api/savingGroups.js';
+import SavingGroupNoticeEditForm from '../components/savingGroup/SavingGroupNoticeEditForm';
 import Button from '../components/common/Button';
 import SavingGroupNoticeDetail from '../components/savingGroup/SavingGroupNoticeDetail';
 import useAuthStore from '../store/authStore';
@@ -28,6 +29,17 @@ const Actions = styled.div`
   margin-top: 20px;
 `;
 
+// AI작성: 기존 게시글 화면처럼 JWT subject는 버튼 노출 비교에만 사용하며 실제 인증·권한은 서버가 검증한다.
+function noticeMemberId(token) {
+  try {
+    const payload = String(token || '').split('.')[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const subject = JSON.parse(window.atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='))).sub;
+    return subject ? String(subject) : null;
+  } catch { return null; }
+}
+
 // AI작성: URL·계정·재시도 회차가 다른 응답은 숨기고 이탈한 요청은 취소해 이전 본문 노출을 막는다.
 export default function SavingGroupNoticeDetailPage() {
   const { id, noticeId } = useParams();
@@ -36,15 +48,24 @@ export default function SavingGroupNoticeDetailPage() {
   const [searchParams] = useSearchParams();
   const { page, sort } = readSavingGroupNoticeQuery(searchParams);
   const authVersion = useAuthStore((state) => state.authVersion);
+  const token = useAuthStore((state) => state.token);
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
+  // AI작성: 편집 상태를 URL·계정에 묶어 다른 회원이나 공지로 이동 시 이전 편집 내용을 숨긴다.
+  const scope = `${id}:${noticeId}:${authVersion}`;
+  const [editing, setEditing] = useState(null);
+  const [saved, setSaved] = useState(null);
+  const [blocked, setBlocked] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
-    getSavingGroupNoticeDetail(id, noticeId, { signal: controller.signal })
-      .then((notice) => {
-        if (active) setResult({ id, noticeId, authVersion, retry, notice });
+    Promise.all([
+      getSavingGroupNoticeDetail(id, noticeId, { signal: controller.signal }),
+      getSavingGroupDetail(id, { signal: controller.signal }),
+    ])
+      .then(([notice, group]) => {
+        if (active) setResult({ id, noticeId, authVersion, retry, notice, group });
       })
       .catch((error) => {
         if (active && !controller.signal.aborted) setResult({ id, noticeId, authVersion, retry, error });
@@ -55,6 +76,10 @@ export default function SavingGroupNoticeDetailPage() {
   const current = result?.id === id && result?.noticeId === noticeId
     && result?.authVersion === authVersion && result?.retry === retry ? result : null;
   const error = current?.error;
+  const canEdit = current?.group?.membershipStatus === 'APPROVED'
+    && ['OWNER', 'MANAGER'].includes(current.group.myRole)
+    && noticeMemberId(token) !== null && noticeMemberId(token) === String(current.notice?.writerId)
+    && ['01', '02'].includes(current.group.status) && blocked !== scope;
   const status = error?.status;
   const message = status === 401 ? '로그인 후 공지를 확인해 주세요.'
     : status === 403 ? '해당 계모임의 승인된 회원만 공지를 볼 수 있습니다.'
@@ -71,7 +96,24 @@ export default function SavingGroupNoticeDetailPage() {
             <p>{message}</p>
             {canRetry && <Button type="button" onClick={() => setRetry((value) => value + 1)}>다시 시도</Button>}
           </Message>
-        ) : <SavingGroupNoticeDetail notice={current.notice} />}
+        ) : (
+          <>
+            {saved === scope && <Message role="status">공지가 수정되었습니다.</Message>}
+            {blocked === scope && <Message role="alert">현재 수정 권한 또는 공지 상태가 변경되었습니다. 새로고침 후 확인해 주세요.</Message>}
+            {canEdit && editing === scope ? (
+              <SavingGroupNoticeEditForm key={scope} groupId={id} notice={current.notice}
+                onCancel={() => setEditing(null)} onBlocked={() => setBlocked(scope)}
+                onSaved={(notice) => {
+                  // AI작성: 재조회 실패로 성공한 저장을 실패로 안내하지 않고 서버와 동일한 정규화 값을 즉시 표시한다.
+                  setResult((previous) => previous?.id === id && previous?.noticeId === noticeId
+                    && previous?.authVersion === authVersion ? { ...previous, notice } : previous);
+                  setEditing(null); setSaved(scope);
+                }} />
+            ) : <SavingGroupNoticeDetail notice={current.notice} />}
+            {canEdit && editing !== scope && <Actions><Button type="button"
+              onClick={() => { setEditing(scope); setSaved(null); }}>공지 수정</Button></Actions>}
+          </>
+        )}
       <Actions>
         {/* AI작성: 직접 URL 진입은 최신순 1페이지, 목록에서 진입한 경우 보던 페이지·정렬을 복원한다. */}
         <Button type="button" $variant="secondary" onClick={() => navigate(`/saving-groups/${encodeURIComponent(id)}?${toSavingGroupNoticeSearch(page, sort)}`)}>
