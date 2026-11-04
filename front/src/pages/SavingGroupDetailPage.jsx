@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
+import SavingGroupAccountCard from '../components/savingGroup/SavingGroupAccountCard';
+import { getSavingGroupAccount } from '../api/savingGroups.js';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import useAuthStore from '../store/authStore';
@@ -133,6 +135,23 @@ function SavingGroupDetailPage() {
   const scoped = result?.id === id && result?.authVersion === authVersion ? result : null;
   const current = scoped?.retry === retry && scoped.noticePage === noticePage && scoped.noticeSort === noticeSort ? scoped : null;
   const visibleGroup = scoped?.group;
+  // AI작성: 회원 전용 계좌 조회는 공개 상세와 분리하고 계정·모임·재시도별 이전 응답을 숨긴다.
+  const [accountResult, setAccountResult] = useState(null);
+  const [accountRetry, setAccountRetry] = useState(0);
+  const canReadAccount = visibleGroup?.membershipStatus === 'APPROVED'
+    && ['OWNER', 'MANAGER', 'MEMBER'].includes(visibleGroup?.myRole);
+  useEffect(() => {
+    if (!canReadAccount) return undefined;
+    const controller = new AbortController();
+    let active = true;
+    getSavingGroupAccount(id, { signal: controller.signal })
+      .then((data) => { if (active) setAccountResult({ id, authVersion, accountRetry, status: 'success', data }); })
+      .catch((error) => { if (active && error.code !== 'ERR_CANCELED')
+        setAccountResult({ id, authVersion, accountRetry, status: 'error', message: error.message }); });
+    return () => { active = false; controller.abort(); };
+  }, [id, authVersion, accountRetry, canReadAccount]);
+  const currentAccount = canReadAccount && accountResult?.id === id && accountResult?.authVersion === authVersion
+    && accountResult?.accountRetry === accountRetry ? accountResult : null;
   // AI작성: 등록 후 조회만 갱신해 실패 시 폼 상태를 보존하고 모임·계정 변경 뒤 이전 응답은 반영하지 않는다.
   const handleNoticeRefresh = async ({ resetNoticeQuery = false } = {}) => {
     const scope = joinScope.current;
@@ -226,6 +245,8 @@ function SavingGroupDetailPage() {
             </EmptyCard>
           ) : (
             <SavingGroupDetail key={`${id}-${authVersion}`} group={visibleGroup}
+              accountPanel={canReadAccount ? <SavingGroupAccountCard state={currentAccount}
+                onRetry={() => setAccountRetry((value) => value + 1)} /> : null}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               onMenuChange={(value) => setMenu({ id, value })}
               onJoinRequest={handleJoinRequest}

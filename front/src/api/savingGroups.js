@@ -120,7 +120,8 @@ export async function getSavingGroupCreationApplication(approvalId, { signal } =
 
 export async function approveSavingGroupCreationApplication(approvalId) {
   try {
-    const response = await client.patch(`/admin/saving-group-applications/${encodeURIComponent(approvalId)}/approve`);
+    // AI작성: 외부 발급의 연결·읽기 제한 시간을 고려해 이 요청만 대기 시간을 늘리고 자동 재전송하지 않는다.
+    const response = await client.patch(`/admin/saving-group-applications/${encodeURIComponent(approvalId)}/approve`, undefined, { timeout: 30000 });
     if (!response.data?.success) {
       throw new SavingGroupCreationApplicationError(
         response.data?.error?.code || 'SAVING_GROUP_APPLICATION_APPROVE_FAILED',
@@ -129,6 +130,31 @@ export async function approveSavingGroupCreationApplication(approvalId) {
     }
   } catch (error) {
     throw toCreationApplicationError(error, '개설 신청 승인에 실패했습니다.');
+  }
+}
+
+// AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
+export async function getSavingGroupAccount(groupId, { signal } = {}) {
+  const pathId = savingGroupPathId(groupId);
+  const failure = (detail, status) => Object.assign(new Error(detail?.message || '계좌 정보를 불러오지 못했습니다.'), {
+    name: 'SavingGroupAccountError', code: detail?.code || 'SAVING_GROUP_ACCOUNT_READ_FAILED', status,
+  });
+  try {
+    const response = await client.get(`/saving-groups/${pathId}/account`, { signal });
+    if (response.data?.success !== true) throw failure(response.data?.error, response.status);
+    const data = response.data.data;
+    if (!data || typeof data.issued !== 'boolean' || data.testAccount !== true
+      || typeof data.balance !== 'number' || !Number.isFinite(data.balance)
+      || (data.issued && (typeof data.bankCode !== 'string'
+        || typeof data.maskedAccountNumber !== 'string' || !/^\*{4,}\d{4}$/.test(data.maskedAccountNumber)))) {
+      throw failure({ code: 'INVALID_RESPONSE', message: '계좌 정보 응답을 확인할 수 없습니다.' }, response.status);
+    }
+    return { issued: data.issued, bankCode: data.issued ? data.bankCode : null,
+      maskedAccountNumber: data.issued ? data.maskedAccountNumber : null,
+      balance: data.balance, testAccount: true };
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupAccountError') throw error;
+    throw failure(error.response?.data?.error, error.response?.status);
   }
 }
 

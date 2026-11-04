@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createServer } from 'vite';
+
+// AI작성: 브라우저 자동화 없이 실제 JSX 컴포넌트를 로드해 상태별 출력과 마스킹·안내를 검증한다.
+test('계좌 카드는 정상·미발급·오류·로딩을 구분해 렌더링한다', async () => {
+  const vite = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false },
+    appType: 'custom', ssr: { noExternal: ['styled-components'] }, oxc: { jsx: { runtime: 'automatic' } } });
+  try {
+    const { ThemeProvider } = await vite.ssrLoadModule('styled-components');
+    const { default: Card } = await vite.ssrLoadModule('/src/components/savingGroup/SavingGroupAccountCard.jsx');
+    const { default: theme } = await vite.ssrLoadModule('/src/styles/theme.js');
+    const render = state => renderToStaticMarkup(React.createElement(ThemeProvider, { theme },
+      React.createElement(Card, { state, onRetry() {} })));
+    const normal = render({ status: 'success', data: { issued: true, bankCode: '20',
+      maskedAccountNumber: '********0000', balance: 1234, testAccount: true } });
+    assert.match(normal, /우리은행/);
+    assert.match(normal, /\*{8}0000/);
+    assert.match(normal, /1,234원/);
+    assert.match(normal, /서비스 내부 장부 잔액/);
+    assert.match(normal, /실제 입금할 수 없습니다/);
+    assert.doesNotMatch(normal, /X000000000000/);
+    assert.match(render({ status: 'success', data: { issued: false } }), /아직 발급된 테스트 계좌가 없습니다/);
+    const error = render({ status: 'error', message: '테스트 조회 실패' });
+    assert.match(error, /role="alert"/); assert.match(error, /계좌 정보 다시 조회/);
+    assert.match(render(null), /계좌 정보를 불러오는 중입니다/);
+  } finally { await vite.close(); }
+});
