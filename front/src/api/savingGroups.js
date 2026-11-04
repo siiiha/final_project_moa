@@ -177,6 +177,30 @@ function savingGroupPathId(value) {
   return String(value);
 }
 
+// AI작성: 공지 작성 실패의 서버 코드·HTTP 상태를 유지해 화면에서 권한·상태 변경을 안내한다.
+function toSavingGroupNoticeError(error, status) {
+  const failure = new Error(error?.message || '공지를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  failure.name = 'SavingGroupNoticeError';
+  failure.code = error?.code || 'SAVING_GROUP_NOTICE_WRITE_FAILED';
+  failure.status = status;
+  return failure;
+}
+
+// AI작성: 공통 client의 JWT 인증을 재사용하고 제목·내용만 JSON으로 전송한다. 작성자·권한은 서버에서 판단한다.
+export async function createSavingGroupNotice(savingGroupId, { title, content }, { signal } = {}) {
+  const groupId = savingGroupPathId(savingGroupId);
+  try {
+    const response = await client.post(`/saving-groups/${groupId}/notices`, { title, content }, { signal });
+    if (response.data?.success !== true) {
+      throw toSavingGroupNoticeError(response.data?.error, response.status);
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupNoticeError') throw error;
+    throw toSavingGroupNoticeError(error.response?.data?.error, error.response?.status);
+  }
+}
+
 // AI작성: 목록·승인·거절 모두 서버의 오류 코드를 보존하며 요청 취소는 화면 오류로 바꾸지 않는다.
 async function savingGroupJoinResponse(request, fallback) {
   try {

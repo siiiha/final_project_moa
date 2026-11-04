@@ -3,7 +3,77 @@ import test from 'node:test';
 import client from './client.js';
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
-  approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication } from './savingGroups.js';
+  approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,
+  createSavingGroupNotice } from './savingGroups.js';
+
+// AI작성: 저장 대상 savingGroupId를 보존하고 작성자 등 추가 입력은 서버로 보내지 않는다.
+test('공지 작성은 제목·내용만 JSON으로 전달하고 빈 성공 응답을 반환한다', async () => {
+  const original = client.post;
+  const signal = new AbortController().signal;
+  try {
+    client.post = async (path, body, options) => {
+      assert.equal(path, '/saving-groups/9223372036854775807/notices');
+      assert.deepEqual(body, { title: ' 공지 ', content: '공지 내용' });
+      assert.equal(options.signal, signal);
+      return { status: 200, data: { success: true, data: null } };
+    };
+    assert.equal(await createSavingGroupNotice('9223372036854775807',
+      { title: ' 공지 ', content: '공지 내용', writerId: 99, groupId: 42 }, { signal }), null);
+  } finally { client.post = original; }
+});
+
+// AI작성: 상태·권한·검증 오류를 성공 데이터로 바꾸지 않고 HTTP 오류와 실패 봉투 모두 보존한다.
+test('공지 작성은 서버 오류 코드·문구·HTTP 상태를 보존한다', async () => {
+  const original = client.post;
+  try {
+    for (const [status, code] of [[400, 'BAD_REQUEST'], [401, 'LOGIN_REQUIRED'],
+      [403, 'SAVING_GROUP_NOTICE_WRITE_FORBIDDEN'], [404, 'SAVING_GROUP_NOT_FOUND'],
+      [409, 'SAVING_GROUP_ACTIVITY_RESTRICTED'], [500, 'SAVING_GROUP_NOTICE_WRITE_FAILED']]) {
+      for (const rejected of [false, true]) {
+        client.post = async () => {
+          const response = { status, data: { success: false, error: { code, message: '등록 실패' } } };
+          if (rejected) throw { response };
+          return response;
+        };
+        await assert.rejects(() => createSavingGroupNotice(10, { title: '공지', content: '내용' }),
+          (error) => error.code === code && error.message === '등록 실패' && error.status === status);
+      }
+    }
+  } finally { client.post = original; }
+});
+
+// AI작성: 통신 실패·잘못된 응답은 안내 오류로 바꾸고 사용자 요청 취소는 원본 그대로 전달한다.
+test('공지 작성은 통신·응답 실패를 안내하고 취소를 보존한다', async () => {
+  const original = client.post;
+  try {
+    for (const response of [{}, { data: null }, { data: { success: false } }, { data: { success: 'true' } }]) {
+      client.post = async () => response;
+      await assert.rejects(() => createSavingGroupNotice(10, { title: '공지', content: '내용' }),
+        (error) => error.code === 'SAVING_GROUP_NOTICE_WRITE_FAILED');
+    }
+    client.post = async () => { throw new Error('network failure'); };
+    await assert.rejects(() => createSavingGroupNotice(10, { title: '공지', content: '내용' }),
+      (error) => error.code === 'SAVING_GROUP_NOTICE_WRITE_FAILED');
+    const canceled = Object.assign(new Error('취소'), { code: 'ERR_CANCELED' });
+    client.post = async () => { throw canceled; };
+    await assert.rejects(() => createSavingGroupNotice(10, { title: '공지', content: '내용' }),
+      (error) => error === canceled);
+  } finally { client.post = original; }
+});
+
+// AI작성: 잘못된 경로 ID는 네트워크 호출 전에 차단한다.
+test('공지 작성은 유효하지 않은 ID로 요청하지 않는다', async () => {
+  const original = client.post;
+  let calls = 0;
+  try {
+    client.post = async () => { calls += 1; };
+    for (const id of [null, undefined, 0, -1, 'abc', '10/notice', '9223372036854775808', Number.MAX_SAFE_INTEGER + 1]) {
+      await assert.rejects(() => createSavingGroupNotice(id, { title: '공지', content: '내용' }),
+        (error) => error.code === 'BAD_REQUEST');
+    }
+    assert.equal(calls, 0);
+  } finally { client.post = original; }
+});
 
 // AI작성: 구 단위·동 단위·세종 신청의 multipart 요청 계약을 네트워크 호출 없이 검증한다.
 test('개설 요청은 최종 지역명 하나와 기존 입력·이미지를 보존한다', async () => {
