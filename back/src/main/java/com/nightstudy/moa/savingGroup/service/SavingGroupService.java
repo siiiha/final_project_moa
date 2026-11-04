@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinRequestListResponse;
@@ -10,6 +11,10 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 공통 groupId에 속한 공지 상세를 해당 모임의 승인된 회원에게만 제공한다.
+    SavingGroupNoticeDetailResponse getSavingGroupNoticeDetail(
+            Long groupId, Long noticeId, Long memberId);
+
     // AI작성: 승인된 OWNER·MANAGER만 모집중·진행중 계모임에 공지를 작성한다. 입력 Validation은 Controller에서 수행한다.
     void createSavingGroupNotice(Long savingGroupId, Long memberId, String title, String content);
 

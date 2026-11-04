@@ -29,6 +29,38 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
 
+    // AI작성: 공개 상세와 동일한 모임 조건을 적용한 뒤 승인 관계를 확인하고 본문을 조회한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupNoticeDetailResponse getSavingGroupNoticeDetail(Long groupId, Long noticeId, Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
+        }
+        // AI작성: 기존 Mapper가 삭제된 모임과 상태 01·02 외의 계모임을 제외한다.
+        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        }
+        SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_READ_FORBIDDEN",
+                    "해당 계모임의 승인된 회원만 공지를 조회할 수 있습니다.");
+        }
+        // AI작성: 공개 상세처럼 미정의 승인 역할은 정상 권한으로 해석하지 않고 데이터 오류로 처리한다.
+        if (relation.getMemberRole() == null
+                || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole())) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "서버 오류가 발생했습니다.");
+        }
+        // AI작성: 두 ID 조건으로 조회해 없는 공지와 타 모임 공지를 동일한 404로 처리한다.
+        SavingGroupNoticeDetailResponse notice = savingGroupMapper.selectSavingGroupNoticeDetail(groupId, noticeId);
+        if (notice == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        }
+        return notice;
+    }
+
     // AI작성: 모임과 회원 관계를 잠가 권한·상태 검증부터 저장까지 동일한 트랜잭션으로 처리한다.
     @Override
     @Transactional
