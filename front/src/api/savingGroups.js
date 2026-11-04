@@ -220,6 +220,24 @@ export async function updateSavingGroupNotice(groupId, noticeId, { title, conten
   }
 }
 
+// AI작성: 작성자는 요청으로 받지 않고 공통 인증 client로 삭제하며 오류·취소를 보존한다.
+export async function deleteSavingGroupNotice(groupId, noticeId, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  try {
+    const response = await client.delete(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || '공지를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    failure.code = serverError?.code || 'SAVING_GROUP_NOTICE_DELETE_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
 function toSavingGroupNoticePinError(error, status) {
   const failure = new Error(error?.message || '공지 고정을 변경하지 못했습니다. 목록을 새로 고침해 주세요.');
   failure.name = 'SavingGroupNoticePinError';

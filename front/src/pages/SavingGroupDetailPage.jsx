@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import Button from '../components/common/Button';
@@ -39,6 +39,7 @@ const EmptyCard = styled.section`
 // AI작성: URL 변경 시 이전 데이터를 숨기고 취소된 요청이 새 화면을 덮어쓰지 못하게 한다.
 function SavingGroupDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
   const authVersion = useAuthStore((state) => state.authVersion);
@@ -208,6 +209,12 @@ function SavingGroupDetailPage() {
     <Page>
       <Breadcrumb>계모임 &gt; 계모임 목록 &gt; 계모임 메인</Breadcrumb>
       <Content>
+        {/* AI작성: 삭제 완료와 후속 목록 조회 실패를 구분해 이미 삭제한 공지를 다시 삭제하도록 안내하지 않는다. */}
+        {location.state?.deletedNoticeGroupId === id && location.state?.deletedNoticeId && (
+          <EmptyCard role="status"><p>공지가 삭제되었습니다.
+            {current?.error ? ' 공지 목록을 불러오지 못했습니다. 다시 시도해 주세요.' : ''}
+          </p></EmptyCard>
+        )}
         {!visibleGroup && !current ? <EmptyCard role="status">계모임 정보를 불러오는 중입니다.</EmptyCard>
           : !visibleGroup && current?.error ? (
             <EmptyCard role="alert">

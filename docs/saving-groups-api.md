@@ -1141,3 +1141,21 @@ Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서
 - 실제 MySQL·Postman·브라우저 클릭·JWT 필터 통합 검증은 미실행. SQL 검증은 실제 XML 파싱·바인딩이며 DB 실행이 아니다.
 - 수동 검증: 작성자 상세→수정→저장·취소, 타 운영진 및 일반 회원 PUT 차단, 삭제·타 모임 공지 404, 공백·길이 오류, 작성자·작성일·고정 보존 확인.
 - TODO: 수정자 기록·수정 이력·첨부파일·알림은 기존 연계가 없어 추가하지 않았다.
+# 계모임 공지 삭제 — 2026-11-04
+
+<!-- AI작성: 수정 완료 efcf44f를 기준으로 구현한 작성자 논리 삭제 계약과 검증 결과다. -->
+- `DELETE /api/saving-groups/{groupId}/notices/{noticeId}`, `/saving-groups` 별칭 유지. 요청 본문 없음.
+- 첫 경로 ID는 공통 groups.group_id. 인증은 JWT 필터의 memberId만 사용하며 성공은 기존 ApiResponse<Void>다.
+- 대상 모임의 APPROVED OWNER·MANAGER인 작성자 본인만 삭제한다. 다른 운영진·일반 회원·비회원·대기·탈퇴·추방 회원은 거절한다. 모임 상태는 모집중(01)·진행중(02)만 허용한다.
+- 모임→회원 관계→미삭제 소속 공지 순으로 잠근 뒤 작성자를 비교한다. 저장 SQL에서도 group_id·notice_id·writer_id·deleted_at IS NULL을 확인한다.
+- group_notice.deleted_at에 CURRENT_TIMESTAMP를 저장한다. 실제 DB DATETIME·NULL 허용·기본값 NULL 준비는 사용자가 확인했다. AI는 스키마·마이그레이션·실제 DB를 변경하지 않았다.
+- 없는 공지·다른 모임 공지·이미 삭제된 공지는 동일한 404 SAVING_GROUP_NOTICE_NOT_FOUND로 처리한다. 삭제 행 수가 1이 아니면 500 SAVING_GROUP_NOTICE_DELETE_FAILED.
+- 나머지 공통 오류: 400 BAD_REQUEST, 401 UNAUTHORIZED, 404 NOT_FOUND(모임), 403 SAVING_GROUP_NOTICE_DELETE_FORBIDDEN, 409 SAVING_GROUP_ACTIVITY_RESTRICTED.
+- 삭제 공지는 최근·일반 목록·전체 개수·고정 영역·상세·수정·고정 변경·고정 개수 산정에서 모두 제외한다. 고정 공지 삭제 후 새 공지를 고정할 자리가 생긴다.
+- 기존 상세 화면에서 작성자 조건으로 삭제 버튼을 노출하고 ConfirmModal 확인 후 요청한다. 취소는 미요청, 진행 중 중복 제출 차단, 실패 시 기존 본문 유지 및 오류 안내. 권한·상태 오류는 변경 버튼을 숨기고 안내한다.
+- 성공 후 기존 공지 페이지·정렬로 복귀해 재조회한다. 마지막 페이지가 없어지면 기존 범위 보정 로직을 사용한다. 삭제 완료 안내와 후속 목록 조회 실패를 분리하며 기존 빈 상태를 재사용한다.
+- 변경 파일: SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupController, DeletionService/Controller/MapperTest, savingGroups.js/test, SavingGroupNoticeDeleteButton, SavingGroupNoticeDetailPage, SavingGroupDetailPage, 본 문서·AI 사용 기록.
+- 검증: 전체 공지 관련 백엔드 295건·프론트 API 49건 통과. 수정→삭제→재수정·재삭제 차단은 Service 대역 테스트, 삭제·조회 조건은 실제 MyBatis XML 바인딩 테스트다. 변경 파일 lint·프론트 빌드 및 수정·삭제 컴포넌트 초기 SSR 렌더링 통과.
+- 실제 MySQL·Postman·브라우저 클릭·JWT 필터 통합 검증은 미실행. 기존 다른 도메인 테스트 import 오류 때문에 임시 Gradle init script로 공지 테스트만 분리했다. 저장소 설정·의존성 변경 없음. 기존 번들 크기 경고 존재.
+- 수동 검증: 본인 공지 수정→삭제→목록 제외, 고정 공지 삭제 후 고정 수 복원, 타 작성자 403, 재삭제·재수정 404, 삭제 후 DB deleted_at 저장, 확인 취소·통신 실패·삭제 완료 후 목록 재조회 실패 안내를 확인한다.
+- TODO: 첨부파일·댓글·알림·삭제 이력은 기존 삭제 연계가 없어 추가하지 않았다.

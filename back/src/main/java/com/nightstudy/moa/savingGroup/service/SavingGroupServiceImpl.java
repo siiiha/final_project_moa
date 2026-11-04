@@ -21,6 +21,40 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
+    @Override
+    @Transactional
+    public void deleteSavingGroupNotice(Long groupId, Long noticeId, Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        }
+        if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
+        SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
+                || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_DELETE_FORBIDDEN", "승인된 공지 작성자만 삭제할 수 있습니다.");
+        }
+        SavingGroupNoticeDetailResponse notice = savingGroupMapper.selectSavingGroupNoticeForUpdate(groupId, noticeId);
+        if (notice == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        }
+        // AI작성: 운영진도 타인이 쓴 공지는 삭제하지 못하며 SQL에서도 인증 작성자를 다시 제한한다.
+        if (!Objects.equals(notice.getWriterId(), memberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_DELETE_FORBIDDEN", "공지 작성자만 삭제할 수 있습니다.");
+        }
+        if (savingGroupMapper.deleteSavingGroupNotice(groupId, noticeId, memberId) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_NOTICE_DELETE_FAILED", "공지 삭제에 실패했습니다.");
+        }
+    }
     // AI작성: 기존 고정 변경과 같은 모임→회원 관계→공지 잠금 순서로 권한과 소속을 검증한다.
     @Override
     @Transactional
