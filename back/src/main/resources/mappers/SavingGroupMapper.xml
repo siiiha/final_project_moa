@@ -586,6 +586,13 @@
         ORDER BY created_at DESC, notice_id DESC LIMIT 4
     </select>
 
+    <!-- AI작성: savingGroupId가 아닌 내부 groupId를 저장하며 작성일은 테이블 기본값을 사용한다. -->
+    <insert id="insertSavingGroupNotice"
+            parameterType="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRow">
+        INSERT INTO group_notice (group_id, writer_id, title, content)
+        VALUES (#{groupId}, #{writerId}, #{title}, #{content})
+    </insert>
+
     <select id="selectApprovedMemberRoles" resultType="string">
         SELECT DISTINCT member_role FROM group_member
         WHERE group_id = #{groupId} AND member_id = #{memberId}
