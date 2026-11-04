@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { getSavingGroupDetail, getSavingGroupNoticeDetail, readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from '../api/savingGroups.js';
 import SavingGroupNoticeEditForm from '../components/savingGroup/SavingGroupNoticeEditForm';
+import SavingGroupNoticeDeleteButton from '../components/savingGroup/SavingGroupNoticeDeleteButton';
 import Button from '../components/common/Button';
 import SavingGroupNoticeDetail from '../components/savingGroup/SavingGroupNoticeDetail';
 import useAuthStore from '../store/authStore';
@@ -99,7 +100,7 @@ export default function SavingGroupNoticeDetailPage() {
         ) : (
           <>
             {saved === scope && <Message role="status">공지가 수정되었습니다.</Message>}
-            {blocked === scope && <Message role="alert">현재 수정 권한 또는 공지 상태가 변경되었습니다. 새로고침 후 확인해 주세요.</Message>}
+            {blocked === scope && <Message role="alert">현재 수정·삭제 권한 또는 공지 상태가 변경되었습니다. 새로고침 후 확인해 주세요.</Message>}
             {canEdit && editing === scope ? (
               <SavingGroupNoticeEditForm key={scope} groupId={id} notice={current.notice}
                 onCancel={() => setEditing(null)} onBlocked={() => setBlocked(scope)}
@@ -110,8 +111,14 @@ export default function SavingGroupNoticeDetailPage() {
                   setEditing(null); setSaved(scope);
                 }} />
             ) : <SavingGroupNoticeDetail notice={current.notice} />}
-            {canEdit && editing !== scope && <Actions><Button type="button"
-              onClick={() => { setEditing(scope); setSaved(null); }}>공지 수정</Button></Actions>}
+            {canEdit && editing !== scope && <Actions>
+              <Button type="button" onClick={() => { setEditing(scope); setSaved(null); }}>공지 수정</Button>
+              {/* AI작성: 삭제는 동일한 작성자 조건에서만 표시하고 성공 후 기존 목록 재조회 흐름으로 복귀한다. */}
+              <SavingGroupNoticeDeleteButton key={scope} groupId={id} noticeId={noticeId}
+                onBlocked={() => setBlocked(scope)}
+                onDeleted={() => navigate(`/saving-groups/${encodeURIComponent(id)}?${toSavingGroupNoticeSearch(page, sort)}`,
+                  { replace: true, state: { deletedNoticeId: noticeId, deletedNoticeGroupId: id } })} />
+            </Actions>}
           </>
         )}
       <Actions>
