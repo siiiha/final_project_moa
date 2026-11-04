@@ -51,6 +51,11 @@ public interface SavingGroupMapper {
     SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
+    // AI작성: 모임 존재 여부는 Service에서 확인하며 공통 PageMeta에 사용할 공지 전체 개수를 조회한다.
+    int selectSavingGroupNoticeCount(@Param("groupId") Long groupId);
+    // AI작성: Service에서 검증한 정렬과 PageMeta의 offset으로 공지 요약을 최대 4개 조회한다.
+    List<SavingGroupNoticeSummaryResponse> selectSavingGroupNotices(
+            @Param("groupId") Long groupId, @Param("sort") String sort, @Param("offset") int offset);
     // AI작성: 공통 groupId와 공지 ID가 모두 일치하는 상세만 조회하며 권한은 Service에서 검증한다.
     SavingGroupNoticeDetailResponse selectSavingGroupNoticeDetail(
             @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);

@@ -592,6 +592,30 @@
         ORDER BY gn.created_at DESC, gn.notice_id DESC LIMIT 4
     </select>
 
+    <!-- AI작성: 페이지 조회와 동일한 모임 조건으로 집계하며 고정 공지 컬럼은 후속 단계에서 반영한다. -->
+    <select id="selectSavingGroupNoticeCount" resultType="int">
+        SELECT COUNT(*)
+        FROM group_notice
+        WHERE group_id = #{groupId}
+    </select>
+
+    <!-- AI작성: 기존 요약 매핑과 작성자 LEFT JOIN을 재사용하며 정렬은 고정 SQL 분기로 제한한다. -->
+    <select id="selectSavingGroupNotices" resultMap="noticeSummary">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn
+        LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId}
+        <choose>
+            <when test='sort == "OLDEST"'>
+                ORDER BY gn.created_at ASC, gn.notice_id ASC
+            </when>
+            <otherwise>
+                ORDER BY gn.created_at DESC, gn.notice_id DESC
+            </otherwise>
+        </choose>
+        LIMIT 4 OFFSET #{offset}
+    </select>
+
     <!-- AI작성: 불변 상세 DTO의 생성자 순서와 타입을 명시해 조회 컬럼을 매핑한다. -->
     <resultMap id="noticeDetail" type="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse">
         <constructor>
