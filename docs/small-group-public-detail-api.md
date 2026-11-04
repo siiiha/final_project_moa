@@ -1106,3 +1106,11 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 로컬 검증 API를 이용한 실제 브라우저에서 상태 표시 22건, 두 모임의 연속 클릭 후 심사 중 갱신과 정원 충돌 후 갱신을 확인했다. NEW·CONFLICT 모두 각 모임 GET=2·POST=1이었다. 실제 Spring 서버·DB 종단 검증은 포함하지 않는다.
 - 브라우저 실측: 데스크톱 두 버튼은 높이 38px·글자 13px·padding 8px 14px. 375px 모바일에서 소모임은 34px·12px·7px 10px, 계모임은 38px·13px·8px 14px로 기존 설정과 일치했다.
 - 수동 확인: 기존 버튼 크기와 비교하고 상태별 문구·사유, 연속 클릭, 신청 성공 후 심사 중 전환, 정원 충돌 후 마감 안내, 로그인·인증 이동, 요청 중 모임·계정 변경, 조회 실패 후 재시도를 확인한다.
+
+
+## AI작성: 소모임 공지 작성 (2026-11-04)
+- POST /api/small-groups/{smallGroupId}/notices
+- 제목 필수·100자 이하, 본문 필수·5,000자 이하. 공백만 입력 불가.
+- 작성자는 인증 memberId로 결정한다. 삭제되지 않은 소모임의 개설자이면서 APPROVED OWNER만 허용한다.
+- 소모임 ID를 groups ID로 변환해 기존 group_notice에 저장하며 성공 응답은 공통 success=true, data=null이다.
+- 브라우저: 모임장 작성·취소·중복 클릭 방지·오류 시 입력 보존·저장 후 조회 재시도 확인.
