@@ -1,6 +1,7 @@
 package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRequest;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
@@ -37,6 +38,16 @@ public class SavingGroupController {
     // AI작성: 목록 조회 서비스만 주입한다.
     public SavingGroupController(SavingGroupService savingGroupService) {
         this.savingGroupService = savingGroupService;
+    }
+
+    // AI작성: JSON 입력을 검증하고 JWT 회원 ID만 전달하며 모임 상태·권한·저장은 Service에서 처리한다.
+    @PostMapping("/{savingGroupId}/notices")
+    public ApiResponse<Void> createNotice(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SavingGroupNoticeCreateRequest request) {
+        savingGroupService.createSavingGroupNotice(savingGroupId, memberId, request.getTitle(), request.getContent());
+        return ApiResponse.ok();
     }
 
     // AI작성: JWT 필터가 설정한 인증 회원 ID가 없으면 신청 목록을 조회하지 않는다.
