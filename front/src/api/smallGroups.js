@@ -889,3 +889,18 @@ export async function createSmallGroup(request) {
     throw toSmallGroupCreationError(error, '소모임 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
   }
 }
+
+// AI작성: 인증 client로 공지 제목·본문만 전송하고 서버의 권한 오류를 보존한다.
+export async function createSmallGroupNotice(smallGroupId, { title, content }, { signal } = {}) {
+  try {
+    const response = await client.post('/small-groups/' + encodeURIComponent(smallGroupId) + '/notices', { title, content }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    failure.status = error.response?.status;
+    failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_WRITE_FAILED';
+    throw failure;
+  }
+}
