@@ -124,12 +124,15 @@ export default function SavingGroupNoticeDetailPage() {
             )} />}
           </>
         )}
+      {/* AI작성: 수정 폼이 표시되는 동안 목록 복귀 버튼을 숨기고 저장·취소 후 다시 표시한다. */}
+      {!(canEdit && editing === scope) && (
       <Actions>
         {/* AI작성: 직접 URL 진입은 최신순 1페이지, 목록에서 진입한 경우 보던 페이지·정렬을 복원한다. */}
         <Button type="button" $variant="secondary" onClick={() => navigate(`/saving-groups/${encodeURIComponent(id)}?${toSavingGroupNoticeSearch(page, sort)}`)}>
           계모임 공지로 돌아가기
         </Button>
       </Actions>
+      )}
     </Page>
   );
 }

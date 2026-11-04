@@ -6,6 +6,8 @@ import { updateSavingGroupNotice } from '../../api/savingGroups.js';
 // AI작성: 기존 테마와 공통 버튼을 사용해 상세 화면 안에서 제목·내용만 편집한다.
 const Form = styled.form`
   display: grid; gap: 20px; margin-top: 24px;
+  /* AI작성: 편집 화면의 목적을 바로 알 수 있도록 폼 제목을 크게 표시한다. */
+  h1 { margin: 0; font-size: 24px; line-height: 1.5; color: ${({ theme }) => theme.colors.text}; }
   label { display: grid; gap: 8px; font-size: 18px; }
   input, textarea {
     width: 100%; box-sizing: border-box; padding: 12px; font: inherit; line-height: 1.7;
@@ -17,7 +19,8 @@ const Form = styled.form`
   textarea { min-height: 240px; resize: vertical; }
   input:focus, textarea:focus { outline: 2px solid ${({ theme }) => theme.colors.primary}; outline-offset: 2px; }
 `;
-const Actions = styled.div`display: flex; flex-wrap: wrap; gap: 12px;`;
+// AI작성: 수정 저장·취소 버튼을 폼 우측에 배치하고 작은 화면의 줄바꿈은 유지한다.
+const Actions = styled.div`display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px;`;
 
 // AI작성: 부모의 계정·URL 키 변경 시 폼을 해제하며 중복 제출은 동기 잠금으로 차단한다.
 export default function SavingGroupNoticeEditForm({ groupId, notice, onSaved, onCancel, onBlocked }) {
@@ -56,7 +59,9 @@ export default function SavingGroupNoticeEditForm({ groupId, notice, onSaved, on
     }
   };
   return (
-    <Form onSubmit={submit} aria-label="계모임 공지 수정" aria-busy={busy}>
+    <Form onSubmit={submit} aria-labelledby={`${fieldId}-heading`} aria-busy={busy}>
+      {/* AI작성: 입력 항목보다 먼저 현재 공지를 수정하는 화면임을 안내한다. */}
+      <h1 id={`${fieldId}-heading`}>공지 수정</h1>
       <label htmlFor={`${fieldId}-title`}>제목 (필수)
         <input autoFocus id={`${fieldId}-title`} value={title} required maxLength={100} disabled={busy}
           aria-describedby={`${fieldId}-title-count`}
