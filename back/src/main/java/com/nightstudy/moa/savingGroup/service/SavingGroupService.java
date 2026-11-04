@@ -2,6 +2,8 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailPageResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow;
@@ -20,6 +22,9 @@ public interface SavingGroupService {
 
     // AI작성: memberId는 인증 계층에서 검증된 ID 또는 비로그인의 null만 받는다.
     SavingGroupDetailResponse getSavingGroupDetail(Long groupId, Long memberId);
+    // AI작성: 기존 상세 데이터와 공지 전용 PageMeta를 함께 반환하며 공개 조회 권한은 유지한다.
+    SavingGroupDetailPageResponse getSavingGroupDetail(
+            Long groupId, Long memberId, SavingGroupNoticeSearchCondition condition);
     // AI작성: 승인된 계주에게만 신청 목록을 제공하며 상태·페이지는 서버에서 검증한다.
     SavingGroupJoinRequestListResponse getSavingGroupJoinRequests(
             Long savingGroupId, Long memberId, String status, int page);

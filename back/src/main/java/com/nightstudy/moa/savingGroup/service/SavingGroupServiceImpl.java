@@ -22,6 +22,8 @@ import org.springframework.transaction.annotation.Propagation;
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
     private static final int PAGE_SIZE = 6;
+    // AI작성: 계모임 전체 목록의 페이지 크기와 별개로 공지는 페이지당 4개를 제공한다.
+    private static final int NOTICE_PAGE_SIZE = 4;
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final int MAX_JOINED_SAVING_GROUPS = 5;
     private static final String ACTIVE_ACCOUNT_STATUS = "ACTIVE";
@@ -399,12 +401,33 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     @Override
     @Transactional(readOnly = true)
     public SavingGroupDetailResponse getSavingGroupDetail(Long groupId, Long memberId) {
+        // AI작성: 기존 Controller와 호출자는 최신순 1페이지로 동작하도록 기존 메서드를 유지한다.
+        return getSavingGroupDetail(groupId, memberId, new SavingGroupNoticeSearchCondition()).getDetail();
+    }
+
+    // AI작성: 개수와 목록을 같은 읽기 트랜잭션에서 조회하고 기존 상세의 역할·가입 제한 처리를 유지한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupDetailPageResponse getSavingGroupDetail(
+            Long groupId, Long memberId, SavingGroupNoticeSearchCondition condition) {
+        // AI작성: Controller를 거치지 않는 호출에서도 잘못된 조건과 경로 ID를 차단한다.
+        if (groupId == null || groupId <= 0 || condition == null
+                || condition.getNoticePage() == null || condition.getNoticePage() < 1
+                || condition.getNoticeSort() == null
+                || !List.of("LATEST", "OLDEST").contains(condition.getNoticeSort())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 공지 페이지 또는 정렬이 올바르지 않습니다.");
+        }
         SavingGroupRow row = savingGroupMapper.selectSavingGroupDetail(groupId);
         if (row == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         long count = savingGroupMapper.selectDetailMemberCount(groupId);
-        List<SavingGroupNoticeSummaryResponse> notices = savingGroupMapper.selectRecentNotices(groupId);
+        int noticeTotal = savingGroupMapper.selectSavingGroupNoticeCount(groupId);
+        PageMeta pageMeta = PageMeta.of(condition.getNoticePage(), NOTICE_PAGE_SIZE, noticeTotal);
+        // AI작성: 빈 목록과 범위 초과는 요청 페이지를 유지하고 offset 계산을 생략해 정수 곱셈 오버플로를 방지한다.
+        List<SavingGroupNoticeSummaryResponse> notices = pageMeta.getPage() > pageMeta.getTotalPages()
+                ? List.of() : savingGroupMapper.selectSavingGroupNotices(
+                        groupId, condition.getNoticeSort(), pageMeta.getOffset());
         String role = null;
         if (memberId != null) {
             List<String> roles = savingGroupMapper.selectApprovedMemberRoles(groupId, memberId);
@@ -420,10 +443,11 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 : savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
         String membershipStatus = relation == null ? null : relation.getMembershipStatus();
         JoinAvailability availability = evaluateSavingGroupJoin(row, memberId, relation, count);
-        return new SavingGroupDetailResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(), row.getDescription(),
+        SavingGroupDetailResponse detail = new SavingGroupDetailResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(), row.getDescription(),
                 row.getRegionName(), row.getMaxMembers(), count, row.getDuesAmount(), row.getDuesDay(),
                 row.getStatus(), notices, role, membershipStatus, availability.canApply(),
                 availability.code(), availability.message());
+        return new SavingGroupDetailPageResponse(detail, pageMeta);
     }
 
     // AI작성: 모임장을 포함한 승인 회원을 일괄 집계하고 빈 결과는 정상 반환한다.
