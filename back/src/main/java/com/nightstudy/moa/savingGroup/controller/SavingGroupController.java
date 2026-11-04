@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDeletionRequest;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,6 +40,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 요청 본문이나 작성자 입력 없이 JWT 회원과 경로 ID만 Service로 전달한다.
+    @DeleteMapping("/{groupId}/notices/{noticeId}")
+    public ApiResponse<Void> deleteNotice(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.deleteSavingGroupNotice(groupId, noticeId, memberId);
+        return ApiResponse.ok();
+    }
     // AI작성: 기존 상세·고정 API와 동일하게 경로 ID는 공통 groupId이고 인증 회원은 JWT 속성만 사용한다.
     @PutMapping("/{groupId}/notices/{noticeId}")
     public ApiResponse<Long> updateNotice(
