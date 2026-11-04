@@ -18,6 +18,9 @@ import java.util.List;
 
 // AI작성: 소모임 공개 목록의 검색·필터 조회 계약이다.
 public interface SmallGroupService {
+    // AI작성: 승인 OWNER·MEMBER에게만 소속 공지 본문을 제공한다.
+    com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse getSmallGroupNoticeDetail(Long smallGroupId, Long noticeId, Long memberId);
+
     // AI작성: 공개 상세에서 검증한 공통 모임 ID로 목록·페이지 메타를 조회한다.
     com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse getSmallGroupNotices(Long groupId,
             com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSearchCondition condition);

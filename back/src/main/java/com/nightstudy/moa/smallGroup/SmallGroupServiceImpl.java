@@ -58,6 +58,20 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 목록 조건·페이징·승인 계원 수 조합을 담당한다.
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
+    // AI작성: 공개 상세와 같은 모임·관계 검증을 먼저 수행하고 승인 회원에게만 본문을 제공한다.
+    @Override @Transactional(readOnly = true)
+    public com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse getSmallGroupNoticeDetail(Long smallGroupId, Long noticeId, Long memberId) {
+        if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        if (noticeId == null || noticeId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 번호가 올바르지 않습니다.");
+        SmallGroupDetailResponse group = getSmallGroupDetail(smallGroupId, memberId);
+        if (!"APPROVED".equals(group.getMembershipStatus()) || !List.of("OWNER", "MEMBER").contains(group.getMyRole() == null ? "" : group.getMyRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_NOTICE_READ_FORBIDDEN", "해당 소모임의 승인된 회원만 공지를 조회할 수 있습니다.");
+        }
+        var notice = smallGroupMapper.selectSmallGroupNoticeDetail(group.getGroupId(), noticeId);
+        if (notice == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        return notice;
+    }
+
     // AI작성: 마지막 페이지 초과 요청은 유효한 마지막 페이지로 보정하며 빈 목록은 1페이지로 유지한다.
     @Override @Transactional(readOnly = true)
     public com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse getSmallGroupNotices(Long groupId,
