@@ -793,12 +793,12 @@
     </insert>
     <!-- AI작성: 삭제된 공지는 집계·목록에서 제외하고 시각이 같으면 ID로 정렬한다. -->
     <select id="countSmallGroupNotices" resultType="int">
-        SELECT COUNT(*) FROM group_notice WHERE group_id = #{groupId} AND deleted_at IS NULL
+        SELECT COUNT(*) FROM group_notice WHERE group_id = #{groupId} AND deleted_at IS NULL AND is_pinned = 0
     </select>
     <select id="selectSmallGroupNoticePage" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
         SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
         FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
-        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL
+        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL AND gn.is_pinned = 0
         <choose><when test="sort == 'OLDEST'">ORDER BY gn.created_at ASC, gn.notice_id ASC</when>
         <otherwise>ORDER BY gn.created_at DESC, gn.notice_id DESC</otherwise></choose>
         LIMIT 4 OFFSET #{offset}
@@ -823,5 +823,24 @@
     <update id="deleteSmallGroupNotice">
         UPDATE group_notice SET deleted_at = CURRENT_TIMESTAMP
         WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
+    </update>
+    <!-- AI작성: 고정 공지는 일반 네 건과 별도로 최신순 표시하고 삭제 공지는 제외한다. -->
+    <select id="selectSmallGroupPinnedNotices" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.is_pinned = 1 AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
+    </select>
+    <select id="selectSmallGroupNoticePinForUpdate" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticePinRow">
+        SELECT notice_id, is_pinned AS pinned FROM group_notice
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="selectSmallGroupPinnedNoticeIdsForUpdate" resultType="java.lang.Long">
+        SELECT notice_id FROM group_notice
+        WHERE group_id = #{groupId} AND is_pinned = 1 AND deleted_at IS NULL ORDER BY notice_id FOR UPDATE
+    </select>
+    <update id="updateSmallGroupNoticePinned">
+        UPDATE group_notice SET is_pinned = #{pinned}
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL AND is_pinned != #{pinned}
     </update>
 </mapper>

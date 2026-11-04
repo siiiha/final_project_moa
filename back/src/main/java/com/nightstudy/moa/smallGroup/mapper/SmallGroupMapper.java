@@ -34,6 +34,13 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
+    // AI작성: 고정 목록은 일반 목록과 분리하며 변경은 모임 잠금 후 처리한다.
+    List<SmallGroupNoticeSummaryResponse> selectSmallGroupPinnedNotices(@Param("groupId") Long groupId);
+    com.nightstudy.moa.smallGroup.dto.SmallGroupNoticePinRow selectSmallGroupNoticePinForUpdate(
+            @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
+    List<Long> selectSmallGroupPinnedNoticeIdsForUpdate(@Param("groupId") Long groupId);
+    int updateSmallGroupNoticePinned(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId, @Param("pinned") boolean pinned);
+
     // AI작성: 작성자와 모임을 함께 제한해 삭제 시각만 남긴다.
     int deleteSmallGroupNotice(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId, @Param("writerId") Long writerId);
 
