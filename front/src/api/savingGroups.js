@@ -201,6 +201,36 @@ export async function createSavingGroupNotice(savingGroupId, { title, content },
   }
 }
 
+// AI작성: 조회 오류는 작성 오류와 구분하고 서버 코드·문구·HTTP 상태를 유지한다.
+function toSavingGroupNoticeDetailError(error, status) {
+  const failure = new Error(error?.message || '공지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  failure.name = 'SavingGroupNoticeDetailError';
+  failure.code = error?.code || 'SAVING_GROUP_NOTICE_READ_FAILED';
+  failure.status = status;
+  return failure;
+}
+
+// AI작성: 공통 groupId와 공지 ID를 문자열로 유지하며 인증·요청 취소는 기존 client를 재사용한다.
+export async function getSavingGroupNoticeDetail(groupId, noticeId, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  try {
+    const response = await client.get(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    if (response.data?.success !== true) {
+      throw toSavingGroupNoticeDetailError(response.data?.error, response.status);
+    }
+    if (!response.data.data || typeof response.data.data !== 'object' || Array.isArray(response.data.data)) {
+      throw toSavingGroupNoticeDetailError(
+        { code: 'INVALID_RESPONSE', message: '공지 상세 응답을 확인하지 못했습니다.' }, response.status
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupNoticeDetailError') throw error;
+    throw toSavingGroupNoticeDetailError(error.response?.data?.error, error.response?.status);
+  }
+}
+
 // AI작성: 목록·승인·거절 모두 서버의 오류 코드를 보존하며 요청 취소는 화면 오류로 바꾸지 않는다.
 async function savingGroupJoinResponse(request, fallback) {
   try {

@@ -4,7 +4,83 @@ import client from './client.js';
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
   approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,
-  createSavingGroupNotice } from './savingGroups.js';
+  createSavingGroupNotice, getSavingGroupNoticeDetail } from './savingGroups.js';
+
+// AI작성: 공통 groupId·공지 ID의 큰 정수 문자열과 취소 신호, 서버 응답 6개 항목을 보존한다.
+test('공지 상세는 groupId와 noticeId로 요청하고 상세 데이터를 반환한다', async () => {
+  const original = client.get;
+  const signal = new AbortController().signal;
+  const detail = { noticeId: '9223372036854775806', title: '공지 제목', content: '공지 내용',
+    writerId: 30, writerNickname: '테스트닉네임', createdAt: '2026-11-04T10:00:00' };
+  try {
+    client.get = async (path, options) => {
+      assert.equal(path, '/saving-groups/9223372036854775807/notices/9223372036854775806');
+      assert.deepEqual(options, { signal });
+      return { status: 200, data: { success: true, data: detail } };
+    };
+    assert.deepEqual(await getSavingGroupNoticeDetail('9223372036854775807', '9223372036854775806', { signal }), detail);
+  } finally { client.get = original; }
+});
+
+// AI작성: HTTP 오류와 실패 봉투 모두 조회 오류 코드·안내 문구·상태를 유지한다.
+test('공지 상세는 서버의 인증 권한 및 조회 오류를 보존한다', async () => {
+  const original = client.get;
+  try {
+    for (const [status, code] of [[400, 'BAD_REQUEST'], [401, 'LOGIN_REQUIRED'], [401, 'UNAUTHORIZED'],
+      [403, 'SAVING_GROUP_NOTICE_READ_FORBIDDEN'], [404, 'NOT_FOUND'],
+      [404, 'SAVING_GROUP_NOTICE_NOT_FOUND'], [500, 'INTERNAL_ERROR']]) {
+      for (const rejected of [false, true]) {
+        client.get = async () => {
+          const response = { status, data: { success: false, error: { code, message: '조회 실패' } } };
+          if (rejected) throw { response };
+          return response;
+        };
+        await assert.rejects(() => getSavingGroupNoticeDetail(20, 40),
+          (error) => error.code === code && error.message === '조회 실패' && error.status === status);
+      }
+    }
+  } finally { client.get = original; }
+});
+
+// AI작성: 본문 없는 성공 응답을 정상 상세로 전달하지 않고 통신 실패와 요청 취소도 구분한다.
+test('공지 상세는 잘못된 응답과 통신 실패를 안내하고 취소 원본을 유지한다', async () => {
+  const original = client.get;
+  try {
+    for (const response of [{}, { data: null }, { data: { success: false } }, { data: { success: 'true' } }]) {
+      client.get = async () => response;
+      await assert.rejects(() => getSavingGroupNoticeDetail(20, 40),
+        (error) => error.code === 'SAVING_GROUP_NOTICE_READ_FAILED' && !error.message.includes('등록'));
+    }
+    for (const data of [undefined, null, [], '공지', 1]) {
+      client.get = async () => ({ status: 200, data: { success: true, data } });
+      await assert.rejects(() => getSavingGroupNoticeDetail(20, 40),
+        (error) => error.code === 'INVALID_RESPONSE' && error.status === 200);
+    }
+    client.get = async () => { throw new Error('network failure'); };
+    await assert.rejects(() => getSavingGroupNoticeDetail(20, 40),
+      (error) => error.code === 'SAVING_GROUP_NOTICE_READ_FAILED' && error.status === undefined);
+    const canceled = Object.assign(new Error('취소'), { code: 'ERR_CANCELED' });
+    client.get = async () => { throw canceled; };
+    await assert.rejects(() => getSavingGroupNoticeDetail(20, 40), (error) => error === canceled);
+  } finally { client.get = original; }
+});
+
+// AI작성: 두 경로 ID 중 하나라도 유효하지 않으면 네트워크 호출 전에 차단한다.
+test('공지 상세는 잘못된 groupId 또는 noticeId로 요청하지 않는다', async () => {
+  const original = client.get;
+  let calls = 0;
+  try {
+    client.get = async () => { calls += 1; };
+    for (const id of [null, undefined, 0, -1, 'abc', '20/notices', '01', '1.5',
+      '9223372036854775808', Number.MAX_SAFE_INTEGER + 1]) {
+      for (const [groupId, noticeId] of [[id, 40], [20, id]]) {
+        await assert.rejects(() => getSavingGroupNoticeDetail(groupId, noticeId),
+          (error) => error.code === 'BAD_REQUEST');
+      }
+    }
+    assert.equal(calls, 0);
+  } finally { client.get = original; }
+});
 
 // AI작성: 저장 대상 savingGroupId를 보존하고 작성자 등 추가 입력은 서버로 보내지 않는다.
 test('공지 작성은 제목·내용만 JSON으로 전달하고 빈 성공 응답을 반환한다', async () => {
