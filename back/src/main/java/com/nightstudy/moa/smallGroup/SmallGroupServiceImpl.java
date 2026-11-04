@@ -58,6 +58,21 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 목록 조건·페이징·승인 계원 수 조합을 담당한다.
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
+    // AI작성: 마지막 페이지 초과 요청은 유효한 마지막 페이지로 보정하며 빈 목록은 1페이지로 유지한다.
+    @Override @Transactional(readOnly = true)
+    public com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse getSmallGroupNotices(Long groupId,
+            com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSearchCondition condition) {
+        if (condition == null || condition.getNoticePage() == null || condition.getNoticePage() < 1
+                || !List.of("LATEST", "OLDEST").contains(condition.getNoticeSort() == null ? "" : condition.getNoticeSort())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 조회 조건을 확인해 주세요.");
+        }
+        int total = smallGroupMapper.countSmallGroupNotices(groupId);
+        int page = Math.min(condition.getNoticePage(), Math.max(1, (int)Math.ceil(total / 4.0)));
+        PageMeta meta = PageMeta.of(page, 4, total);
+        return new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse(
+                smallGroupMapper.selectSmallGroupNoticePage(groupId, meta.getOffset(), condition.getNoticeSort()), meta);
+    }
+
     // AI작성: 공통 모임→회원 관계 순으로 잠가 권한 검증과 저장을 한 트랜잭션에서 처리한다.
     @Override
     @Transactional
