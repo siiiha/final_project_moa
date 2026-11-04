@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRequest;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
@@ -38,6 +39,15 @@ public class SavingGroupController {
     // AI작성: 목록 조회 서비스만 주입한다.
     public SavingGroupController(SavingGroupService savingGroupService) {
         this.savingGroupService = savingGroupService;
+    }
+
+    // AI작성: 경로의 groupId는 공통 모임 ID이며 공지 소속·승인 회원 권한은 Service에서 검증한다.
+    @GetMapping("/{groupId}/notices/{noticeId}")
+    public ApiResponse<SavingGroupNoticeDetailResponse> noticeDetail(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(savingGroupService.getSavingGroupNoticeDetail(groupId, noticeId, memberId));
     }
 
     // AI작성: JSON 입력을 검증하고 JWT 회원 ID만 전달하며 모임 상태·권한·저장은 Service에서 처리한다.
