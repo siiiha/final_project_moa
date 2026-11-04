@@ -51,11 +51,22 @@ public interface SavingGroupMapper {
     SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
-    // AI작성: 모임 존재 여부는 Service에서 확인하며 공통 PageMeta에 사용할 공지 전체 개수를 조회한다.
+    // AI작성: 모임 존재 여부는 Service에서 확인하며 고정 공지를 제외한 일반 공지 개수를 조회한다.
     int selectSavingGroupNoticeCount(@Param("groupId") Long groupId);
     // AI작성: Service에서 검증한 정렬과 PageMeta의 offset으로 공지 요약을 최대 4개 조회한다.
     List<SavingGroupNoticeSummaryResponse> selectSavingGroupNotices(
             @Param("groupId") Long groupId, @Param("sort") String sort, @Param("offset") int offset);
+    // AI작성: 모든 페이지 상단의 고정 공지는 기존 공지 요약 DTO로 별도 조회한다.
+    List<SavingGroupNoticeSummaryResponse> selectSavingGroupPinnedNotices(@Param("groupId") Long groupId);
+    // AI작성: 고정 변경은 이 모임 잠금 후 기존 회원 관계 잠금·공지 잠금 순서로 수행해 동시 지정을 직렬화한다.
+    SavingGroupJoinTargetRow selectSavingGroupNoticeTargetForUpdate(@Param("groupId") Long groupId);
+    SavingGroupNoticePinRow selectSavingGroupNoticePinForUpdate(
+            @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
+    // AI작성: 집계 대신 현재 읽기의 고정 ID 목록 크기를 사용해 이전 스냅샷으로 인한 두 개 제한 초과를 방지한다.
+    List<Long> selectSavingGroupPinnedNoticeIdsForUpdate(@Param("groupId") Long groupId);
+    // AI작성: Service의 권한·개수 검증 이후 대상 모임의 공지만 변경하고 영향 행 수를 반환한다.
+    int updateSavingGroupNoticePinned(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId,
+            @Param("pinned") boolean pinned);
     // AI작성: 공통 groupId와 공지 ID가 모두 일치하는 상세만 조회하며 권한은 Service에서 검증한다.
     SavingGroupNoticeDetailResponse selectSavingGroupNoticeDetail(
             @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);

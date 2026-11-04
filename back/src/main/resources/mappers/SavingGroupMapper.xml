@@ -592,11 +592,11 @@
         ORDER BY gn.created_at DESC, gn.notice_id DESC LIMIT 4
     </select>
 
-    <!-- AI작성: 페이지 조회와 동일한 모임 조건으로 집계하며 고정 공지 컬럼은 후속 단계에서 반영한다. -->
+    <!-- AI작성: 고정 공지는 일반 목록과 PageMeta의 전체 개수에서 제외한다. -->
     <select id="selectSavingGroupNoticeCount" resultType="int">
         SELECT COUNT(*)
         FROM group_notice
-        WHERE group_id = #{groupId}
+        WHERE group_id = #{groupId} AND is_pinned = 0
     </select>
 
     <!-- AI작성: 기존 요약 매핑과 작성자 LEFT JOIN을 재사용하며 정렬은 고정 SQL 분기로 제한한다. -->
@@ -604,7 +604,7 @@
         SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
         FROM group_notice gn
         LEFT JOIN members writer ON writer.member_id = gn.writer_id
-        WHERE gn.group_id = #{groupId}
+        WHERE gn.group_id = #{groupId} AND gn.is_pinned = 0
         <choose>
             <when test='sort == "OLDEST"'>
                 ORDER BY gn.created_at ASC, gn.notice_id ASC
@@ -615,6 +615,56 @@
         </choose>
         LIMIT 4 OFFSET #{offset}
     </select>
+
+    <!-- AI작성: 고정 영역은 일반 목록의 정렬·페이지와 관계없이 작성일·ID 최신순으로 표시한다. -->
+    <select id="selectSavingGroupPinnedNotices" resultMap="noticeSummary">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn
+        LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.is_pinned = 1
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
+    </select>
+
+    <!-- AI작성: 공통 groupId로 기존 변경 작업과 같은 계모임·모임 행을 잠그며 상태·회원 권한은 Service가 검증한다. -->
+    <select id="selectSavingGroupNoticeTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow">
+        SELECT sg.saving_group_id, sg.group_id, sg.status, g.max_members, g.member_id AS owner_member_id
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId} AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: TINYINT 고정 컬럼을 Boolean으로 매핑하고 공지 본문·작성자 정보는 조회하지 않는다. -->
+    <resultMap id="noticePin" type="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticePinRow">
+        <constructor>
+            <idArg column="notice_id" javaType="java.lang.Long"/>
+            <arg column="is_pinned" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+    <select id="selectSavingGroupNoticePinForUpdate" resultMap="noticePin">
+        SELECT notice_id, is_pinned
+        FROM group_notice
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId}
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 모임 잠금 이후 현재 고정 ID를 잠금 조회해 Service가 동시 요청에서도 최대 두 개를 검증하게 한다. -->
+    <select id="selectSavingGroupPinnedNoticeIdsForUpdate" resultType="java.lang.Long">
+        SELECT notice_id
+        FROM group_notice
+        WHERE group_id = #{groupId} AND is_pinned = 1
+        ORDER BY notice_id
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 타 모임 공지를 변경하지 않고 요청한 상태와 다른 행만 갱신한다. -->
+    <update id="updateSavingGroupNoticePinned">
+        UPDATE group_notice
+        SET is_pinned = #{pinned}
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId}
+          AND is_pinned != #{pinned}
+    </update>
 
     <!-- AI작성: 불변 상세 DTO의 생성자 순서와 타입을 명시해 조회 컬럼을 매핑한다. -->
     <resultMap id="noticeDetail" type="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse">
