@@ -74,6 +74,21 @@ class SavingGroupNoticeDeletionServiceTest {
         assertThat(catchThrowableOfType(() -> service.deleteSavingGroupNotice(20L, 40L, null), ApiException.class).getCode()).isEqualTo("UNAUTHORIZED");
         verifyNoInteractions(mapper);
     }
+    // AI작성: 같은 Service에서 수정→삭제 이후 미삭제 조회가 없으면 재수정·재삭제 모두 거절하는 연계 동작을 검증한다.
+    @Test void editThenDeleteRejectsFurtherChanges() {
+        target("01"); relation("OWNER", "APPROVED");
+        var original = new SavingGroupNoticeDetailResponse(40L, "원본", "내용", 30L, null, null);
+        when(mapper.selectSavingGroupNoticeForUpdate(20L, 40L)).thenReturn(original, original, null, null);
+        when(mapper.updateSavingGroupNotice(20L, 40L, "수정", "내용")).thenReturn(1);
+        when(mapper.deleteSavingGroupNotice(20L, 40L, 30L)).thenReturn(1);
+        assertThat(service.updateSavingGroupNotice(20L, 40L, 30L, "수정", "내용")).isEqualTo(40L);
+        delete();
+        assertThat(catchThrowableOfType(() -> service.updateSavingGroupNotice(20L, 40L, 30L, "재수정", "내용"), ApiException.class).getCode())
+                .isEqualTo("SAVING_GROUP_NOTICE_NOT_FOUND");
+        assertThat(catchThrowableOfType(this::delete, ApiException.class).getCode()).isEqualTo("SAVING_GROUP_NOTICE_NOT_FOUND");
+        verify(mapper, times(1)).deleteSavingGroupNotice(20L, 40L, 30L);
+        verify(mapper, times(1)).updateSavingGroupNotice(any(), any(), any(), any());
+    }
     @ParameterizedTest @CsvSource({"0,40", "-1,40", "20,0", "20,-1"})
     void rejectsInvalidPath(long groupId, long noticeId) {
         assertThat(catchThrowableOfType(() -> service.deleteSavingGroupNotice(groupId, noticeId, 30L), ApiException.class).getCode()).isEqualTo("BAD_REQUEST");

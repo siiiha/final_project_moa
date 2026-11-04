@@ -928,3 +928,13 @@
 - 검증: Java 17 컴파일·공지 관련 테스트 244건, 프론트 API 48건·lint·프로덕션 빌드 통과. 폼 Vite SSR 초기 HTML 검증 통과(임시 noExternal 옵션으로 styled-components SSR 모듈 형식 차이 처리). 실제 브라우저 상호작용 검증은 아님.
 - 한계: 기존 타 도메인 테스트 import 오류로 임시 Gradle 스크립트에서 공지 테스트만 분리. 실제 DB·Postman·브라우저 클릭·JWT 필터 통합 검증 미실행. 기존 번들 크기 경고 존재.
 - 개발자 검토·수정: 검토 대기. DB·의존성·설정·외부 서비스 변경 없음. 수정자·수정 이력·첨부파일·알림은 TODO.
+<!-- AI작성: 수정 기능을 포함한 삭제 워크트리의 단계별 구현 기록. -->
+## 2026-11-04 — 계모임 공지 삭제
+
+- 목적·승인: feature/edit-savinggroup-notice 완료 efcf44f를 기준으로 feature/delete-savinggroup-notice에서 삭제 추가. 사용자가 단계마다 변경·검증·커밋을 보고하고 계속 진행하도록 요청. 실제 DB deleted_at 준비와 수정·삭제 작성자 정책을 확인.
+- AI 작성: 기존 잠금 조회·상세 DTO·승인 관계·ConfirmModal 재사용. 인증 작성자의 소속 미삭제 공지 논리 삭제, 조회·고정·수정 경로의 삭제 제외, React API·확인 버튼·상세 연결·삭제 후 목록 복귀 및 후속 조회 실패 구분.
+- 변경 파일: SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupController, DeletionService/Controller/MapperTest, savingGroups.js/test, SavingGroupNoticeDeleteButton, SavingGroupNoticeDetailPage, SavingGroupDetailPage, API 명세·본 기록.
+- 커밋: 20f885d Mapper·조회 조건, 2053c81 Service·작성자 권한, 27cd546 Controller, 82155a2 React API, bf0acdf 삭제 화면. 마지막 단계에 연계·Mapper 검증과 문서 일괄 반영.
+- 검증: Java 17 공지 관련 295건·프론트 API 49건 통과, 변경 파일 lint·빌드·수정 및 삭제 컴포넌트 초기 SSR 렌더링 통과. Service 대역에서 수정→삭제→재변경 차단, 실제 MyBatis XML에서 논리 삭제 및 전체 계모임 공지 조회·변경의 deleted_at 조건 확인.
+- 미검증: 실제 MySQL·Postman·브라우저 상호작용·JWT 필터 통합. DB 컬럼 준비는 사용자 확인이며 독립 DB 조회는 하지 않았다. 기존 다른 도메인 테스트 import 오류로 임시 Gradle 스크립트에서 공지 테스트만 실행. 기존 번들 크기 경고 존재.
+- 개발자 검토·수정: 검토 대기. DB·마이그레이션·의존성·외부 서비스 변경·원격 push·기준 브랜치 반영 없음. 첨부파일·댓글·알림·삭제 이력 연계는 TODO.
