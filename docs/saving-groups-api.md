@@ -895,3 +895,106 @@ TODO·제외 범위:
 - 공지 작성 버튼의 카드 우측 상단 배치, 작성 폼 표시 시 목록 숨김, 등록 성공·취소 시 목록 복귀 동작을 유지한다.
 - 검증: Java 17 compileJava, 프론트 npm run build, 기존 savingGroups API 테스트 37건, XML 파싱·생성자 매핑 확인, git diff --check 통과. JSX lint는 기존 미사용 변수 경고 2건만 남았다. 이번 변경에 대한 실제 DB 조회·브라우저 검증은 수행하지 않았다.
 - 수동 확인: 상세 응답 notices의 네 필드, 실제 작성자 닉네임·작성일과 목록 순서, 빈 목록, 긴 제목·닉네임, 모바일 줄바꿈을 확인한다. 작성·취소·등록 성공 전후 목록 전환도 확인한다. 닉네임은 작성 당시 스냅샷이 아닌 현재 회원 테이블 값이다.
+
+<!-- AI작성: 사용자 확정 정책과 공지 상세 조회 1~5단계 구현·검증 결과를 6단계에서 일괄 기록한다. -->
+## 계모임 공지 상세 조회 (2026-11-04)
+
+이 절은 공지 상세 조회의 최신 계약이다. 앞의 공지 작성 작업에서 상세를 제외 범위로 기록한 내용은 당시 작업 범위를 의미하며, 이번 단계에서 아래 상세 기능을 추가했다.
+
+### 요청·식별자·권한
+
+- `GET /api/saving-groups/{groupId}/notices/{noticeId}`
+- 기존 Controller 별칭 `GET /saving-groups/{groupId}/notices/{noticeId}`도 지원한다.
+- 두 경로 변수는 양수 Long이다. `groupId`는 `groups.group_id`이며 공지 작성 POST의 `savingGroupId` (`saving_group_id`)와 다르다. 요청 본문은 없다.
+- 인증은 기존 JWT·세션 검증과 서버 요청 속성 `memberId`를 사용한다. 쿼리의 회원 ID는 사용하지 않는다.
+- 해당 계모임의 `APPROVED` 관계를 가진 `OWNER / MANAGER / MEMBER`만 본문을 조회할 수 있다. 작성은 OWNER·MANAGER만 가능하지만 상세 조회는 MEMBER도 가능하다.
+- 관계 없음과 `PENDING / REJECTED / LEFT / EXPELLED`는 403이다. 공개 계모임 상세의 최근 공지 요약 공개 정책은 유지하며 본문 조회 권한과 구분한다.
+- 기존 계모임 상세와 동일하게 `groups.deleted_at IS NULL`, `saving_group.status IN ('01','02')`인 모임만 조회한다. 조회할 수 없는 모임은 404다. 작성 API의 상태 제한 409 정책과 구분한다.
+
+### 성공 응답
+
+HTTP 200, 기존 `ApiResponse.ok(data)`를 사용한다. 응답 항목은 아래 6개뿐이다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "noticeId": 40,
+    "title": "다음 모임 안내",
+    "content": "다음 모임 일정을 안내합니다.",
+    "writerId": 30,
+    "writerNickname": "테스트닉네임",
+    "createdAt": "2026-11-04T10:00:00"
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이다. 작성자 닉네임은 members의 현재 값이며 LEFT JOIN으로 회원 행이 없으면 null이다. 작성자 ID는 공지 행의 writer_id를 반환한다. 실명·전화번호·계좌 등은 응답에 포함하지 않는다. React는 작성자 ID와 공지 ID를 화면 본문에 표시하지 않는다. 큰 ID의 응답 숫자 정밀도에 관한 기존 계약 한계는 유지한다.
+
+### Service·Mapper 처리
+
+1. Service에서 인증 회원 ID와 두 경로 ID를 검증한다.
+2. 기존 `selectSavingGroupDetail(groupId)`로 계모임 존재·삭제·상태를 확인한다.
+3. 기존 잠금 없는 `selectSavingGroupMembership(groupId, memberId)`로 승인 상태와 역할을 확인한다. 승인 관계의 null·미정의 역할은 기존 상세의 데이터 오류 관례에 따라 500으로 처리한다.
+4. `selectSavingGroupNoticeDetail(groupId, noticeId)`가 두 ID를 모두 WHERE 조건에 사용한다. 공지 없음과 다른 모임 소속 공지는 모두 동일한 404다.
+5. 전체 조회는 `@Transactional(readOnly = true)`이며 Controller는 요청 검증·전달·응답만 담당한다. 조회 수 증가나 쓰기 잠금은 추가하지 않았다.
+
+기존 `group_notice`, `members`, 계모임·회원 관계 Mapper, 공지 요약의 작성자 LEFT JOIN, `ApiResponse`, `ApiException`, `GlobalExceptionHandler`를 재사용했다. DB 스키마·마이그레이션·의존성·보안 설정 변경은 없다.
+
+### 실패 응답
+
+기존 실패 봉투 `success=false`, `data/meta=null`, `error.code/message`를 사용한다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | BAD_REQUEST | 경로 타입·Long 범위·양수 검증 실패 |
+| 401 | LOGIN_REQUIRED | `/api/**` 보안 계층에서 미인증 차단 |
+| 401 | UNAUTHORIZED | Service에 유효한 인증 회원 ID가 전달되지 않음 |
+| 403 | SAVING_GROUP_NOTICE_READ_FORBIDDEN | 대상 모임 관계 없음 또는 APPROVED가 아님 |
+| 404 | NOT_FOUND | 모임 없음·삭제·상태 01/02 외. 메시지: 조회할 수 있는 계모임이 없습니다. |
+| 404 | SAVING_GROUP_NOTICE_NOT_FOUND | 공지 없음 또는 다른 모임 소속. 메시지: 공지를 찾을 수 없습니다. |
+| 500 | INTERNAL_ERROR | 미정의 승인 역할·관계 데이터 오류·예기치 않은 서버 오류 |
+
+검증 순서는 인증 → 경로 ID → 모임 → 회원 관계 → 공지다. 미승인 사용자는 공지 존재 여부와 관계없이 회원 관계 단계에서 차단된다. JWT 만료·변조·세션 오류는 기존 인증 처리를 따른다.
+
+### React 화면·요청
+
+- `getSavingGroupNoticeDetail(groupId, noticeId, { signal })`는 기존 공통 client의 `/api` baseURL·인증을 재사용한다. 두 ID는 기존 양수 BIGINT 검증을 통과해야 하며 큰 문자열 ID를 Number로 변환하지 않는다.
+- 서버 코드·메시지·HTTP 상태를 보존하고 `ERR_CANCELED`는 원본 그대로 전달한다. 통신·실패 봉투의 기본 오류는 `SAVING_GROUP_NOTICE_READ_FAILED`, 본문 객체가 없는 성공 응답은 `INVALID_RESPONSE`다.
+- 화면 경로는 `/saving-groups/:id/notices/:noticeId`이며 id는 공통 group_id다. 승인된 OWNER·MANAGER·MEMBER이고 모임 상태가 01/02이면 기존 최근 공지 제목이 링크로 표시된다. 그 외에는 제목 텍스트를 유지한다. 서버가 실제 권한을 다시 검사한다.
+- 페이지가 URL·요청·로딩·오류·재시도를 관리하고 별도 표시 컴포넌트가 제목·작성자 닉네임·한국어 작성일·본문을 렌더링한다. 본문은 일반 텍스트로 표시하며 줄바꿈을 유지한다. 닉네임·날짜 누락 안내는 기존 목록 관례를 따른다.
+- URL·계정(authVersion)·재시도 회차가 바뀌면 이전 본문을 숨기고 이탈한 요청을 취소한다. 통신·서버 오류와 INVALID_RESPONSE에는 재시도를 제공한다. 400·401·403·404는 원인별 안내를 표시한다.
+- '계모임 공지로 돌아가기'는 같은 groupId의 계모임 기본 공지 탭으로 이동한다. 직접 URL 접근·새로고침도 URL 기반 GET으로 처리한다.
+- 공지 작성 폼·등록 후 최근 공지 갱신은 기존 코드를 유지한다. 전체 공지 목록 API나 화면은 추가하지 않았다.
+
+### 작업 파일과 커밋
+
+| 단계 | 파일 | 커밋 |
+| --- | --- | --- |
+| 1 | back/src/main/java/com/nightstudy/moa/savingGroup/dto/SavingGroupNoticeDetailResponse.java, savingGroup/mapper/SavingGroupMapper.java 및 back/src/main/resources/mappers/SavingGroupMapper.xml | 996620e |
+| 2 | back/src/main/java/com/nightstudy/moa/savingGroup/service/SavingGroupService.java, SavingGroupServiceImpl.java 및 back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupNoticeDetailServiceTest.java | d49a930 |
+| 3 | back/src/main/java/com/nightstudy/moa/savingGroup/controller/SavingGroupController.java 및 back/src/test/java/com/nightstudy/moa/savingGroup/controller/SavingGroupNoticeDetailControllerTest.java | 6e42e16 |
+| 4 | front/src/api/savingGroups.js, savingGroups.test.js | adbcc29 |
+| 5 | front/src/App.jsx, front/src/pages/SavingGroupNoticeDetailPage.jsx, front/src/components/savingGroup/SavingGroupNoticeDetail.jsx, SavingGroupDetail.jsx | 950bb07 |
+| 6 | docs/saving-groups-api.md, docs/ai-usage-log.md | 개발자 커밋 예정 |
+
+### 검증 결과·수동 확인·TODO
+
+- 1단계 Mapper XML 구문 확인 통과. 각 단계 git diff --check 통과.
+- 2단계 신규 상세·기존 작성 Service 테스트, 3단계 신규 상세·기존 작성 Controller 테스트 실행을 시도했으나 Java 17 toolchain을 찾지 못해 컴파일·테스트 실행 전에 중단됐다. Java 21은 확인했으며 프로젝트 설정은 변경하지 않았다. 앞의 작성 기능에 기록된 Java 17 성공 결과를 이번 상세 기능의 검증 결과로 간주하지 않는다.
+- 4·5단계 `node --test src/api/savingGroups.test.js` 41건 통과. client 대역을 사용하는 요청 계약 테스트이며 실제 HTTP·DB·React 상호작용 검증은 아니다.
+- 5단계 `npm run build` 통과. 변경 JSX lint는 기존 ImagePlaceholder·Schedule 미사용 경고 2건, 빌드는 번들 크기 경고가 남았다. 브라우저·Postman·MySQL 연동은 미검증이다.
+- Service 테스트의 모임 제외·공지 소속 불일치는 Mapper null 대역으로 검증하므로 실제 SQL 조건·조인 동작을 입증하지 않는다. Controller standalone 테스트에는 실제 JWT 필터가 포함되지 않는다.
+
+후속 수동 검증:
+
+1. Java 17 환경에서 신규 상세 Service·Controller 및 기존 작성 테스트를 실행한다. 기존 다른 테스트의 컴파일 문제 여부도 확인한다.
+2. 테스트용 계모임의 group_id와 saving_group_id가 다른 데이터로 GET 경로가 group_id를 사용하는지 확인한다. 승인 OWNER·MANAGER·MEMBER와 모임 상태 01/02에서 200 및 6개 필드를 확인한다.
+3. 미인증 401, 관계 없음·PENDING·REJECTED·LEFT·EXPELLED 403, 모임 없음·삭제·상태 00/03/04의 404, 공지 없음·다른 모임 공지의 404, 두 ID 각각 타입·범위·양수 오류 400을 확인한다.
+4. 실제 DB에서 공지·작성자 매핑, 닉네임 누락, 같은 공지 반복 조회 시 조회 데이터 변경 없음과 소속 조건을 확인한다.
+5. 브라우저에서 승인 역할별 제목 링크, 직접 접근·새로고침·돌아가기, 오류 안내·재시도, URL·계정 변경·로그아웃 뒤 이전 본문 숨김을 확인한다. 작성·취소·등록 성공 후 최근 공지 갱신도 회귀 확인한다.
+6. 긴 제목·본문·닉네임, 줄바꿈·HTML 문자 텍스트 표시, 모바일·키보드 초점·가독성을 확인한다.
+
+수정일·고정·첨부파일·조회 수·공지 삭제/비공개 상태는 테이블에 없어 추가하지 않았다. 향후 필요 시 별도 정책·DB 설계를 확정해야 한다. 작성·수정·삭제·전체 목록·댓글·알림·SSE 연계는 이번 상세 조회 범위 밖이다.

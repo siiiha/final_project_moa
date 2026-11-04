@@ -891,3 +891,16 @@
 - 검증: Java 17 경로를 실행 인자로 지정한 compileJava 통과. npm run build 및 savingGroups API 테스트 37건 통과. XML 파싱·공지 생성자 매핑과 git diff --check 확인. JSX lint 오류 없음, 기존 ImagePlaceholder·Schedule 미사용 경고 2건 및 번들 크기 경고 유지. API 테스트는 기존 요청 회귀 검증으로 신규 응답의 실제 DB 매핑·화면 표시를 검증한 것은 아니다.
 - 수동 확인·남은 사항: 실제 상세 JSON의 writerNickname·createdAt과 화면 작성자·날짜, 최신 4건·빈 목록, 긴 문자열·모바일, 작성 폼 전환을 확인해야 한다. 실제 MySQL·브라우저 검증은 미실행이다.
 - 개발자 검토·수정: 검토 대기. 개발자의 별도 수정 내용은 아직 확인되지 않았으며 AI는 커밋하지 않았다.
+
+<!-- AI작성: 사용자 요청에 따라 상세 조회의 단계별 작업을 마지막 문서화 단계에 일괄 기록한다. -->
+## 2026-11-04 — 계모임 공지 상세 조회 API 및 React 화면
+
+- 목적·승인: 사용자가 공지 상세 조회를 요청하고 여러 파일 수정을 승인했다. 조회 대상은 로그인한 해당 계모임 APPROVED의 OWNER·MANAGER·MEMBER로 확정했다. 관계 없음·PENDING·REJECTED·LEFT·EXPELLED는 차단한다. 경로는 group_id 기준, 모임 삭제·상태 정책은 기존 상세를 따르며 응답은 공지 ID·제목·내용·작성자 ID·닉네임·작성일로 제한했다. React 요청·페이지·컴포넌트도 포함하고 문서는 마지막에 일괄 작성하도록 요청했다.
+- AI 제안·작성: 1단계 상세 응답 DTO·Mapper와 두 ID 조건 SQL, 2단계 읽기 전용 Service·인증·승인 관계 검증과 Service 테스트, 3단계 GET Controller·양수 검증과 MockMvc 테스트, 4단계 React 요청 함수·API 테스트, 5단계 상세 페이지·표시 컴포넌트·라우트·최근 공지 링크를 구현했다. 6단계에서 API 명세·화면 흐름·검증 한계·수동 확인을 정리했다.
+- 재사용: 기존 계모임 상세·회원 관계의 잠금 없는 Mapper, group_notice와 members LEFT JOIN, 공통 응답·예외·JWT 인증 전달, Axios client·ID 검증·취소 처리, authVersion·공통 Button·테마를 활용했다. 작성 API는 saving_group_id, 조회 API는 group_id이며 작성 OWNER/MANAGER와 조회 OWNER/MANAGER/MEMBER 권한을 구분했다. DB·의존성·보안 설정은 변경하지 않았다.
+- 작업 파일: 백엔드 SavingGroupNoticeDetailResponse.java, SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupController.java, SavingGroupNoticeDetailServiceTest.java, SavingGroupNoticeDetailControllerTest.java. 프론트 savingGroups.js/test.js, App.jsx, SavingGroupDetail.jsx, SavingGroupNoticeDetailPage.jsx, SavingGroupNoticeDetail.jsx. 문서 docs/saving-groups-api.md와 docs/ai-usage-log.md. 상세 경로·파일 목록은 API 명세의 해당 절에 기록했다.
+- 실행 검증: Mapper XML 구문·각 구현 단계 git diff --check 통과. 4·5단계 Node API 테스트 41건 통과, 5단계 프로덕션 빌드 통과. 변경 JSX lint에는 기존 미사용 스타일 선언 2건만 남았으며 번들 크기 경고도 유지했다.
+- 백엔드 검증 한계: 기본 실행의 Gradle 캐시 잠금 접근 차단 후 권한 재시도를 했으나 Java 17 toolchain 부재로 컴파일·테스트를 수행하지 못했다. Service·Controller 신규 상세 및 기존 작성 테스트 실행을 시도했으며 통과를 확인한 것은 아니다. 앞의 공지 작성·요약 작업에서 Java 17을 지정해 성공한 기록과 구분한다. 설정·JDK 설치 변경은 하지 않았다.
+- 실제 동작 검증 한계: 프론트 테스트는 client 대역, Service는 Mapper 대역, Controller는 JWT 필터 없는 standalone MockMvc다. SQL 소속 조건·작성자 조인·인증 필터·실제 HTTP·브라우저 상호작용·모바일·로그아웃 시 본문 제거는 실제 환경에서 추가 확인해야 한다. API 명세에 Postman·브라우저·DB 수동 검증 절차를 정리했다.
+- 남은 TODO·제외: Java 17 환경의 백엔드 테스트, 실제 DB·브라우저 검증, BIGINT 응답 숫자 정밀도 기존 한계가 남는다. 없는 수정일·고정·첨부파일·조회 수·삭제/비공개 컬럼은 추가하지 않았다. 작성·수정·삭제·전체 목록·댓글·알림 연계는 이번 상세 범위 밖이다.
+- 개발자 검토·수정: 사용자가 각 단계를 요청했으며 커밋 이력 996620e(Mapper), d49a930(Service), 6e42e16(Controller), adbcc29(React API), 950bb07(화면)을 확인했다. 개발자의 별도 코드 수정 내용과 실제 동작 최종 검토 완료 여부는 확인되지 않았다. 문서 최종 검토·커밋은 개발자가 수행하며 AI는 커밋하지 않았다.
