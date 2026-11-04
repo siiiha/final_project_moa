@@ -25,7 +25,9 @@ public class SmallGroupDetailResponse {
     // AI작성: 비로그인 또는 비회원 공개 조회에서는 null이며, 승인 OWNER/MEMBER만 역할을 가진다.
     private final String myRole;
     // AI작성: 공개 공지 목록 UI에 표시할 최신 4건의 제목·작성자·작성일 요약이다.
-    private final List<SmallGroupNoticeSummaryResponse> notices;
+    // AI작성: 상세 Controller가 검증된 페이지 목록으로 교체한다.
+    @lombok.Setter
+    private List<SmallGroupNoticeSummaryResponse> notices;
     // AI작성: 본인의 신청 상태와 서버 판단만 제공하며 다른 회원 정보는 포함하지 않는다.
     private final String membershipStatus;
     private final boolean canApply;

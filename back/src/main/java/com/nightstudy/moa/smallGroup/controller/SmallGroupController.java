@@ -229,7 +229,11 @@ public class SmallGroupController {
     public ApiResponse<SmallGroupDetailResponse> detail(
             @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ApiResponse.ok(smallGroupService.getSmallGroupDetail(id, memberId));
+        // AI작성: 공개 상세의 역할 검증을 먼저 통과한 뒤 공지 목록과 공통 페이지 메타를 반환한다.
+        SmallGroupDetailResponse detail = smallGroupService.getSmallGroupDetail(id, memberId);
+        var notices = smallGroupService.getSmallGroupNotices(detail.getGroupId(), condition);
+        detail.setNotices(notices.getItems());
+        return ApiResponse.ok(detail, notices.getPageMeta());
     }
 
     // AI작성: 설정 정보는 JWT 필터가 검증한 회원 ID를 Service에만 전달하고 권한 판단은 Service에서 처리한다.
