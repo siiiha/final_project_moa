@@ -18,6 +18,9 @@ import java.util.List;
 
 // AI작성: 소모임 공개 목록의 검색·필터 조회 계약이다.
 public interface SmallGroupService {
+    // AI작성: 승인된 해당 소모임장만 공지를 작성한다.
+    void createSmallGroupNotice(Long smallGroupId, Long memberId, String title, String content);
+
     // AI작성: 서버 인증 회원 본인의 후기 작성 여부만 조회하고 작성자 정보는 반환하지 않는다.
     boolean hasWrittenSmallGroupReview(Long smallGroupId, Long memberId);
 

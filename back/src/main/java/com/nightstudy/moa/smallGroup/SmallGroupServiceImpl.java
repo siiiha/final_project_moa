@@ -58,6 +58,40 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 목록 조건·페이징·승인 계원 수 조합을 담당한다.
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
+    // AI작성: 공통 모임→회원 관계 순으로 잠가 권한 검증과 저장을 한 트랜잭션에서 처리한다.
+    @Override
+    @Transactional
+    public void createSmallGroupNotice(Long smallGroupId, Long memberId, String title, String content) {
+        SmallGroupJoinTargetRow target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        validateSmallGroupNoticeText(title, content);
+        var row = new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeCreateRow(
+                null, target.getGroupId(), memberId, title.trim(), content.trim());
+        if (smallGroupMapper.insertSmallGroupNotice(row) != 1 || row.getNoticeId() == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_WRITE_FAILED", "공지 등록에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 소모임 ID와 groups ID를 구분하며 개설자·승인 OWNER를 동시에 확인한다.
+    private SmallGroupJoinTargetRow requireSmallGroupNoticeOwner(Long smallGroupId, Long memberId) {
+        if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        if (smallGroupId == null || smallGroupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        SmallGroupMemberRelationRow relation = smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (!Objects.equals(target.getCreatorMemberId(), memberId) || relation == null
+                || !"OWNER".equals(relation.getMemberRole()) || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_NOTICE_WRITE_FORBIDDEN", "승인된 해당 소모임장만 공지를 관리할 수 있습니다.");
+        }
+        return target;
+    }
+
+    // AI작성: Controller 외 호출에도 계모임과 같은 제목 100자·본문 5,000자 규칙을 적용한다.
+    private void validateSmallGroupNoticeText(String title, String content) {
+        if (title == null || title.isBlank() || title.length() > 100 || content == null || content.isBlank() || content.length() > 5000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "제목은 1~100자, 내용은 1~5,000자로 입력해 주세요.");
+        }
+    }
+
     private static final int PAGE_SIZE = 6;
     private static final int JOIN_REQUEST_PAGE_SIZE = 10;
     private static final int VOTE_TITLE_MIN_LENGTH = 2;
