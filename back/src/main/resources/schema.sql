@@ -210,7 +210,10 @@ CREATE TABLE IF NOT EXISTS `group_notice` (
 	`writer_id`	BIGINT	NOT NULL,
 	`title`	VARCHAR(200)	NOT NULL,
 	`content`	TEXT	NOT NULL,
+    `is_pinned` TINYINT(1) NOT NULL DEFAULT 0,
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NULL DEFAULT NULL,
+    `deleted_at` DATETIME NULL DEFAULT NULL,
 	PRIMARY KEY (`notice_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
