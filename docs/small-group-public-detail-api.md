@@ -1135,3 +1135,10 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 현재 개설자·APPROVED OWNER이면서 공지 작성자 본인만 수정 가능하다. 제목·본문 제한은 작성과 같다.
 - 모임→회원 관계→공지 잠금 순서로 검증하고 SQL에서도 writer_id를 제한한다. 같은 내용은 성공 처리하며 고정·작성자·작성일을 유지한다.
 - 브라우저: 수정 폼의 공지 수정 제목, 우측 저장·취소 버튼, 수정 중 목록 복귀 숨김, 권한 변경 오류 시 차단 확인.
+
+
+## AI작성: 소모임 공지 삭제 (2026-11-04)
+- DELETE /api/small-groups/{smallGroupId}/notices/{noticeId}, 성공 data=null.
+- 현재 개설자·APPROVED OWNER이면서 작성자 본인만 삭제 가능하다. 수정과 같은 모임→회원 관계→공지 잠금 순서다.
+- deleted_at만 갱신하며 최근 목록·페이지 목록·건수·상세에서 제외한다. 재삭제는 404다.
+- 삭제 확인창을 거친 뒤 기존 정렬·페이지로 복귀하고 마지막 페이지가 사라지면 서버가 보정한 페이지로 URL을 갱신한다.
