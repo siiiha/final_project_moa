@@ -46,7 +46,7 @@ function canWriteNotice(group) {
 }
 
 // AI작성: 등록 실패 시 입력을 유지하고 성공 후 조회 실패는 재등록 없이 조회만 재시도한다.
-function SavingGroupNoticeCreateForm({ group, onRefresh, heading, children }) {
+function SavingGroupNoticeCreateForm({ group, onRefresh, heading, children, disabled = false }) {
   const fieldId = useId();
   const scopeRef = useRef(null);
   const lockRef = useRef(false);
@@ -59,7 +59,8 @@ function SavingGroupNoticeCreateForm({ group, onRefresh, heading, children }) {
   const [error, setError] = useState('');
   const [blocked, setBlocked] = useState(false);
   const allowed = canWriteNotice(group) && !blocked;
-  const busy = phase === 'submitting' || phase === 'refreshing';
+  // AI작성: 고정 변경·조회 확인 중에는 공지 작성과 동시에 실행하지 않는다.
+  const busy = disabled || phase === 'submitting' || phase === 'refreshing';
 
   useEffect(() => {
     const scope = { active: true };

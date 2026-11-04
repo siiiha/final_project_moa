@@ -5,7 +5,7 @@ import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import useAuthStore from '../store/authStore';
-import { getSavingGroupDetail, requestSavingGroupJoin, readSavingGroupNoticeQuery, toSavingGroupNoticeSearch } from '../api/savingGroups.js';
+import { getSavingGroupDetail, requestSavingGroupJoin, readSavingGroupNoticeQuery, toSavingGroupNoticeSearch, updateSavingGroupNoticePinned } from '../api/savingGroups.js';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -49,6 +49,10 @@ function SavingGroupDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { page: noticePage, sort: noticeSort } = readSavingGroupNoticeQuery(searchParams);
   const noticeRequest = useRef(null);
+  // AI작성: 고정 변경은 전송 후 취소하지 않으며 중복 클릭과 다른 계정·모임에서의 응답 반영을 차단한다.
+  const pinLock = useRef(null);
+  const [pinState, setPinState] = useState(null);
+  const currentPin = pinState?.id === id && pinState?.authVersion === authVersion ? pinState : null;
 
   // AI작성: 동일 렌더의 연속 클릭은 ref로 차단하고 안내는 모임·계정별로 구분한다.
   const joinLock = useRef(null);
@@ -144,6 +148,7 @@ function SavingGroupDetailPage() {
       const lastPage = Math.max(1, group.noticePageMeta?.totalPages ?? 0);
       setSearchParams((previous) => toSavingGroupNoticeSearch(Math.min(page, lastPage), sort, previous),
         { replace: true, preventScrollReset: true });
+      return group;
     } catch (error) {
       if (scope?.active && joinScope.current === scope && !controller.signal.aborted && noticeRequest.current === controller) {
         setResult((previous) => ({ id, retry, authVersion, noticePage, noticeSort, error,
@@ -152,6 +157,40 @@ function SavingGroupDetailPage() {
       }
       throw error;
     }
+  };
+  // AI작성: 고정 변경 성공 뒤 조회 실패는 성공한 PATCH를 반복하지 않고 목록 재조회만 허용한다.
+  const handleNoticePinChange = async (noticeId, pinned) => {
+    const scope = joinScope.current;
+    const group = current?.group;
+    if (!scope?.active || pinLock.current?.scope === scope || currentPin?.needsRefresh || !group
+      || group.membershipStatus !== 'APPROVED' || !['OWNER', 'MANAGER'].includes(group.myRole)
+      || !['01', '02'].includes(group.status)) return;
+    const lock = { scope };
+    pinLock.current = lock;
+    setPinState({ id, authVersion, phase: 'pending' });
+    let changed = false;
+    try {
+      await updateSavingGroupNoticePinned(id, noticeId, pinned);
+      changed = true;
+      if (!scope.active) return;
+      const refreshed = await handleNoticeRefresh();
+      if (!scope.active) return;
+      setPinState({ id, authVersion, phase: refreshed ? 'success' : 'error', needsRefresh: !refreshed,
+        message: refreshed ? (pinned ? '고정 공지로 지정했습니다.' : '공지 고정을 해제했습니다.')
+          : '고정 변경은 완료되었습니다. 목록을 새로 고침해 주세요.' });
+    } catch (error) {
+      if (scope.active) setPinState({ id, authVersion, phase: 'error', needsRefresh: true,
+        message: changed ? '고정 변경은 완료되었습니다. 목록을 불러오지 못했습니다. 새로 고침해 주세요.'
+          : error.message || '공지 고정을 변경하지 못했습니다. 목록을 새로 고침해 주세요.' });
+    } finally {
+      if (pinLock.current === lock) pinLock.current = null;
+    }
+  };
+  const handleNoticeRetry = async () => {
+    try {
+      const refreshed = await handleNoticeRefresh();
+      if (refreshed) setPinState(null);
+    } catch { /* AI작성: 조회 오류는 기존 목록 오류 영역과 고정 안내를 유지한다. */ }
   };
   const errorStatus = current?.error?.response?.status;
   const errorMessage = errorStatus === 404 ? '조회할 수 있는 계모임이 없습니다.'
@@ -186,7 +225,8 @@ function SavingGroupDetailPage() {
                 toSavingGroupNoticeSearch(page, noticeSort, previous), { preventScrollReset: true })}
               onNoticeSortChange={(sort) => setSearchParams((previous) =>
                 toSavingGroupNoticeSearch(1, sort, previous), { preventScrollReset: true })}
-              onNoticeRetry={() => setRetry((value) => value + 1)}
+              onNoticeRetry={handleNoticeRetry}
+              noticePinState={currentPin} onNoticePinChange={handleNoticePinChange}
               onBack={() => navigate('/saving-groups')} />
           )}
       </Content>

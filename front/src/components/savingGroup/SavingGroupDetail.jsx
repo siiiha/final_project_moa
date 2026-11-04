@@ -184,6 +184,12 @@ const NoticeControls = styled.div`
   margin-top: 16px;
   button { min-width: 44px; font-size: 16px; }
 `;
+// AI작성: 고정 배지·변경 버튼은 기존 테마를 재사용하되 읽고 누르기 쉬운 크기로 표시한다.
+const PinnedNoticeBadge = styled(Badge)`font-size: 14px; min-height: 28px;`;
+const NoticePinAction = styled.div`
+  margin-top: 8px;
+  button { min-height: 44px; font-size: 16px; }
+`;
 // AI작성: 승인 회원에게만 제공하는 공지 상세 링크는 키보드 초점과 긴 제목 줄바꿈을 지원한다.
 const NoticeLink = styled(Link)`
   color: ${({ theme }) => theme.colors.primary};
@@ -200,6 +206,8 @@ const NoticeRow = styled.div`
   font-size: 14px;
   line-height: 1.6;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  /* AI작성: 고정 여부는 배지 문구와 배경을 함께 사용해 색상만으로 구분하지 않는다. */
+  background: ${({ $pinned, theme }) => $pinned ? theme.colors.primarySoft : undefined};
   &:last-child { border-bottom: 0; }
   &[role='row']:first-child {
     background: ${({ theme }) => theme.colors.background};
@@ -278,14 +286,42 @@ const ActionButton = styled(Button)`
 
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh,
-  noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry }) {
+  noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry,
+  noticePinState, onNoticePinChange }) {
   // AI작성: 일반 공지 네 개의 페이지 번호만 계산하며 기존 계모임 전체 목록 계산과 분리한다.
   const noticePages = getSavingGroupNoticePagination(noticePagination.page, noticePagination.totalPages);
+  const pinnedNotices = group.pinnedNotices ?? [];
+  const pinBusy = noticePinState?.phase === 'pending';
+  const pinBlocked = pinBusy || Boolean(noticePinState?.needsRefresh);
+  // AI작성: 고정 버튼 권한은 서버와 같은 승인 역할·모임 상태 기준을 사용하며 최종 검증은 서버가 수행한다.
+  const canPinNotice = group.membershipStatus === 'APPROVED'
+    && ['OWNER', 'MANAGER'].includes(group.myRole) && ['01', '02'].includes(group.status);
   // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
   const joinReasonId = useId();
   // AI작성: 작성 권한과 달리 승인된 일반 계원도 상세 조회 링크를 사용할 수 있다.
   const canReadNotice = group.membershipStatus === 'APPROVED'
     && ['OWNER', 'MANAGER', 'MEMBER'].includes(group.myRole) && ['01', '02'].includes(group.status);
+  // AI작성: 고정·일반 공지는 같은 요약 열과 상세 복귀 링크를 재사용하며 변경 버튼만 상태별로 구분한다.
+  const renderNoticeTable = (notices, pinned) => (
+    <NoticeTable role="table" aria-label={pinned ? '고정 공지 목록' : '일반 공지 목록'}>
+      <NoticeRow role="row"><span role="columnheader">제목</span><span role="columnheader">작성자</span><span role="columnheader">작성일</span></NoticeRow>
+      {notices.map((notice) => (
+        <NoticeRow role="row" $pinned={pinned} key={notice.noticeId}>
+          <span role="cell">
+            {pinned && <PinnedNoticeBadge>고정</PinnedNoticeBadge>}{' '}
+            {canReadNotice ? <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
+              {notice.title}</NoticeLink> : notice.title}
+            {canPinNotice && <NoticePinAction><Button type="button" $variant="secondary"
+              disabled={pinBlocked || noticeLoading || noticeError}
+              aria-label={`${notice.title} ${pinned ? '고정 해제' : '고정 지정'}`}
+              onClick={() => onNoticePinChange(notice.noticeId, !pinned)}>{pinned ? '고정 해제' : '고정 지정'}</Button></NoticePinAction>}
+          </span>
+          <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
+          <span role="cell">{formatNoticeDate(notice.createdAt)}</span>
+        </NoticeRow>
+      ))}
+    </NoticeTable>
+  );
   const allowedMenus = getSavingGroupMenus(group.myRole);
   // AI작성: 허용되지 않은 탭 상태가 남아 있어도 공지로 되돌려 계주 전용 패널을 렌더링하지 않는다.
   const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
@@ -351,51 +387,38 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
             </Card>
             <Card>
               {/* AI작성: 공지 작성은 실제 계모임 API만 사용하며 역할·회원 상태·모임 상태에 따라 표시한다. */}
-              <SavingGroupNoticeCreateForm group={group} onRefresh={onNoticeRefresh}
+              <SavingGroupNoticeCreateForm group={group} onRefresh={onNoticeRefresh} disabled={pinBlocked || noticeLoading || noticeError}
                 heading={<CardTitle><FiBell size={18} aria-hidden="true" /> 공지</CardTitle>}>
                 <NoticeControls role="group" aria-label="공지 정렬">
                   {[['LATEST', '최신순'], ['OLDEST', '과거순']].map(([sort, label]) => (
                     <Button key={sort} type="button" aria-pressed={noticePagination.sort === sort}
                       $variant={noticePagination.sort === sort ? 'primary' : 'secondary'}
+                      disabled={pinBusy}
                       onClick={() => onNoticeSortChange(sort)}>{label}</Button>
                   ))}
                 </NoticeControls>
+                {noticePinState?.message && <div role={noticePinState.phase === 'error' ? 'alert' : 'status'}>
+                  <Content>{noticePinState.message}</Content>
+                  {noticePinState.needsRefresh && !noticeError && <Button type="button" onClick={onNoticeRetry}>새로 고침</Button>}
+                </div>}
+                {pinBusy && <Content role="status">공지 고정을 변경하고 있습니다.</Content>}
+                {!noticeLoading && !noticeError && pinnedNotices.length > 0 && <section aria-label="고정 공지">
+                  <h3>고정 공지</h3>{renderNoticeTable(pinnedNotices, true)}
+                </section>}
                 {noticeLoading ? <Content role="status">공지를 불러오는 중입니다.</Content>
                   : noticeError ? <div role="alert"><Content>공지를 불러오지 못했습니다.</Content>
                     <Button type="button" onClick={onNoticeRetry}>새로 고침</Button></div>
-                  : group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
-                  : (
-                    <NoticeTable role="table" aria-label="공지 목록">
-                      <NoticeRow role="row">
-                        <span role="columnheader">제목</span>
-                        <span role="columnheader">작성자</span>
-                        <span role="columnheader">작성일</span>
-                      </NoticeRow>
-                      {group.notices.map((notice) => (
-                        <NoticeRow role="row" key={notice.noticeId}>
-                          <span role="cell">
-                            {/* AI작성: 상세 URL에도 복귀 조건을 담아 직접 새로고침해도 보던 목록으로 돌아간다. */}
-                            {canReadNotice ? (
-                              <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
-                                {notice.title}
-                              </NoticeLink>
-                            ) : notice.title}
-                          </span>
-                          <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
-                          <span role="cell">{formatNoticeDate(notice.createdAt)}</span>
-                        </NoticeRow>
-                      ))}
-                    </NoticeTable>
-                  )}
+                  : group.notices.length === 0 ? <Content>{pinnedNotices.length ? '등록된 일반 공지가 없습니다.' : '등록된 공지가 없습니다.'}</Content>
+                  : renderNoticeTable(group.notices, false)}
                 <NoticeControls as="nav" $pagination aria-label="공지 페이지 이동">
-                  <Button type="button" $variant="secondary" disabled={noticeLoading || noticeError || noticePages.previous === null}
+                  <Button type="button" $variant="secondary" disabled={noticeLoading || noticeError || pinBusy || noticePages.previous === null}
                     onClick={() => onNoticePageChange(noticePages.previous)}>이전</Button>
                   {noticePages.pages.map((page) => (
                     <Button key={page} type="button" aria-current={page === noticePagination.page ? 'page' : undefined}
-                      $variant={page === noticePagination.page ? 'primary' : 'secondary'} disabled={noticeLoading || noticeError}
+                      $variant={page === noticePagination.page ? 'primary' : 'secondary'} disabled={noticeLoading || noticeError || pinBusy}
                       onClick={() => onNoticePageChange(page)}>{page}</Button>
                   ))}
-                  <Button type="button" $variant="secondary" disabled={noticeLoading || noticeError || noticePages.next === null}
+                  <Button type="button" $variant="secondary" disabled={noticeLoading || noticeError || pinBusy || noticePages.next === null}
                     onClick={() => onNoticePageChange(noticePages.next)}>다음</Button>
                 </NoticeControls>
               </SavingGroupNoticeCreateForm>
