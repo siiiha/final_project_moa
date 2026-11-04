@@ -55,6 +55,16 @@ public class SmallGroupController {
         this.smallGroupService = smallGroupService;
     }
 
+    // AI작성: 삭제 대상·인증 회원만 전달하고 논리 삭제와 권한은 Service에서 처리한다.
+    @DeleteMapping("/{smallGroupId}/notices/{noticeId}")
+    public ApiResponse<Void> deleteNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.deleteSmallGroupNotice(smallGroupId, noticeId, memberId);
+        return ApiResponse.ok(null);
+    }
+
     // AI작성: 수정 입력은 작성과 동일하게 검증하고 작성자 권한은 서버에서 재확인한다.
     @org.springframework.web.bind.annotation.PutMapping("/{smallGroupId}/notices/{noticeId}")
     public ApiResponse<Long> updateNotice(
