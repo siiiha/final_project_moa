@@ -2,6 +2,8 @@ import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination, toSavingGroupNoticeSearch } from '../../api/savingGroups.js';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
+// AI작성: 기존 react-icons 패키지의 테두리·채움 핀으로 일반·고정 상태를 구분한다.
+import { BsPinAngle, BsPinAngleFill } from 'react-icons/bs';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
@@ -184,11 +186,21 @@ const NoticeControls = styled.div`
   margin-top: 16px;
   button { min-width: 44px; font-size: 16px; }
 `;
-// AI작성: 고정 배지·변경 버튼은 기존 테마를 재사용하되 읽고 누르기 쉬운 크기로 표시한다.
+// AI작성: 고정 배지와 행 오른쪽 아이콘은 기존 테마와 44px 클릭 영역을 사용한다.
 const PinnedNoticeBadge = styled(Badge)`font-size: 14px; min-height: 28px;`;
-const NoticePinAction = styled.div`
-  margin-top: 8px;
-  button { min-height: 44px; font-size: 16px; }
+const NoticePinButton = styled(Button)`
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  color: ${({ $pinned, theme }) => $pinned ? theme.colors.primary : theme.colors.muted};
+  background: transparent;
+  border-color: transparent;
+  &:hover:not(:disabled) { background: ${({ theme }) => theme.colors.primarySoft}; }
+`;
+const NoticePinCell = styled.span`
+  justify-self: end;
+  align-self: center;
 `;
 // AI작성: 승인 회원에게만 제공하는 공지 상세 링크는 키보드 초점과 긴 제목 줄바꿈을 지원한다.
 const NoticeLink = styled(Link)`
@@ -199,7 +211,10 @@ const NoticeLink = styled(Link)`
 `;
 const NoticeRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(64px, 0.4fr) minmax(110px, 0.6fr);
+  /* AI작성: 조작 권한이 있을 때만 오른쪽 끝에 아이콘 전용 칸을 추가한다. */
+  grid-template-columns: ${({ $withPin }) => $withPin
+    ? 'minmax(0, 1fr) minmax(64px, 0.4fr) minmax(110px, 0.6fr) 44px'
+    : 'minmax(0, 1fr) minmax(64px, 0.4fr) minmax(110px, 0.6fr)'};
   gap: 12px;
   padding: 12px;
   color: ${({ theme }) => theme.colors.text};
@@ -215,7 +230,7 @@ const NoticeRow = styled.div`
   }
   span { min-width: 0; overflow-wrap: anywhere; }
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    grid-template-columns: minmax(0, 1fr) 58px 90px;
+    grid-template-columns: ${({ $withPin }) => $withPin ? 'minmax(0, 1fr) 48px 72px 44px' : 'minmax(0, 1fr) 58px 90px'};
     gap: 6px;
     padding: 10px 8px;
   }
@@ -304,20 +319,29 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
   // AI작성: 고정·일반 공지는 같은 요약 열과 상세 복귀 링크를 재사용하며 변경 버튼만 상태별로 구분한다.
   const renderNoticeTable = (notices, pinned) => (
     <NoticeTable role="table" aria-label={pinned ? '고정 공지 목록' : '일반 공지 목록'}>
-      <NoticeRow role="row"><span role="columnheader">제목</span><span role="columnheader">작성자</span><span role="columnheader">작성일</span></NoticeRow>
+      <NoticeRow role="row" $withPin={canPinNotice}>
+        <span role="columnheader">제목</span><span role="columnheader">작성자</span><span role="columnheader">작성일</span>
+        {canPinNotice && <NoticePinCell role="columnheader">고정</NoticePinCell>}
+      </NoticeRow>
       {notices.map((notice) => (
-        <NoticeRow role="row" $pinned={pinned} key={notice.noticeId}>
+        <NoticeRow role="row" $pinned={pinned} $withPin={canPinNotice} key={notice.noticeId}>
           <span role="cell">
             {pinned && <PinnedNoticeBadge>고정</PinnedNoticeBadge>}{' '}
             {canReadNotice ? <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
               {notice.title}</NoticeLink> : notice.title}
-            {canPinNotice && <NoticePinAction><Button type="button" $variant="secondary"
-              disabled={pinBlocked || noticeLoading || noticeError}
-              aria-label={`${notice.title} ${pinned ? '고정 해제' : '고정 지정'}`}
-              onClick={() => onNoticePinChange(notice.noticeId, !pinned)}>{pinned ? '고정 해제' : '고정 지정'}</Button></NoticePinAction>}
           </span>
           <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
           <span role="cell">{formatNoticeDate(notice.createdAt)}</span>
+          {/* AI작성: 아이콘은 행의 마지막 칸에 두고 상태·동작 설명과 기존 비활성 조건을 유지한다. */}
+          {canPinNotice && <NoticePinCell role="cell">
+            <NoticePinButton type="button" $variant="secondary" $pinned={pinned}
+              disabled={pinBlocked || noticeLoading || noticeError} aria-pressed={pinned}
+              title={pinned ? '고정 해제' : '고정 지정'}
+              aria-label={`${notice.title} ${pinned ? '고정 해제' : '고정 지정'}`}
+              onClick={() => onNoticePinChange(notice.noticeId, !pinned)}>
+              {pinned ? <BsPinAngleFill size={22} aria-hidden="true" /> : <BsPinAngle size={22} aria-hidden="true" />}
+            </NoticePinButton>
+          </NoticePinCell>}
         </NoticeRow>
       ))}
     </NoticeTable>
