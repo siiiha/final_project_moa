@@ -78,6 +78,8 @@ function SmallGroupDetailPage() {
   // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
   const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
+  // AI작성: 상세 조회·작성 후 갱신 요청은 같은 순번으로 이전 응답을 폐기한다.
+  const detailRequest = useRef(0);
   const [retry, setRetry] = useState(0);
   const [menu, setMenu] = useState({
     id,
@@ -119,12 +121,13 @@ function SmallGroupDetailPage() {
     const controller = new AbortController();
     let active = true;
 
+    const requestVersion = ++detailRequest.current;
     getSmallGroupDetail(id, { signal: controller.signal, noticePage: noticeQuery.page, noticeSort: noticeQuery.sort })
       .then((group) => {
-        if (active) setResult({ id, retry, authVersion, search: location.search, group });
+        if (active && requestVersion === detailRequest.current) setResult({ id, retry, authVersion, search: location.search, group });
       })
       .catch((error) => {
-        if (active && !controller.signal.aborted) setResult({ id, retry, authVersion, search: location.search, error });
+        if (active && requestVersion === detailRequest.current && !controller.signal.aborted) setResult({ id, retry, authVersion, search: location.search, error });
       });
 
     return () => {
@@ -290,7 +293,7 @@ function SmallGroupDetailPage() {
             </EmptyCard>
           ) : (
             <SmallGroupDetail
-              key={id}
+              key={`${id}:${authVersion}`}
               group={group}
               groupId={current.group.groupId}
               smallGroupId={current.group.smallGroupId}
@@ -317,10 +320,15 @@ function SmallGroupDetailPage() {
               noticePageMeta={current.group.noticePageMeta}
               noticeSort={noticeQuery.sort}
               onNoticeQueryChange={(page, sort) => navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(page, sort, location.search) })}
-              onNoticeRefresh={async () => {
-                // AI작성: 저장 성공 후 재등록 없이 상세만 다시 읽고 실패는 작성 폼에서 재시도한다.
-                const data = await getSmallGroupDetail(id);
-                setResult({ id, retry, authVersion, search: location.search, group: data });
+              onNoticeRefresh={async ({ resetNoticeQuery = false } = {}) => {
+                // AI작성: 작성 성공은 최신순 첫 페이지로 이동하고 재조회 실패 시 등록을 반복하지 않는다.
+                const query = resetNoticeQuery ? { page: 1, sort: 'LATEST' } : noticeQuery;
+                const version = ++detailRequest.current;
+                const data = await getSmallGroupDetail(id, { noticePage: query.page, noticeSort: query.sort });
+                if (version !== detailRequest.current) return;
+                const search = '?' + toSmallGroupNoticeSearch(data.noticePageMeta?.page || query.page, query.sort, location.search);
+                if (search !== location.search) navigate({ pathname: location.pathname, search }, { replace: true });
+                else setResult({ id, retry, authVersion, search: location.search, group: data });
               }}
               onVoteDetail={(smallGroupVoteId) => navigate(`/small-groups/${id}/votes/${smallGroupVoteId}`)}
             />
