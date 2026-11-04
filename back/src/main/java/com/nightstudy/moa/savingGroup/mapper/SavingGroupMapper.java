@@ -51,6 +51,9 @@ public interface SavingGroupMapper {
     SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
+    // AI작성: 공통 groupId와 공지 ID가 모두 일치하는 상세만 조회하며 권한은 Service에서 검증한다.
+    SavingGroupNoticeDetailResponse selectSavingGroupNoticeDetail(
+            @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
     // AI작성: Service에서 모임 상태와 작성 권한을 검증한 공지를 저장하고 영향 행 수를 반환한다.
     int insertSavingGroupNotice(SavingGroupNoticeCreateRow notice);
     List<String> selectApprovedMemberRoles(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
