@@ -37,6 +37,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 계좌 원문 없이 회원 전용 정보를 반환하며 모임 소속 검증은 Service에서 수행한다.
+    @GetMapping("/{groupId}/account")
+    public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse> account(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(savingGroupService.getSavingGroupAccount(groupId, memberId));
+    }
     private final SavingGroupService savingGroupService;
 
     // AI작성: 목록 조회 서비스만 주입한다.

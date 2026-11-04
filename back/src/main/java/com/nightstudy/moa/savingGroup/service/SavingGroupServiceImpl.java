@@ -32,6 +32,27 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
+    // AI작성: 공개 상세 응답과 회원 전용 계좌 응답의 데이터 경계를 분리한다.
+    private final com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper accountMapper;
+    private final AccountNumberCipher accountCipher;
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId) {
+        if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        if (groupId == null || groupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
+        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        var relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
+                || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 계좌 정보를 확인할 수 있습니다.");
+        var account = accountMapper.selectAccount(groupId);
+        if (account == null) return new SavingGroupAccountResponse(false, null, null, BigDecimal.ZERO, true);
+        BigDecimal balance = savingGroupMapper.selectSavingGroupBalance(groupId);
+        return new SavingGroupAccountResponse(true, account.getBankCode(), accountCipher.masked(groupId, account.getAccountNumber()),
+                balance == null ? BigDecimal.ZERO : balance, true);
+    }
 
     // AI작성: 모임 → 승인 관계 → 공지 순서로 잠그고 현재 고정 목록으로 동시 지정의 두 개 제한을 검증한다.
     @Override
@@ -434,8 +455,11 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     }
 
     // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
-    public SavingGroupServiceImpl(SavingGroupMapper savingGroupMapper) {
+    public SavingGroupServiceImpl(SavingGroupMapper savingGroupMapper,
+            com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper accountMapper, AccountNumberCipher accountCipher) {
         this.savingGroupMapper = savingGroupMapper;
+        this.accountMapper = accountMapper;
+        this.accountCipher = accountCipher;
     }
 
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.

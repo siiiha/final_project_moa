@@ -126,7 +126,9 @@ public class SavingGroupJoinConcurrencyIntegrationTest {
             SqlSessionTemplate template = new SqlSessionTemplate(factory);
             if (isSavingGroup()) {
                 savingService = transactionalProxy(new SavingGroupServiceImpl(
-                        template.getMapper(SavingGroupMapper.class)), SavingGroupService.class);
+                        template.getMapper(SavingGroupMapper.class),
+                        org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper.class),
+                        new AccountNumberCipher(new com.nightstudy.moa.common.config.AccountEncryptionProperties())), SavingGroupService.class);
                 assertThat(AopUtils.isAopProxy(savingService)).isTrue();
             } else {
                 smallService = transactionalProxy(new SmallGroupServiceImpl(

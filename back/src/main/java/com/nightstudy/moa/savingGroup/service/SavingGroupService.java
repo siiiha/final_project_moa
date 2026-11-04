@@ -13,6 +13,8 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 승인 모임원에게만 계좌 마스킹 정보와 내부 장부 잔액을 제공한다.
+    com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId);
     // AI작성: 승인된 OWNER·MANAGER만 공지 고정을 변경하며 모임당 최대 두 개를 같은 트랜잭션에서 검증한다.
     void updateSavingGroupNoticePinned(Long groupId, Long noticeId, Long memberId, Boolean pinned);
     // AI작성: 공통 groupId에 속한 공지 상세를 해당 모임의 승인된 회원에게만 제공한다.
