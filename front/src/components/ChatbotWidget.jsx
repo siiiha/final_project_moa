@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import styled from 'styled-components';
+import { LuArrowUp, LuSprout } from 'react-icons/lu';
 import { sendChatbotMessage } from '../api/chatbot';
 import FloatingChatbotButton from './FloatingChatbotButton';
 
@@ -15,37 +16,60 @@ const Widget = styled.aside`
 
 const Panel = styled.section`
   box-sizing: border-box;
-  width: min(360px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
+  height: min(600px, calc(100dvh - 112px));
+  display: flex;
+  flex-direction: column;
   padding: 16px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: 16px;
+  border-radius: 24px;
   background: ${({ theme }) => theme.colors.white};
   box-shadow: 0 8px 28px rgb(0 0 0 / 12%);
 
   h2 {
+display: flex;
+align-items: center;
+gap: 8px;
+
+svg {
+  color: ${({ theme }) => theme.colors.primary};
+}
     margin: 0;
     font-size: 17px;
   }
 
   form {
-    display: flex;
-    gap: 8px;
-  }
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px;
+  border-radius: 18px;
+  background: ${({ theme }) => theme.colors.primarySoft};
+}
 
-  input {
-    flex: 1;
-    min-width: 0;
-    padding: 10px;
-    border: 1px solid ${({ theme }) => theme.colors.border};
-    border-radius: 8px;
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: -2px;
   }
+}
 `;
 
 const Messages = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: min(300px, 40vh);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   margin: 12px 0;
 
@@ -67,7 +91,12 @@ const Messages = styled.div`
 `;
 
 const Action = styled.button`
-  padding: 10px 14px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 0;
   border: 0;
   border-radius: 8px;
   background: ${({ theme }) => theme.colors.primary};
@@ -122,7 +151,10 @@ export default function ChatbotWidget() {
         <Widget aria-label="모아 챗봇">
             {isOpen && (
                 <Panel id="moa-chatbot-panel" aria-labelledby="moa-chatbot-title">
-                    <h2 id="moa-chatbot-title">모아 챗봇</h2>
+                    <h2 id="moa-chatbot-title">
+                        <LuSprout size={20} aria-hidden="true" />
+                        모아 챗봇
+                    </h2>
                     <Messages role="log" aria-label="대화 내용">
                         {messages.map(({ speaker, text }, index) => (
                             <p key={index} data-speaker={speaker}>
@@ -143,7 +175,9 @@ export default function ChatbotWidget() {
                             readOnly={isSending}
                         />
                         <Action type="submit" disabled={isSending || !question.trim()}>
-                            보내기
+                            <Action type="submit" aria-label="메시지 보내기" disabled={isSending || !question.trim()}>
+                                <LuArrowUp size={18} aria-hidden="true" />
+                            </Action>
                         </Action>
                     </form>
                 </Panel>
