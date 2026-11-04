@@ -311,6 +311,11 @@ function SmallGroupDetailPage() {
               onCreateVote={handleVoteCreate}
               isVoteCreating={isVoteCreating}
               onRetryVotes={() => setVoteRetry((value) => value + 1)}
+              onNoticeRefresh={async () => {
+                // AI작성: 저장 성공 후 재등록 없이 상세만 다시 읽고 실패는 작성 폼에서 재시도한다.
+                const data = await getSmallGroupDetail(id);
+                setResult({ id, retry, authVersion, group: data });
+              }}
               onVoteDetail={(smallGroupVoteId) => navigate(`/small-groups/${id}/votes/${smallGroupVoteId}`)}
             />
           )}

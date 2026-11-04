@@ -1,3 +1,4 @@
+import SmallGroupNoticeCreateForm from './SmallGroupNoticeCreateForm';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
@@ -458,6 +459,7 @@ function SmallGroupDetail({
   isVoteCreating,
   onRetryVotes,
   onVoteDetail,
+  onNoticeRefresh,
 }) {
   // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
   const joinReasonId = useId();
@@ -664,9 +666,8 @@ function SmallGroupDetail({
               </IntroBody>
             </Card>
             <Card>
-              <CardHeading>
-                <CardTitle>최근 공지</CardTitle>
-              </CardHeading>
+              <SmallGroupNoticeCreateForm group={{ ...group, smallGroupId, myRole }} onRefresh={onNoticeRefresh}
+                heading={<CardTitle>공지</CardTitle>}>
               <NoticeTable aria-label="최근 공지 목록">
                 <NoticeRow $header>
                   <span>제목</span><span>작성자</span><span>작성일</span>
@@ -681,6 +682,7 @@ function SmallGroupDetail({
                   </NoticeRow>
                 ))}
               </NoticeTable>
+              </SmallGroupNoticeCreateForm>
             </Card>
           </Column>
 
