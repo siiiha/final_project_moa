@@ -124,6 +124,11 @@ function SmallGroupDetailPage() {
     const requestVersion = ++detailRequest.current;
     getSmallGroupDetail(id, { signal: controller.signal, noticePage: noticeQuery.page, noticeSort: noticeQuery.sort })
       .then((group) => {
+        // AI작성: 마지막 공지 삭제 등으로 서버가 페이지를 보정하면 URL도 같은 페이지로 맞춘다.
+        if (active && requestVersion === detailRequest.current && group.noticePageMeta?.page && group.noticePageMeta.page !== noticeQuery.page) {
+          navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(group.noticePageMeta.page, noticeQuery.sort, location.search) }, { replace: true });
+          return;
+        }
         if (active && requestVersion === detailRequest.current) setResult({ id, retry, authVersion, search: location.search, group });
       })
       .catch((error) => {
@@ -134,7 +139,7 @@ function SmallGroupDetailPage() {
       active = false;
       controller.abort();
     };
-  }, [id, retry, authVersion, location.search, noticeQuery.page, noticeQuery.sort]);
+  }, [id, retry, authVersion, location.search, location.pathname, navigate, noticeQuery.page, noticeQuery.sort]);
 
   const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion && result?.search === location.search ? result : null;
   const isSettingsSelected = current?.group?.myRole === 'OWNER'

@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { getSmallGroupDetail, getSmallGroupNoticeDetail, readSmallGroupNoticeQuery, toSmallGroupNoticeSearch } from '../api/smallGroups.js';
 import SmallGroupNoticeEditForm from '../components/smallGroup/SmallGroupNoticeEditForm';
+import SmallGroupNoticeDeleteButton from '../components/smallGroup/SmallGroupNoticeDeleteButton';
 import Button from '../components/common/Button';
 import SmallGroupNoticeDetail from '../components/smallGroup/SmallGroupNoticeDetail';
 import useAuthStore from '../store/authStore';
@@ -98,7 +99,7 @@ export default function SmallGroupNoticeDetailPage() {
         ) : (
           <>
             {saved === scope && <Message role="status">공지가 수정되었습니다.</Message>}
-            {blocked === scope && <Message role="alert">현재 수정 권한 또는 공지 상태가 변경되었습니다. 새로고침 후 확인해 주세요.</Message>}
+            {blocked === scope && <Message role="alert">현재 수정·삭제 권한 또는 공지 상태가 변경되었습니다. 새로고침 후 확인해 주세요.</Message>}
             {canEdit && editing === scope ? (
               <SmallGroupNoticeEditForm key={scope} groupId={id} notice={current.notice}
                 onCancel={() => setEditing(null)} onBlocked={() => setBlocked(scope)}
@@ -110,10 +111,14 @@ export default function SmallGroupNoticeDetailPage() {
                 }} />
             ) : <SmallGroupNoticeDetail notice={current.notice} actions={canEdit && (
               <>
-              {/* AI작성: 기존 권한·동작을 유지한 수정 버튼을 상세 카드 내부에 전달한다. */}
+              {/* AI작성: 기존 권한·동작을 유지한 수정·삭제 버튼을 상세 카드 내부에 전달한다. */}
 
               <Button type="button" onClick={() => { setEditing(scope); setSaved(null); }}>공지 수정</Button>
               {/* AI작성: 삭제는 동일한 작성자 조건에서만 표시하고 성공 후 기존 목록 재조회 흐름으로 복귀한다. */}
+              <SmallGroupNoticeDeleteButton key={scope} groupId={id} noticeId={noticeId}
+                onBlocked={() => setBlocked(scope)}
+                onDeleted={() => navigate(`/small-groups/${encodeURIComponent(id)}?${toSmallGroupNoticeSearch(page, sort)}`,
+                  { replace: true, state: { deletedNoticeId: noticeId, deletedNoticeGroupId: id } })} />
               </>
             )} />}
           </>
