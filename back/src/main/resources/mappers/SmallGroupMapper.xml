@@ -803,4 +803,10 @@
         <otherwise>ORDER BY gn.created_at DESC, gn.notice_id DESC</otherwise></choose>
         LIMIT 4 OFFSET #{offset}
     </select>
+    <!-- AI작성: 모임과 공지 식별자를 함께 제한해 타 모임 공지는 조회되지 않는다. -->
+    <select id="selectSmallGroupNoticeDetail" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse">
+        SELECT gn.notice_id, gn.title, gn.content, gn.writer_id, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL
+    </select>
 </mapper>
