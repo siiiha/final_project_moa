@@ -237,7 +237,8 @@ public class SmallGroupController {
     @GetMapping("/{id}")
     public ApiResponse<SmallGroupDetailResponse> detail(
             @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
-            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSearchCondition condition) {
         // AI작성: 공개 상세의 역할 검증을 먼저 통과한 뒤 공지 목록과 공통 페이지 메타를 반환한다.
         SmallGroupDetailResponse detail = smallGroupService.getSmallGroupDetail(id, memberId);
         var notices = smallGroupService.getSmallGroupNotices(detail.getGroupId(), condition);

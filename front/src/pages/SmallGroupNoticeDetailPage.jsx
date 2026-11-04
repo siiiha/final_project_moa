@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { getSmallGroupNoticeDetail } from '../api/smallGroups.js';
+import { getSmallGroupNoticeDetail, readSmallGroupNoticeQuery, toSmallGroupNoticeSearch } from '../api/smallGroups.js';
 import Button from '../components/common/Button';
 import SmallGroupNoticeDetail from '../components/smallGroup/SmallGroupNoticeDetail';
 import useAuthStore from '../store/authStore';
@@ -32,6 +32,9 @@ const Actions = styled.div`
 export default function SmallGroupNoticeDetailPage() {
   const { id, noticeId } = useParams();
   const navigate = useNavigate();
+  // AI작성: 목록에서 전달한 페이지·정렬만 검증해 복귀 URL을 만든다.
+  const [searchParams] = useSearchParams();
+  const { page, sort } = readSmallGroupNoticeQuery(searchParams);
   const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
@@ -71,7 +74,7 @@ export default function SmallGroupNoticeDetailPage() {
         ) : <SmallGroupNoticeDetail notice={current.notice} />}
       <Actions>
         {/* AI작성: 직접 URL로 진입해도 같은 소모임의 기본 공지 탭으로 돌아간다. */}
-        <Button type="button" $variant="secondary" onClick={() => navigate(`/small-groups/${encodeURIComponent(id)}`)}>
+        <Button type="button" $variant="secondary" onClick={() => navigate(`/small-groups/${encodeURIComponent(id)}?${toSmallGroupNoticeSearch(page, sort)}`)}>
           소모임 공지로 돌아가기
         </Button>
       </Actions>
