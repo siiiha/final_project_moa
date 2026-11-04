@@ -58,6 +58,16 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 목록 조건·페이징·승인 계원 수 조합을 담당한다.
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
+    // AI작성: 수정과 동일한 잠금 순서·작성자 검증을 사용해 본인 공지의 삭제 시각만 변경한다.
+    @Override @Transactional
+    public void deleteSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId) {
+        var target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        requireSmallGroupNoticeAuthor(target.getGroupId(), noticeId, memberId);
+        if (smallGroupMapper.deleteSmallGroupNotice(target.getGroupId(), noticeId, memberId) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_DELETE_FAILED", "공지 삭제에 실패했습니다.");
+        }
+    }
+
     // AI작성: 공통 모임→회원 관계→공지 순으로 잠그고 동일 내용 재요청은 성공 처리한다.
     @Override @Transactional
     public Long updateSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId, String title, String content) {
