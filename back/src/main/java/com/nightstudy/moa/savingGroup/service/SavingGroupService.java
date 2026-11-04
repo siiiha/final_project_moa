@@ -13,7 +13,7 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
-    // AI작성: 공통 groupId 기준으로 승인 운영진의 제목·내용 전체 수정을 처리한다.
+    // AI작성: 공통 groupId 기준으로 승인 운영진인 작성자 본인의 제목·내용 전체 수정을 처리한다.
     Long updateSavingGroupNotice(Long groupId, Long noticeId, Long memberId, String title, String content);
     // AI작성: 승인된 OWNER·MANAGER만 공지 고정을 변경하며 모임당 최대 두 개를 같은 트랜잭션에서 검증한다.
     void updateSavingGroupNoticePinned(Long groupId, Long noticeId, Long memberId, Boolean pinned);

@@ -41,11 +41,15 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_EDIT_FORBIDDEN", "승인된 계주 또는 운영진만 공지를 수정할 수 있습니다.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_EDIT_FORBIDDEN", "승인된 공지 작성자만 공지를 수정할 수 있습니다.");
         }
         SavingGroupNoticeDetailResponse notice = savingGroupMapper.selectSavingGroupNoticeForUpdate(groupId, noticeId);
         if (notice == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        }
+        // AI작성: 사용자 확정 정책에 따라 OWNER·MANAGER도 타 작성자의 공지는 수정할 수 없다.
+        if (!Objects.equals(notice.getWriterId(), memberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_EDIT_FORBIDDEN", "공지 작성자만 수정할 수 있습니다.");
         }
         String nextTitle = title.trim();
         String nextContent = content.trim();

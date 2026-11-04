@@ -34,10 +34,10 @@ class SavingGroupNoticeUpdateServiceTest {
         verify(mapper, never()).updateSavingGroupNotice(any(), any(), any(), any());
     }
     @ParameterizedTest @CsvSource({"OWNER,01", "OWNER,02", "MANAGER,01", "MANAGER,02"})
-    void operatorCanEditOtherWriter(String role, String status) {
+    void approvedWriterCanEdit(String role, String status) {
         target(status); relation(role, "APPROVED");
         when(mapper.selectSavingGroupNoticeForUpdate(20L, 40L))
-                .thenReturn(new SavingGroupNoticeDetailResponse(40L, "이전 제목", "이전 내용", 99L, null, null));
+                .thenReturn(new SavingGroupNoticeDetailResponse(40L, "이전 제목", "이전 내용", 30L, null, null));
         when(mapper.updateSavingGroupNotice(20L, 40L, "새 제목", "새 내용")).thenReturn(1);
         assertThat(update()).isEqualTo(40L);
         var order = inOrder(mapper);
@@ -53,6 +53,14 @@ class SavingGroupNoticeUpdateServiceTest {
     @Test void rejectsNonmemberAndOtherGroupOperator() {
         target("01"); failure("SAVING_GROUP_NOTICE_EDIT_FORBIDDEN");
         verify(mapper).selectSavingGroupMembershipForUpdate(20L, 30L);
+    }
+    // AI작성: 운영진 권한만으로 타인의 공지를 변경하는 요청을 차단한다.
+    @ParameterizedTest @ValueSource(strings = {"OWNER", "MANAGER"})
+    void rejectsOtherWriterEvenForOperator(String role) {
+        target("01"); relation(role, "APPROVED");
+        when(mapper.selectSavingGroupNoticeForUpdate(20L, 40L))
+                .thenReturn(new SavingGroupNoticeDetailResponse(40L, "제목", "내용", 99L, null, null));
+        failure("SAVING_GROUP_NOTICE_EDIT_FORBIDDEN");
     }
     @Test void rejectsMissingOrDeletedGroup() { failure("NOT_FOUND"); }
     @ParameterizedTest @ValueSource(strings = {"00", "03", "04", "99"})
