@@ -576,14 +576,20 @@
         <constructor>
             <idArg column="notice_id" javaType="java.lang.Long"/>
             <arg column="title" javaType="java.lang.String"/>
+            <!-- AI작성: 공지 요약 DTO의 생성자 순서에 맞춰 작성자와 작성일을 매핑한다. -->
+            <arg column="writer_nickname" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
         </constructor>
     </resultMap>
 
     <!-- AI작성: 같은 작성 시각에는 ID를 보조 정렬하며 본문은 조회하지 않는다. -->
     <select id="selectRecentNotices" resultMap="noticeSummary">
-        SELECT notice_id, title FROM group_notice
-        WHERE group_id = #{groupId}
-        ORDER BY created_at DESC, notice_id DESC LIMIT 4
+        <!-- AI작성: 작성자 닉네임을 함께 조회하고 회원 행이 없어도 기존 공지 목록은 유지한다. -->
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn
+        LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId}
+        ORDER BY gn.created_at DESC, gn.notice_id DESC LIMIT 4
     </select>
 
     <!-- AI작성: savingGroupId가 아닌 내부 groupId를 저장하며 작성일은 테이블 기본값을 사용한다. -->

@@ -166,24 +166,42 @@ const Content = styled.p`
   line-height: 1.75;
 `;
 
-const Notice = styled.div`
-  margin-top: 14px;
-  padding: 14px;
-  background: ${({ theme }) => theme.colors.background};
+// AI작성: 소모임과 동일한 제목·작성자·작성일 열을 표시하되 긴 내용과 좁은 화면에서도 읽을 수 있게 한다.
+const NoticeTable = styled.div`
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
-
-  strong {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 13px;
+`;
+const NoticeRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(64px, 0.4fr) minmax(110px, 0.6fr);
+  gap: 12px;
+  padding: 12px;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 14px;
+  line-height: 1.6;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  &:last-child { border-bottom: 0; }
+  &[role='row']:first-child {
+    background: ${({ theme }) => theme.colors.background};
+    font-weight: 700;
   }
-
-  p {
-    margin-top: 6px;
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-    line-height: 1.65;
+  span { min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr) 58px 90px;
+    gap: 6px;
+    padding: 10px 8px;
   }
 `;
+
+// AI작성: 소모임과 같은 한국어 연월일 형식으로 표시하며 누락·잘못된 날짜는 안내 문구로 대체한다.
+function formatNoticeDate(value) {
+  if (!value) return '날짜 확인 필요';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
+  return new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
+}
 
 const Schedule = styled.div`
   margin-top: 14px;
@@ -312,9 +330,22 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
               <SavingGroupNoticeCreateForm group={group} onRefresh={onNoticeRefresh}
                 heading={<CardTitle><FiBell size={18} aria-hidden="true" /> 최근 공지</CardTitle>}>
                 {group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
-                  : group.notices.map((notice) => (
-                    <Notice key={notice.noticeId}><strong>{notice.title}</strong></Notice>
-                  ))}
+                  : (
+                    <NoticeTable role="table" aria-label="최근 공지 목록">
+                      <NoticeRow role="row">
+                        <span role="columnheader">제목</span>
+                        <span role="columnheader">작성자</span>
+                        <span role="columnheader">작성일</span>
+                      </NoticeRow>
+                      {group.notices.map((notice) => (
+                        <NoticeRow role="row" key={notice.noticeId}>
+                          <span role="cell">{notice.title}</span>
+                          <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
+                          <span role="cell">{formatNoticeDate(notice.createdAt)}</span>
+                        </NoticeRow>
+                      ))}
+                    </NoticeTable>
+                  )}
               </SavingGroupNoticeCreateForm>
             </Card>
           </MainColumn>
