@@ -8,4 +8,6 @@ import lombok.Getter;
 public class SmallGroupNoticeListResponse {
     private final List<SmallGroupNoticeSummaryResponse> items;
     private final PageMeta pageMeta;
+    // AI작성: 고정 공지는 일반 목록·페이지 건수와 별도다.
+    private final List<SmallGroupNoticeSummaryResponse> pinnedItems;
 }

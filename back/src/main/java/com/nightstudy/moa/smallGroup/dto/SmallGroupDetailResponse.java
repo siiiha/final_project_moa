@@ -10,6 +10,8 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class SmallGroupDetailResponse {
+    // AI작성: 기존 생성자 계약을 유지하면서 고정 공지 요약을 별도 제공한다.
+    private final List<SmallGroupNoticeSummaryResponse> pinnedNotices = new java.util.ArrayList<>();
     private final Long smallGroupId;
     private final Long groupId;
     private final String groupName;

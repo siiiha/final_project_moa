@@ -58,6 +58,24 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 목록 조건·페이징·승인 계원 수 조합을 담당한다.
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
+    // AI작성: 동일 모임의 고정 변경을 모임 잠금으로 직렬화해 동시 요청에서도 최대 두 개를 지킨다.
+    @Override @Transactional
+    public void updateSmallGroupNoticePinned(Long smallGroupId, Long noticeId, Long memberId, Boolean pinned) {
+        var target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        if (noticeId == null || noticeId <= 0 || pinned == null) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 번호와 고정 여부를 확인해 주세요.");
+        var notice = smallGroupMapper.selectSmallGroupNoticePinForUpdate(target.getGroupId(), noticeId);
+        if (notice == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        if (notice.getPinned() == null) throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "공지 상태를 확인하지 못했습니다.");
+        // AI작성: 같은 상태의 요청은 성공으로 처리하고 고정 해제에는 개수 제한을 적용하지 않는다.
+        if (pinned.equals(notice.getPinned())) return;
+        if (pinned && smallGroupMapper.selectSmallGroupPinnedNoticeIdsForUpdate(target.getGroupId()).size() >= 2) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_NOTICE_PIN_LIMIT_EXCEEDED", "고정 공지는 최대 2개까지 지정할 수 있습니다.");
+        }
+        if (smallGroupMapper.updateSmallGroupNoticePinned(target.getGroupId(), noticeId, pinned) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_PIN_FAILED", "공지 고정 변경에 실패했습니다.");
+        }
+    }
+
     // AI작성: 수정과 동일한 잠금 순서·작성자 검증을 사용해 본인 공지의 삭제 시각만 변경한다.
     @Override @Transactional
     public void deleteSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId) {
@@ -116,7 +134,8 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         int page = Math.min(condition.getNoticePage(), Math.max(1, (int)Math.ceil(total / 4.0)));
         PageMeta meta = PageMeta.of(page, 4, total);
         return new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse(
-                smallGroupMapper.selectSmallGroupNoticePage(groupId, meta.getOffset(), condition.getNoticeSort()), meta);
+                smallGroupMapper.selectSmallGroupNoticePage(groupId, meta.getOffset(), condition.getNoticeSort()), meta,
+                smallGroupMapper.selectSmallGroupPinnedNotices(groupId));
     }
 
     // AI작성: 공통 모임→회원 관계 순으로 잠가 권한 검증과 저장을 한 트랜잭션에서 처리한다.

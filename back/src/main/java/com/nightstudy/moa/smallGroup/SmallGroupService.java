@@ -18,6 +18,9 @@ import java.util.List;
 
 // AI작성: 소모임 공개 목록의 검색·필터 조회 계약이다.
 public interface SmallGroupService {
+    // AI작성: 해당 소모임장만 최대 두 공지의 고정 상태를 변경한다.
+    void updateSmallGroupNoticePinned(Long smallGroupId, Long noticeId, Long memberId, Boolean pinned);
+
     // AI작성: 소모임장이며 작성자 본인인 공지만 논리 삭제한다.
     void deleteSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId);
 
