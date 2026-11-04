@@ -25,6 +25,14 @@ const Actions = styled.div`
   margin-top: 12px; display: flex; flex-wrap: wrap; gap: 10px;
   button { min-height: 48px; font-size: 16px; }
 `;
+// AI작성: 카드 제목과 작성 버튼을 같은 줄에 배치하고 버튼을 우측 상단에 정렬한다.
+const Header = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  button { flex-shrink: 0; margin-left: auto; }
+`;
 const Message = styled.p`
   margin-top: 12px; font-size: 16px; line-height: 1.6;
   color: ${({ $error, theme }) => $error ? theme.colors.danger : theme.colors.primary};
@@ -38,7 +46,7 @@ function canWriteNotice(group) {
 }
 
 // AI작성: 등록 실패 시 입력을 유지하고 성공 후 조회 실패는 재등록 없이 조회만 재시도한다.
-function SavingGroupNoticeCreateForm({ group, onRefresh }) {
+function SavingGroupNoticeCreateForm({ group, onRefresh, heading, children }) {
   const fieldId = useId();
   const scopeRef = useRef(null);
   const lockRef = useRef(false);
@@ -108,10 +116,15 @@ function SavingGroupNoticeCreateForm({ group, onRefresh }) {
 
   return (
     <>
-      {allowed && !open && (
-        <Actions><Button ref={openButtonRef} type="button" disabled={busy || phase === 'refreshError'}
-          onClick={() => { setOpen(true); setError(''); setPhase('idle'); }}>공지 작성</Button></Actions>
-      )}
+      <Header>
+        {heading}
+        {allowed && !open && (
+          <Button ref={openButtonRef} type="button" disabled={busy || phase === 'refreshError'}
+            onClick={() => { setOpen(true); setError(''); setPhase('idle'); }}>공지 작성</Button>
+        )}
+      </Header>
+      {/* AI작성: 작성 중에는 목록을 숨기며 취소·등록 성공 또는 권한 상실 시 목록을 다시 표시한다. */}
+      {(!open || !allowed) && children}
       {allowed && open && (
         <Form onSubmit={submit} aria-label="계모임 공지 작성" aria-busy={busy}>
           <label htmlFor={`${fieldId}-title`}>제목 (필수)

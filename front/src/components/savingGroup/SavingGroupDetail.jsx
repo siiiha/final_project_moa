@@ -308,13 +308,14 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
               <Content>{group.description?.trim() || '소개글이 없습니다.'}</Content>
             </Card>
             <Card>
-              <CardTitle><FiBell size={18} aria-hidden="true" /> 최근 공지</CardTitle>
               {/* AI작성: 공지 작성은 실제 계모임 API만 사용하며 역할·회원 상태·모임 상태에 따라 표시한다. */}
-              <SavingGroupNoticeCreateForm group={group} onRefresh={onNoticeRefresh} />
-              {group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
-                : group.notices.map((notice) => (
-                  <Notice key={notice.noticeId}><strong>{notice.title}</strong></Notice>
-                ))}
+              <SavingGroupNoticeCreateForm group={group} onRefresh={onNoticeRefresh}
+                heading={<CardTitle><FiBell size={18} aria-hidden="true" /> 최근 공지</CardTitle>}>
+                {group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
+                  : group.notices.map((notice) => (
+                    <Notice key={notice.noticeId}><strong>{notice.title}</strong></Notice>
+                  ))}
+              </SavingGroupNoticeCreateForm>
             </Card>
           </MainColumn>
 
