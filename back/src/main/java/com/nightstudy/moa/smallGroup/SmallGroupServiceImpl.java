@@ -58,6 +58,28 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 목록 조건·페이징·승인 계원 수 조합을 담당한다.
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
+    // AI작성: 공통 모임→회원 관계→공지 순으로 잠그고 동일 내용 재요청은 성공 처리한다.
+    @Override @Transactional
+    public Long updateSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId, String title, String content) {
+        var target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        validateSmallGroupNoticeText(title, content);
+        var notice = requireSmallGroupNoticeAuthor(target.getGroupId(), noticeId, memberId);
+        if (Objects.equals(notice.getTitle(), title.trim()) && Objects.equals(notice.getContent(), content.trim())) return noticeId;
+        if (smallGroupMapper.updateSmallGroupNotice(target.getGroupId(), noticeId, memberId, title.trim(), content.trim()) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_EDIT_FAILED", "공지 수정에 실패했습니다.");
+        }
+        return noticeId;
+    }
+
+    // AI작성: 현재 소모임장이라도 다른 작성자의 공지를 수정·삭제할 수 없다.
+    private com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse requireSmallGroupNoticeAuthor(Long groupId, Long noticeId, Long memberId) {
+        if (noticeId == null || noticeId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 번호가 올바르지 않습니다.");
+        var notice = smallGroupMapper.selectSmallGroupNoticeForUpdate(groupId, noticeId);
+        if (notice == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        if (!Objects.equals(notice.getWriterId(), memberId)) throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_NOTICE_AUTHOR_FORBIDDEN", "공지 작성자만 수정·삭제할 수 있습니다.");
+        return notice;
+    }
+
     // AI작성: 공개 상세와 같은 모임·관계 검증을 먼저 수행하고 승인 회원에게만 본문을 제공한다.
     @Override @Transactional(readOnly = true)
     public com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse getSmallGroupNoticeDetail(Long smallGroupId, Long noticeId, Long memberId) {
