@@ -55,6 +55,15 @@ public class SmallGroupController {
         this.smallGroupService = smallGroupService;
     }
 
+    // AI작성: 상세 본문은 인증 회원과 두 식별자를 Service에 전달해 권한을 검증한다.
+    @GetMapping("/{smallGroupId}/notices/{noticeId}")
+    public ApiResponse<com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse> noticeDetail(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(smallGroupService.getSmallGroupNoticeDetail(smallGroupId, noticeId, memberId));
+    }
+
     // AI작성: 요청 작성자 필드를 받지 않고 인증 회원만 서비스에 전달한다.
     @PostMapping("/{smallGroupId}/notices")
     public ApiResponse<Void> createNotice(
