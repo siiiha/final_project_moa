@@ -230,6 +230,19 @@ export async function findMemberAccount(email, emailVerificationToken) {
     return response.data.data;
 }
 
+export async function startAccountRecovery() {
+    const response = await client.post('/auth/account-recovery/start');
+    return response.data.data;
+}
+
+export async function completeAccountRecovery(identityVerificationId, requestToken) {
+    const response = await client.post('/auth/account-recovery/complete', {
+        identityVerificationId,
+        requestToken,
+    });
+    return response.data.data;
+}
+
 // AI작성: 이메일 인증 완료 토큰과 새 비밀번호로 재설정을 요청한다.
 export async function resetMemberPassword(
     email,

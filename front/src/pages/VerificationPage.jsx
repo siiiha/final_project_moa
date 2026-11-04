@@ -335,8 +335,15 @@ function VerificationPage() {
         title: '본인 인증',
         status: profile.identityVerified ? '인증 완료' : '미인증',
         description: '본인 명의의 인증 수단으로 본인 여부를 확인합니다.',
-        actionLabel: isIdentityVerifying ? '인증 진행 중…' : profile.identityVerified ? '인증 완료' : '본인인증 시작',
-        disabled: isIdentityVerifying || isVerifying || Boolean(profile.identityVerified),
+        // 이미 인증한 회원도 아이디 찾기 연결이 필요하면 다시 인증할 수 있습니다.
+        actionLabel: isIdentityVerifying
+          ? '인증 진행 중…'
+          : profile.identityAccountLinked
+            ? '인증 완료'
+            : profile.identityVerified
+              ? '아이디 찾기 연결'
+              : '본인인증 시작',
+        disabled: isIdentityVerifying || isVerifying || profile.identityAccountLinked,
       },
       {
         id: 'region',
@@ -361,7 +368,7 @@ function VerificationPage() {
   // AI작성: 서버 발급 번호로 인증창을 열고 서버 검증 후 화면을 갱신합니다.
   const handleIdentityVerification = async (id) => {
     if (id !== 'identity' || isIdentityVerifying || !profile) return;
-    if (profile.identityVerified) return;
+    if (profile.identityVerified && profile.identityAccountLinked) return;
 
     if (!token) {
       navigate('/member/login', { replace: true });
@@ -424,7 +431,14 @@ function VerificationPage() {
       }
 
       setProfile(updatedProfile);
-      setIdentityMessage('본인인증이 완료되었습니다.');
+      // 기존 인증을 다시 진행한 경우에는 아이디 찾기 연결 결과를 안내
+      setIdentityMessage(
+        updatedProfile.identityAccountLinked
+          ? '아이디 찾기 연결이 완료됐어요.'
+          : profile.identityVerified
+            ? '아이디 찾기를 연결하지 못했어요. 다른 인증 수단으로 다시 시도해 주세요.'
+            : '본인인증이 완료되었습니다.',
+      );
     } catch (error) {
       if (!isCurrentLogin()) return;
 
