@@ -5,10 +5,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.nightstudy.moa.smallGroup.controller.SmallGroupController;
 import com.nightstudy.moa.common.exception.GlobalExceptionHandler;
 import com.nightstudy.moa.common.exception.ApiException;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.*;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 // AI작성: 수정·삭제·고정 경로의 입력 검증과 인증 회원 전달·서비스 오류를 확인한다.
