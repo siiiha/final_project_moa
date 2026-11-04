@@ -953,3 +953,17 @@ export async function getSmallGroupNoticeDetail(groupId, noticeId, { signal } = 
     throw failure;
   }
 }
+
+// AI작성: 공지 수정은 제목·본문만 전송하고 인증·작성자 판단은 서버에 맡긴다.
+export async function updateSmallGroupNotice(groupId, noticeId, { title, content }, { signal } = {}) {
+  try {
+    const response = await client.put('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId), { title, content }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 수정하지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_EDIT_FAILED';
+    throw failure;
+  }
+}
