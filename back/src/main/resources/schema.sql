@@ -48,8 +48,28 @@ CREATE TABLE IF NOT EXISTS `group_account` (
 	`account_number`	VARCHAR(255)	NOT NULL,
 	`account_holder_name`	VARCHAR(100)	NOT NULL,
 	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`account_id`)
+    PRIMARY KEY (`account_id`),
+    UNIQUE KEY `uq_group_account_group` (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE IF NOT EXISTS `saving_group_account_issue` (
+    `issue_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `approval_id` BIGINT NOT NULL,
+    `group_id` BIGINT NOT NULL,
+    `order_id` VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `status` ENUM('REQUESTED', 'COMPLETED', 'FAILED', 'UNKNOWN') NOT NULL,
+    `account_id` BIGINT NULL DEFAULT NULL,
+    `error_code` VARCHAR(100) NULL DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`issue_id`),
+    UNIQUE KEY `uq_account_issue_approval` (`approval_id`),
+    UNIQUE KEY `uq_account_issue_group` (`group_id`),
+    UNIQUE KEY `uq_account_issue_order` (`order_id`),
+    UNIQUE KEY `uq_account_issue_account` (`account_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `term_agreement` (
 	`agreement_id`	BIGINT	NOT NULL AUTO_INCREMENT,
