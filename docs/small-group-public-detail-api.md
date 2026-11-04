@@ -1128,3 +1128,10 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 로그인한 APPROVED OWNER·MEMBER만 본문을 조회한다. 소모임 기존 MANAGER 제한은 유지한다.
 - 소모임 ID를 공통 모임 ID로 변환한 뒤 noticeId와 함께 조회한다. 없는 공지·다른 모임 공지·삭제된 공지는 404다.
 - 제목·본문·작성자 닉네임·작성일을 표시하며 목록 복귀 시 페이지·정렬을 유지한다. 본문은 HTML로 해석하지 않는다.
+
+
+## AI작성: 소모임 공지 수정 (2026-11-04)
+- PUT /api/small-groups/{smallGroupId}/notices/{noticeId}, body: title·content. 성공 data는 noticeId다.
+- 현재 개설자·APPROVED OWNER이면서 공지 작성자 본인만 수정 가능하다. 제목·본문 제한은 작성과 같다.
+- 모임→회원 관계→공지 잠금 순서로 검증하고 SQL에서도 writer_id를 제한한다. 같은 내용은 성공 처리하며 고정·작성자·작성일을 유지한다.
+- 브라우저: 수정 폼의 공지 수정 제목, 우측 저장·취소 버튼, 수정 중 목록 복귀 숨김, 권한 변경 오류 시 차단 확인.
