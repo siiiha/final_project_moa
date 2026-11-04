@@ -1121,3 +1121,10 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 목록 요약은 기존 공개 상세와 같은 접근 정책이다. 공지 본문은 제외한다.
 - noticePage는 1 이상의 정수, noticeSort는 LATEST 또는 OLDEST. 페이지당 4건, 초과 페이지는 마지막 유효 페이지로 보정한다. 응답 meta는 PageMeta다.
 - 메인 공지에서 정렬·3페이지 번호 묶음을 제공한다. 별도 전체 보기 버튼·화면은 없다. 작성 성공 시 최신순 1페이지, URL로 목록 상태를 보존한다.
+
+
+## AI작성: 소모임 공지 상세 (2026-11-04)
+- GET /api/small-groups/{smallGroupId}/notices/{noticeId}
+- 로그인한 APPROVED OWNER·MEMBER만 본문을 조회한다. 소모임 기존 MANAGER 제한은 유지한다.
+- 소모임 ID를 공통 모임 ID로 변환한 뒤 noticeId와 함께 조회한다. 없는 공지·다른 모임 공지·삭제된 공지는 404다.
+- 제목·본문·작성자 닉네임·작성일을 표시하며 목록 복귀 시 페이지·정렬을 유지한다. 본문은 HTML로 해석하지 않는다.
