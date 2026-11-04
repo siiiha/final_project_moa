@@ -383,6 +383,20 @@ export async function getSavingGroupDetail(id, { signal, noticePage = 1, noticeS
 }
 
 // AI작성: 최대 다섯 개의 번호만 생성하고 빈 결과·범위 초과는 번호를 만들지 않는다.
+// AI작성: 공지 전용 세 페이지 묶음이며 이전은 앞 묶음 끝, 다음은 뒤 묶음 시작으로 이동한다.
+export function getSavingGroupNoticePagination(page, totalPages) {
+  const total = Math.max(1, totalPages);
+  const current = Math.min(Math.max(1, page), total);
+  const start = Math.floor((current - 1) / 3) * 3 + 1;
+  const end = Math.min(start + 2, total);
+  return {
+    pages: Array.from({ length: end - start + 1 }, (_, index) => start + index),
+    previous: start > 1 ? start - 1 : null,
+    next: end < total ? end + 1 : null,
+  };
+}
+
+// AI작성: 계모임 전체 목록의 기존 다섯 페이지 묶음은 공지와 별개로 유지한다.
 export function getSavingGroupPages(currentPage, totalPages) {
   if (totalPages < 1 || currentPage < 1 || currentPage > totalPages) return [];
   const start = Math.floor((currentPage - 1) / 5) * 5 + 1;

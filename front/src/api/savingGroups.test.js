@@ -4,7 +4,7 @@ import client from './client.js';
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
   approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,
-  createSavingGroupNotice, getSavingGroupNoticeDetail } from './savingGroups.js';
+  createSavingGroupNotice, getSavingGroupNoticeDetail, getSavingGroupNoticePagination } from './savingGroups.js';
 
 // AI작성: 공통 groupId·공지 ID의 큰 정수 문자열과 취소 신호, 서버 응답 6개 항목을 보존한다.
 test('공지 상세는 groupId와 noticeId로 요청하고 상세 데이터를 반환한다', async () => {
@@ -533,4 +533,14 @@ test('공지 페이지와 정렬을 전달하고 PageMeta를 반환한다', asyn
     };
     assert.equal((await getSavingGroupDetail('42')).noticePageMeta.page, 1);
   } finally { client.get = original; }
+});
+
+// AI작성: 사용자 지정 3개 묶음 이동과 빈 목록의 1페이지 표시를 검증한다.
+test('공지 페이지는 세 개 묶음의 앞 끝과 뒤 시작으로 이동한다', () => {
+  assert.deepEqual(getSavingGroupNoticePagination(1, 7), { pages: [1, 2, 3], previous: null, next: 4 });
+  assert.deepEqual(getSavingGroupNoticePagination(3, 7), { pages: [1, 2, 3], previous: null, next: 4 });
+  assert.deepEqual(getSavingGroupNoticePagination(4, 7), { pages: [4, 5, 6], previous: 3, next: 7 });
+  assert.deepEqual(getSavingGroupNoticePagination(7, 7), { pages: [7], previous: 6, next: null });
+  assert.deepEqual(getSavingGroupNoticePagination(1, 0), { pages: [1], previous: null, next: null });
+  assert.deepEqual(getSavingGroupNoticePagination(1, 1), { pages: [1], previous: null, next: null });
 });

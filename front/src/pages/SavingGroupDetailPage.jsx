@@ -45,6 +45,10 @@ function SavingGroupDetailPage() {
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
   const [menu, setMenu] = useState({ id, value: 'notice' });
+  // AI작성: 공지 조회 조건은 다른 계모임으로 이동할 때 기본값으로 구분한다.
+  const [noticeQuery, setNoticeQuery] = useState({ id, page: 1, sort: 'LATEST' });
+  const noticePage = noticeQuery.id === id ? noticeQuery.page : 1;
+  const noticeSort = noticeQuery.id === id ? noticeQuery.sort : 'LATEST';
 
   // AI작성: 동일 렌더의 연속 클릭은 ref로 차단하고 안내는 모임·계정별로 구분한다.
   const joinLock = useRef(null);
@@ -70,15 +74,20 @@ function SavingGroupDetailPage() {
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
-    getSavingGroupDetail(id, { signal: controller.signal })
+    getSavingGroupDetail(id, { signal: controller.signal, noticePage, noticeSort })
       .then((group) => {
-        if (active) setResult({ id, retry, authVersion, group });
+        if (active) setResult({ id, retry, authVersion, noticePage, noticeSort, group });
       })
       .catch((error) => {
-        if (active && !controller.signal.aborted) setResult({ id, retry, authVersion, error });
+        // AI작성: 통신·서버 오류 시 같은 계모임 정보는 유지하고 공지 영역에서 재조회한다.
+        if (active && !controller.signal.aborted) setResult((previous) => ({
+          id, retry, authVersion, noticePage, noticeSort, error,
+          group: (!error.response?.status || error.response.status >= 500)
+            && previous?.id === id && previous?.authVersion === authVersion ? previous.group : null,
+        }));
       });
     return () => { active = false; controller.abort(); };
-  }, [id, retry, authVersion]);
+  }, [id, retry, authVersion, noticePage, noticeSort]);
 
   const handleJoinRequest = async () => {
     const scope = joinScope.current;
@@ -107,12 +116,14 @@ function SavingGroupDetailPage() {
     }
   };
 
-  const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion ? result : null;
+  const scoped = result?.id === id && result?.authVersion === authVersion ? result : null;
+  const current = scoped?.retry === retry && scoped.noticePage === noticePage && scoped.noticeSort === noticeSort ? scoped : null;
+  const visibleGroup = scoped?.group;
   // AI작성: 등록 후 조회만 갱신해 실패 시 폼 상태를 보존하고 모임·계정 변경 뒤 이전 응답은 반영하지 않는다.
   const handleNoticeRefresh = async () => {
     const scope = joinScope.current;
-    const group = await getSavingGroupDetail(id);
-    if (scope?.active && joinScope.current === scope) setResult({ id, retry, authVersion, group });
+    const group = await getSavingGroupDetail(id, { noticePage, noticeSort });
+    if (scope?.active && joinScope.current === scope) setResult({ id, retry, authVersion, noticePage, noticeSort, group });
   };
   const errorStatus = current?.error?.response?.status;
   const errorMessage = errorStatus === 404 ? '조회할 수 있는 계모임이 없습니다.'
@@ -125,8 +136,8 @@ function SavingGroupDetailPage() {
     <Page>
       <Breadcrumb>계모임 &gt; 계모임 목록 &gt; 계모임 메인</Breadcrumb>
       <Content>
-        {!current ? <EmptyCard role="status">계모임 정보를 불러오는 중입니다.</EmptyCard>
-          : current.error ? (
+        {!visibleGroup && !current ? <EmptyCard role="status">계모임 정보를 불러오는 중입니다.</EmptyCard>
+          : !visibleGroup && current?.error ? (
             <EmptyCard role="alert">
               <p>{errorMessage}</p>
               {(!errorStatus || errorStatus >= 500) && (
@@ -135,12 +146,17 @@ function SavingGroupDetailPage() {
               <Button type="button" $variant="secondary" onClick={() => navigate('/saving-groups')}>계모임 목록으로</Button>
             </EmptyCard>
           ) : (
-            <SavingGroupDetail key={`${id}-${authVersion}`} group={current.group}
+            <SavingGroupDetail key={`${id}-${authVersion}`} group={visibleGroup}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               onMenuChange={(value) => setMenu({ id, value })}
               onJoinRequest={handleJoinRequest}
               isJoinSubmitting={isJoinSubmitting}
               onNoticeRefresh={handleNoticeRefresh}
+              noticePagination={{ page: noticePage, sort: noticeSort, totalPages: visibleGroup.noticePageMeta?.totalPages ?? 0 }}
+              noticeLoading={!current} noticeError={Boolean(current?.error)}
+              onNoticePageChange={(page) => setNoticeQuery({ id, page, sort: noticeSort })}
+              onNoticeSortChange={(sort) => setNoticeQuery({ id, page: 1, sort })}
+              onNoticeRetry={() => setRetry((value) => value + 1)}
               onBack={() => navigate('/saving-groups')} />
           )}
       </Content>

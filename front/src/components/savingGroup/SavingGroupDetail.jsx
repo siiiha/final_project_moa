@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
-import { formatSavingGroupAmount, getSavingGroupMenus } from '../../api/savingGroups.js';
+import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
@@ -174,6 +174,16 @@ const NoticeTable = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.sm};
 `;
+// AI작성: 정렬은 우측 정렬하며 페이지·정렬 버튼은 충분한 크기와 현재 선택 상태를 제공한다.
+const NoticeControls = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: ${({ $pagination }) => ($pagination ? 'center' : 'flex-end')};
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  button { min-width: 44px; font-size: 16px; }
+`;
 // AI작성: 승인 회원에게만 제공하는 공지 상세 링크는 키보드 초점과 긴 제목 줄바꿈을 지원한다.
 const NoticeLink = styled(Link)`
   color: ${({ theme }) => theme.colors.primary};
@@ -267,7 +277,10 @@ const ActionButton = styled(Button)`
 `;
 
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
-function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh }) {
+function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh,
+  noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry }) {
+  // AI작성: 일반 공지 네 개의 페이지 번호만 계산하며 기존 계모임 전체 목록 계산과 분리한다.
+  const noticePages = getSavingGroupNoticePagination(noticePagination.page, noticePagination.totalPages);
   // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
   const joinReasonId = useId();
   // AI작성: 작성 권한과 달리 승인된 일반 계원도 상세 조회 링크를 사용할 수 있다.
@@ -339,10 +352,20 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
             <Card>
               {/* AI작성: 공지 작성은 실제 계모임 API만 사용하며 역할·회원 상태·모임 상태에 따라 표시한다. */}
               <SavingGroupNoticeCreateForm group={group} onRefresh={onNoticeRefresh}
-                heading={<CardTitle><FiBell size={18} aria-hidden="true" /> 최근 공지</CardTitle>}>
-                {group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
+                heading={<CardTitle><FiBell size={18} aria-hidden="true" /> 공지</CardTitle>}>
+                <NoticeControls role="group" aria-label="공지 정렬">
+                  {[['LATEST', '최신순'], ['OLDEST', '과거순']].map(([sort, label]) => (
+                    <Button key={sort} type="button" aria-pressed={noticePagination.sort === sort}
+                      $variant={noticePagination.sort === sort ? 'primary' : 'secondary'}
+                      onClick={() => onNoticeSortChange(sort)}>{label}</Button>
+                  ))}
+                </NoticeControls>
+                {noticeLoading ? <Content role="status">공지를 불러오는 중입니다.</Content>
+                  : noticeError ? <div role="alert"><Content>공지를 불러오지 못했습니다.</Content>
+                    <Button type="button" onClick={onNoticeRetry}>새로 고침</Button></div>
+                  : group.notices.length === 0 ? <Content>등록된 공지가 없습니다.</Content>
                   : (
-                    <NoticeTable role="table" aria-label="최근 공지 목록">
+                    <NoticeTable role="table" aria-label="공지 목록">
                       <NoticeRow role="row">
                         <span role="columnheader">제목</span>
                         <span role="columnheader">작성자</span>
@@ -363,6 +386,17 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
                       ))}
                     </NoticeTable>
                   )}
+                <NoticeControls as="nav" $pagination aria-label="공지 페이지 이동">
+                  <Button type="button" $variant="secondary" disabled={noticeLoading || noticeError || noticePages.previous === null}
+                    onClick={() => onNoticePageChange(noticePages.previous)}>이전</Button>
+                  {noticePages.pages.map((page) => (
+                    <Button key={page} type="button" aria-current={page === noticePagination.page ? 'page' : undefined}
+                      $variant={page === noticePagination.page ? 'primary' : 'secondary'} disabled={noticeLoading || noticeError}
+                      onClick={() => onNoticePageChange(page)}>{page}</Button>
+                  ))}
+                  <Button type="button" $variant="secondary" disabled={noticeLoading || noticeError || noticePages.next === null}
+                    onClick={() => onNoticePageChange(noticePages.next)}>다음</Button>
+                </NoticeControls>
               </SavingGroupNoticeCreateForm>
             </Card>
           </MainColumn>
