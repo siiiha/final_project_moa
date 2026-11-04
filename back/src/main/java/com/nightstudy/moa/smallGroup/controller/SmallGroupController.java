@@ -55,6 +55,16 @@ public class SmallGroupController {
         this.smallGroupService = smallGroupService;
     }
 
+    // AI작성: 요청 작성자 필드를 받지 않고 인증 회원만 서비스에 전달한다.
+    @PostMapping("/{smallGroupId}/notices")
+    public ApiResponse<Void> createNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeCreateRequest request) {
+        smallGroupService.createSmallGroupNotice(smallGroupId, memberId, request.getTitle(), request.getContent());
+        return ApiResponse.ok(null);
+    }
+
     // AI작성: 이 경로는 공개 목록 경로와 달리 인증이 필요하며 본인 작성 여부만 반환한다.
     @GetMapping("/{smallGroupId}/reviews/me")
     public ApiResponse<Boolean> hasWrittenReview(
