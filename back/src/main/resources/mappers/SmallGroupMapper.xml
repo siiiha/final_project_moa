@@ -782,8 +782,8 @@
                gn.created_at
         FROM group_notice gn
         JOIN members writer ON writer.member_id = gn.writer_id
-        WHERE gn.group_id = #{groupId}
-        ORDER BY gn.created_at DESC
+        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
         LIMIT 4
     </select>
     <!-- AI작성: 작성자는 인증 정보에서 결정하고 생성 키를 DTO에 설정한다. -->
@@ -817,6 +817,11 @@
     </select>
     <update id="updateSmallGroupNotice">
         UPDATE group_notice SET title = #{title}, content = #{content}, updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
+    </update>
+    <!-- AI작성: 물리 삭제 없이 이력을 보존하고 재요청은 조회에서 제외한다. -->
+    <update id="deleteSmallGroupNotice">
+        UPDATE group_notice SET deleted_at = CURRENT_TIMESTAMP
         WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
     </update>
 </mapper>
