@@ -62,6 +62,7 @@ function toSmallGroupDetailView(data) {
     meetDate: data.meetDate,
     location: data.location,
     notices: data.notices,
+    pinnedNotices: data.pinnedNotices,
     // AI작성: 표시용 변환에서 서버의 가입 신청 상태·판단 필드를 누락하지 않는다.
     membershipStatus: data.membershipStatus,
     canApply: data.canApply,
@@ -138,6 +139,7 @@ function SmallGroupDetailPage() {
     return () => {
       active = false;
       controller.abort();
+      detailRequest.current += 1;
     };
   }, [id, retry, authVersion, location.search, location.pathname, navigate, noticeQuery.page, noticeQuery.sort]);
 

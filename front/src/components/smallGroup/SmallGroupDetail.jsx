@@ -1,5 +1,4 @@
-import { getSmallGroupNoticePagination } from '../../api/smallGroups';
-import SmallGroupNoticeCreateForm from './SmallGroupNoticeCreateForm';
+import SmallGroupNoticesPanel from './SmallGroupNoticesPanel';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { FiCalendar, FiChevronRight, FiMapPin, FiUsers } from 'react-icons/fi';
 import styled from 'styled-components';
@@ -241,37 +240,6 @@ const TextButton = styled.button`
   font-weight: 700;
 `;
 
-const NoticeTable = styled.div`
-  margin-top: 12px;
-  overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-`;
-
-const NoticeRow = styled.div`
-  padding: 9px 10px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 66px 72px;
-  gap: 8px;
-  color: ${({ $header, theme }) => ($header ? theme.colors.secondaryText : theme.colors.text)};
-  background: ${({ $header, theme }) => ($header ? theme.colors.background : theme.colors.white)};
-  border-bottom: ${({ $last, theme }) => ($last ? 0 : `1px solid ${theme.colors.border}`)};
-  font-size: 10px;
-
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`;
-
-const NoticeEmpty = styled.p`
-  padding: 16px 10px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 11px;
-  text-align: center;
-`;
-
 const Placeholder = styled.section`
   margin-top: 16px;
   padding: 46px 20px;
@@ -468,8 +436,6 @@ function SmallGroupDetail({
 }) {
   // AI작성: 기존 버튼과 별도 안내 영역을 접근성 ID로 연결한다.
   const joinReasonId = useId();
-  // AI작성: 목록은 계모임과 같은 세 페이지 번호 묶음을 사용한다.
-  const noticePagination = getSmallGroupNoticePagination(noticePageMeta?.page || 1, noticePageMeta?.totalPages || 0);
   const allowedMenuItems = getSmallGroupMenuItems(myRole);
   const [isVoteCreateModalOpen, setIsVoteCreateModalOpen] = useState(false);
   // AI작성: 완료 안내는 소모임별로 구분하고 최종 등록 가능 여부는 서버에서 검증한다.
@@ -673,36 +639,10 @@ function SmallGroupDetail({
               </IntroBody>
             </Card>
             <Card>
-              <SmallGroupNoticeCreateForm group={{ ...group, smallGroupId, myRole }} onRefresh={onNoticeRefresh}
-                heading={<CardTitle>공지</CardTitle>}>
-              {/* AI작성: 전체 보기 화면 없이 메인에서 정렬·페이징한다. */}
-              <div role="group" aria-label="공지 정렬" style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                {['LATEST', 'OLDEST'].map((sort) => <Button key={sort} type="button" $variant="secondary"
-                  aria-pressed={noticeSort === sort} onClick={() => onNoticeQueryChange(1, sort)}>
-                  {sort === 'LATEST' ? '최신순' : '오래된순'}</Button>)}
-              </div>
-              <NoticeTable aria-label="공지 목록">
-                <NoticeRow $header>
-                  <span>제목</span><span>작성자</span><span>작성일</span>
-                </NoticeRow>
-                {group.notices.length === 0 ? (
-                  <NoticeEmpty>등록된 공지가 없습니다.</NoticeEmpty>
-                ) : group.notices.map((notice, index) => (
-                  <NoticeRow key={notice.noticeId} $last={index === group.notices.length - 1}>
-                    <button type="button" onClick={() => onNoticeDetail(notice.noticeId)} style={{ background: 'none', border: 0, textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer', overflowWrap: 'anywhere' }}>{notice.title}</button>
-                    <span>{notice.writerNickname}</span>
-                    <span>{formatDate(notice.createdAt)}</span>
-                  </NoticeRow>
-                ))}
-              </NoticeTable>
-              {noticePageMeta?.totalPages > 0 && <nav aria-label="공지 페이지" style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                {noticePagination.previous && <Button type="button" $variant="secondary" onClick={() => onNoticeQueryChange(noticePagination.previous, noticeSort)}>이전</Button>}
-                {noticePagination.pages.map((page) => <Button key={page} type="button" $variant="secondary"
-                  aria-current={noticePageMeta.page === page ? 'page' : undefined}
-                  onClick={() => onNoticeQueryChange(page, noticeSort)}>{page}</Button>)}
-                {noticePagination.next && <Button type="button" $variant="secondary" onClick={() => onNoticeQueryChange(noticePagination.next, noticeSort)}>다음</Button>}
-              </nav>}
-              </SmallGroupNoticeCreateForm>
+              {/* AI작성: 고정·일반 공지와 작성 흐름을 한 패널에서 관리한다. */}
+              <SmallGroupNoticesPanel group={{ ...group, smallGroupId, myRole }} heading={<CardTitle>공지</CardTitle>}
+                pageMeta={noticePageMeta} sort={noticeSort} onRefresh={onNoticeRefresh}
+                onQueryChange={onNoticeQueryChange} onDetail={onNoticeDetail} />
             </Card>
           </Column>
 
