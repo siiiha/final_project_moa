@@ -867,3 +867,16 @@
   - AI가 작성한 내용: 작성 모달에서 미선택을 rating: 0으로 변환하고 미선택 오류·초점 이동·필수 표시를 제거했다. 미선택 시 0점 등록 안내를 표시한다. 선택한 별점 검증과 코멘트 검증, 서버·DB 계약은 유지한다. API 문서에 현재 동작을 반영했다.
   - 개발자 검토·수정: 최종 검토와 커밋은 개발자가 수행한다.
   - 검증 방법: 변경 파일 oxlint 통과. 실제 브라우저·서버 검증은 미실행이다. 미선택과 정상 코멘트로 등록 시 요청의 rating: 0 및 등록 후 0점 표시, 선택한 별점 유지, 코멘트 누락·공백 차단을 확인해야 한다.
+
+<!-- AI작성: 사용자의 문서 일괄 작성 지시에 따라 계모임 공지 작성 1~6단계를 기록합니다. -->
+## 2026-11-04 — 계모임 OWNER·MANAGER 공지 작성
+
+- 목적·승인: 사용자가 1단계 Mapper, 2단계 Service, 3단계 Controller, 4단계 React API, 5단계 화면, 6단계 문서 순서로 구현을 요청하고 여러 파일 변경을 승인했다. 문서는 마지막에 일괄 반영하도록 요청했다. 모집중·진행중만 작성 가능, 나머지 상태에서 버튼 숨김, JSON 요청 권장안, 제목 100자·내용 5,000자, 빈 성공 응답을 적용했다. 관리자 이용 제한은 별도 담당자 범위다.
+- AI 제안·작성: 저장 전용 DTO·Mapper INSERT, 기존 모임·회원 관계 잠금 조회를 재사용하는 트랜잭션 Service, APPROVED OWNER·MANAGER 검증, JSON 요청 DTO Validation과 Controller, 공통 client 기반 React 요청, 작성 폼·상세 연결·성공 후 재조회·중복 제출 방지·오류 안내를 작성했다. 작성자 ID는 JWT 인증 정보만 사용한다. DB 스키마·의존성 변경과 실제 외부 서비스 호출은 없다.
+- 단계별 작업 파일: 1단계 SavingGroupNoticeCreateRow.java·SavingGroupMapper.java·SavingGroupMapper.xml, 2단계 SavingGroupService.java·SavingGroupServiceImpl.java·SavingGroupNoticeCreationServiceTest.java, 3단계 SavingGroupNoticeCreateRequest.java·SavingGroupController.java·SavingGroupNoticeCreationControllerTest.java, 4단계 savingGroups.js·savingGroups.test.js, 5단계 SavingGroupNoticeCreateForm.jsx·SavingGroupDetail.jsx·SavingGroupDetailPage.jsx. 전체 경로·계약은 docs/saving-groups-api.md의 공지 작성 절에 기록했다.
+- 6단계 변경 파일: docs/saving-groups-api.md, docs/ai-usage-log.md 두 개. 구현 소스는 변경하지 않고 최종 API·권한·상태·저장·화면·오류·검증·TODO를 정리했다.
+- 실행 검증: 1·2단계 당시 Java 17 자동 탐지 실패. 3단계에서 C:\dev\jdk-17.0.12_windows-x64_bin\jdk-17.0.12를 실행 인자로 지정해 운영 코드 컴파일 및 공지 Controller 21건·Service 29건 총 50건 통과. 기존 타 테스트 import 오류로 전체 테스트 컴파일은 실패하여 임시 Gradle init script로 해당 두 테스트만 검증했다. 저장소 설정은 변경하지 않았다.
+- 프론트 검증: 4단계 node --test src/api/savingGroups.test.js 37건 통과 및 변경 API 파일 lint 통과. 5단계 npm run build 통과, 변경 JSX lint 오류 없음. 기존 미사용 변수 경고 2건·번들 크기 경고 유지. diff 공백 검사를 수행했다. 테스트 대역은 실제 HTTP·DB 연동 검증이 아니다.
+- 브라우저·DB 검증 한계: 내장 브라우저 로컬 연결 실패 후 Windows 도구도 현재 URL을 확인하지 못해 컴퓨터 사용이 중단됐다. 실제 UI 상호작용·모바일·Postman·MySQL·동시성 검증은 미완료다. 임시 검증 파일·서버는 정리했다. 문서의 수동 검증 절차에 따라 후속 확인해야 한다.
+- 남은 TODO: 공지 알림은 NOTICE_CREATED enum만 있고 실제 연계가 없어 제외했다. 고정·첨부·공개 범위·예약 발행·일정 연계·수정·삭제·목록·상세·댓글은 제외 범위다. 별도 금칙어 정책·관리자 이용 제한 연계는 담당자 확인이 필요하다.
+- 개발자 검토·수정: 사용자가 단계별 구현을 요청하고 직접 커밋했다. 현재 이력은 f003926(Mapper), b3f4e44(Service), 371eb31(Controller), 9653848(React API), 17899e0(화면)이며 개발자의 구체적인 코드 수정 내용과 실제 동작 최종 검토 완료 여부는 확인되지 않았다. 문서 최종 검토와 6단계 커밋은 개발자가 수행한다. AI는 커밋을 실행하지 않았다.

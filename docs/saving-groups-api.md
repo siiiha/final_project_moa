@@ -759,3 +759,120 @@ Java 17이 준비된 환경에서 back 폴더에서 실행한다.
 - 로컬 검증 API를 이용한 실제 브라우저에서 상태 표시 22건, 두 모임의 연속 클릭 후 심사 중 갱신과 정원 충돌 후 갱신을 확인했다. NEW·CONFLICT 모두 각 모임 GET=2·POST=1이었다. 실제 Spring 서버·DB 종단 검증은 포함하지 않는다.
 - 브라우저 실측: 데스크톱 두 버튼은 높이 38px·글자 13px·padding 8px 14px. 375px 모바일에서 소모임은 34px·12px·7px 10px, 계모임은 38px·13px·8px 14px로 기존 설정과 일치했다.
 - 수동 확인: 기존 버튼 크기와 비교하고 상태별 문구·사유, 연속 클릭, 신청 성공 후 심사 중 전환, 정원 충돌 후 마감 안내, 로그인·인증 이동, 요청 중 모임·계정 변경, 조회 실패 후 재시도를 확인한다.
+
+<!-- AI작성: 사용자 승인에 따라 공지 작성 1~5단계 구현과 검증 범위를 6단계에서 일괄 기록합니다. -->
+## 계모임 공지 작성 (2026-11-04)
+
+### 요청·응답
+
+- `POST /api/saving-groups/{savingGroupId}/notices`
+- 기존 Controller 별칭인 `POST /saving-groups/{savingGroupId}/notices`도 지원한다.
+- `savingGroupId`는 양수 BIGINT인 계모임 식별자다. 상세 화면 URL의 공통 `groupId`와 구분한다.
+- `Authorization: Bearer <로그인 토큰>`, `Content-Type: application/json`을 사용한다. JWT 필터가 설정한 요청 속성 `memberId`만 작성자로 사용한다.
+
+| 요청 필드 | 타입 | 필수·검증 |
+| --- | --- | --- |
+| title | String | 필수, 공백만 입력 불가, 최대 100자 |
+| content | String | 필수, 공백만 입력 불가, 최대 5,000자 |
+
+```json
+{
+  "title": "다음 모임 안내",
+  "content": "다음 모임 일정을 안내합니다."
+}
+```
+
+기존 게시글과 동일하게 요청 문자열 길이를 검증한 뒤 앞뒤 공백을 제거해 저장한다. 작성자·모임 ID·작성일은 본문 입력 항목이 아니다. 성공은 HTTP 200, `ApiResponse<Void>`이며 공지 ID를 반환하지 않는다.
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 권한·상태·저장 흐름
+
+1. Controller는 경로와 JSON 본문을 검증하고 Service에 인증 회원 ID·제목·내용을 전달한다.
+2. Service는 로그인과 양수 계모임 ID를 확인하고 `selectSavingGroupJoinTargetForUpdate`로 삭제되지 않은 계모임과 공통 모임을 조회·잠근다.
+3. 모집중(`01`)·진행중(`02`)만 허용한다. 심사중(`00`)·정지(`03`)·종료(`04`) 및 미정의 상태는 차단한다.
+4. 조회한 내부 `groupId`와 인증 회원 ID로 `selectSavingGroupMembershipForUpdate`를 호출한다. `APPROVED`이면서 `OWNER` 또는 `MANAGER`여야 한다.
+5. `SavingGroupNoticeCreateRow`와 `insertSavingGroupNotice`로 공지를 저장한다. 영향 행 수가 1이 아니면 예외를 발생시킨다. 검증과 저장은 하나의 트랜잭션으로 처리한다.
+
+일반 회원, 대상 모임 비회원, 가입 대기·거절·탈퇴·추방 회원, 다른 모임에만 OWNER·MANAGER 관계가 있는 회원은 작성할 수 없다. 관리자 `CONTENT` 이용 제한은 담당자 별도 구현 범위이며 이번 공지 Service에는 추가하지 않았다. 기존 JWT·세션 인증 검사는 유지한다.
+
+기존 `group_notice(group_id, writer_id, title, content, created_at)`를 사용한다. `notice_id`는 자동 증가, `created_at`은 DB 기본값이다. 공지 테이블의 제목 저장 용량은 200자지만 API 입력 정책은 기존 게시글과 동일한 100자다. DB 스키마·마이그레이션 변경은 없다.
+
+### 실패 응답
+
+실패는 공통 `ApiResponse.fail(code, message)` 형식이다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | BAD_REQUEST | 경로 타입·양수 조건, 제목·내용 필수·길이 검증 실패 |
+| 400 | INVALID_REQUEST | JSON 문법 오류, 본문 누락 또는 null |
+| 401 | LOGIN_REQUIRED | `/api/**` Security 진입 시 미인증 |
+| 401 | UNAUTHORIZED | Service에 유효한 인증 회원 ID가 전달되지 않음 |
+| 403 | SAVING_GROUP_NOTICE_WRITE_FORBIDDEN | 대상 모임의 승인된 OWNER·MANAGER가 아님 |
+| 404 | SAVING_GROUP_NOT_FOUND | 대상 계모임이 없거나 공통 모임이 삭제됨 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중 외 모임 상태 |
+| 500 | SAVING_GROUP_NOTICE_WRITE_FAILED | INSERT 영향 행 수가 1이 아님 |
+
+JWT 만료·세션 무효화 등 인증 필터 오류와 예상하지 못한 DB 오류는 기존 공통 인증·예외 처리 정책을 따른다. 위 표의 저장 실패 코드는 모든 DB 예외를 변환하는 코드가 아니다.
+
+### React 연동
+
+- `createSavingGroupNotice(savingGroupId, { title, content }, { signal })`는 공통 Axios client의 `/api` baseURL·인증 처리를 재사용한다. ID 범위·정밀도를 확인하며 제목·내용만 JSON으로 전송한다.
+- 서버 오류 코드·메시지·HTTP 상태와 요청 취소를 보존한다. 성공 시 서버의 `data`(null)를 반환한다.
+- 최근 공지 영역의 작성 버튼·폼은 `membershipStatus=APPROVED`, `myRole=OWNER/MANAGER`, `status=01/02`를 모두 만족할 때만 표시한다. 누락·미정의 값은 작성 UI를 표시하지 않는다.
+- 제목·내용 글자 수, 필수·공백 검증, 등록·취소, 처리 중 입력·버튼 비활성화와 ref 중복 제출 잠금을 적용한다. 일반 등록 실패는 입력을 유지한다.
+- 401·403·404·409 응답 후에는 작성 UI를 숨기고 새로고침으로 현재 권한·상태를 다시 확인한다. 입력은 컴포넌트가 유지되는 동안 보존한다.
+- 등록 성공 후 폼을 닫고 기존 상세 GET을 재조회한다. 재조회 실패 시 등록 성공을 안내하고 새로고침만 제공한다. POST를 자동 반복하지 않는다.
+- 모임·인증 계정 변경 시 폼을 초기화하고, 이탈한 화면의 완료 응답은 반영하지 않는다. 서버에 이미 전달된 POST 자체를 되돌리지는 않는다.
+
+### 작업 파일·재사용 구조
+
+| 파일 (back/src/main/java/com/nightstudy/moa 기준) | 역할 |
+| --- | --- |
+| savingGroup/dto/SavingGroupNoticeCreateRow.java | 공지 저장 DTO |
+| savingGroup/mapper/SavingGroupMapper.java | 공지 저장 계약 |
+| savingGroup/service/SavingGroupService.java | 공지 작성 Service 계약 |
+| savingGroup/service/SavingGroupServiceImpl.java | 모임·회원·권한 검증과 저장 |
+| savingGroup/dto/SavingGroupNoticeCreateRequest.java | JSON 요청 Validation |
+| savingGroup/controller/SavingGroupController.java | 작성 API와 공통 성공 응답 |
+
+추가 변경 파일:
+
+- `back/src/main/resources/mappers/SavingGroupMapper.xml`: 공지 INSERT.
+- `back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupNoticeCreationServiceTest.java`: Service 테스트.
+- `back/src/test/java/com/nightstudy/moa/savingGroup/controller/SavingGroupNoticeCreationControllerTest.java`: Controller 테스트.
+- `front/src/api/savingGroups.js`, `front/src/api/savingGroups.test.js`: 요청 함수·API 테스트.
+- `front/src/components/savingGroup/SavingGroupNoticeCreateForm.jsx`: 작성 폼.
+- `front/src/components/savingGroup/SavingGroupDetail.jsx`, `front/src/pages/SavingGroupDetailPage.jsx`: 화면 연결·상세 갱신.
+
+기존 계모임·회원 관계 Mapper, 공지 요약 조회, 게시글 Validation·trim 관례, `ApiResponse`, `ApiException`, `GlobalExceptionHandler`, 공통 Axios client·Button·테마를 재사용했다.
+
+### 검증 결과와 남은 확인
+
+- 3단계에서 운영 코드 컴파일 통과, 공지 Controller 21건·Service 29건 총 50건 통과. 로컬 Java 17 경로를 실행 인자로 지정했다.
+- 기존 다른 테스트의 오래된 import로 전체 테스트 컴파일이 실패해 임시 Gradle init script로 위 두 테스트만 컴파일·실행했다. 저장소 빌드 설정이나 다른 테스트는 수정하지 않았다. 이 결과는 전체 백엔드 테스트 통과를 의미하지 않는다.
+- 4단계 `node --test src/api/savingGroups.test.js` 37건 통과. 공지 요청 테스트 4건과 기존 회귀 테스트를 포함한다. 테스트는 client 대역을 사용하며 실제 HTTP·DB 검증이 아니다.
+- 5단계 `npm run build` 통과. 변경 JSX lint 오류 없음, 기존 `ImagePlaceholder`·`Schedule` 미사용 경고 2건과 번들 크기 경고 유지. `git diff --check` 통과.
+- 브라우저 자동 검증은 내장 브라우저의 로컬 서버 연결 실패 및 Windows 도구의 URL 확인 실패로 중단했다. 임시 검증 화면·서버를 정리했다. 실제 UI 상호작용·모바일·Postman·MySQL 저장·트랜잭션 동시성 검증은 미완료다.
+
+수동 검증 절차:
+
+1. 테스트용 계모임·계정에서 OWNER·MANAGER 각각 모집중·진행중 정상 등록을 확인한다. DB에서 내부 group_id·인증 writer_id·앞뒤 공백 제거·created_at을 확인한다.
+2. Postman으로 일반 회원·비회원·가입 대기·탈퇴·타 모임 운영진의 403, 없는 모임·삭제 모임의 404, 심사중·정지·종료의 409, 미인증의 401을 확인한다.
+3. 제목 100/101자, 내용 5,000/5,001자, 누락·공백·잘못된 JSON·경로를 확인한다.
+4. 브라우저에서 위 역할·회원·모임 상태별 작성 버튼 숨김, 등록·취소·글자 수·실패 시 입력 유지·빠른 연속 클릭 차단을 확인한다.
+5. 등록 성공 뒤 최근 공지 갱신, 성공 후 조회 실패 시 GET만 재시도, 작성 중 권한·모임 상태 변경, 계정·모임 변경 후 이전 응답 무시를 확인한다.
+6. 모바일 줄바꿈·스크롤·키보드 초점 이동과 큰 글씨 가독성을 확인한다.
+
+TODO·제외 범위:
+
+- `NOTICE_CREATED` enum은 있으나 실제 사용 연계가 없어 공지 알림·SSE는 연결하지 않았다. 수신 대상·문구·이동 경로는 추후 정책 확정 후 별도 구현한다.
+- 고정·첨부파일·공개 범위·예약 발행은 기존 저장 구조가 없어 추가하지 않았다. 수정·삭제·목록·상세·댓글·일정 연계는 이번 범위 밖이다. 기존 최근 공지 요약 조회만 재사용한다.
+- 별도 금칙어 규칙과 관리자 이용 제한 연계, 실제 DB·브라우저 검증 및 전체 테스트 import 오류 정리는 담당자 후속 확인이 필요하다.
