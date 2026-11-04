@@ -314,7 +314,11 @@ function SmallGroupDetailPage() {
               votes={currentVotes?.votes || []}
               isVoteLoading={isVoteSelected && (!currentVotes || currentVotes.loading)}
               voteErrorMessage={currentVotes?.error ? voteErrorMessage : null}
-              onMenuChange={(value) => setMenu({ id, value })}
+              onMenuChange={(value) => {
+                // AI작성: 변경 도중 다른 탭으로 이탈했어도 공지 재진입 시 서버 상태를 다시 확인한다.
+                setMenu({ id, value });
+                if (value === 'notice') setRetry((previous) => previous + 1);
+              }}
               onSettingsSubmit={handleSettingsSubmit}
               onSettingsCancel={() => setMenu({ id, value: 'notice' })}
               onRetrySettings={() => setSettingsRetry((value) => value + 1)}
