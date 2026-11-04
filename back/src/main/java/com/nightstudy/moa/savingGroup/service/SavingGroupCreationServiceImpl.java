@@ -26,10 +26,14 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
 
     private final SavingGroupMapper savingGroupMapper;
     private final FileStorageService fileStorageService;
+    // AI작성: 발급 계층은 기존 승인 API 안에서 호출하며 별도 공개 발급 API를 만들지 않는다.
+    private final VirtualAccountApprovalService virtualAccountApprovalService;
 
-    public SavingGroupCreationServiceImpl(SavingGroupMapper savingGroupMapper, FileStorageService fileStorageService) {
+    public SavingGroupCreationServiceImpl(SavingGroupMapper savingGroupMapper, FileStorageService fileStorageService,
+            VirtualAccountApprovalService virtualAccountApprovalService) {
         this.savingGroupMapper = savingGroupMapper;
         this.fileStorageService = fileStorageService;
+        this.virtualAccountApprovalService = virtualAccountApprovalService;
     }
 
     @Override
@@ -129,6 +133,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             approveDeletionApplication(application);
             return;
         }
+        // AI작성: 발급·암호화 저장이 성공해야 기존 신청 승인·공개·계주 승인을 이어서 처리한다.
+        virtualAccountApprovalService.issueAndSave(approvalId, application.getGroupId());
         if (savingGroupMapper.approveSavingGroupCreationApplication(approvalId) != 1
                 || savingGroupMapper.publishApprovedSavingGroup(application.getGroupId()) != 1
                 || savingGroupMapper.approveSavingGroupCreationOwnerMembership(
@@ -151,6 +157,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             }
             return;
         }
+        // AI작성: 발급 여부가 불확실한 신청을 반려해 외부 계좌가 방치되지 않도록 먼저 확인한다.
+        virtualAccountApprovalService.requireRejectable(approvalId);
         if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, normalizedRejectReason) != 1
                 || savingGroupMapper.rejectSavingGroupCreationOwnerMembership(application.getGroupId()) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
