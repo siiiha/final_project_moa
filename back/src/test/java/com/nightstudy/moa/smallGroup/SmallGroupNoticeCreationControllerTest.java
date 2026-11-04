@@ -1,4 +1,5 @@
-package com.nightstudy.moa.smallGroup.controller;
+package com.nightstudy.moa.smallGroup;
+import com.nightstudy.moa.smallGroup.controller.SmallGroupController;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -28,12 +29,12 @@ class SmallGroupNoticeCreationControllerTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.standaloneSetup(new SmallGroupController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new SmallGroupController(null, service))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/small-groups", "/small-groups"})
+    @ValueSource(strings = {"/api/small-groups", "/api/small-groups"})
     void createsNoticeWithAuthenticatedMember(String base) throws Exception {
         mvc.perform(post(base + "/10/notices").requestAttr("memberId", 30L)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -90,14 +91,14 @@ class SmallGroupNoticeCreationControllerTest {
     void delegatesMissingAuthenticationToService() throws Exception {
         doThrow(new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다."))
                 .when(service).createSmallGroupNotice(10L, null, "공지", "내용");
-        mvc.perform(post("/small-groups/10/notices").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/small-groups/10/notices").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"공지\",\"content\":\"내용\"}"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
     }
 
     @ParameterizedTest
-    @CsvSource({"403,SAVING_GROUP_NOTICE_WRITE_FORBIDDEN", "404,SAVING_GROUP_NOT_FOUND",
-            "409,SAVING_GROUP_ACTIVITY_RESTRICTED", "500,SAVING_GROUP_NOTICE_WRITE_FAILED"})
+    @CsvSource({"403,SMALL_GROUP_NOTICE_WRITE_FORBIDDEN", "404,SMALL_GROUP_NOT_FOUND",
+            "409,SMALL_GROUP_ACTIVITY_RESTRICTED", "500,SMALL_GROUP_NOTICE_WRITE_FAILED"})
     void preservesServiceErrors(int statusCode, String code) throws Exception {
         doThrow(new ApiException(HttpStatus.valueOf(statusCode), code, "요청을 처리할 수 없습니다."))
                 .when(service).createSmallGroupNotice(10L, 30L, "공지", "내용");
