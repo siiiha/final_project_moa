@@ -55,6 +55,16 @@ public class SmallGroupController {
         this.smallGroupService = smallGroupService;
     }
 
+    // AI작성: 수정 입력은 작성과 동일하게 검증하고 작성자 권한은 서버에서 재확인한다.
+    @org.springframework.web.bind.annotation.PutMapping("/{smallGroupId}/notices/{noticeId}")
+    public ApiResponse<Long> updateNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeEditRequest request) {
+        return ApiResponse.ok(smallGroupService.updateSmallGroupNotice(smallGroupId, noticeId, memberId, request.getTitle(), request.getContent()));
+    }
+
     // AI작성: 상세 본문은 인증 회원과 두 식별자를 Service에 전달해 권한을 검증한다.
     @GetMapping("/{smallGroupId}/notices/{noticeId}")
     public ApiResponse<com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse> noticeDetail(
