@@ -679,6 +679,19 @@
     </resultMap>
 
     <!-- AI작성: 다른 모임 공지를 반환하지 않도록 두 ID를 함께 검사하고 기존 요약의 작성자 조인을 재사용한다. -->
+    <!-- AI작성: 변경 대상은 소속과 미삭제 조건을 함께 검사하며 기존 상세 응답 매핑을 재사용한다. -->
+    <select id="selectSavingGroupNoticeForUpdate" resultMap="noticeDetail">
+        SELECT notice_id, title, content, writer_id, NULL AS writer_nickname, created_at
+        FROM group_notice
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+    <!-- AI작성: 마지막 수정 시각만 갱신하고 원작성자·작성일·고정 상태는 유지한다. -->
+    <update id="updateSavingGroupNotice">
+        UPDATE group_notice
+        SET title = #{title}, content = #{content}, updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL
+    </update>
     <select id="selectSavingGroupNoticeDetail" resultMap="noticeDetail">
         SELECT gn.notice_id, gn.title, gn.content, gn.writer_id,
                writer.nickname AS writer_nickname, gn.created_at

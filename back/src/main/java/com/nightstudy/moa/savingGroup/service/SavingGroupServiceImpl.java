@@ -21,6 +21,45 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 기존 고정 변경과 같은 모임→회원 관계→공지 잠금 순서로 권한과 소속을 검증한다.
+    @Override
+    @Transactional
+    public Long updateSavingGroupNotice(Long groupId, Long noticeId, Long memberId, String title, String content) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        }
+        if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
+        SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
+                || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_EDIT_FORBIDDEN", "승인된 공지 작성자만 공지를 수정할 수 있습니다.");
+        }
+        SavingGroupNoticeDetailResponse notice = savingGroupMapper.selectSavingGroupNoticeForUpdate(groupId, noticeId);
+        if (notice == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        }
+        // AI작성: 사용자 확정 정책에 따라 OWNER·MANAGER도 타 작성자의 공지는 수정할 수 없다.
+        if (!Objects.equals(notice.getWriterId(), memberId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_EDIT_FORBIDDEN", "공지 작성자만 수정할 수 있습니다.");
+        }
+        String nextTitle = title.trim();
+        String nextContent = content.trim();
+        // AI작성: 같은 내용의 재요청은 성공 처리하고 원작성자·작성일·고정 상태는 보존한다.
+        if (Objects.equals(notice.getTitle(), nextTitle) && Objects.equals(notice.getContent(), nextContent)) return noticeId;
+        if (savingGroupMapper.updateSavingGroupNotice(groupId, noticeId, nextTitle, nextContent) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_NOTICE_EDIT_FAILED", "공지 수정에 실패했습니다.");
+        }
+        return noticeId;
+    }
     private static final int PAGE_SIZE = 6;
     // AI작성: 계모임 전체 목록의 페이지 크기와 별개로 공지는 페이지당 4개를 제공한다.
     private static final int NOTICE_PAGE_SIZE = 4;

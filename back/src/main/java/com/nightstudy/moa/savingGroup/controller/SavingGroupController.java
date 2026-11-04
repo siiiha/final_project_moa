@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRequest;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeUpdateRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticePinRequest;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDeletionRequest;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,6 +39,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 기존 상세·고정 API와 동일하게 경로 ID는 공통 groupId이고 인증 회원은 JWT 속성만 사용한다.
+    @PutMapping("/{groupId}/notices/{noticeId}")
+    public ApiResponse<Long> updateNotice(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SavingGroupNoticeUpdateRequest request) {
+        return ApiResponse.ok(savingGroupService.updateSavingGroupNotice(groupId, noticeId, memberId,
+                request.getTitle(), request.getContent()));
+    }
     private final SavingGroupService savingGroupService;
 
     // AI작성: 목록 조회 서비스만 주입한다.

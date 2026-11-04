@@ -918,3 +918,13 @@
 - 프론트 검증: 최종 API 테스트 47건·프로덕션 빌드·diff 공백 검사 통과. 변경 파일 lint에는 기존 미사용 스타일 경고 2건만 남고 번들 크기 경고도 유지했다. 임시 Vite SSR 렌더링으로 고정 2+일반 4개, 권한별 버튼·링크, 처리 중 비활성·재조회·고정만 있는 상태를 확인했다. 의존성·프로젝트 설정은 변경하지 않았다.
 - 한계·후속 검증: Service는 Mapper 대역, Controller는 JWT 필터 없는 standalone MockMvc, API는 client 대역, 화면은 정적 렌더링이다. 실제 MySQL 조회·잠금·동시성, JWT 포함 HTTP, 브라우저 클릭·모바일·응답 유실은 미검증이며 API 문서에 수동 절차를 남겼다. 임시 테스트 파일과 실행 설정은 정리한다. 기존 BIGINT 숫자 정밀도와 저장소 스키마 동기화는 별도 확인 항목이다.
 - 개발자 검토·수정: 사용자가 정책·DB 반영을 확인하고 단계별 구현과 커밋을 요청했다. 개발자의 이번 코드 별도 수정·실제 환경 최종 검토 완료 여부는 확인되지 않았다. 최종 코드·문서와 수동 검증 결과 검토가 필요하다.
+<!-- AI작성: 단계별 커밋으로 다시 진행한 계모임 공지 수정 기록. -->
+## 2026-11-04 — 계모임 공지 수정 단계별 구현
+
+- 사용자 승인: 기존 일괄 커밋은 backup/notice-edit-dfd400d로 보존하고 7fc9468에서 다시 시작. 단계마다 변경·검증·실제 커밋을 보고하며 계속 진행. 문서는 마지막 일괄 반영.
+- 정책: 최초 운영진 수정 허용에서 사용자 추가 지시로 작성자 본인만 수정하도록 변경. 승인 운영진·허용 모임 상태·미삭제 소속 확인은 유지. 제목·내용·수정 시각만 변경.
+- 변경 파일: SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupNoticeUpdateRequest, SavingGroupController, UpdateService/Controller/MapperTest, savingGroups.js/test, SavingGroupNoticeEditForm, SavingGroupNoticeDetailPage, API 문서·본 기록.
+- 단계 커밋: 088c1e8 Mapper, 6ea5283 Service, cbb607e Controller, fc57ed6 React API, 895ed32 작성자 정책 보완, cb41aa0 편집 폼, 428e763 상세 화면 연결. 마지막 단계에서 Mapper 바인딩 테스트·문서 추가.
+- 검증: Java 17 컴파일·공지 관련 테스트 244건, 프론트 API 48건·lint·프로덕션 빌드 통과. 폼 Vite SSR 초기 HTML 검증 통과(임시 noExternal 옵션으로 styled-components SSR 모듈 형식 차이 처리). 실제 브라우저 상호작용 검증은 아님.
+- 한계: 기존 타 도메인 테스트 import 오류로 임시 Gradle 스크립트에서 공지 테스트만 분리. 실제 DB·Postman·브라우저 클릭·JWT 필터 통합 검증 미실행. 기존 번들 크기 경고 존재.
+- 개발자 검토·수정: 검토 대기. DB·의존성·설정·외부 서비스 변경 없음. 수정자·수정 이력·첨부파일·알림은 TODO.
