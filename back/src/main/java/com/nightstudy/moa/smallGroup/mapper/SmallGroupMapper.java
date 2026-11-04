@@ -34,6 +34,11 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
+    // AI작성: 정렬은 SQL choose로 제한하고 페이지 크기는 네 건으로 고정한다.
+    int countSmallGroupNotices(@Param("groupId") Long groupId);
+    List<SmallGroupNoticeSummaryResponse> selectSmallGroupNoticePage(@Param("groupId") Long groupId,
+            @Param("offset") int offset, @Param("sort") String sort);
+
     // AI작성: 소모임 ID를 공통 모임 ID로 검증한 뒤 공지를 저장한다.
     int insertSmallGroupNotice(com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeCreateRow row);
 
