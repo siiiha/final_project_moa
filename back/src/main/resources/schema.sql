@@ -48,8 +48,28 @@ CREATE TABLE IF NOT EXISTS `group_account` (
 	`account_number`	VARCHAR(255)	NOT NULL,
 	`account_holder_name`	VARCHAR(100)	NOT NULL,
 	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`account_id`)
+    PRIMARY KEY (`account_id`),
+    UNIQUE KEY `uq_group_account_group` (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE IF NOT EXISTS `saving_group_account_issue` (
+    `issue_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `approval_id` BIGINT NOT NULL,
+    `group_id` BIGINT NOT NULL,
+    `order_id` VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `status` ENUM('REQUESTED', 'COMPLETED', 'FAILED', 'UNKNOWN') NOT NULL,
+    `account_id` BIGINT NULL DEFAULT NULL,
+    `error_code` VARCHAR(100) NULL DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`issue_id`),
+    UNIQUE KEY `uq_account_issue_approval` (`approval_id`),
+    UNIQUE KEY `uq_account_issue_group` (`group_id`),
+    UNIQUE KEY `uq_account_issue_order` (`order_id`),
+    UNIQUE KEY `uq_account_issue_account` (`account_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `term_agreement` (
 	`agreement_id`	BIGINT	NOT NULL AUTO_INCREMENT,
@@ -210,7 +230,10 @@ CREATE TABLE IF NOT EXISTS `group_notice` (
 	`writer_id`	BIGINT	NOT NULL,
 	`title`	VARCHAR(200)	NOT NULL,
 	`content`	TEXT	NOT NULL,
+    `is_pinned` TINYINT(1) NOT NULL DEFAULT 0,
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NULL DEFAULT NULL,
+    `deleted_at` DATETIME NULL DEFAULT NULL,
 	PRIMARY KEY (`notice_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -621,6 +644,77 @@ CREATE TABLE IF NOT EXISTS `interest` (
 	`interest_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`interest_name`	VARCHAR(50)	NOT NULL,
 	PRIMARY KEY (`interest_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS card_expense_upload (
+    upload_id BIGINT NOT NULL AUTO_INCREMENT,
+    group_id BIGINT NOT NULL,
+    uploaded_by BIGINT NOT NULL,
+    uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (upload_id),
+
+    CONSTRAINT fk_card_expense_upload_group
+        FOREIGN KEY (group_id)
+        REFERENCES `groups` (group_id),
+
+    CONSTRAINT fk_card_expense_upload_member
+        FOREIGN KEY (uploaded_by)
+        REFERENCES members (member_id),
+
+    INDEX ix_card_expense_upload_group_uploaded
+        (group_id, uploaded_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE IF NOT EXISTS card_expense (
+    card_expense_id BIGINT NOT NULL AUTO_INCREMENT,
+    upload_id BIGINT NOT NULL,
+
+    used_date DATE NOT NULL,
+    merchant_name VARCHAR(255) NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+
+    approval_status ENUM('APPROVED', 'CANCELED') NOT NULL,
+
+    suggested_category VARCHAR(30) NULL,
+    final_category VARCHAR(30) NULL,
+
+    classification_status ENUM(
+        'REVIEW_PENDING',
+        'REVIEW_REQUIRED',
+        'CONFIRMED',
+        'CANCEL_PENDING'
+    ) NOT NULL,
+
+    confidence_score DECIMAL(5,4) NULL,
+
+    classification_source ENUM(
+        'KEYWORD_RULE',
+        'MACHINE_LEARNING',
+        'PAYMENT_PROVIDER',
+        'USER'
+    ) NULL,
+
+    review_reason VARCHAR(500) NULL,
+
+    confirmed_by BIGINT NULL,
+    confirmed_at DATETIME NULL,
+
+    PRIMARY KEY (card_expense_id),
+
+    CONSTRAINT fk_card_expense_upload
+        FOREIGN KEY (upload_id)
+        REFERENCES card_expense_upload (upload_id),
+
+    CONSTRAINT fk_card_expense_confirmed_member
+        FOREIGN KEY (confirmed_by)
+        REFERENCES members (member_id),
+
+    INDEX ix_card_expense_upload_status
+        (upload_id, classification_status),
+
+    INDEX ix_card_expense_status_confirmed
+        (classification_status, confirmed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `group_transaction` (
