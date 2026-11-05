@@ -396,7 +396,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'transactionHistory' ? (
         <SavingGroupTransactionHistoryPanel />
       ) : currentMenu === 'payoutRequest' ? (
-        <SavingGroupPayoutRequestPanel groupType={group.groupType} />
+        /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
+        <SavingGroupPayoutRequestPanel groupId={group.groupId} />
       ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
           {/* AI작성: 화면 모임이 바뀌면 요청·승인 상태를 초기화하고 API가 요구하는 savingGroupId로 실제 신청만 조회한다. */}

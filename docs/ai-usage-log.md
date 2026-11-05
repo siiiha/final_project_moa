@@ -967,3 +967,10 @@
 - 파일: savingGroups.js, savingGroupPayout.test.js.
 - 검증: node --test src/api/savingGroupPayout.test.js 2건 통과. 큰 문자열 ID, 빈 순번계 폼, 친목계 증빙, 오류·취소·잘못된 ID 차단 확인.
 - 기존 lockfile로 npm ci 실행. 신규 의존성·lockfile 변경 없음. 개발자 검토 대기.
+
+## 2026-11-05 계금 요청 화면 연결
+<!-- AI작성: 예시 계좌·고정 금액·가짜 OCR 결과를 제거하고 서버의 요청 가능 정보와 multipart 요청으로 연결했다. -->
+- 파일: SavingGroupPayoutRequestPanel.jsx, SavingGroupDetail.jsx.
+- 화면: 순번계 확정 금액 표시, 친목계 사용 금액·제목·필수 영수증 입력, 서버 오류·로딩·완료 안내. 계정·모임 변경 시 상태 초기화, 중복 클릭 차단.
+- 검증: 기존 계모임 API 포함 Node 테스트 51건 통과, npm run build 성공(기존 대용량 번들 경고). 실제 브라우저·MySQL 연동은 미검증.
+- 남은 주의: 회차 생성·DB 컬럼 준비 후 요청 가능. 계금 요청 목록·승인·지급·금융 API는 이번 범위 제외. 개발자 검토 대기.
