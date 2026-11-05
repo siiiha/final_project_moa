@@ -961,3 +961,9 @@
 - 파일: SavingGroupPayoutController.java, SavingGroupPayoutControllerTest.java.
 - 검증: 단독 MockMvc로 두 경로, 입력 검증, JWT 속성 전달, 401·403·404·409·500 응답, 증빙 no-store·attachment 헤더 테스트 통과. Java 21 + --release 17 임시 검증.
 - 실제 JWT 필터·MySQL·배포 환경 파일 경로 비공개 여부는 통합 검증 필요. 개발자 검토 대기.
+
+## 2026-11-05 프론트 계금 요청 API
+<!-- AI작성: 공통 Axios 인증·오류 처리를 재사용하는 요청 가능 정보 조회와 multipart 요청 함수를 추가했다. -->
+- 파일: savingGroups.js, savingGroupPayout.test.js.
+- 검증: node --test src/api/savingGroupPayout.test.js 2건 통과. 큰 문자열 ID, 빈 순번계 폼, 친목계 증빙, 오류·취소·잘못된 ID 차단 확인.
+- 기존 lockfile로 npm ci 실행. 신규 의존성·lockfile 변경 없음. 개발자 검토 대기.
