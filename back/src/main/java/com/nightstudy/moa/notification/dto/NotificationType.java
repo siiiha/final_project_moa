@@ -10,6 +10,8 @@ public enum NotificationType {
     SAVING_GROUP_JOIN_REJECTED,
     // AI작성: 계모임에서 회원이 추방되었을 때 처리 결과를 알립니다.
     SAVING_GROUP_MEMBER_EXPELLED,
+    // AI작성: 계주가 계원의 회계 역할을 지정하거나 해제했을 때 결과를 알립니다.
+    SAVING_GROUP_MEMBER_ROLE_CHANGED,
 
     // AI작성: 소모임 가입 신청이 접수되거나 신청 결과가 결정되었을 때 사용하는 알림입니다.
     SMALL_GROUP_JOIN_REQUEST,

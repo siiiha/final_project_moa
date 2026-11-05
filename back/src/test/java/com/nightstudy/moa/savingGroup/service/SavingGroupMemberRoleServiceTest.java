@@ -3,6 +3,8 @@ package com.nightstudy.moa.savingGroup.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.util.List;
@@ -19,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SavingGroupMemberRoleServiceTest {
     @Mock SavingGroupMapper mapper;
+    @Mock NotificationService notificationService;
     @InjectMocks SavingGroupServiceImpl service;
     void group(String status, long ownerId) {
         var target = new SavingGroupJoinTargetRow(); target.setGroupId(20L); target.setSavingGroupId(10L);
@@ -53,6 +56,9 @@ class SavingGroupMemberRoleServiceTest {
         order.verify(mapper).selectSavingGroupMembershipForUpdate(20L, 30L);
         order.verify(mapper).selectSavingGroupMembershipForUpdate(20L, 50L);
         order.verify(mapper).updateSavingGroupMemberRole(20L, 40L, before, after);
+        verify(notificationService).send(50L, NotificationType.SAVING_GROUP_MEMBER_ROLE_CHANGED,
+                after.equals("MANAGER") ? "계모임 회계로 지정되었습니다." : "계모임 일반 계원으로 변경되었습니다.",
+                "/saving-groups/10");
     }
     @Test void ongoingGroupCanChange() {
         owner(); group("02", 30L); member("MANAGER", "APPROVED");
@@ -69,6 +75,7 @@ class SavingGroupMemberRoleServiceTest {
         if (role.equals("MANAGER")) when(mapper.selectSavingGroupManagerIdsForUpdate(20L)).thenReturn(List.of(50L));
         service.updateSavingGroupMemberRole(10L, 50L, 30L, role);
         verify(mapper, never()).updateSavingGroupMemberRole(anyLong(), anyLong(), anyString(), anyString());
+        verifyNoInteractions(notificationService);
     }
     @Test void loginRequired() { fails("UNAUTHORIZED", 10L, 50L, null, "MEMBER"); verifyNoInteractions(mapper); }
     @Test void missingGroup() { fails("SAVING_GROUP_NOT_FOUND", 10L, 50L, 30L, "MEMBER"); }

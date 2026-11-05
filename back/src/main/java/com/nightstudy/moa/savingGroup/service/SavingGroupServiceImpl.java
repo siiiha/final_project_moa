@@ -58,7 +58,13 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_ROLE_UPDATE_FAILED",
                     "계원 상태가 변경되어 역할을 저장하지 못했습니다. 다시 확인해주세요.");
         }
-        // AI작성: 확정 정책에 따라 역할 변경 알림은 발송하지 않는다. OWNER 이전·해제는 지원하지 않는다.
+        // AI작성: 실제 역할 변경이 저장된 경우에만 대상 회원에게 회계 지정 또는 해제 결과를 알린다.
+        notificationService.send(
+                targetMemberId,
+                NotificationType.SAVING_GROUP_MEMBER_ROLE_CHANGED,
+                "MANAGER".equals(role) ? "계모임 회계로 지정되었습니다." : "계모임 일반 계원으로 변경되었습니다.",
+                "/saving-groups/" + savingGroupId
+        );
     }
     // AI작성: 목록도 모임→계주 관계 잠금 순서로 권한을 확인하고 최대 두 페이지로 제한한다.
     @Override
