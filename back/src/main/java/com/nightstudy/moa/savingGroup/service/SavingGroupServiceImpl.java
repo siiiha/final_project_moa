@@ -512,7 +512,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 request.getMemberId(),
                 NotificationType.SAVING_GROUP_JOIN_REJECTED,
                 "계모임 가입 신청이 거절되었습니다.",
-                "/saving-groups/" + savingGroupId
+                null
         );
     }
 
