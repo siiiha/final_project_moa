@@ -604,12 +604,17 @@ CREATE TABLE IF NOT EXISTS `region` (
 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `meeting_round` (
-	`round_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`group_id`	BIGINT	NOT NULL,
-	`round_number`	INT	NOT NULL,
-	`due_date`	DATE	NOT NULL,
-	`scheduled_payout_date`	DATE	NULL,
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
+	`round_id` BIGINT NOT NULL AUTO_INCREMENT,
+	`group_id` BIGINT NOT NULL,
+	`round_number` INT NOT NULL,
+	`due_date` DATE NOT NULL,
+	`scheduled_payout_date`	DATE NULL,
+    `base_dues_amount` DECIMAL(15,2) NULL,
+    `approved_member_count` INT NULL,
+    `previous_paid_member_count` INT NULL,
+    `additional_dues_amount` DECIMAL(15,2) NULL,
+    `payout_amount` DECIMAL(15,2) NULL,
+	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (`round_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -629,15 +634,22 @@ CREATE TABLE IF NOT EXISTS `payout_request` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `expenses` (
-	`expense_id`	BIGINT	NOT NULL AUTO_INCREMENT,
+	`expense_id` BIGINT	NOT NULL AUTO_INCREMENT,
 	`group_id`	BIGINT	NOT NULL,
-	`applicant_id`	BIGINT	NOT NULL,
-	`amount`	DECIMAL(15,2)	NOT NULL,
-	`title`	VARCHAR(100)	NOT NULL,
-	`receipt_img_url`	VARCHAR(500)	NULL,
-	`status`	ENUM('PENDING', 'APPROVED', 'REJECTED')	NOT NULL	DEFAULT 'PENDING',
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`expense_id`)
+	`applicant_id` BIGINT NOT NULL,
+	`amount` DECIMAL(15,2) NOT NULL,
+	`title`	VARCHAR(100) NOT NULL,
+	`receipt_img_url` VARCHAR(500) NULL,
+    `receipt_sha256` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+	`status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `reviewer_id` BIGINT NULL DEFAULT NULL,
+    `reviewed_at` DATETIME NULL DEFAULT NULL,
+    `reject_reason` VARCHAR(500) NULL DEFAULT NULL,
+	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (`expense_id`),
+    KEY `ix_expenses_group_receipt_status` (`group_id`, `receipt_sha256`,`status`),
+    CONSTRAINT `fk_expenses_reviewer`
+        FOREIGN KEY (`reviewer_id`) REFERENCES `members` (`member_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `interest` (
