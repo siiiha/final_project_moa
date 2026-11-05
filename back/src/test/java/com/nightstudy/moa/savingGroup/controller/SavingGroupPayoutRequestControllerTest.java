@@ -72,4 +72,18 @@ class SavingGroupPayoutRequestControllerTest {
                 .andExpect(jsonPath("$.data[0].transactionId").doesNotExist())
                 .andExpect(jsonPath("$.data[0].accountNumber").doesNotExist());
     }
+    // AI작성: 순번계는 회차·검토일을 제공하되 탈퇴 처리자의 이름과 지출 전용 필드는 응답에서 제외한다.
+    @Test void rotationResponseOmitsWithdrawnReviewerAndExpenseFields() throws Exception {
+        var row = new SavingGroupPayoutRequestResponse();
+        row.setRequestId("42"); row.setRequesterName("테스트요청자"); row.setRoundNumber(3);
+        row.setReviewedAt(java.time.LocalDateTime.of(2026, 11, 5, 10, 0));
+        when(service.getSavingGroupPayoutRequests(10L, 30L, null, 1))
+                .thenReturn(new SavingGroupPayoutRequestListResponse(List.of(row), PageMeta.of(1, 10, 1)));
+        mvc.perform(get("/api/saving-groups/10/payout-requests").requestAttr("memberId", 30L))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].roundNumber").value(3))
+                .andExpect(jsonPath("$.data[0].reviewedAt").exists())
+                .andExpect(jsonPath("$.data[0].reviewerName").doesNotExist())
+                .andExpect(jsonPath("$.data[0].title").doesNotExist())
+                .andExpect(jsonPath("$.data[0].hasEvidence").doesNotExist());
+    }
 }

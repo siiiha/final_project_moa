@@ -286,7 +286,7 @@ function SavingGroupJoinRequestList({
 
       {activeFilter === '계금 요청' ? (
         <SavingGroupPayoutApprovalList
-          key={savingGroupId}
+          key={`${savingGroupId}:${groupType}`}
           savingGroupId={savingGroupId}
           groupType={groupType}
         />
