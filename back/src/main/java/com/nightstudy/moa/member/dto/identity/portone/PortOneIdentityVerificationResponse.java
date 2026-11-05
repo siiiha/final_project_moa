@@ -35,5 +35,6 @@ public class PortOneIdentityVerificationResponse {
         private String name;
         private String birthDate;
         private String phoneNumber;
+        private String ci;
     }
 }

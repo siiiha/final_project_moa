@@ -27,6 +27,7 @@ public class MemberProfileResponse {
     private String townName;
     private String legalCode;
     private boolean identityVerified;
+    private boolean identityAccountLinked;
     private boolean regionVerified;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private LocalDateTime regionVerifiedAt;
