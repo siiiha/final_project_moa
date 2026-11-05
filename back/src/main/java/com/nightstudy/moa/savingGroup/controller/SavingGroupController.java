@@ -40,6 +40,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 기존 추방 경로를 연결하고 인증 사용자·소속·권한·상태 판단은 Service에 위임한다.
+    @PatchMapping("/{groupId}/members/{memberId}/expel")
+    public ApiResponse<Void> expelMember(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("memberId") @Positive(message = "회원 ID는 1 이상이어야 합니다.") Long targetMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.expelApprovedSavingGroupMember(groupId, targetMemberId, memberId);
+        return ApiResponse.ok();
+    }
     // AI작성: 대상 회원과 역할만 전달하고 처리자·권한·모임 소속은 Service에서 검증한다.
     @PatchMapping("/{savingGroupId}/members/{memberId}/role")
     public ApiResponse<Void> updateMemberRole(

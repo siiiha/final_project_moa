@@ -491,28 +491,36 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
         }
-        if (!List.of("01", "02").contains(target.getStatus())) {
+        // AI작성: 진행 전인 모집중 상태에서만 추방하며 진행중·종료 상태는 차단한다.
+        if (!"01".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
-                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+                    "모집 중인 계모임에서만 계원을 추방할 수 있습니다.");
         }
         validateSavingGroupOwner(target, memberId);
 
         SavingGroupMembershipRelationRow member = savingGroupMapper
                 .selectSavingGroupMembershipForUpdate(target.getGroupId(), targetMemberId);
-        if (member == null || !"APPROVED".equals(member.getMembershipStatus())) {
+        if (member == null || !"APPROVED".equals(member.getMembershipStatus())
+                || !savingGroupMapper.existsMember(targetMemberId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND",
                     "승인 상태의 계원을 찾을 수 없습니다.");
         }
-        if (Objects.equals(targetMemberId, memberId)) {
+        // AI작성: 본인 및 다른 OWNER 관계를 보호하고 MEMBER·MANAGER만 직접 추방한다.
+        if (Objects.equals(targetMemberId, memberId) || "OWNER".equals(member.getMemberRole())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED",
-                    "계주 본인은 추방할 수 없습니다.");
+                    "계주는 추방할 수 없습니다.");
         }
 
+        if (!List.of("MEMBER", "MANAGER").contains(member.getMemberRole() == null ? "" : member.getMemberRole())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_ROLE_INVALID", "현재 계원 역할을 확인해주세요.");
+        }
+        // AI작성: 기존 SQL대로 역할·이력은 보존하고 승인 관계 상태만 EXPELLED로 변경한다.
         int affectedRows = savingGroupMapper.expelApprovedSavingGroupMember(member.getCrewMemberId(), target.getGroupId());
         if (affectedRows != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_EXPULSION_FAILED",
                     "계원 상태가 변경되어 추방할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: TODO: 추방 사유·환불·정산 등 후속 정책은 확정 후 별도 구현한다.
         // TODO: 알림 기능 구현 후 추방당한 회원에게 추방 알림을 발송한다.
     }
 

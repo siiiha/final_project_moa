@@ -1113,3 +1113,15 @@
 - 남은 범위: 계주 영수증 원본 열람 흐름, 상위 권한·모임 상태 props 보강 및 원본 요청 상태 코드 분리는 미구현이다. 권한과 상태는 기존 서버 검증을 유지한다.
 - 최종 검증: npm run build 통과(번들 크기 경고 유지), git diff --check 통과. 승인된 4개 파일만 변경했다.
 - 개발자 검토·수정: 검토 대기. 커밋·push 미실행.
+
+## 2026-11-05 진행 전 OWNER 계원 추방
+<!-- AI작성: 승인된 별도 워크트리와 세 단계의 구현·검증 결과를 기록한다. -->
+- 목적: 모집중(01) 계모임 OWNER의 MEMBER·MANAGER 직접 추방(B 방식).
+- 기준: 로컬 feature/savinggroup의 d167503246e27a2155d80ed97afd3dc4e148f019. 브랜치 feature/kickout-savinggroup, 워크트리 C:/Users/USER/.codex/worktrees/kickout-savinggroup/final_project_moa. 생성 이후 기준 브랜치의 추가 변경은 가져오지 않았다.
+- 1단계: SavingGroupServiceImpl.java 및 신규 SavingGroupMemberExpulsionServiceTest.java. 모집중·승인 OWNER·현재 소속·미삭제 회원·대상 역할 검증과 조건부 UPDATE 재사용. 커밋 364f680, feat: 계모임 진행 전 계원 추방 서비스 정책 및 검증 보완.
+- 2단계: SavingGroupController.java 및 신규 SavingGroupMemberExpulsionControllerTest.java. 기존 PATCH /{groupId}/members/{memberId}/expel과 두 별칭 연결, 인증 속성 및 공통 응답 재사용. 커밋 cfad69d, feat: 계모임 계원 추방 API Controller 연결.
+- 3단계: docs/saving-groups-api.md 및 이 기록. 확정 정책·기존 재가입 제한·검증 결과·수동 API 확인 절차 정리.
+- 검증: git diff --check 통과. 기본 Gradle은 Java 17 부재로 중단. 임시 Java 21 toolchain 및 --release 17로 운영 코드 컴파일 성공. 전체 테스트 컴파일은 기존 다른 영역 import 오류 13건으로 중단. 임시 sourceSets 필터로 추방 Service 29·Controller 14, 기존 역할 Service 34·Controller 19, 가입 가능 여부 10건, 총 106건 통과(실패·건너뜀 0).
+- 정책 점검: 회계 조회와 관련 계모임 운영 권한은 APPROVED 조건을 확인하며 EXPELLED는 재가입 불가. 역할값·left_at·승인 이력 보존. 사유·알림·금융·순번·정산 후속 처리는 추가하지 않았다.
+- 개발자 검토: MANAGER 직접 추방 및 6개 파일 범위 승인 완료. 작성 코드와 실행 결과는 개발자 최종 검토 대기. 개발자가 직접 수정한 내용은 아직 없음.
+- 한계: 실제 Java 17·MySQL·JWT 필터 통합·동시성·브라우저 미검증. DB/Mapper/설정/의존성 변경, 실제 금융 호출, 기준 브랜치 병합 및 원격 push 없음.
