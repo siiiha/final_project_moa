@@ -91,3 +91,36 @@ test('잘못된 ID·페이지·역할은 요청 전에 차단한다', async () =
     assert.equal(calls, 0);
   } finally { Object.assign(client, originals); }
 });
+
+// AI작성: 검색어는 원문 기준으로 전송하고 빈 검색어는 생략하며 마스킹된 응답을 그대로 유지한다.
+test('계원 검색은 정리한 이름·원문 이메일·특수문자와 페이지를 전달한다', async () => {
+  const original = client.get;
+  const signal = new AbortController().signal;
+  try {
+    for (const keyword of ['테스트계원', 'test@example.com', '%_!', "x' OR 1=1", '가'.repeat(20)]) {
+      client.get = async (path, options) => {
+        assert.equal(path, '/saving-groups/10/members');
+        assert.deepEqual(options, { params: { keyword, page: 2 }, signal });
+        return { data: { success: true, data: [{ memberId: '50', name: '테스트계원', email: 't***@example.com', role: 'MEMBER' }],
+          meta: { page: 2, size: 10, total: 11, totalPages: 2 } } };
+      };
+      const result = await getSavingGroupMembers(10, { keyword: ` ${keyword} `, page: 2, signal });
+      assert.equal(result.items[0].email, 't***@example.com');
+    }
+  } finally { client.get = original; }
+});
+
+test('검색 해제는 keyword를 생략하고 잘못된 검색어는 요청 전에 거절한다', async () => {
+  const original = client.get;
+  let calls = 0;
+  try {
+    client.get = async (path, options) => {
+      calls += 1; assert.deepEqual(options.params, { page: 1 });
+      return { data: { success: true, data: [], meta: { page: 1, size: 10, total: 0, totalPages: 0 } } };
+    };
+    for (const keyword of [undefined, null, '', ' ', '　']) await getSavingGroupMembers(10, { keyword });
+    assert.equal(calls, 5);
+    for (const keyword of ['가'.repeat(21), 123, {}, []]) await assert.rejects(() => getSavingGroupMembers(10, { keyword }));
+    assert.equal(calls, 5);
+  } finally { client.get = original; }
+});

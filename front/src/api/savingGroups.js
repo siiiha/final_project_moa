@@ -16,12 +16,17 @@ async function savingGroupMemberResponse(send, fallbackMessage) {
   }
 }
 
-// AI작성: savingGroupId를 사용하고 서버가 제한한 최대 20명의 목록만 표시용 데이터로 변환한다.
-export async function getSavingGroupMembers(savingGroupId, { page = 1, signal } = {}) {
+// AI작성: 검색어를 정리해 이름·원문 이메일 검색으로 전달하고 서버의 마스킹 응답만 표시한다.
+export async function getSavingGroupMembers(savingGroupId, { keyword, page = 1, signal } = {}) {
   const id = savingGroupPathId(savingGroupId);
   if (!Number.isSafeInteger(page) || page < 1) throw new Error('페이지는 1 이상이어야 합니다.');
+  if (keyword != null && typeof keyword !== 'string') throw new Error('검색어를 다시 입력해주세요.');
+  const normalizedKeyword = keyword?.trim() || undefined;
+  if (normalizedKeyword && normalizedKeyword.length > 20) throw new Error('검색어는 20자 이내로 입력해 주세요.');
   const result = await savingGroupMemberResponse(
-    () => client.get(`/saving-groups/${id}/members`, { params: { page }, signal }),
+    () => client.get(`/saving-groups/${id}/members`, {
+      params: { ...(normalizedKeyword ? { keyword: normalizedKeyword } : {}), page }, signal,
+    }),
     '계원 목록을 불러오지 못했습니다. 다시 시도해주세요.'
   );
   const meta = result.meta;
