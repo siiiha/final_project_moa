@@ -73,6 +73,9 @@ class SmallGroupSecurityIntegrationTest {
                 LocalDate.of(2026, 11, 1), "한강 공원", 10, 2L,
                 "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0), null, List.of(), null, false, "UNAUTHORIZED", "로그인이 필요합니다.");
         when(smallGroupService.getSmallGroupDetail(1L, null)).thenReturn(response);
+        // AI작성: 공개 상세의 공지 페이지 응답도 동일한 공개 권한으로 제공한다.
+        when(smallGroupService.getSmallGroupNotices(eq(2L), any()))
+                .thenReturn(new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse(List.of(), PageMeta.of(1, 4, 0), List.of()));
 
         // AI작성: 비로그인 공개 상세도 신청 불가 여부와 사유를 정상 응답으로 전달한다.
         mockMvc.perform(get("/api/small-groups/1"))
@@ -181,5 +184,21 @@ class SmallGroupSecurityIntegrationTest {
     void smallGroupJoinRequestApprovalApiRequiresAuthentication() throws Exception {
         mockMvc.perform(patch("/api/small-groups/1/join-requests/2/approve"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // AI작성: 공개 요약 경로가 공지 본문·변경 API까지 공개하지 않는지 실제 보안 필터로 검증한다.
+    @Test
+    void noticeBodyAndMutationsRequireJwt() throws Exception {
+        mockMvc.perform(get("/api/small-groups/1/notices/9")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/small-groups/1/notices").requestAttr("memberId", 40L)
+                .contentType("application/json").content("{\"title\":\"공지\",\"content\":\"본문\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/small-groups/1/notices/9")
+                .contentType("application/json").content("{\"title\":\"공지\",\"content\":\"본문\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/small-groups/1/notices/9")).andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/api/small-groups/1/notices/9/pin").contentType("application/json").content("{\"pinned\":true}"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(smallGroupService);
     }
 }

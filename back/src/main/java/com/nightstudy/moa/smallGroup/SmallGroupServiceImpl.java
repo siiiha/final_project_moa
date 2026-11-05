@@ -58,6 +58,120 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 목록 조건·페이징·승인 계원 수 조합을 담당한다.
 @Service
 public class SmallGroupServiceImpl implements SmallGroupService {
+    // AI작성: 동일 모임의 고정 변경을 모임 잠금으로 직렬화해 동시 요청에서도 최대 두 개를 지킨다.
+    @Override @Transactional
+    public void updateSmallGroupNoticePinned(Long smallGroupId, Long noticeId, Long memberId, Boolean pinned) {
+        var target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        if (noticeId == null || noticeId <= 0 || pinned == null) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 번호와 고정 여부를 확인해 주세요.");
+        var notice = smallGroupMapper.selectSmallGroupNoticePinForUpdate(target.getGroupId(), noticeId);
+        if (notice == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        if (notice.getPinned() == null) throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "공지 상태를 확인하지 못했습니다.");
+        // AI작성: 같은 상태의 요청은 성공으로 처리하고 고정 해제에는 개수 제한을 적용하지 않는다.
+        if (pinned.equals(notice.getPinned())) return;
+        if (pinned && smallGroupMapper.selectSmallGroupPinnedNoticeIdsForUpdate(target.getGroupId()).size() >= 2) {
+            throw new ApiException(HttpStatus.CONFLICT, "SMALL_GROUP_NOTICE_PIN_LIMIT_EXCEEDED", "고정 공지는 최대 2개까지 지정할 수 있습니다.");
+        }
+        if (smallGroupMapper.updateSmallGroupNoticePinned(target.getGroupId(), noticeId, pinned) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_PIN_FAILED", "공지 고정 변경에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 수정과 동일한 잠금 순서·작성자 검증을 사용해 본인 공지의 삭제 시각만 변경한다.
+    @Override @Transactional
+    public void deleteSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId) {
+        var target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        requireSmallGroupNoticeAuthor(target.getGroupId(), noticeId, memberId);
+        if (smallGroupMapper.deleteSmallGroupNotice(target.getGroupId(), noticeId, memberId) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_DELETE_FAILED", "공지 삭제에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 공통 모임→회원 관계→공지 순으로 잠그고 동일 내용 재요청은 성공 처리한다.
+    @Override @Transactional
+    public Long updateSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId, String title, String content) {
+        var target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        validateSmallGroupNoticeText(title, content);
+        var notice = requireSmallGroupNoticeAuthor(target.getGroupId(), noticeId, memberId);
+        if (Objects.equals(notice.getTitle(), title.trim()) && Objects.equals(notice.getContent(), content.trim())) return noticeId;
+        if (smallGroupMapper.updateSmallGroupNotice(target.getGroupId(), noticeId, memberId, title.trim(), content.trim()) != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_EDIT_FAILED", "공지 수정에 실패했습니다.");
+        }
+        return noticeId;
+    }
+
+    // AI작성: 현재 소모임장이라도 다른 작성자의 공지를 수정·삭제할 수 없다.
+    private com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse requireSmallGroupNoticeAuthor(Long groupId, Long noticeId, Long memberId) {
+        if (noticeId == null || noticeId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 번호가 올바르지 않습니다.");
+        var notice = smallGroupMapper.selectSmallGroupNoticeForUpdate(groupId, noticeId);
+        if (notice == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        if (!Objects.equals(notice.getWriterId(), memberId)) throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_NOTICE_AUTHOR_FORBIDDEN", "공지 작성자만 수정·삭제할 수 있습니다.");
+        return notice;
+    }
+
+    // AI작성: 공개 상세와 같은 모임·관계 검증을 먼저 수행하고 승인 회원에게만 본문을 제공한다.
+    @Override @Transactional(readOnly = true)
+    public com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse getSmallGroupNoticeDetail(Long smallGroupId, Long noticeId, Long memberId) {
+        if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        if (noticeId == null || noticeId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 번호가 올바르지 않습니다.");
+        SmallGroupDetailResponse group = getSmallGroupDetail(smallGroupId, memberId);
+        if (!"APPROVED".equals(group.getMembershipStatus()) || !List.of("OWNER", "MEMBER").contains(group.getMyRole() == null ? "" : group.getMyRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_NOTICE_READ_FORBIDDEN", "해당 소모임의 승인된 회원만 공지를 조회할 수 있습니다.");
+        }
+        var notice = smallGroupMapper.selectSmallGroupNoticeDetail(group.getGroupId(), noticeId);
+        if (notice == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOTICE_NOT_FOUND", "공지를 찾을 수 없습니다.");
+        return notice;
+    }
+
+    // AI작성: 마지막 페이지 초과 요청은 유효한 마지막 페이지로 보정하며 빈 목록은 1페이지로 유지한다.
+    @Override @Transactional(readOnly = true)
+    public com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse getSmallGroupNotices(Long groupId,
+            com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSearchCondition condition) {
+        if (condition == null || condition.getNoticePage() == null || condition.getNoticePage() < 1
+                || !List.of("LATEST", "OLDEST").contains(condition.getNoticeSort() == null ? "" : condition.getNoticeSort())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "공지 조회 조건을 확인해 주세요.");
+        }
+        int total = smallGroupMapper.countSmallGroupNotices(groupId);
+        int page = Math.min(condition.getNoticePage(), Math.max(1, (int)Math.ceil(total / 4.0)));
+        PageMeta meta = PageMeta.of(page, 4, total);
+        return new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse(
+                smallGroupMapper.selectSmallGroupNoticePage(groupId, meta.getOffset(), condition.getNoticeSort()), meta,
+                smallGroupMapper.selectSmallGroupPinnedNotices(groupId));
+    }
+
+    // AI작성: 공통 모임→회원 관계 순으로 잠가 권한 검증과 저장을 한 트랜잭션에서 처리한다.
+    @Override
+    @Transactional
+    public void createSmallGroupNotice(Long smallGroupId, Long memberId, String title, String content) {
+        SmallGroupJoinTargetRow target = requireSmallGroupNoticeOwner(smallGroupId, memberId);
+        validateSmallGroupNoticeText(title, content);
+        var row = new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeCreateRow(
+                null, target.getGroupId(), memberId, title.trim(), content.trim());
+        if (smallGroupMapper.insertSmallGroupNotice(row) != 1 || row.getNoticeId() == null) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_WRITE_FAILED", "공지 등록에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 소모임 ID와 groups ID를 구분하며 개설자·승인 OWNER를 동시에 확인한다.
+    private SmallGroupJoinTargetRow requireSmallGroupNoticeOwner(Long smallGroupId, Long memberId) {
+        if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        if (smallGroupId == null || smallGroupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 번호가 올바르지 않습니다.");
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        SmallGroupMemberRelationRow relation = smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (!Objects.equals(target.getCreatorMemberId(), memberId) || relation == null
+                || !"OWNER".equals(relation.getMemberRole()) || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_NOTICE_WRITE_FORBIDDEN", "승인된 해당 소모임장만 공지를 관리할 수 있습니다.");
+        }
+        return target;
+    }
+
+    // AI작성: Controller 외 호출에도 계모임과 같은 제목 100자·본문 5,000자 규칙을 적용한다.
+    private void validateSmallGroupNoticeText(String title, String content) {
+        if (title == null || title.isBlank() || title.length() > 100 || content == null || content.isBlank() || content.length() > 5000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "제목은 1~100자, 내용은 1~5,000자로 입력해 주세요.");
+        }
+    }
+
     private static final int PAGE_SIZE = 6;
     private static final int JOIN_REQUEST_PAGE_SIZE = 10;
     private static final int VOTE_TITLE_MIN_LENGTH = 2;

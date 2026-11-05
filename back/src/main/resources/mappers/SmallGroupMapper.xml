@@ -782,8 +782,65 @@
                gn.created_at
         FROM group_notice gn
         JOIN members writer ON writer.member_id = gn.writer_id
-        WHERE gn.group_id = #{groupId}
-        ORDER BY gn.created_at DESC
+        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
         LIMIT 4
     </select>
+    <!-- AI작성: 작성자는 인증 정보에서 결정하고 생성 키를 DTO에 설정한다. -->
+    <insert id="insertSmallGroupNotice" useGeneratedKeys="true" keyProperty="noticeId">
+        INSERT INTO group_notice (group_id, writer_id, title, content)
+        VALUES (#{groupId}, #{writerId}, #{title}, #{content})
+    </insert>
+    <!-- AI작성: 삭제된 공지는 집계·목록에서 제외하고 시각이 같으면 ID로 정렬한다. -->
+    <select id="countSmallGroupNotices" resultType="int">
+        SELECT COUNT(*) FROM group_notice WHERE group_id = #{groupId} AND deleted_at IS NULL AND is_pinned = 0
+    </select>
+    <select id="selectSmallGroupNoticePage" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL AND gn.is_pinned = 0
+        <choose><when test="sort == 'OLDEST'">ORDER BY gn.created_at ASC, gn.notice_id ASC</when>
+        <otherwise>ORDER BY gn.created_at DESC, gn.notice_id DESC</otherwise></choose>
+        LIMIT 4 OFFSET #{offset}
+    </select>
+    <!-- AI작성: 모임과 공지 식별자를 함께 제한해 타 모임 공지는 조회되지 않는다. -->
+    <select id="selectSmallGroupNoticeDetail" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse">
+        SELECT gn.notice_id, gn.title, gn.content, gn.writer_id, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL
+    </select>
+    <!-- AI작성: 작성자를 SQL에서도 제한하고 원작성자·작성일·고정 여부는 보존한다. -->
+    <select id="selectSmallGroupNoticeForUpdate" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse">
+        SELECT gn.notice_id, gn.title, gn.content, gn.writer_id, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL FOR UPDATE
+    </select>
+    <update id="updateSmallGroupNotice">
+        UPDATE group_notice SET title = #{title}, content = #{content}, updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
+    </update>
+    <!-- AI작성: 물리 삭제 없이 이력을 보존하고 재요청은 조회에서 제외한다. -->
+    <update id="deleteSmallGroupNotice">
+        UPDATE group_notice SET deleted_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
+    </update>
+    <!-- AI작성: 고정 공지는 일반 네 건과 별도로 최신순 표시하고 삭제 공지는 제외한다. -->
+    <select id="selectSmallGroupPinnedNotices" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.is_pinned = 1 AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
+    </select>
+    <select id="selectSmallGroupNoticePinForUpdate" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticePinRow">
+        SELECT notice_id, is_pinned AS pinned FROM group_notice
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="selectSmallGroupPinnedNoticeIdsForUpdate" resultType="java.lang.Long">
+        SELECT notice_id FROM group_notice
+        WHERE group_id = #{groupId} AND is_pinned = 1 AND deleted_at IS NULL ORDER BY notice_id FOR UPDATE
+    </select>
+    <update id="updateSmallGroupNoticePinned">
+        UPDATE group_notice SET is_pinned = #{pinned}
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL AND is_pinned != #{pinned}
+    </update>
 </mapper>

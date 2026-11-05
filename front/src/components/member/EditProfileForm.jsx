@@ -10,7 +10,7 @@ import {
   updateMyProfile,
   memberInterestOptions,
   uploadMyProfileImage,
-    deleteMyProfileImage,
+  deleteMyProfileImage,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 import ProfileImage from './ProfileImage';
@@ -224,15 +224,7 @@ const ActionButton = styled(Button)`
   font-size: 12px;
 `;
 
-// AI작성: Figma의 비밀번호 변경 안내 스타일을 적용합니다.
-const PasswordHint = styled.p`
-  margin-left: 100px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
-  line-height: 1.6;
-`;
 // AI작성: 저장 오류를 눈에 띄는 안내 상자로 보여줍니다.
-
 const ErrorNotice = styled.p`
   display: flex;
   align-items: center;
@@ -253,9 +245,7 @@ function EditProfileForm() {
   const photoInputRef = useRef(null);
   const [profile, setProfile] = useState(null);
   const [nickname, setNickname] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
   const [selectedInterests, setSelectedInterests] = useState([]);
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -264,7 +254,7 @@ function EditProfileForm() {
   const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
     useState(false);
-  
+
   // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
   const [photoStatus, setPhotoStatus] = useState('');
 
@@ -295,7 +285,6 @@ function EditProfileForm() {
           setSelectedInterests(
             (data.interests ?? []).map((interest) => interest.interestId),
           );
-          setCurrentPassword('');
         }
       } catch (error) {
         if (cancelled) return;
@@ -308,7 +297,7 @@ function EditProfileForm() {
 
         setErrorMessage(
           error.response?.data?.error?.message ??
-            '회원정보를 불러오지 못했습니다.',
+          '회원정보를 불러오지 못했습니다.',
         );
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -323,17 +312,17 @@ function EditProfileForm() {
   }, [token, clearToken, navigate]);
 
   // AI작성: 기존 선택은 해제할 수 있고, 새 선택은 최대 3개로 제한한다.
-const toggleInterest = (interestId) => {
-  setSelectedInterests((current) => {
-    if (current.includes(interestId)) {
-      return current.filter((id) => id !== interestId);
-    }
+  const toggleInterest = (interestId) => {
+    setSelectedInterests((current) => {
+      if (current.includes(interestId)) {
+        return current.filter((id) => id !== interestId);
+      }
 
-    if (current.length >= 3) return current;
+      if (current.length >= 3) return current;
 
-    return [...current, interestId];
-  });
-};
+      return [...current, interestId];
+    });
+  };
 
   // 비밀번호는 저장소에 보관하지 않고 수정 요청에만 사용
   const handleUpdateRequest = async (event) => {
@@ -348,12 +337,7 @@ const toggleInterest = (interestId) => {
       return;
     }
 
-    if (!currentPassword.trim()) {
-      setErrorMessage('현재 비밀번호를 입력해주세요.');
-      return;
-    }
-
-        // AI작성: 비밀번호 변경을 입력한 경우 길이와 확인값을 검사합니다.
+    // AI작성: 비밀번호 변경을 입력한 경우 길이와 확인값을 검사합니다.
     const passwordChangeRequested =
       newPassword !== '' || confirmNewPassword !== '';
 
@@ -379,7 +363,6 @@ const toggleInterest = (interestId) => {
 
     try {
       const updatedProfile = await updateMyProfile(token, {
-        currentPassword,
         nickname: trimmedNickname,
         interestIds: selectedInterests,
         newPassword,
@@ -390,7 +373,6 @@ const toggleInterest = (interestId) => {
         throw new Error('수정 결과를 확인할 수 없습니다.');
       }
 
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
       navigate('/member/mypage');
@@ -401,12 +383,12 @@ const toggleInterest = (interestId) => {
         return;
       }
 
-            setErrorMessage(
+      setErrorMessage(
         error.response?.data?.error?.code ===
           'NEW_PASSWORD_SAME_AS_CURRENT'
           ? '지금 사용 중인 비밀번호예요. 다른 새 비밀번호를 입력해주세요.'
           : error.response?.data?.error?.message ??
-              '회원정보를 수정하지 못했습니다.',
+          '회원정보를 수정하지 못했습니다.',
       );
 
     } finally {
@@ -445,7 +427,7 @@ const toggleInterest = (interestId) => {
           ? { ...current, profileImageUrl: result.profileImageUrl }
           : current,
       );
-            } catch (error) {
+    } catch (error) {
       setPhotoStatus('error');
 
       if (error.response?.status === 401) {
@@ -456,7 +438,7 @@ const toggleInterest = (interestId) => {
 
       setErrorMessage(
         error.response?.data?.error?.message ??
-          '사진을 저장하지 못했습니다.',
+        '사진을 저장하지 못했습니다.',
       );
     } finally {
       setIsSaving(false);
@@ -488,7 +470,7 @@ const toggleInterest = (interestId) => {
 
       setErrorMessage(
         error.response?.data?.error?.message ??
-          '사진을 삭제하지 못했습니다.',
+        '사진을 삭제하지 못했습니다.',
       );
     } finally {
       setIsSaving(false);
@@ -513,14 +495,14 @@ const toggleInterest = (interestId) => {
             <PhotoStatus
               role={photoStatus === 'error' ? 'alert' : 'status'}
             >
-              {photoStatus === 'uploading' 
-              ? '사진을 준비하고 있어요' 
-              : '사진을 변경하지 못했어요'}
+              {photoStatus === 'uploading'
+                ? '사진을 준비하고 있어요'
+                : '사진을 변경하지 못했어요'}
             </PhotoStatus>
           )}
         </Avatar>
         <AvatarLabel>프로필 사진</AvatarLabel>
-                <input
+        <input
           ref={photoInputRef}
           type="file"
           accept="image/jpeg,image/png"
@@ -535,7 +517,7 @@ const toggleInterest = (interestId) => {
           >
             <FiCamera size={12} aria-hidden="true" /> 사진 변경
           </AvatarButton>
-                    <AvatarButton
+          <AvatarButton
             type="button"
             $danger
             disabled={isSaving || !profile.profileImageUrl}
@@ -596,25 +578,10 @@ const toggleInterest = (interestId) => {
 
         <Divider />
 
-        <PasswordInput
-          id="edit-current-password"
-          label="현재 비밀번호"
-          placeholder="본인 확인을 위해 입력해주세요"
-          autoComplete="current-password"
-          value={currentPassword}
-          onChange={(event) => setCurrentPassword(event.target.value)}
-          required
-          disabled={isSaving}
-          inline
-          compact
-          isVisible={isPasswordVisible}
-          onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
-        />
-
-                {/* AI작성: 새 비밀번호를 입력한 경우에만 변경합니다. */}
+        {/* AI작성: 새 비밀번호를 입력한 경우에만 변경합니다. */}
         <PasswordInput
           id="edit-new-password"
-          label="비밀번호 변경"
+          label="새 비밀번호"
           placeholder="변경할 경우 8자 이상 입력"
           autoComplete="new-password"
           value={newPassword}
@@ -631,7 +598,7 @@ const toggleInterest = (interestId) => {
 
         <PasswordInput
           id="edit-new-password-confirm"
-          label="비밀번호 변경 확인"
+          label="새 비밀번호 확인"
           placeholder="새 비밀번호를 다시 입력"
           autoComplete="new-password"
           value={confirmNewPassword}
@@ -647,37 +614,33 @@ const toggleInterest = (interestId) => {
           }
         />
 
-        <PasswordHint>
-          비밀번호를 변경하지 않으려면 두 칸 모두 비워두세요.
-        </PasswordHint>
-
         <Divider />
 
         <InterestField>
           <Label>관심사</Label>
           <ChipList aria-label="관심사 선택">
             {memberInterestOptions.map((interest) => {
-  const selected = selectedInterests.includes(interest.interestId);
-  const InterestIcon = interestIcons[interest.interestId];
+              const selected = selectedInterests.includes(interest.interestId);
+              const InterestIcon = interestIcons[interest.interestId];
 
-  return (
-    <Chip
-      key={interest.interestId}
-      type="button"
-      disabled={
-        isSaving || (!selected && selectedInterests.length >= 3)
-      }
-      $selected={selected}
-      aria-pressed={selected}
-      onClick={() => toggleInterest(interest.interestId)}
-    >
-      {InterestIcon && (
-        <InterestIcon size={18} aria-hidden="true" />
-      )}
-      <span>{interest.interestName}</span>
-    </Chip>
-  );
-})}
+              return (
+                <Chip
+                  key={interest.interestId}
+                  type="button"
+                  disabled={
+                    isSaving || (!selected && selectedInterests.length >= 3)
+                  }
+                  $selected={selected}
+                  aria-pressed={selected}
+                  onClick={() => toggleInterest(interest.interestId)}
+                >
+                  {InterestIcon && (
+                    <InterestIcon size={18} aria-hidden="true" />
+                  )}
+                  <span>{interest.interestName}</span>
+                </Chip>
+              );
+            })}
           </ChipList>
           <Hint aria-live="polite">
             최대 3개 선택 · 선택 {selectedInterests.length}/3 · 모두 해제하면 관심사 없이 저장됩니다.

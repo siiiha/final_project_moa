@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS `members` (
 	`user_level`	VARCHAR(20)	NULL,
 	`system_role`	ENUM('USER',  'ADMIN')	NOT NULL	DEFAULT 'USER',
 	`identity_verified_at`	DATETIME	NULL,
+    `identity_ci_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
 	`region_verified_at`	DATETIME	NULL,
 	`account_status`	ENUM('ACTIVE', 'SUSPENDED',  'INACTIVE')	NOT NULL	DEFAULT 'ACTIVE',
     `suspended_until` DATETIME NULL DEFAULT NULL,
@@ -135,6 +136,7 @@ CREATE TABLE IF NOT EXISTS member_auth_session (
     member_id BIGINT NOT NULL,
     expires_at_ms BIGINT NOT NULL,
     revoked_at DATETIME(6) NULL,
+    mypage_verified_at DATETIME(6) NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     PRIMARY KEY (session_id),
