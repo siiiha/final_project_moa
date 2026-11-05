@@ -23,6 +23,12 @@ public interface NotificationMapper {
             @Param("size") int size
     );
 
+    // AI작성: SSE 재연결 시 마지막 수신 알림 이후에 생성된 누락 알림을 오래된 순서로 조회합니다.
+    List<NotificationDto> findAfter(
+            @Param("receiverId") Long receiverId,
+            @Param("lastEventId") Long lastEventId
+    );
+
     int countUnread(
             @Param("receiverId") Long receiverId
     );

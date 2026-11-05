@@ -57,6 +57,24 @@ public class SseEmitters {
         }
     }
 
+    // AI작성: 재연결 복구 알림은 같은 회원의 다른 탭이 아닌 새로 연결된 탭에만 전송합니다.
+    public void send(
+            Long memberId,
+            SseEmitter emitter,
+            String eventName,
+            Long eventId,
+            Object data
+    ) {
+        send(
+                memberId,
+                emitter,
+                SseEmitter.event()
+                        .id(String.valueOf(eventId))
+                        .name(eventName)
+                        .data(data)
+        );
+    }
+
     // 30초마다 모든 연결에 주석(:ping)을 보낸다
     @Scheduled(fixedRate = 30_000)
     public void ping() {

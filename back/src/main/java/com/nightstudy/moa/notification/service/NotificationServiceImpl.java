@@ -18,12 +18,32 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
+    private static final String NOTIFICATION_EVENT_NAME = "notification";
+
     private final NotificationMapper notificationMapper;
     private final SseEmitters sseEmitters;
 
     @Override
-    public SseEmitter subscribe(Long receiverId) {
-        return sseEmitters.add(receiverId);
+    public SseEmitter subscribe(Long receiverId, Long lastEventId) {
+        SseEmitter emitter = sseEmitters.add(receiverId);
+
+        if (lastEventId == null) {
+            return emitter;
+        }
+
+        // AI작성: 재연결한 브라우저에만 마지막 수신 번호 이후의 누락 알림을 발생 순서대로 재전송합니다.
+        notificationMapper.findAfter(receiverId, lastEventId)
+                .stream()
+                .map(NotificationResponse::from)
+                .forEach(notification -> sseEmitters.send(
+                        receiverId,
+                        emitter,
+                        NOTIFICATION_EVENT_NAME,
+                        notification.getNotificationId(),
+                        notification
+                ));
+
+        return emitter;
     }
 
     // AI작성: 알림을 DB에 먼저 저장한 후 접속 중인 회원에게 실시간 전송합니다.
@@ -110,7 +130,7 @@ public class NotificationServiceImpl implements NotificationService {
     ) {
         Runnable sendTask = () -> sseEmitters.send(
                 receiverId,
-                "notification",
+                NOTIFICATION_EVENT_NAME,
                 notificationId,
                 response
         );
