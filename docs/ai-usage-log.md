@@ -974,3 +974,10 @@
 - 화면: 순번계 확정 금액 표시, 친목계 사용 금액·제목·필수 영수증 입력, 서버 오류·로딩·완료 안내. 계정·모임 변경 시 상태 초기화, 중복 클릭 차단.
 - 검증: 기존 계모임 API 포함 Node 테스트 51건 통과, npm run build 성공(기존 대용량 번들 경고). 실제 브라우저·MySQL 연동은 미검증.
 - 남은 주의: 회차 생성·DB 컬럼 준비 후 요청 가능. 계금 요청 목록·승인·지급·금융 API는 이번 범위 제외. 개발자 검토 대기.
+## 2026-11-05 계금 요청 최종 검증·문서
+<!-- AI작성: 확정 정책·API·단계별 커밋과 DB 적용 후 수동 검증 절차를 정리했다. -->
+- 파일: SavingGroupPayoutServiceTest.java, docs/saving-groups-api.md, docs/saving-group-payout-request-design.md, 이 기록.
+- 검증: 대상 백엔드 55건(Mapper 1·Service 37·저장소 2·Controller 15) 통과. Java 21의 --release 17 컴파일이며 실제 Java 17 런타임·전체 백엔드 테스트·MySQL·JWT 필터·브라우저·실제 동시 요청은 미검증.
+- 프론트 계모임 API 테스트 51건·빌드 성공. 대상 lint 오류 없음, 기존 미사용 변수 경고 2건·대용량 번들 경고 유지. git diff --check 통과.
+- 확인: schema.sql·build.gradle·package.json·package-lock.json 변경 없음. DB 실행·실제 금융 호출·기준 브랜치 병합·push 없음.
+- 남은 작업: DB 담당자 컬럼 적용, 회차 생성 시 산정값 저장 및 회원별 추가 회비 부과 별도 구현, 실제 DB 기반 동시성·접근 권한 검증, 증빙 보관·개인정보 정책 확정. 개발자 검토 대기.

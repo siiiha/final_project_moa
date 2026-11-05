@@ -57,6 +57,18 @@ class SavingGroupPayoutServiceTest {
         verifyNoInteractions(storage);
     }
     @Test void wrongTurn() { when(mapper.selectPayoutSequence(1L, 2L)).thenReturn(2); fails("PAYOUT_NOT_YOUR_TURN"); }
+    @Test void startMonthDeterminesCurrentRoundAcrossYearBoundary() {
+        group.setStartDate(LocalDate.now(ZoneId.of("Asia/Seoul")).minusMonths(13).withDayOfMonth(1));
+        round.setRoundNumber(14);
+        when(mapper.selectPayoutRoundForUpdate(1L, 14)).thenReturn(round);
+        when(mapper.selectPayoutSequence(1L, 2L)).thenReturn(14);
+        assertThat(service.getPayoutOptions(1L, 2L).roundNumber()).isEqualTo(14);
+    }
+    @Test void rotationRejectsExpenseInput() { request.setAmount(BigDecimal.ONE); fails("PAYOUT_INVALID_INPUT"); }
+    @Test void rotationRejectsReceipt() {
+        assertThat(catchThrowableOfType(() -> service.createPayout(1L, 2L, request, file), ApiException.class).getCode()).isEqualTo("PAYOUT_INVALID_INPUT");
+        verify(mapper, never()).insertRoundPayout(any());
+    }
     @Test void missingRound() { when(mapper.selectPayoutRoundForUpdate(1L, 1)).thenReturn(null); fails("PAYOUT_ROUND_MISSING"); }
     @Test void missingSnapshot() { round.setBaseDuesAmount(null); fails("PAYOUT_SNAPSHOT_MISSING"); }
     @Test void invalidSnapshot() { round.setAdditionalDuesAmount(new BigDecimal("1001")); fails("PAYOUT_SNAPSHOT_MISSING"); }
@@ -76,6 +88,13 @@ class SavingGroupPayoutServiceTest {
     @ParameterizedTest @ValueSource(strings = {"0", "-1", "1.1", "10000000000000"})
     void invalidAmount(String value) { expense("OWNER"); request.setAmount(new BigDecimal(value)); fails("PAYOUT_INVALID_INPUT"); }
     @Test void duplicateReceipt() { expense("OWNER"); when(mapper.existsBlockingReceiptExpense(1L, "a".repeat(64))).thenReturn(true); fails("PAYOUT_DUPLICATE"); verify(storage, never()).store(any()); }
+    @Test void missingReceiptCannotBeStored() {
+        expense("MANAGER"); when(storage.prepare(null)).thenThrow(new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST, "INVALID_RECEIPT", "영수증 필수"));
+        assertThat(catchThrowableOfType(() -> service.createPayout(1L, 2L, request, null), ApiException.class).getCode()).isEqualTo("INVALID_RECEIPT");
+        verify(mapper, never()).insertReceiptExpense(any());
+    }
+    @Test void blankExpenseTitleCannotBeStored() { expense("MANAGER"); request.setTitle(" "); fails("PAYOUT_INVALID_INPUT"); }
+    @Test void expenseForMissingGroup() { expense("MANAGER"); when(mapper.selectPayoutTargetForUpdate(1L)).thenReturn(null); fails("NOT_FOUND"); }
     @Test void rejectedReceiptCanBeRequestedAgain() { expense("MANAGER"); when(mapper.existsBlockingReceiptExpense(1L, "a".repeat(64))).thenReturn(false); assertThat(service.createPayout(1L, 2L, request, file).requestId()).isEqualTo(9L); }
     @Test void transactionRollbackRemovesNewReceipt() {
         expense("OWNER"); TransactionSynchronizationManager.initSynchronization();
