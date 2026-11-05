@@ -93,6 +93,48 @@ export async function createSavingGroupPayout(groupId, { amount, title, receipt 
   return payoutCall(() => client.post(`/saving-groups/${id}/payout-requests`, body, { signal }));
 }
 
+// AI작성: 서버가 저장된 모임 유형에 따라 요청을 고르므로 클라이언트는 유형·처리자 정보를 보내지 않는다.
+export async function getSavingGroupPayoutRequests(savingGroupId, { status, page = 1, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  let response;
+  try {
+    response = await client.get(`/saving-groups/${id}/payout-requests`, {
+      params: { status: status || undefined, page }, signal,
+    });
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '요청 목록을 불러오지 못했습니다.');
+    failure.code = error.response?.data?.error?.code || 'PAYOUT_REQUEST_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+  if (response.data?.success !== true) {
+    const failure = new Error(response.data?.error?.message || '요청 목록을 불러오지 못했습니다.');
+    failure.code = response.data?.error?.code || 'PAYOUT_REQUEST_FAILED';
+    failure.status = response.status;
+    throw failure;
+  }
+  const { data, meta } = response.data;
+  if (!Array.isArray(data) || !meta || !Number.isInteger(meta.page) || meta.page < 1
+    || meta.size !== 10 || !Number.isInteger(meta.total) || meta.total < 0
+    || !Number.isInteger(meta.totalPages) || meta.totalPages < 0) {
+    throw new Error('요청 목록 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+  }
+  return {
+    items: data.map((item) => ({
+      ...item,
+      id: savingGroupPathId(item.requestId),
+      applicant: item.requesterName || '이름 미등록',
+      // AI작성: 증빙 유무와 회차는 실제 응답에 있는 경우에만 화면에 표시한다.
+      type: item.roundNumber != null ? '계금' : '지출',
+      amount: item.amount == null || !Number.isFinite(Number(item.amount))
+        ? '금액 확인 필요' : `${Number(item.amount).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`,
+      status: { PENDING: '대기', APPROVED: '승인', REJECTED: '반려', COMPLETED: '완료' }[item.status] || '상태 확인 필요',
+    })),
+    meta,
+  };
+}
+
 // AI작성: 관리자 계모임 심사의 API 코드와 화면 문구를 한곳에서 관리해 직접 문자열 비교를 줄인다.
 export const savingGroupReviewStatus = Object.freeze({
   PENDING: 'PENDING',

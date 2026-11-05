@@ -1013,3 +1013,33 @@
 - 사용자 해결 파일: SavingGroupMapper.java와 SavingGroupMapper.xml은 변경 전후 SHA-256 동일, 수정하지 않음.
 - 검증: front 기준 계모임 API·계원 관리·계금 요청·계원 목록 SSR 테스트 59건 통과, node --check 통과, npm run build 성공(기존 번들 크기 경고), 대상 diff 공백 검사 통과.
 - 한계: 백엔드·MySQL·브라우저 검증은 이번 충돌 해결에서 수행하지 않음. 커밋·push는 수행하지 않음. 개발자 최종 검토 대기.
+
+# 2026-11-05 계금 요청 목록 1단계
+- AI작성: 유형별 DTO·Mapper와 상태·페이지 Validation, XML 바인딩 테스트를 추가했다. DB·금융 API 변경 없음.
+- 사용자 확정: 순번계 계금/친목계 지출, 실명 표시, 탈퇴 요청자 제외·원본 유지, 탈퇴 처리자 이름 미노출.
+- 개발자 검토·수정: 미완료. 검증 결과는 후속 단계 기록 참조.
+
+## 2026-11-05 계금 요청 목록 2~6단계
+
+- AI작성: 계주 조회 Service·GET Controller·프론트 API·기존 계금 요청 탭 연동과 유형별 표시를 구현했다. 사용자 승인으로 6단계를 연속 진행하고 단계별 커밋했다.
+- 기준: feature/savinggroup / 8bf9b8256a38ef66c3409c2ad9bcbd45d942e401. 작업 브랜치 feature/select-request-savinggroup-thepool, 별도 워크트리 사용. 병합·push 없음.
+- 정책: 저장된 유형에 따라 순번계 payout_request / 친목계 expenses 조회, 모집중·진행중의 해당 모임 개설자 + OWNER/APPROVED만 허용, status·page 및 크기 10, data/meta 응답. 기간·검색·선택 정렬은 TODO.
+- 개인정보: 사용자 확정대로 실명 표시. 요청자 서비스 삭제 또는 현재 승인 관계 상실 시 목록·개수에서 제외하고 원본 유지. 처리자만 탈퇴하면 이름만 생략하고 검토일·요청 유지. 계좌·거래 ID·증빙 원본은 미노출. 현재 관계 기준이므로 재가입 후 과거 요청 재노출 정책은 후속 확인 사항이다.
+- 변경 파일: DTO 3개(SavingGroupPayoutRequestSearchCondition/Response/ListResponse), SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupController.java, savingGroups.js, SavingGroupDetail/JoinRequestsPanel/JoinRequestList/PayoutApprovalList.jsx, 신규 백엔드 테스트 5개(Mapper/SearchCondition/Service/Controller/MySqlIntegration), 프론트 테스트 2개(API/목록 SSR), API 명세·본 기록.
+- 커밋: 5709a5f feat: 계모임 계금 요청 목록 DTO와 Mapper 조회 구현 / a93eb8c feat: 계모임 계금 요청 목록 서비스 및 계주 권한 검증 추가 / e6e967d feat: 계모임 계금 요청 목록 조회 API Controller 추가 / 553b1cc feat: 계모임 계금 요청 목록 조회 요청 API 추가 / 8db5e11 feat: 계모임 계금 요청 목록 화면 및 조회 API 연동. 6단계 커밋명: test: 계모임 계금 요청 목록 통합 검증 및 API 문서화.
+- 검증: 설치된 JDK 17 경로를 명시하여 본문 컴파일 통과. 일반 test 실행은 기존 다른 도메인의 잘못된 import 13건으로 컴파일 불가. 추적하지 않는 build/payout-tests.init.gradle로 계모임 테스트만 컴파일·실행했다. 계모임 회귀 403건 중 393 통과·8 생략·2 실패. 기존 삭제 신청 테스트 2건은 승인 OWNER 관계 Mock 누락으로 실패하며 이번 변경 영역과 무관하다. 신규 백엔드 최종 42건 통과, MySQL 1건 생략. 상세 실행 방법은 API 명세에 기록한다.
+- 프론트: 기존 lockfile 의존성을 캐시에서 복원(새 의존성·lockfile 변경 없음). 전체 Node 테스트 111건 통과, 프로덕션 빌드 통과(번들 크기 경고), 변경 범위 oxlint 오류 없음(기존 상세 컴포넌트 미사용 변수 2건 경고).
+- 미검증: 실제 MySQL은 MOA_TEST_DB_ENABLED 미설정으로 생략. 명시적으로 허용한 비어 있는 moa_join_test_* DB에서만 신규 MySQL 테스트가 테이블을 생성·정리한다. 실제 인증 브라우저·Postman·JWT 필터 통합은 미실행. SSR은 상태·표시 렌더링 검증이며 브라우저 상호작용 검증과 구분한다.
+- 개발자 검토·수정: 정책은 사용자 확정, 작성 코드 검토 대기. DB 마이그레이션·실제 금융 연결·지급·승인/거절 기능·기준 브랜치 병합·원격 push 없음.
+
+
+## 2026-11-05 계금 요청 목록 병합 충돌 해결
+
+- AI작성: 사용자 요청으로 feature/savinggroup(d167503)에서 feature/select-request-savinggroup-thepool(1c1db4b)을 병합 중인 충돌 8개 파일을 해결했다. 커밋·push는 하지 않는다.
+- 대상: SavingGroupController.java, SavingGroupMapper.java/XML, SavingGroupService.java/Impl, savingGroups.js, saving-groups-api.md, 본 기록.
+- 방법: 계원 목록·검색·역할 변경과 계금 요청 등록의 기존 코드를 원문 보존하고 목록 조회 메서드·SQL을 독립적으로 삽입했다. 두 문서의 작업 기록·명세를 모두 유지했다. 기존 6개 코드 파일에서 수신 브랜치의 목록 조회 추가분을 제외하면 HEAD 원문과 정확히 일치함을 검증했다.
+- 계약 유지: 등록/options/영수증 API는 공통 groupId, 목록 GET은 savingGroupId. 지출 검토 컬럼 추가는 유지하되 목록 응답을 임의 확장하지 않았다. 자동 병합된 화면에서 등록에는 group.groupId, 목록에는 group.savingGroupId와 groupType을 전달함을 확인했다.
+- 검증: 백엔드 본문 컴파일 통과. 계모임 분리 실행 581건 중 566 통과·13 생략·2 실패. 실패는 기존 SavingGroupDeletionApplicationServiceTest의 승인 OWNER 관계 Mock 누락 2건이며 해당 삭제 로직·테스트를 수정하지 않았다. 계원 관리 122건(5 생략)·계금 등록/목록 96건(1 생략)에는 실패 없음.
+- 일반 백엔드 전체 테스트 컴파일은 기존 다른 도메인 import 13건 오류로 차단된다. 추적하지 않는 back/build/merge-savinggroup-tests.init.gradle로 계모임 패키지만 컴파일·실행했다. 실제 MySQL 테스트는 전용 환경변수 미설정으로 생략.
+- 프론트: API·화면 회귀 121건 통과, 프로덕션 빌드 통과. 변경 범위 lint 오류 없음(기존 상세 컴포넌트 미사용 변수 2건 경고). 기존 번들 크기 경고 유지.
+- 개발자 검토·수정: 검토·병합 커밋 대기. 실제 인증 브라우저·Postman·MySQL·금융 API 호출 미실행.

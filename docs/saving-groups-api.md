@@ -1398,3 +1398,114 @@ options에서는 requestId·status가 null이다. 친목계 options에서는 rou
 진행중 APPROVED 회원만 요청 가능하다. 친목계 OWNER·MANAGER, 순번계 현재 순번 본인만 허용한다. 미납·잔액·예산은 접수 차단 조건이 아니다. 승인·거절·지급 완료·요청 목록 API는 이번에 추가하지 않았다.
 
 회차 금액 보존, 중복·증빙 접근 정책, 필요한 DB 컬럼과 검증 절차는 [계금 요청 설계·검증 기록](saving-group-payout-request-design.md)을 참고한다. 회차 생성과 추가 회비 부과 기능은 별도 구현이 필요하다.
+
+## 계주 계금·지출 요청 목록 조회 (2026-11-05)
+
+<!-- AI작성: 사용자 확정 정책과 기존 내부 테이블을 기준으로 한 조회 전용 API다. -->
+
+### 경로·인증·권한
+
+`GET /api/saving-groups/{savingGroupId}/payout-requests`
+
+기존 Controller 별칭 `/saving-groups/{savingGroupId}/payout-requests`도 지원한다.
+경로의 ID는 `saving_group.saving_group_id`이며 공통 `groups.group_id`가 아니다.
+서버 인증 처리에서 설정한 `memberId`만 사용한다. 개설자 `groups.member_id` 일치와 해당 모임의
+`OWNER + APPROVED` 관계를 모두 검증한다. MANAGER·MEMBER·비회원·가입 대기·거절·탈퇴·추방 회원과
+다른 모임의 OWNER는 조회할 수 없다. 모집중(01)·진행중(02)에서만 조회한다.
+`/api/**`의 기존 Spring Security 인증 정책을 유지하고, Service에서도 인증 회원 누락을 차단한다.
+
+### 조회 조건
+
+| 파라미터 | 기본값 | 규칙 |
+|---|---|---|
+| status | 미지정(전체 상태) | PENDING / APPROVED / REJECTED / COMPLETED |
+| page | 1 | 1 이상인 int, 페이지 크기는 10 고정 |
+
+친목계에는 COMPLETED가 없으므로 해당 필터는 400이다. 빈 문자열·미정의 상태와 잘못된 페이지는 400이다.
+사용자 지정 정렬은 받지 않으며 요청일 내림차순·식별자 내림차순으로 안정 정렬한다.
+요청 유형은 클라이언트에서 받지 않고 DB의 `saving_group_type`으로 결정한다.
+순번계는 `payout_request` → `meeting_round.group_id`, 친목계는 `expenses.group_id`로 범위를 제한한다.
+전체 개수와 목록에 동일한 상태·요청자 조건을 사용한다.
+
+### 응답과 개인정보
+
+기존 `{ success, data: [], meta: { page, size, total, totalPages }, error }` 구조를 사용한다.
+결과 없음과 범위 초과 페이지도 200·빈 배열이며, 요청 페이지를 임의로 변경하지 않는다.
+식별자는 BIGINT 정밀도 손실을 막기 위해 문자열로 제공하고, 금액은 BigDecimal을 사용한다.
+화면에서 천 단위 콤마와 원 단위를 적용한다.
+
+| 응답 필드 | 공통/순번계/친목계 | 의미 |
+|---|---|---|
+| requestId | 공통 | 해당 유형 테이블의 요청 식별자(문자열) |
+| requesterName | 공통 | 요청자 실명(사용자 확정으로 마스킹하지 않음) |
+| amount | 공통 | 요청 금액 |
+| status | 공통 | 해당 요청 테이블의 기존 상태 |
+| requestedAt | 공통 | 계금 requested_at / 지출 created_at |
+| roundNumber | 순번계 | meeting_round.round_number(회차) |
+| reviewerName | 순번계 | 현재 승인 관계를 유지하는 미삭제 처리자의 실명 |
+| reviewedAt | 순번계 | 검토일이며 지급 완료일과 다름 |
+| title | 친목계 | 기존 지출 제목, 별도 사용처로 해석하지 않음 |
+| hasEvidence | 친목계 | 증빙 경로가 null·공백이 아닌지에 따른 첨부 여부 |
+
+적용되지 않거나 null인 필드는 응답에서 생략한다. 순번계 미검토는 reviewedAt 부재로 판단한다.
+계좌번호·거래 식별자·증빙 URL·원본·요청 사유·지급 완료일·회원 순번은 제공하지 않는다.
+요청자는 서비스 미삭제 및 해당 모임 APPROVED 관계를 유지하는 경우에만 목록과 개수에 포함한다.
+모임 탈퇴·추방·서비스 탈퇴 요청자의 원본 요청은 삭제하지 않고 조회에서 제외한다.
+처리자만 탈퇴하면 요청과 검토일은 유지하고 이름을 생략한다. 화면은 `이름 비공개`로 표시한다.
+이는 현재 관계 기준이다. 탈퇴 후 재가입하여 APPROVED로 바뀌면 기존 요청도 다시 포함된다.
+과거 탈퇴 이력을 계속 숨기는 별도 이력 정책·테이블은 이번 범위에서 추가하지 않는다.
+
+### 예외
+
+| HTTP | 코드 | 조건 |
+|---|---|---|
+| 400 | BAD_REQUEST | 잘못된 ID·페이지·상태 또는 친목계 COMPLETED 필터 |
+| 401 | LOGIN_REQUIRED / UNAUTHORIZED | 기존 보안 필터 또는 Service에서 미인증 판단 |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 대상 모임 개설자·승인 OWNER 조건 불충족 |
+| 404 | SAVING_GROUP_NOT_FOUND | 계모임 없음 또는 공통 모임 삭제 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중 외 상태 |
+| 409 | SAVING_GROUP_TYPE_INVALID | 미정의/누락된 모임 유형(임의 추정 차단) |
+
+### 프론트 연결·검증
+
+기존 가입 신청 관리의 `계금 요청` 탭에서 조회한다. 목록·페이지는 서버 결과를 사용하고 기존 금융 Mock은 참조하지 않는다.
+친목계에는 지출 제목·증빙 여부, 순번계에는 회차·검토일·검토자를 표시한다.
+상태 변경은 1페이지로 돌아가며 이전 요청 취소·오래된 응답 차단·재시도를 지원한다.
+승인·거절·지급 버튼은 제공하지 않는다. 기존 가입 신청 승인·거절 흐름은 유지한다.
+
+Postman에서 테스트 계정의 기존 인증을 사용해 순번계·친목계 각각
+`GET /api/saving-groups/{savingGroupId}/payout-requests?status=PENDING&page=1`을 호출한다.
+계주 정상 조회, MANAGER/MEMBER 등 권한 거절, 01/02 외 상태, page=0, 친목계 COMPLETED,
+빈 결과·2페이지·탈퇴 요청자 제외·탈퇴 처리자 이름 부재를 확인한다.
+브라우저에서는 계주 로그인 → 계모임 상세 → 가입 신청 관리 → 계금 요청 탭에서
+상태 필터·페이지·빈 결과·재시도·모바일 배치와 실명 표시를 확인한다.
+
+선택 MySQL 테스트는 기존 `MOA_TEST_DB_ENABLED=true`와 `MOA_TEST_DB_URL`, `MOA_TEST_DB_USER`,
+`MOA_TEST_DB_PASSWORD` 환경변수를 사용한다. 자격증명은 파일·명령 기록에 작성하지 않는다.
+반드시 비어 있는 `moa_join_test_*` 전용 테스트 DB가 필요하며 테스트가 만든 테이블만 종료 시 정리한다.
+일반 프로젝트 DB와 실제 금융 서비스는 사용하지 않는다.
+
+### 남은 TODO
+
+- 기간·요청자 검색·사용자 지정 정렬·증빙 원본 열람은 정책 확정 후 별도 작업.
+- 탈퇴 후 재가입한 회원의 과거 요청을 영구 제외하려면 별도 이력 정책 검토 필요.
+- 실제 MySQL 실행, 인증된 브라우저·Postman 상호작용은 별도 검증 필요.
+- 승인·거절·수정·취소·실제 지급·이체와 요청 등록 화면의 금융 Mock 교체는 범위 밖.
+
+### 실행 결과 (2026-11-05)
+
+- 신규 백엔드 테스트: 42건 통과, 전용 MySQL 테스트 1건은 환경변수 미설정으로 생략.
+- 계모임 회귀: 403건 중 393 통과·8 생략·2 실패(마지막 응답 테스트 추가 전 실행). 실패한 기존 SavingGroupDeletionApplicationServiceTest 2건은 승인 OWNER 관계 Mock 누락이다. 이번 변경에서는 해당 테스트·삭제 로직을 수정하지 않았다.
+- 일반 Gradle test는 기존 다른 도메인의 import 13건으로 테스트 전체 컴파일이 막힌다. 추적하지 않는 임시 init script에서 sourceSets.test.java.setIncludes(['com/nightstudy/moa/savingGroup/**'])로 계모임만 분리했다. 본문 컴파일은 통과했다.
+- 실행 명령(back 폴더): gradlew.bat -I build/payout-tests.init.gradle -Dorg.gradle.java.installations.paths=C:/dev/jdk-17.0.12_windows-x64_bin/jdk-17.0.12 test --tests '*SavingGroupPayoutRequest*' --offline. 임시 init script의 내용은 allprojects { plugins.withId('java') { sourceSets.test.java.setIncludes(['com/nightstudy/moa/savingGroup/**']) } } 이다. 전체 계모임 회귀는 --tests 옵션 없이 실행했다.
+- 프론트(front 폴더): node --test src/api/*.test.js src/components/savingGroup/SavingGroupPayoutApprovalList.test.js — 111건 통과. npm run build 통과(번들 크기 경고). 변경 파일 oxlint 오류 없음, 기존 상세 화면 미사용 변수 2건 경고 유지.
+- 실제 MySQL·인증 브라우저·Postman·JWT 필터 통합 검증은 실행하지 않았다. XML 바인딩·Mock Service·MVC·SSR 테스트 결과와 구분한다.
+
+
+### 2026-11-05 병합 호환성 확인
+
+<!-- AI작성: 계원 관리·계금 요청 등록·목록 조회를 모두 보존하여 충돌을 해결했다. -->
+
+- 등록 POST 및 options·영수증 GET은 기존 공통 groupId 계약을 유지한다. 목록 GET의 경로 ID는 savingGroupId다. 프론트는 각각 group.groupId / group.savingGroupId를 전달한다. HTTP 메서드와 하위 경로가 달라 별도의 핸들러로 유지한다.
+- 기준 브랜치의 계금 산정·지출 검토 컬럼을 유지한다. 목록 응답은 사용자 확정 범위대로 유지하며 새 컬럼을 자동 노출하지 않는다.
+- 충돌 해결 후 프론트 테스트 121건·빌드 통과. 백엔드 계모임 회귀 581건 중 566 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 계원 관리 및 계금 등록·목록 테스트에는 실패 없음. 일반 전체 테스트 컴파일의 기존 import 오류 13건·실제 DB/브라우저 미검증은 AI 사용 기록에 별도 기재했다.

@@ -21,6 +21,9 @@ public interface SavingGroupService {
     // AI작성: 전체 승인 계원에서 이름·원문 이메일을 검색한 뒤 기존 페이지 제한을 적용한다.
     com.nightstudy.moa.savingGroup.dto.SavingGroupMemberListResponse getSavingGroupMembers(
             Long savingGroupId, Long memberId, String keyword, int page);
+    // AI작성: 인증·모임·계주 검증 후 저장된 유형에 맞는 요청 목록만 조회한다.
+    com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRequestListResponse getSavingGroupPayoutRequests(
+            Long savingGroupId, Long memberId, String status, int page);
     // AI작성: 현재 승인된 공지 작성자만 소속 공지를 논리 삭제한다.
     void deleteSavingGroupNotice(Long groupId, Long noticeId, Long memberId);
     // AI작성: 공통 groupId 기준으로 승인 운영진인 작성자 본인의 제목·내용 전체 수정을 처리한다.
