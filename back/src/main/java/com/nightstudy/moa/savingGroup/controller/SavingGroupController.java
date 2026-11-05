@@ -50,13 +50,13 @@ public class SavingGroupController {
         savingGroupService.updateSavingGroupMemberRole(savingGroupId, targetMemberId, memberId, request.getRole());
         return ApiResponse.ok();
     }
-    // AI작성: 인증·모임·권한 검증은 Service에 맡기고 계원 배열과 기존 페이지 메타만 반환한다.
+    // AI작성: 검색 DTO는 기존 목록처럼 Validation 후 전달하고 인증·권한·검색 처리는 Service가 담당한다.
     @GetMapping("/{savingGroupId}/members")
     public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupMemberResponse>> members(
             @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
-            @RequestParam(name = "page", defaultValue = "1") @Positive(message = "페이지는 1 이상이어야 합니다.") int page) {
-        var result = savingGroupService.getSavingGroupMembers(savingGroupId, memberId, page);
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupMemberSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupMembers(savingGroupId, memberId, condition.getKeyword(), condition.getPage());
         return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
     // AI작성: 요청 본문이나 작성자 입력 없이 JWT 회원과 경로 ID만 Service로 전달한다.
