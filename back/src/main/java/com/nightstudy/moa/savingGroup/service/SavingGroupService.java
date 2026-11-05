@@ -13,6 +13,8 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 승인 계주만 기존 계원의 MEMBER·MANAGER 역할을 변경하며 회계는 최대 한 명이다.
+    void updateSavingGroupMemberRole(Long savingGroupId, Long targetMemberId, Long memberId, String role);
     // AI작성: 승인 계주에게만 최대 20명의 계원을 10명 단위로 제공한다.
     com.nightstudy.moa.savingGroup.dto.SavingGroupMemberListResponse getSavingGroupMembers(
             Long savingGroupId, Long memberId, int page);

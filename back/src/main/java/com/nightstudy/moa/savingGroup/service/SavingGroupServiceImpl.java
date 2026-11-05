@@ -21,6 +21,43 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 모임 잠금이 같은 모임의 역할 변경을 직렬화하며 현재 회계는 잠금 읽기로 확인한다.
+    @Override
+    @Transactional
+    public void updateSavingGroupMemberRole(Long savingGroupId, Long targetMemberId, Long memberId, String role) {
+        SavingGroupJoinTargetRow target = validateSavingGroupMemberManagement(savingGroupId, memberId);
+        if (targetMemberId == null || targetMemberId <= 0 || role == null || !List.of("MEMBER", "MANAGER").contains(role)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "대상 회원 번호 또는 역할이 올바르지 않습니다.");
+        }
+        SavingGroupMembershipRelationRow relation = savingGroupMapper
+                .selectSavingGroupMembershipForUpdate(target.getGroupId(), targetMemberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
+                || !savingGroupMapper.existsMember(targetMemberId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND",
+                    "승인 상태의 계원을 찾을 수 없습니다.");
+        }
+        if (Objects.equals(targetMemberId, memberId) || "OWNER".equals(relation.getMemberRole())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_OWNER_ROLE_CHANGE_NOT_ALLOWED",
+                    "계주 역할은 변경할 수 없습니다.");
+        }
+        if (!List.of("MEMBER", "MANAGER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_ROLE_INVALID", "현재 계원 역할을 확인해주세요.");
+        }
+        // AI작성: 중복 지정은 자동 교체하지 않는다. 기존 회계를 해제한 뒤 새 회계를 지정해야 한다.
+        if ("MANAGER".equals(role) && savingGroupMapper.selectSavingGroupManagerIdsForUpdate(target.getGroupId())
+                .stream().anyMatch(id -> !Objects.equals(id, targetMemberId))) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MANAGER_ALREADY_EXISTS",
+                    "회계는 한 명만 지정할 수 있습니다. 기존 회계를 계원으로 변경한 뒤 지정해주세요.");
+        }
+        if (role.equals(relation.getMemberRole())) return;
+        int affectedRows = savingGroupMapper.updateSavingGroupMemberRole(target.getGroupId(), relation.getCrewMemberId(),
+                relation.getMemberRole(), role);
+        if (affectedRows != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_ROLE_UPDATE_FAILED",
+                    "계원 상태가 변경되어 역할을 저장하지 못했습니다. 다시 확인해주세요.");
+        }
+        // AI작성: 확정 정책에 따라 역할 변경 알림은 발송하지 않는다. OWNER 이전·해제는 지원하지 않는다.
+    }
     // AI작성: 목록도 모임→계주 관계 잠금 순서로 권한을 확인하고 최대 두 페이지로 제한한다.
     @Override
     @Transactional
