@@ -105,6 +105,15 @@ const RoleSelect = styled.select`
   }
 `;
 
+// AI작성: 역할 선택과 해당 회원 저장 버튼을 함께 배치하고 모바일에서도 줄바꿈을 허용한다.
+const RoleControls = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
 const MobileList = styled.div`
   margin-top: 14px;
   display: none;
@@ -167,6 +176,7 @@ const PageButton = styled(Button)`
   min-width: 30px;
 `;
 
+// AI작성: 역할은 서버 코드로 비교하고 표시할 때만 한국어로 변환한다.
 function SavingGroupMemberList({
   members,
   currentPage,
@@ -176,15 +186,32 @@ function SavingGroupMemberList({
   isRoleEditing,
   onStartRoleEdit,
   onRoleChange,
-  onSaveRoles,
+  onCancelRoleEdit,
+  drafts,
+  pendingId,
+  onSaveRole,
 }) {
+  const busy = pendingId !== null;
+  const renderRole = (member) => isRoleEditing ? (
+    <RoleControls>
+      <RoleSelect aria-label={`${member.name} 역할`} value={drafts[member.id] || member.role}
+        disabled={busy} onChange={(event) => onRoleChange(member.id, event.target.value)}>
+        <option value="MANAGER">회계</option>
+        <option value="MEMBER">계원</option>
+      </RoleSelect>
+      <Button type="button" $size="small" disabled={busy || !drafts[member.id] || drafts[member.id] === member.role}
+        aria-label={`${member.name} 역할 저장`} onClick={() => onSaveRole(member.id)}>
+        {pendingId === member.id ? '저장 중…' : '저장'}
+      </Button>
+    </RoleControls>
+  ) : member.role === 'MANAGER' ? '회계' : '계원';
   return (
     <>
       <Card>
         <CardHeader>
           <Count>계원 {totalCount}명</Count>
-          <RoleEditButton type="button" onClick={isRoleEditing ? onSaveRoles : onStartRoleEdit}>
-            {isRoleEditing ? '저장' : '권한 수정'}
+          <RoleEditButton type="button" disabled={busy || !members.length} onClick={isRoleEditing ? onCancelRoleEdit : onStartRoleEdit}>
+            {isRoleEditing ? '편집 종료' : '역할 수정'}
           </RoleEditButton>
         </CardHeader>
         {members.length ? (
@@ -211,16 +238,7 @@ function SavingGroupMemberList({
                       <td><Name>{member.name}</Name></td>
                       <td><Email>{member.email}</Email></td>
                       <td>
-                        {isRoleEditing && member.role !== '계주' ? (
-                          <RoleSelect
-                            aria-label={`${member.name} 역할`}
-                            value={member.role}
-                            onChange={(event) => onRoleChange(member.id, event.target.value)}
-                          >
-                            <option value="회계">회계</option>
-                            <option value="계원">계원</option>
-                          </RoleSelect>
-                        ) : member.role}
+                        {renderRole(member)}
                       </td>
                       <td>{member.joinedAt}</td>
                     </tr>
@@ -239,16 +257,7 @@ function SavingGroupMemberList({
                   <MobileInfo>
                     <dt>역할</dt>
                     <dd>
-                      {isRoleEditing && member.role !== '계주' ? (
-                        <RoleSelect
-                          aria-label={`${member.name} 역할`}
-                          value={member.role}
-                          onChange={(event) => onRoleChange(member.id, event.target.value)}
-                        >
-                          <option value="회계">회계</option>
-                          <option value="계원">계원</option>
-                        </RoleSelect>
-                      ) : member.role}
+                      {renderRole(member)}
                     </dd>
                     <dt>가입일</dt>
                     <dd>{member.joinedAt}</dd>
@@ -258,19 +267,20 @@ function SavingGroupMemberList({
             </MobileList>
           </>
         ) : (
-          <Empty>검색 조건에 맞는 계원이 없습니다.</Empty>
+          <Empty>승인된 계원이 없습니다.</Empty>
         )}
       </Card>
 
       {totalPages > 1 && (
         <Pagination aria-label="계원 목록 페이지 이동">
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
+          <PageButton type="button" $variant="secondary" $size="small" disabled={busy || currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
             이전
           </PageButton>
           {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
             <PageButton
               key={page}
               type="button"
+              disabled={busy}
               $variant={page === currentPage ? 'primary' : 'secondary'}
               $size="small"
               aria-current={page === currentPage ? 'page' : undefined}
@@ -279,7 +289,7 @@ function SavingGroupMemberList({
               {page}
             </PageButton>
           ))}
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
+          <PageButton type="button" $variant="secondary" $size="small" disabled={busy || currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
             다음
           </PageButton>
         </Pagination>
