@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.time.LocalDate;
@@ -21,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SavingGroupJoinAvailabilityServiceTest {
     @Mock private SavingGroupMapper mapper;
+    @Mock private NotificationService notificationService;
     @InjectMocks private SavingGroupServiceImpl service;
     private SavingGroupRow row;
     private SavingGroupJoinMemberRow member;
@@ -127,6 +130,7 @@ class SavingGroupJoinAvailabilityServiceTest {
         target.setGroupId(20L);
         target.setStatus("01");
         target.setMaxMembers(10);
+        target.setOwnerMemberId(40L);
         when(mapper.selectSavingGroupJoinMemberForUpdate(30L)).thenReturn(member);
         when(mapper.selectSavingGroupJoinTargetForUpdate(10L)).thenReturn(target);
         for (String status : List.of("APPROVED", "PENDING", "REJECTED", "EXPELLED")) {
@@ -147,6 +151,12 @@ class SavingGroupJoinAvailabilityServiceTest {
         service.requestSavingGroupJoin(10L, 30L);
         verify(mapper).reactivateLeftSavingGroupMembership(20L, 30L);
         verify(mapper, never()).insertSavingGroupJoinRequest(any(), any());
+        verify(notificationService).send(
+                40L,
+                NotificationType.SAVING_GROUP_JOIN_REQUEST,
+                "새로운 계모임 가입 신청이 접수되었습니다.",
+                "/saving-groups/10"
+        );
     }
 
     // AI작성: 실제 MyBatis 매핑을 파싱해 상세 자격 조회가 읽기 전용이며 일정 조회가 포함되는지 검증한다.
