@@ -9,6 +9,7 @@ import {
 } from '../api/notification/notifications';
 import { subscribeNotifications } from '../api/notification/subscribeNotifications';
 import {
+  hasNavigableNotificationTarget,
   NOTIFICATION_RECEIVED_EVENT,
   NOTIFICATION_UPDATED_EVENT,
 } from '../constants/notification';
@@ -293,7 +294,7 @@ function NotificationBell() {
     setOpen(false);
 
     // AI작성: 외부 주소 실행을 막고 모아 내부 경로만 이동합니다.
-    if (notification.targetUrl?.startsWith('/')) {
+    if (hasNavigableNotificationTarget(notification)) {
       navigate(notification.targetUrl);
     }
   };
@@ -329,7 +330,7 @@ function NotificationBell() {
                 <li key={notification.notificationId}>
                   <NotificationItem
                     $read={notification.read}
-                    $hasTarget={notification.targetUrl?.startsWith('/')}
+                    $hasTarget={hasNavigableNotificationTarget(notification)}
                   >
                     <NotificationReadButton
                       type="button"
@@ -341,7 +342,7 @@ function NotificationBell() {
                         {formatNotificationDate(notification.createdAt)}
                       </DateText>
                     </NotificationReadButton>
-                    {notification.targetUrl?.startsWith('/') && (
+                    {hasNavigableNotificationTarget(notification) && (
                       <NotificationMoveButton
                         type="button"
                         onClick={() => handleNotificationMove(notification)}

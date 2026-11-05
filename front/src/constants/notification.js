@@ -2,6 +2,12 @@
 export const NOTIFICATION_UPDATED_EVENT = 'moa:notification-updated';
 export const NOTIFICATION_RECEIVED_EVENT = 'moa:notification-received';
 
+// AI작성: 과거 DB에 링크가 남아 있어도 가입 거절 알림은 이동 버튼과 화면 이동을 제공하지 않습니다.
+export function hasNavigableNotificationTarget(notification) {
+  return notification?.type !== 'SAVING_GROUP_JOIN_REJECTED'
+    && notification?.targetUrl?.startsWith('/');
+}
+
 export const NOTIFICATION_TYPE_LABELS = {
   SAVING_GROUP_JOIN_REQUEST: '계모임 가입 신청',
   SAVING_GROUP_JOIN_APPROVED: '계모임 가입 승인',

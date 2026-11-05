@@ -12,6 +12,7 @@ import MemberSidebar from '../components/layout/MemberSidebar';
 import NotificationList from '../components/member/NotificationList';
 import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
 import {
+  hasNavigableNotificationTarget,
   NOTIFICATION_RECEIVED_EVENT,
   NOTIFICATION_UPDATED_EVENT,
 } from '../constants/notification';
@@ -215,7 +216,7 @@ function NotificationPage() {
     }
 
     // AI작성: 알림에 저장된 모아 내부 주소만 이동 대상으로 사용합니다.
-    if (notification.targetUrl?.startsWith('/')) {
+    if (hasNavigableNotificationTarget(notification)) {
       navigate(notification.targetUrl);
     }
   };
