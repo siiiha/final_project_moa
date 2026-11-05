@@ -40,6 +40,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 경로는 saving_group_id이며 인증·권한·유형별 조회는 Service에 위임한다.
+    @GetMapping("/{savingGroupId}/payout-requests")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRequestResponse>> payoutRequests(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRequestSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupPayoutRequests(savingGroupId, memberId, condition.getStatus(), condition.getPage());
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
     // AI작성: 요청 본문이나 작성자 입력 없이 JWT 회원과 경로 ID만 Service로 전달한다.
     @DeleteMapping("/{groupId}/notices/{noticeId}")
     public ApiResponse<Void> deleteNotice(
