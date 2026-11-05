@@ -1184,8 +1184,8 @@ Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서
 - `APPROVED`이면서 `MEMBER / MANAGER`인 관계만 포함하고 OWNER·삭제 회원·PENDING·REJECTED·LEFT·EXPELLED는 제외한다.
 - `joined_at DESC, crew_member_id DESC` 정렬이다. 한 페이지 10명, 전체 조회 대상은 최대 20명으로 제한한다.
 - meta.total도 최대 20, meta.totalPages는 최대 2다. 3페이지 이상 및 빈 결과는 정상 빈 배열로 반환하고 offset을 계산하지 않는다.
-- 21번째 이후 회원은 이 화면에서 관리할 수 없다. 모임 정원을 20명으로 변경하거나 가입을 제한하는 기능은 추가하지 않았다.
-- 검색·역할·상태·크기·정렬 쿼리는 이번 API의 입력에 포함하지 않는다. 검색은 별도 후속 작업이다.
+- 정원 20명에 OWNER가 포함되므로 정상 데이터의 관리 대상은 최대 19명이다. 기존 조회의 방어적 20명 제한은 유지한다. 정원·가입 정책은 이 API에서 변경하지 않는다.
+- 이름·원문 이메일 검색은 아래 검색 확장 계약을 따른다. 역할·상태·크기·정렬 쿼리는 입력에 포함하지 않는다.
 
 HTTP 200, 기존 `ApiResponse`의 data 배열·meta를 사용한다.
 
@@ -1246,7 +1246,7 @@ HTTP 200, 기존 `ApiResponse`의 data 배열·meta를 사용한다.
 - 역할 수정 → 회원별 선택 → 해당 회원 저장 → 서버 재조회 순서다. 편집 종료는 미저장 변경을 폐기한다. 저장 중 선택·추가 저장·페이지 이동을 차단한다.
 - 성공·실패·통신 오류 후 모두 서버 상태를 재조회한다. 저장 완료 안내와 후속 조회 오류를 각각 표시하고, 재조회 실패 중에는 이전 목록을 계속 편집하지 않는다.
 - 회계 한 명 제한·교체 순서를 화면에 안내한다. 알림 생성은 하지 않으며 화면의 처리 결과 안내만 표시한다.
-- 검색창과 버튼은 후속 검색 구현을 위해 유지하되 비활성화하고 '검색 기능은 준비 중입니다.'를 표시한다. Mock 검색은 적용하지 않는다.
+- 검색창은 아래 검색 확장에 따라 실제 목록 API에 연결한다. Mock 검색은 적용하지 않는다.
 
 ### 단계별 파일·커밋
 
@@ -1285,11 +1285,78 @@ Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트 �
 5. MANAGER·MEMBER·비회원·다른 모임 OWNER 요청은 403, 비로그인은 기존 인증 오류, OWNER 지정은 400, OWNER 대상 해제는 409인지 확인한다.
 6. 없는 모임·회원·다른 모임 회원·PENDING·REJECTED·LEFT·EXPELLED·삭제 회원·잘못된 역할·활동 제한 모임의 실패 응답을 확인한다.
 7. 화면에서 역할 저장 중 중복 클릭·페이지 이동 차단, 실패 후 재조회, 재조회 실패 시 편집 차단, 모바일 표시, 모임 전환 시 이전 결과 미표시를 확인한다.
-8. 검색창이 유지되고 비활성/준비 중 안내가 표시되는지, 역할 저장으로 알림이 생성되지 않는지 확인한다.
+8. 검색창의 이름·이메일 검색과 빈 검색어로 전체 조회 복귀를 확인하고, 역할 저장으로 알림이 생성되지 않는지 확인한다.
 
 ### 남은 TODO
 
-- 검색 API·검색창 연결은 다음 기능으로 진행한다. 검색 시 최대 20명 제한을 적용하는 시점은 검색 설계에서 확정한다.
+- 검색 API·검색창 연결은 아래 검색 확장에서 구현했다. 검색 조건을 먼저 적용한 뒤 결과에 최대 20명 제한을 적용한다.
 - OWNER 이전·해제와 역할 변경 이력은 이번 범위에서 지원하지 않는다. 알림은 확정 정책에 따라 구현하지 않는다.
-- 20명 이후 계원은 이번 목록 화면에서 관리할 수 없다. 목록 밖 회계가 존재하는 경우에도 서버는 중복 지정을 차단한다.
+- 정상 정원 20명 기준 관리 대상은 최대 19명이다. 비정상 초과 데이터에서도 전체 승인 계원을 검색해 찾을 수 있고, 회계 제한은 검색 결과와 관계없이 모임 전체에 적용한다.
 - 실제 DB 동시성·브라우저 상호작용·인증 통합은 위 절차로 후속 확인해야 한다.
+
+<!-- AI작성: 2026-11-05 사용자 승인에 따른 계원 관리 검색 확장 및 단계별 커밋 기록. -->
+## 계원 관리 이름·이메일 검색 확장 (2026-11-05)
+
+### 요청 및 검색 규칙
+
+`GET /api/saving-groups/{savingGroupId}/members?keyword=검색어&page=1`
+
+기존 `/saving-groups` 별칭, OWNER 전용 권한, APPROVED MEMBER/MANAGER 범위, 모집중·진행중 조건, data/meta 및 오류 형식을 유지한다.
+
+| 입력 | 규칙 |
+| --- | --- |
+| keyword | 선택 문자열. 앞뒤 공백 정리 후 최대 20자. 생략·빈 문자열·공백만 입력하면 전체 조회 |
+| page | 기본 1, 정수 1 이상. 빈 문자열·문자·0·음수는 400 |
+
+- 해당 모임의 전체 승인 계원에서 `members.name` 또는 **마스킹 전 `members.email`** 부분 일치를 검색한다. 이후 기존 가입일·관계 ID 내림차순 정렬과 10명씩 최대 2페이지 제한을 적용한다.
+- 정상 정원 20명에 계주가 포함되므로 OWNER 제외 시 최대 19명이다. 검색 전 상위 20명으로 자르는 방식은 사용하지 않으며, 방어적 조회 상한은 유지한다.
+- 대소문자·문자 비교는 기존 MySQL 컬럼 collation을 따른다. 새 collation·DB 인덱스·마이그레이션을 추가하지 않는다.
+- 기존 Service의 `escapeKeyword`를 재사용한다. `%`, `_`, `!`는 LIKE 와일드카드가 아닌 입력 문자로 검색한다. SQL은 `#{keywordPattern}`과 `ESCAPE '!'`를 사용하고 문자열 SQL 삽입은 하지 않는다.
+- `(이름 조건 OR 이메일 조건)`을 괄호로 묶고, 목록과 전체 개수에 동일한 공통 SQL 조건을 적용한다. 검색어로 다른 모임·OWNER·미승인·탈퇴·추방·삭제 회원이 노출되지 않는다.
+- 검색 결과 수를 meta.total에 반환하며 최대 20이다. 결과 없음은 HTTP 200, data 빈 배열, total/totalPages 0이다. 범위 초과 페이지도 정상 빈 배열이다.
+- 응답 필드 변경 없음. 이름 원문·마스킹 이메일을 유지하고 원문 이메일은 응답이나 로그에 추가하지 않는다. 20자보다 긴 전체 이메일은 20자 이하 부분 문자열로 검색할 수 있다.
+- 기존 검색 없는 Service 호출도 검색어 null로 같은 구현에 연결한다. 역할 변경 API·회계 한 명 제한·알림 정책은 변경하지 않는다.
+
+### 화면 동작
+
+- 기존 검색창과 버튼을 활성화한다. 입력 중인 keyword와 조회에 적용한 submittedKeyword를 분리한다.
+- 검색 버튼 또는 Enter로만 조회한다. 입력 중에는 기존 결과를 유지하며 자동 검색하지 않는다.
+- 검색 실행 시 1페이지로 이동하고 미저장 역할 편집값·편집 모드를 초기화한다. 같은 검색어를 다시 제출해도 재조회한다.
+- 검색어를 비우고 검색하면 전체 계원 조회로 돌아간다. 화면에 20자 제한과 전체 조회 복귀 방법을 안내한다.
+- 페이지 이동·다시 조회·역할 저장 후 재조회는 **적용된 검색어**를 유지한다. 새로 입력만 하고 제출하지 않은 값은 조회에 적용하지 않는다.
+- 검색 조건을 포함한 조회 키로 결과를 구분하고 이전 GET은 취소한다. 검색을 바꾸면 이전 목록·편집값을 현재 결과처럼 표시하지 않는다.
+- 역할 저장 중에는 검색 입력·검색 버튼·추가 제출을 차단한다. 목록 로딩 중 새 검색은 허용해 이전 요청을 취소할 수 있다.
+- 검색 결과는 '검색 결과 N명', 검색 결과 없음은 '검색 조건에 맞는 계원이 없습니다.'로 표시한다. 전체 목록 0명은 기존 '승인된 계원이 없습니다.'로 구분한다. 통신·권한 오류는 빈 결과와 구분하고 다시 조회를 제공한다.
+
+### 단계별 변경 파일·커밋
+
+백엔드 Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트 경로는 `back/src/test/java/com/nightstudy/moa/savingGroup/` 기준이다.
+
+| 단계 | 변경 파일·내용 | 커밋 |
+| --- | --- | --- |
+| 1 | dto/SavingGroupMemberSearchCondition.java, mapper/SavingGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml, ServiceImpl 기존 호출 인자 정합성 수정, MemberMapperTest/MemberListServiceTest/MemberSearchConditionTest | `c68f786` feat: 계모임 계원 검색 DTO와 Mapper 조건 추가 |
+| 2 | service/SavingGroupService.java, service/SavingGroupServiceImpl.java, service/SavingGroupMemberListServiceTest.java | `ce07205` feat: 계모임 계원 검색 서비스 및 페이징 처리 추가 |
+| 3 | controller/SavingGroupController.java, controller/SavingGroupMemberListControllerTest.java | `13897a3` feat: 계모임 계원 목록 API 검색 조건 연결 |
+| 4 | front/src/api/savingGroups.js, front/src/api/savingGroupMembers.test.js | `6025b39` feat: 계모임 계원 조회 요청에 검색어 전달 추가 |
+| 5 | front/src/components/savingGroup/SavingGroupMembersPanel.jsx, SavingGroupMemberList.jsx, SavingGroupMemberList.test.js | `5a5b41c` feat: 계모임 계원 관리 검색창 및 결과 화면 연동 |
+| 6 | service/SavingGroupMemberMySqlIntegrationTest.java, docs/saving-groups-api.md, docs/ai-usage-log.md | test: 계모임 계원 검색 검증 및 API 문서화 |
+
+### 검증 결과
+
+- Java 17 컴파일·관련 백엔드 총 437건 중 432건 통과, 선택형 MySQL 5건 건너뜀. 검색 추가분은 실행 테스트 26건과 선택형 MySQL 2건이다.
+- 이전 작업에서 확인한 타 도메인 테스트 누락 import 오류로 전체 test 소스는 컴파일되지 않으므로, 임시 Gradle init script로 `SavingGroupMember*Test`, `SavingGroupNotice*Test`, `SavingGroupJoinAvailabilityServiceTest`, `SavingGroupJoinRejection*Test`만 분리 실행했다. 프로젝트 빌드·의존성·설정 변경은 없다.
+- 프론트 기존 API·신규 검색 API·SSR 렌더링 총 57건 통과. 명령: front에서 `node --test src/api/savingGroups.test.js src/api/savingGroupMembers.test.js src/components/savingGroup/SavingGroupMemberList.test.js`.
+- 변경 프론트 파일 oxlint 오류·경고 없음. 프로덕션 빌드 및 diff 공백 검사 통과. 기존 번들 크기 경고는 유지한다.
+- 실제 DB 검색은 전용 환경이 없어 미실행이다. 선택형 테스트에 원문 이메일 검색/마스킹 응답, 이름 부분 일치, 검색 후 제한·페이지, 공백 해제, 특수문자, 따옴표, 권한 범위의 실제 SQL 검증을 추가했고 컴파일만 확인했다. 기존 전용 DB 활성화·안전 조건을 유지한다.
+- Service는 Mapper 대역, Controller는 standalone MockMvc, SQL은 MyBatis 바인딩, 프론트 API는 client 대역, 화면은 SSR 검증이다. 검색 버튼·Enter·페이지 이동·저장 후 재조회·빠른 검색 변경의 실제 브라우저 상호작용과 JWT HTTP 통합은 후속 수동 검증 대상이다.
+- 정원보다 많은 기존 합성 DB fixture는 검색 전 제한을 잘못 적용하는 구현을 잡는 경계 테스트이며, 실제 모임 정원을 늘리는 변경이 아니다.
+
+### Postman·브라우저 수동 확인
+
+1. 승인 OWNER로 이름 일부·원문 이메일 일부를 keyword에 전달하고 해당 계원만 반환되는지, 응답 이메일은 마스킹되어 있는지 확인한다.
+2. keyword 생략·빈 값·공백에서 전체 목록으로 복귀하고, 앞뒤 공백은 제거되는지 확인한다. 20자 허용·21자 400을 확인한다.
+3. `%`, `_`, `!`, 따옴표가 포함된 합성 회원명으로 해당 문자 자체가 검색되는지 확인한다. 실제 개인정보를 테스트 데이터·로그에 넣지 않는다.
+4. 검색 결과 0명·10명·11명·19명에서 개수·페이지를 확인하고, 검색 중 2페이지에 있다가 새 검색을 실행하면 1페이지로 돌아오는지 확인한다.
+5. 같은 검색어로 OWNER·MANAGER·MEMBER·비회원·타 모임 OWNER 요청을 비교하고 기존 조회 권한이 유지되는지 확인한다. OWNER·미승인·삭제 관계는 검색 결과에서도 제외되어야 한다.
+6. 검색 결과에서 역할을 저장한 뒤 검색 조건과 페이지가 유지되는지, 저장 중 검색이 차단되는지 확인한다. 검색 시 미저장 역할 변경은 폐기되어야 한다.
+7. 빠르게 다른 검색을 제출해 이전 응답이 현재 결과를 덮어쓰지 않는지 확인한다. 검색 결과 없음·통신 오류·재조회 안내도 구분한다.

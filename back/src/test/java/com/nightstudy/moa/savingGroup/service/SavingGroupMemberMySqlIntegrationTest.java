@@ -105,6 +105,42 @@ class SavingGroupMemberMySqlIntegrationTest {
         assertThat(service.getSavingGroupMembers(10L, 1L, 3).getItems()).isEmpty();
     }
 
+    // AI작성: 원문 이메일·이름으로 찾되 응답은 계속 마스킹하고, 검색을 제한 전에 적용한다.
+    @Test void searchesAllApprovedMembersBeforeLimitAndPreservesMasking() {
+        var email = service.getSavingGroupMembers(10L, 1L, "test2@example.com", 1);
+        assertThat(email.getItems()).extracting(row -> row.getMemberId()).containsExactly("2");
+        assertThat(email.getItems().get(0).getEmail()).isEqualTo("t***@example.com");
+        var name = service.getSavingGroupMembers(10L, 1L, "  합성계원26  ", 1);
+        assertThat(name.getItems()).extracting(row -> row.getMemberId()).containsExactly("26");
+        assertThat(name.getItems().get(0).getName()).isEqualTo("합성계원26");
+        var first = service.getSavingGroupMembers(10L, 1L, "합성계원", 1);
+        var second = service.getSavingGroupMembers(10L, 1L, "합성계원", 2);
+        assertThat(first.getPageMeta().getTotal()).isEqualTo(20);
+        assertThat(first.getItems()).hasSize(10); assertThat(second.getItems()).hasSize(10);
+        assertThat(service.getSavingGroupMembers(10L, 1L, " ", 1).getItems()).hasSize(10);
+        assertThat(service.getSavingGroupMembers(10L, 1L, "검색결과없음", 1).getItems()).isEmpty();
+    }
+
+    // AI작성: LIKE 문자와 따옴표를 데이터로 검색하며 검색 OR 조건이 모임·승인·삭제 제한을 우회하지 않는다.
+    @Test void literalSearchAndScopeRestrictionsUseActualSql() {
+        jdbc.update("UPDATE members SET name='문자%_!계원' WHERE member_id=2");
+        assertThat(service.getSavingGroupMembers(10L, 1L, "%_!", 1).getItems())
+                .extracting(row -> row.getMemberId()).containsExactly("2");
+        assertThat(service.getSavingGroupMembers(10L, 1L, "x' OR 1=1", 1).getItems()).isEmpty();
+
+        jdbc.update("UPDATE members SET name='검색전용' WHERE member_id BETWEEN 1 AND 9");
+        String[] excluded = {"PENDING", "REJECTED", "LEFT", "EXPELLED"};
+        for (int index = 0; index < excluded.length; index++)
+            jdbc.update("UPDATE group_member SET membership_status=? WHERE member_id=?", excluded[index], index + 2);
+        jdbc.update("UPDATE members SET deleted_at=CURRENT_TIMESTAMP WHERE member_id=6");
+        jdbc.update("INSERT INTO `groups` (group_id, region_id, member_id, group_name) VALUES (21, 1, 7, 'other_test')");
+        jdbc.update("UPDATE group_member SET group_id=21 WHERE member_id=7");
+        jdbc.update("UPDATE group_member SET member_role='MANAGER' WHERE member_id=9");
+        var result = service.getSavingGroupMembers(10L, 1L, "검색전용", 1);
+        assertThat(result.getItems()).extracting(row -> row.getMemberId()).containsExactly("9", "8");
+        assertThat(result.getPageMeta().getTotal()).isEqualTo(2);
+    }
+
     @Test @Timeout(40) void concurrentAssignmentsHaveExactlyOneManager() throws Exception {
         var pool = Executors.newFixedThreadPool(2);
         var ready = new CountDownLatch(2); var start = new CountDownLatch(1);

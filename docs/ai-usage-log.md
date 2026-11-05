@@ -951,3 +951,16 @@
 - 한계: 일반 Gradle test는 기존 다른 도메인 테스트 import 오류 13건으로 컴파일 실패. 임시 init script로 관련 소스만 분리 실행했으며 저장소 설정은 수정하지 않았다. Service/Controller/API는 대역, SQL은 바인딩, 화면은 SSR 검증이다. 실제 MySQL·브라우저 클릭·Postman·JWT HTTP 통합은 미실행이다.
 - 선택형 DB 테스트: 명시적 환경 변수와 빈 `moa_members_test_*` 전용 MySQL 8 이상만 허용한다. 실제 조회·회계 동시 지정·롤백을 검증하도록 작성했으나 DB 설정이 없어 컴파일만 확인했다. 인증 정보·실제 개인정보는 코드/문서/로그에 추가하지 않았다.
 - 개발자 검토·수정: 사용자 정책 확정·구현 승인은 받았으나 최종 코드에 대한 개발자의 별도 수정·실환경 검토 완료는 확인되지 않았다. 수동 확인 절차와 검색·20명 초과 관리 한계를 API 명세에 남겼다.
+
+<!-- AI작성: 승인된 검색 범위·원문 이메일 검색 정책을 적용한 여섯 단계 작업 기록. -->
+## 2026-11-05 — 계원 관리 이름·이메일 검색
+
+- 목적·승인: 사용자가 전체 승인 계원에서 이름·원문 이메일을 검색한 뒤 기존 최대 20명 제한을 적용하는 안을 승인했다. 정상 정원 20명에 계주가 포함되므로 실제 관리 대상은 최대 19명임을 확인했다. 단계별 구현·검증·커밋·연속 진행을 요청했다.
+- AI 제안·작성: 기존 목록 API에 keyword 쿼리 추가, 앞뒤 공백 정리·최대 20자·빈 검색 해제, 기존 escapeKeyword 재사용, 이름/이메일 OR 공통 SQL 조건을 count/rows에 동일 적용. DTO·Mapper→Service→Controller→프론트 API→검색 화면→검증·문서화 순서로 구현했다.
+- 개인정보·권한: DB 원문 이메일로 검색하되 응답 이메일은 마스킹을 유지하고 이름은 원문을 유지한다. 원문 이메일을 응답·로그·코드·문서에 추가하지 않았다. OWNER/승인 관계·모집중/진행중·회계 한 명 제한·알림 없음 정책은 유지했다.
+- 화면: 검색창 활성화, 버튼/Enter 제출, 입력값과 적용값 분리, 검색 시 1페이지·역할 편집 초기화, 검색 결과 개수/빈 상태 구분. 페이지 이동·역할 저장 후 검색 유지, 이전 요청 취소, 저장 중 검색 차단을 연결했다.
+- 변경 파일: SavingGroupMemberSearchCondition, SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupController, MemberSearchConditionTest/MemberMapperTest/MemberListServiceTest/MemberListControllerTest/MemberMySqlIntegrationTest, savingGroups.js, savingGroupMembers.test.js, SavingGroupMembersPanel.jsx, SavingGroupMemberList.jsx/test.js, API 명세·본 기록.
+- 커밋: 1단계 `c68f786`, 2단계 `ce07205`, 3단계 `13897a3`, 4단계 `6025b39`, 5단계 `5a5b41c`. 마지막 단계는 선택형 SQL 검색 테스트와 문서를 함께 커밋한다. 기존 단계별 명명 규칙을 따랐으며 원격 push는 하지 않는다.
+- 검증: Java 17 컴파일, 관련 백엔드 432건 통과·선택형 MySQL 5건 건너뜀(총 437건), 프론트 57건 통과, 변경 파일 oxlint 오류·경고 없음, 프로덕션 빌드·diff 공백 검사 통과. 기존 번들 크기 경고 유지.
+- 검증 한계: 기존 다른 도메인 테스트 import 오류 때문에 임시 init script로 관련 테스트만 실행했다. 실제 MySQL 검색·브라우저 이벤트·JWT HTTP 통합은 미실행이다. 화면 테스트는 SSR이고 Service/Controller/API는 대역 검증이다. 선택형 MySQL 검색 테스트 2건을 추가해 컴파일했으나 전용 환경이 없어 실행하지 않았다.
+- 개발자 검토·수정: 정책·구현 승인 외에 최종 코드 별도 수정·실환경 검토 완료 여부는 확인되지 않았다. 실제 Postman/브라우저 확인 절차는 API 명세에 정리했다. DB 구조·의존성·공통 설정·외부 서비스 변경은 없다.
