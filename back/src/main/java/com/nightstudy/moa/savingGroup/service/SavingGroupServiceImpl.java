@@ -62,14 +62,27 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     @Override
     @Transactional
     public SavingGroupMemberListResponse getSavingGroupMembers(Long savingGroupId, Long memberId, int page) {
+        // AI작성: 기존 검색 없는 호출도 같은 권한·페이지 처리로 이어간다.
+        return getSavingGroupMembers(savingGroupId, memberId, null, page);
+    }
+
+    // AI작성: 정규화한 검색어를 바인딩 패턴으로 변환하고 집계·목록에 동일하게 전달한다.
+    @Override
+    @Transactional
+    public SavingGroupMemberListResponse getSavingGroupMembers(Long savingGroupId, Long memberId, String keyword, int page) {
         if (page < 1) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
         }
+        String normalizedKeyword = keyword == null || keyword.strip().isEmpty() ? null : keyword.strip();
+        if (normalizedKeyword != null && normalizedKeyword.length() > 20) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "검색어는 20자 이내로 입력해 주세요.");
+        }
         SavingGroupJoinTargetRow target = validateSavingGroupMemberManagement(savingGroupId, memberId);
-        int total = Math.min(20, savingGroupMapper.selectSavingGroupMemberCount(target.getGroupId(), null));
+        String keywordPattern = escapeKeyword(normalizedKeyword);
+        int total = Math.min(20, savingGroupMapper.selectSavingGroupMemberCount(target.getGroupId(), keywordPattern));
         PageMeta meta = PageMeta.of(page, 10, total);
         List<SavingGroupMemberResponse> items = page > meta.getTotalPages() ? List.of()
-                : savingGroupMapper.selectSavingGroupMembers(target.getGroupId(), null, meta.getOffset());
+                : savingGroupMapper.selectSavingGroupMembers(target.getGroupId(), keywordPattern, meta.getOffset());
         return new SavingGroupMemberListResponse(items, meta);
     }
 

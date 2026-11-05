@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -74,4 +76,41 @@ class SavingGroupMemberListServiceTest {
     void unapprovedOwnerCannotRead(String status) { target("01", 30L); owner("OWNER", status); error("SAVING_GROUP_OWNER_REQUIRED", 10L, 30L, 1); }
     @ParameterizedTest @ValueSource(strings = {"00", "03", "04", "05"})
     void inactiveGroupCannotRead(String status) { target(status, 30L); error("SAVING_GROUP_ACTIVITY_RESTRICTED", 10L, 30L, 1); }
+
+    // AI작성: 이메일 원문·이름 검색과 LIKE 특수문자 이스케이프가 count·rows에 동일하게 전달되는지 검증한다.
+    @ParameterizedTest @CsvSource({"'  테스트  ',%테스트%", "test@example.com,%test@example.com%", "!%_,%!!!%!_%", "'x'' OR 1=1',%x' OR 1=1%"})
+    void searchNormalizesAndBindsBothQueries(String keyword, String pattern) {
+        target("02", 30L); owner("OWNER", "APPROVED");
+        when(mapper.selectSavingGroupMemberCount(20L, pattern)).thenReturn(11);
+        when(mapper.selectSavingGroupMembers(20L, pattern, 10)).thenReturn(List.of());
+        var result = service.getSavingGroupMembers(10L, 30L, keyword, 2);
+        assertThat(result.getPageMeta().getTotal()).isEqualTo(11);
+        assertThat(result.getPageMeta().getTotalPages()).isEqualTo(2);
+        verify(mapper).selectSavingGroupMembers(20L, pattern, 10);
+    }
+    @ParameterizedTest @NullAndEmptySource @ValueSource(strings = {" ", "　"})
+    void blankSearchUsesUnfilteredScope(String keyword) {
+        target("01", 30L); owner("OWNER", "APPROVED");
+        when(mapper.selectSavingGroupMemberCount(20L, null)).thenReturn(1);
+        when(mapper.selectSavingGroupMembers(20L, null, 0)).thenReturn(List.of());
+        service.getSavingGroupMembers(10L, 30L, keyword, 1);
+        verify(mapper).selectSavingGroupMembers(20L, null, 0);
+    }
+    @Test void searchWithoutMatchesIsSuccessfulEmptyResult() {
+        target("01", 30L); owner("OWNER", "APPROVED");
+        var result = service.getSavingGroupMembers(10L, 30L, "없는계원", 1);
+        assertThat(result.getItems()).isEmpty(); assertThat(result.getPageMeta().getTotal()).isZero();
+        verify(mapper, never()).selectSavingGroupMembers(anyLong(), any(), anyInt());
+    }
+    @Test void longKeywordIsRejectedBeforeQueries() {
+        assertThatThrownBy(() -> service.getSavingGroupMembers(10L, 30L, "가".repeat(21), 1))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("BAD_REQUEST"));
+        verifyNoInteractions(mapper);
+    }
+    @Test void searchCannotBypassOwnerAuthorization() {
+        target("01", 99L);
+        assertThatThrownBy(() -> service.getSavingGroupMembers(10L, 30L, "test@example.com", 1))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("SAVING_GROUP_OWNER_REQUIRED"));
+        verify(mapper, never()).selectSavingGroupMemberCount(anyLong(), any());
+    }
 }
