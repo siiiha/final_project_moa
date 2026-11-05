@@ -402,6 +402,15 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_NOTICE_WRITE_FAILED",
                     "공지 등록에 실패했습니다.");
         }
+        // AI작성: 저장 성공 후 작성자를 제외한 승인 회원에게 계모임 공지 등록 알림을 발송한다.
+        savingGroupMapper.selectApprovedSavingGroupMemberIds(target.getGroupId()).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .forEach(receiverId -> notificationService.send(
+                        receiverId,
+                        NotificationType.NOTICE_CREATED,
+                        "계모임에 새 공지가 등록되었습니다.",
+                        "/saving-groups/" + savingGroupId
+                ));
     }
 
     // AI작성: 승인과 거절이 공유하는 잠금 검증 결과를 묶어, 처리별 추가 검증은 각각 분리한다.

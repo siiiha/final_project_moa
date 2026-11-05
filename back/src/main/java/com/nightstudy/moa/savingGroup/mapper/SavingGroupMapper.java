@@ -112,6 +112,8 @@ public interface SavingGroupMapper {
             @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
     // AI작성: Service에서 모임 상태와 작성 권한을 검증한 공지를 저장하고 영향 행 수를 반환한다.
     int insertSavingGroupNotice(SavingGroupNoticeCreateRow notice);
+    // AI작성: 공지 등록 알림 대상인 승인 계주·운영진·계원의 회원 번호를 중복 없이 조회한다.
+    List<Long> selectApprovedSavingGroupMemberIds(@Param("groupId") Long groupId);
     List<String> selectApprovedMemberRoles(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 
     // AI작성: 신청 ID·모임 ID·PENDING 조건이 일치하는 기존 행만 승인하고 영향 행 수를 반환한다.

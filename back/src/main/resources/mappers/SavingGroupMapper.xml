@@ -894,6 +894,15 @@
         VALUES (#{groupId}, #{writerId}, #{title}, #{content})
     </insert>
 
+    <!-- AI작성: 공지 등록 알림 대상인 승인 계주·운영진·계원의 회원 번호만 중복 없이 조회한다. -->
+    <select id="selectApprovedSavingGroupMemberIds" resultType="long">
+        SELECT DISTINCT member_id
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND membership_status = 'APPROVED'
+          AND member_role IN ('OWNER', 'MANAGER', 'MEMBER')
+    </select>
+
     <select id="selectApprovedMemberRoles" resultType="string">
         SELECT DISTINCT member_role FROM group_member
         WHERE group_id = #{groupId} AND member_id = #{memberId}

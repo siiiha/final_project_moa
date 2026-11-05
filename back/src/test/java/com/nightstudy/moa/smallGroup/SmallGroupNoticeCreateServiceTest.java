@@ -3,6 +3,8 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.smallGroup.dto.*;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SmallGroupNoticeCreateServiceTest {
     @Mock SmallGroupMapper mapper;
+    @Mock NotificationService notificationService;
     @InjectMocks SmallGroupServiceImpl service;
     private void owner() {
         var target = new SmallGroupJoinTargetRow(); target.setGroupId(20L); target.setCreatorMemberId(3L);
@@ -40,5 +43,16 @@ class SmallGroupNoticeCreateServiceTest {
     @Test void rejectsBlankText() {
         owner(); assertThatThrownBy(() -> service.createSmallGroupNotice(10L,3L," ","본문")).isInstanceOf(ApiException.class);
         verify(mapper,never()).insertSmallGroupNotice(any());
+    }
+    @Test void notifiesApprovedMembersExceptWriterAfterNoticeIsSaved() {
+        owner();
+        when(mapper.insertSmallGroupNotice(any())).thenAnswer(call -> {
+            SmallGroupNoticeCreateRow row = call.getArgument(0); row.setNoticeId(9L); return 1;
+        });
+        when(mapper.selectApprovedSmallGroupMemberIds(20L)).thenReturn(java.util.List.of(3L, 4L));
+        service.createSmallGroupNotice(10L,3L,"제목","본문");
+        verify(notificationService, never()).send(eq(3L), any(), any(), any());
+        verify(notificationService).send(4L, NotificationType.NOTICE_CREATED,
+                "소모임에 새 공지가 등록되었습니다.", "/small-groups/10/notices/9");
     }
 }

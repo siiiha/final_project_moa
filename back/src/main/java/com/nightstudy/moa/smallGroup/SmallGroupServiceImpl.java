@@ -151,6 +151,15 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (smallGroupMapper.insertSmallGroupNotice(row) != 1 || row.getNoticeId() == null) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_WRITE_FAILED", "공지 등록에 실패했습니다.");
         }
+        // AI작성: 저장 성공 후 작성자를 제외한 승인 회원에게 생성된 공지 상세 화면 알림을 발송한다.
+        smallGroupMapper.selectApprovedSmallGroupMemberIds(target.getGroupId()).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .forEach(receiverId -> notificationService.send(
+                        receiverId,
+                        NotificationType.NOTICE_CREATED,
+                        "소모임에 새 공지가 등록되었습니다.",
+                        "/small-groups/" + smallGroupId + "/notices/" + row.getNoticeId()
+                ));
     }
 
     // AI작성: 소모임 ID와 groups ID를 구분하며 개설자·승인 OWNER를 동시에 확인한다.
