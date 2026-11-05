@@ -258,13 +258,8 @@ function SavingGroupJoinRequestList({
   pendingAction,
   onRetry,
   onFirstPage,
-  payoutRequests,
-  payoutCurrentPage,
-  payoutTotalPages,
-  onPayoutPageChange,
-  payoutTotalCount,
-  onPayoutReview,
-  reviewApplicant,
+  savingGroupId,
+  groupType,
 }) {
   const selectableRequests = requests.filter((request) => request.status === '대기');
   const isAllSelected = selectableRequests.length > 0 && selectableRequests.every((request) => selectedIds.includes(request.id));
@@ -291,13 +286,9 @@ function SavingGroupJoinRequestList({
 
       {activeFilter === '계금 요청' ? (
         <SavingGroupPayoutApprovalList
-          requests={payoutRequests}
-          currentPage={payoutCurrentPage}
-          totalPages={payoutTotalPages}
-          onPageChange={onPayoutPageChange}
-          totalCount={payoutTotalCount}
-          onReview={onPayoutReview}
-          reviewApplicant={reviewApplicant}
+          key={`${savingGroupId}:${groupType}`}
+          savingGroupId={savingGroupId}
+          groupType={groupType}
         />
       ) : (
         <>

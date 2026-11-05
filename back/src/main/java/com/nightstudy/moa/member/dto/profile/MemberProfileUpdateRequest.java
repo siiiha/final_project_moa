@@ -1,6 +1,5 @@
 package com.nightstudy.moa.member.dto.profile;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,8 +13,6 @@ import java.util.List;
 @Setter
 public class MemberProfileUpdateRequest {
 
-    @NotBlank(message = "현재 비밀번호를 입력해주세요.")
-    private String currentPassword;
     private String newPassword;
     private String confirmNewPassword;
 

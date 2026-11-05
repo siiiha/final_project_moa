@@ -133,6 +133,7 @@ function MyPage() {
         if (!cancelled) {
           setProfile(data);
         }
+
       } catch (error) {
         if (cancelled) return;
 

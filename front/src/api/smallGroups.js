@@ -568,19 +568,22 @@ export function toSmallGroupDetail(data) {
   return {
     ...data,
     notices: data.notices.map(toSmallGroupNoticeSummary),
+    // AI작성: 고정 목록도 본문 없이 같은 요약 필드만 화면으로 전달한다.
+    pinnedNotices: (data.pinnedNotices || []).map(toSmallGroupNoticeSummary),
   };
 }
 
-export async function getSmallGroupDetail(id, { signal } = {}) {
+export async function getSmallGroupDetail(id, { signal, noticePage = 1, noticeSort = 'LATEST' } = {}) {
   try {
-    const response = await client.get(`/small-groups/${encodeURIComponent(id)}`, { signal });
+    // AI작성: 공지 조회 조건은 기존 상세 요청에 포함한다.
+    const response = await client.get(`/small-groups/${encodeURIComponent(id)}`, { signal, params: { noticePage, noticeSort } });
     if (!response.data?.success || !response.data.data) {
       throw new SmallGroupDetailLoadError(
         response.data?.error?.code || 'INVALID_RESPONSE',
         response.data?.error?.message || '소모임 상세 응답을 확인하지 못했습니다.',
       );
     }
-    return toSmallGroupDetail(response.data.data);
+    return { ...toSmallGroupDetail(response.data.data), noticePageMeta: response.data.meta ?? null };
   } catch (error) {
     throw toSmallGroupDetailLoadError(error, '소모임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
   }
@@ -887,5 +890,111 @@ export async function createSmallGroup(request) {
     return response.data.data;
   } catch (error) {
     throw toSmallGroupCreationError(error, '소모임 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+// AI작성: 인증 client로 공지 제목·본문만 전송하고 서버의 권한 오류를 보존한다.
+export async function createSmallGroupNotice(smallGroupId, { title, content }, { signal } = {}) {
+  try {
+    const response = await client.post('/small-groups/' + encodeURIComponent(smallGroupId) + '/notices', { title, content }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    failure.status = error.response?.status;
+    failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_WRITE_FAILED';
+    throw failure;
+  }
+}
+
+// AI작성: 계모임과 동일한 URL 조회 조건과 세 페이지 묶음을 사용한다.
+export function readSmallGroupNoticeQuery(search) {
+  const params = new URLSearchParams(search);
+  const rawPage = params.get('noticePage') ?? '1';
+  const page = /^[1-9]\d*$/.test(rawPage) && Number(rawPage) <= 2147483647 ? Number(rawPage) : 1;
+  return { page, sort: params.get('noticeSort') === 'OLDEST' ? 'OLDEST' : 'LATEST' };
+}
+
+// AI작성: 공지 조회 조건만 변경해 같은 화면의 다른 쿼리는 유지한다.
+export function toSmallGroupNoticeSearch(page, sort, search = '') {
+  const params = new URLSearchParams(search);
+  params.set('noticePage', String(page));
+  params.set('noticeSort', sort);
+  return params.toString();
+}
+
+// AI작성: 공지 전용 세 페이지 묶음이며 이전은 앞 묶음 끝, 다음은 뒤 묶음 시작으로 이동한다.
+export function getSmallGroupNoticePagination(page, totalPages) {
+  const total = Math.max(1, totalPages);
+  const current = Math.min(Math.max(1, page), total);
+  const start = Math.floor((current - 1) / 3) * 3 + 1;
+  const end = Math.min(start + 2, total);
+  return {
+    pages: Array.from({ length: end - start + 1 }, (_, index) => start + index),
+    previous: start > 1 ? start - 1 : null,
+    next: end < total ? end + 1 : null,
+  };
+}
+
+
+// AI작성: 공지 본문은 별도 인증 요청으로 조회하며 공개 상세 응답과 혼용하지 않는다.
+export async function getSmallGroupNoticeDetail(groupId, noticeId, { signal } = {}) {
+  try {
+    const response = await client.get('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId), { signal });
+    if (response.data?.success !== true) throw { response };
+    const notice = response.data.data;
+    if (!notice || typeof notice.title !== 'string' || typeof notice.content !== 'string' || notice.writerId == null || notice.noticeId == null) {
+      const error = new Error('공지 응답을 확인하지 못했습니다.'); error.code = 'INVALID_RESPONSE'; throw error;
+    }
+    return notice;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.code === 'INVALID_RESPONSE') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 불러오지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code;
+    throw failure;
+  }
+}
+
+// AI작성: 공지 수정은 제목·본문만 전송하고 인증·작성자 판단은 서버에 맡긴다.
+export async function updateSmallGroupNotice(groupId, noticeId, { title, content }, { signal } = {}) {
+  try {
+    const response = await client.put('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId), { title, content }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 수정하지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_EDIT_FAILED';
+    throw failure;
+  }
+}
+
+// AI작성: 공지 삭제는 두 식별자만 전달하고 서버의 작성자 검증 오류를 보존한다.
+export async function deleteSmallGroupNotice(groupId, noticeId, { signal } = {}) {
+  try {
+    const response = await client.delete('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId), { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지를 삭제하지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_DELETE_FAILED';
+    throw failure;
+  }
+}
+
+// AI작성: 고정 여부만 PATCH로 전송하고 최대 개수·권한 오류를 그대로 보존한다.
+export async function updateSmallGroupNoticePinned(groupId, noticeId, pinned, { signal } = {}) {
+  if (typeof pinned !== 'boolean') throw new Error('고정 여부를 확인해 주세요.');
+  try {
+    const response = await client.patch('/small-groups/' + encodeURIComponent(groupId) + '/notices/' + encodeURIComponent(noticeId) + '/pin', { pinned }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '공지 고정을 변경하지 못했습니다.');
+    failure.status = error.response?.status; failure.code = error.response?.data?.error?.code || 'SMALL_GROUP_NOTICE_PIN_FAILED';
+    throw failure;
   }
 }
