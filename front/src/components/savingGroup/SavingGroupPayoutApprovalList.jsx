@@ -1,301 +1,257 @@
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
+import Badge from '../common/Badge';
+import ConfirmModal from '../common/ConfirmModal';
+import { approveSavingGroupPayoutRequest, rejectSavingGroupPayoutRequest, getSavingGroupPages, getSavingGroupPayoutRequests } from '../../api/savingGroups';
 
-const Intro = styled.div`
-  margin-top: 20px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-
-  h2 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.9px;
-  }
-
-  p {
-    margin-top: 8px;
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    align-items: stretch;
-    flex-direction: column;
-  }
-`;
-
-const AdminBadge = styled(Badge)`
-  min-height: 28px;
-  padding: 4px 9px;
-  flex: 0 0 auto;
-`;
-
-const Card = styled.section`
-  margin-top: 16px;
-  padding: 18px;
-  background: ${({ theme }) => theme.colors.white};
+// AI작성: 기존 계주 전용 목록에 승인·거절 동작을 연결하고 큰 글씨·모바일 한 열 배치를 적용한다.
+const Panel = styled.section`
+  margin-top: 20px; padding: 20px;
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
-  box-shadow: ${({ theme }) => theme.shadow.card};
-
+  background: ${({ theme }) => theme.colors.white};
+  h2 { margin: 0 0 12px; font-size: 22px; }
+  p { line-height: 1.6; }
+`;
+const Toolbar = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0;
+  select { min-height: 44px; padding: 8px 12px; font-size: 16px; }
+`;
+const List = styled.ul`
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 16px;
+`;
+const Item = styled.li`
+  padding: 20px; border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  h3 { margin: 0 0 12px; font-size: 18px; }
+  dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0 0; }
+  dt { color: ${({ theme }) => theme.colors.secondaryText}; font-size: 16px; }
+  dd { margin: 6px 0 0; overflow-wrap: anywhere; font-size: 18px; }
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 14px;
+    padding: 16px;
+    dl { grid-template-columns: 1fr; }
   }
 `;
-
-const CardTitle = styled.h3`
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 15px;
-  font-weight: 800;
-`;
-
-const TableWrap = styled.div`
-  margin-top: 14px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: none;
-  }
-`;
-
-const Table = styled.table`
-  width: 100%;
-  overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-collapse: separate;
-  border-spacing: 0;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  table-layout: fixed;
-
-  th,
-  td {
-    padding: 10px 8px;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-    text-align: center;
-    vertical-align: middle;
-  }
-
-  th {
-    background: ${({ theme }) => theme.colors.background};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  td:first-child {
-    text-align: left;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: 0;
-  }
-`;
-
-const Applicant = styled.strong`
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
-`;
-
-const TypeBadge = styled(Badge)`
-  min-height: 22px;
-  padding: 3px 7px;
-  color: ${({ $type, theme }) => ($type === '지출' ? theme.colors.secondaryText : theme.colors.primary)};
-  background: ${({ $type, theme }) => ($type === '지출' ? theme.colors.background : theme.colors.primarySoft)};
-  font-size: 10px;
-`;
-
-const StatusBadge = styled(Badge)`
-  min-height: 22px;
-  padding: 3px 7px;
-  color: ${({ $status, theme }) => ($status === '반려' ? theme.colors.danger : $status === '대기' ? theme.colors.warning : theme.colors.primary)};
-  background: ${({ $status, theme }) => ($status === '반려' ? theme.colors.dangerSoft : $status === '대기' ? theme.colors.warningSoft : theme.colors.primarySoft)};
-  font-size: 10px;
-`;
-
-const ReviewButton = styled(Button)`
-  min-height: 29px;
-  padding: 5px 8px;
-  font-size: 10px;
-`;
-
-const MobileList = styled.div`
-  margin-top: 14px;
-  display: none;
-  gap: 10px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: grid;
-  }
-`;
-
-const MobileItem = styled.article`
-  padding: 14px;
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.sm};
-`;
-
-const MobileTop = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-`;
-
-const MobileInfo = styled.dl`
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 7px 10px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 11px;
-
-  dt {
-    color: ${({ theme }) => theme.colors.muted};
-    font-weight: 700;
-  }
-`;
-
-const MobileAction = styled.div`
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-`;
-
-const Empty = styled.p`
-  padding: 42px 16px;
-  color: ${({ theme }) => theme.colors.muted};
-  text-align: center;
-  font-size: 13px;
-`;
-
 const Pagination = styled.nav`
-  margin-top: 18px;
-  display: flex;
-  justify-content: center;
-  gap: 4px;
+  margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px;
 `;
-
-const PageButton = styled(Button)`
-  min-width: 30px;
+// AI작성: 거절 사유 입력과 오류 안내를 연결하고 고령 이용자가 읽기 쉬운 크기로 표시한다.
+const ReasonField = styled.div`
+  margin-top: 16px;
+  font-size: 16px;
+  label { display: block; margin-bottom: 8px; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 120px; padding: 12px; font: inherit; resize: vertical; }
+  p { line-height: 1.6; }
 `;
+const labels = { PENDING: '대기', APPROVED: '승인', REJECTED: '반려', COMPLETED: '완료' };
+const dateLabel = (value) => value ? String(value).replace('T', ' ').slice(0, 16) : '미검토';
 
-const ReviewNotice = styled.p`
-  margin-top: 14px;
-  padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
-`;
+// AI작성: 권한·인증·대상·요청자 상태 변경은 목록을 다시 확인한 뒤에만 심사를 재개한다.
+function requiresPayoutRequestRefresh(error) {
+  return [401, 403, 404].includes(error.status) || [
+    'SAVING_GROUP_ACTIVITY_RESTRICTED', 'PAYOUT_GROUP_TYPE_UNSUPPORTED',
+    'PAYOUT_REQUEST_ALREADY_PROCESSED', 'PAYOUT_REQUESTER_INELIGIBLE',
+  ].includes(error.code);
+}
 
-function SavingGroupPayoutApprovalList({ requests, currentPage, totalPages, onPageChange, totalCount, onReview, reviewApplicant }) {
+// AI작성: 처리 후 전체 건수가 줄면 서버 메타를 기준으로 마지막 유효 페이지를 다시 조회한다.
+function getPayoutRequestPage(page, totalPages) {
+  return Math.min(page, Math.max(1, totalPages));
+}
+
+// AI작성: 화면 상태와 조회 동작을 분리해 빈 결과·실패·유형별 공개 필드를 렌더링 검증할 수 있게 한다.
+export function SavingGroupPayoutRequestContent({ groupType, items = [], meta, page = 1, status = '',
+  isLoading, errorMessage, onStatusChange, onPageChange, onRetry, onApprove, onReject, isApproving = false }) {
+  const states = groupType === '순번계' ? ['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'] : ['PENDING', 'APPROVED', 'REJECTED'];
+  const pages = getSavingGroupPages(page, meta?.totalPages || 0);
   return (
-    <>
-      <Intro>
-        <div>
-          <h2>계금·지출 승인</h2>
-          <p>요청 내역과 증빙을 확인한 뒤 처리해주세요.</p>
-        </div>
-        <AdminBadge>운영진 전용</AdminBadge>
-      </Intro>
-
-      <Card>
-        <CardTitle>승인 요청 {totalCount}건</CardTitle>
-        {requests.length ? (
-          <>
-            <TableWrap>
-              <Table>
-                <colgroup>
-                  <col width="22%" />
-                  <col width="18%" />
-                  <col width="20%" />
-                  <col width="18%" />
-                  <col width="22%" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">신청자</th>
-                    <th scope="col">유형</th>
-                    <th scope="col">금액</th>
-                    <th scope="col">상태</th>
-                    <th scope="col">처리</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map((request) => (
-                    <tr key={request.id}>
-                      <td><Applicant>{request.applicant}</Applicant></td>
-                      <td><TypeBadge $type={request.type}>{request.type}</TypeBadge></td>
-                      <td>{request.amount}</td>
-                      <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
-                      <td>
-                        <ReviewButton type="button" $variant="secondary" onClick={() => onReview(request.applicant)}>
-                          내역 확인·처리
-                        </ReviewButton>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </TableWrap>
-
-            <MobileList>
-              {requests.map((request) => (
-                <MobileItem key={request.id}>
-                  <MobileTop>
-                    <Applicant>{request.applicant}</Applicant>
-                    <StatusBadge $status={request.status}>{request.status}</StatusBadge>
-                  </MobileTop>
-                  <MobileInfo>
-                    <dt>유형</dt>
-                    <dd><TypeBadge $type={request.type}>{request.type}</TypeBadge></dd>
-                    <dt>금액</dt>
-                    <dd>{request.amount}</dd>
-                  </MobileInfo>
-                  <MobileAction>
-                    <ReviewButton type="button" $variant="secondary" onClick={() => onReview(request.applicant)}>
-                      내역 확인·처리
-                    </ReviewButton>
-                  </MobileAction>
-                </MobileItem>
-              ))}
-            </MobileList>
-          </>
-        ) : (
-          <Empty>처리할 계금 또는 지출 요청이 없습니다.</Empty>
-        )}
-        {reviewApplicant && <ReviewNotice role="status">{reviewApplicant}님의 요청 내역을 확인할 예정입니다.</ReviewNotice>}
-      </Card>
-
-      {totalPages > 1 && (
+    <Panel aria-busy={isLoading}>
+      <h2>{groupType === '친목계' ? '지출 요청 목록' : '계금 요청 목록'}</h2>
+      <Badge>계주 전용</Badge>
+      <Toolbar>
+        <label htmlFor="payout-status">요청 상태</label>
+        <select id="payout-status" value={status} disabled={isApproving} onChange={(event) => onStatusChange(event.target.value)}>
+          <option value="">전체</option>
+          {states.map((value) => <option key={value} value={value}>{labels[value]}</option>)}
+        </select>
+        {!isLoading && !errorMessage && <strong>요청 {meta?.total || 0}건</strong>}
+      </Toolbar>
+      {isLoading ? <p role="status">요청 목록을 불러오는 중입니다.</p>
+        : errorMessage ? <div role="alert"><p>{errorMessage}</p><Button type="button" onClick={onRetry}>다시 시도</Button></div>
+          : !items.length ? <div><p>해당 조건의 요청이 없습니다.</p>
+            {page > 1 && <Button type="button" onClick={() => onPageChange(1)}>첫 페이지로</Button>}</div>
+            : <List>{items.map((request) => (
+              <Item key={request.id}>
+                <h3>{request.applicant}님의 {request.type} 요청</h3>
+                <Badge>{request.status}</Badge>
+                <dl>
+                  <div><dt>요청 금액</dt><dd>{request.amount}</dd></div>
+                  <div><dt>요청일</dt><dd>{dateLabel(request.requestedAt)}</dd></div>
+                  {request.roundNumber != null && <div><dt>회차</dt><dd>{request.roundNumber}회차</dd></div>}
+                  {request.title != null && <div><dt>지출 제목</dt><dd>{request.title}</dd></div>}
+                  {request.hasEvidence != null && <div><dt>증빙</dt><dd>{request.hasEvidence ? '첨부 있음' : '첨부 없음'}</dd></div>}
+                  {request.roundNumber != null && <>
+                    <div><dt>검토일</dt><dd>{dateLabel(request.reviewedAt)}</dd></div>
+                    <div><dt>검토자</dt><dd>{request.reviewerName || (request.reviewedAt ? '이름 비공개' : '미검토')}</dd></div>
+                  </>}
+                </dl>
+                {/* AI작성: 현재 API의 한글 상태값을 사용하고 대기 요청만 심사한다. 최종 권한·상태 검증은 서버가 수행한다. */}
+                {request.status === '대기' && (onApprove || onReject) && (
+                  <Toolbar>
+                    {onApprove && <Button type="button" disabled={isApproving} onClick={() => onApprove(request)}>
+                      승인
+                    </Button>}
+                    {onReject && <Button type="button" $variant="danger" disabled={isApproving} onClick={() => onReject(request)}>
+                      거절
+                    </Button>}
+                  </Toolbar>
+                )}
+              </Item>
+            ))}</List>}
+      {!isLoading && !errorMessage && meta?.totalPages > 1 && (
         <Pagination aria-label="계금 요청 목록 페이지 이동">
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
-            이전
-          </PageButton>
-          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-            <PageButton
-              key={page}
-              type="button"
-              $variant={page === currentPage ? 'primary' : 'secondary'}
-              $size="small"
-              aria-current={page === currentPage ? 'page' : undefined}
-              onClick={() => onPageChange(page)}
-            >
-              {page}
-            </PageButton>
-          ))}
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
-            다음
-          </PageButton>
+          <Button type="button" disabled={isApproving || page <= 1} onClick={() => onPageChange(page - 1)}>이전</Button>
+          {pages.map((value) => <Button key={value} type="button" aria-current={page === value ? 'page' : undefined}
+            disabled={isApproving} $variant={page === value ? 'primary' : 'secondary'} onClick={() => onPageChange(value)}>{value}</Button>)}
+          <Button type="button" disabled={isApproving || page >= meta.totalPages} onClick={() => onPageChange(page + 1)}>다음</Button>
         </Pagination>
       )}
-    </>
+    </Panel>
   );
+}
+
+function SavingGroupPayoutApprovalList({ savingGroupId, groupType }) {
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const [result, setResult] = useState(null);
+  // AI작성: 렌더링 전 재클릭도 잠금으로 막고 모임 전환·언마운트 후에는 이전 요청 결과를 표시하지 않는다.
+  const [approveTarget, setApproveTarget] = useState(null);
+  // AI작성: 실패한 거절의 대상·입력 사유를 유지하여 같은 창에서 확인하고 재시도할 수 있게 한다.
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
+  const [rejectUnavailable, setRejectUnavailable] = useState(false);
+  const [activityError, setActivityError] = useState('');
+  const [isApproving, setIsApproving] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const approvalLock = useRef(false);
+  const approvalController = useRef(null);
+  useEffect(() => () => approvalController.current?.abort(), [savingGroupId, groupType]);
+  const key = `${savingGroupId}:${groupType}:${page}:${status}:${refresh}`;
+  const current = result?.key === key ? result : null;
+  useEffect(() => {
+    const controller = new AbortController();
+    getSavingGroupPayoutRequests(savingGroupId, { page, status, signal: controller.signal })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        const nextPage = getPayoutRequestPage(page, data.meta.totalPages);
+        if (nextPage !== page) { setPage(nextPage); return; }
+        setActivityError('');
+        setResult({ key, ...data });
+      })
+      .catch((error) => { if (!controller.signal.aborted) setResult({ key, error: error.message }); });
+    return () => controller.abort();
+  }, [savingGroupId, groupType, page, status, key]);
+  // AI작성: 확인 시에만 승인하고 성공 후 서버 목록을 다시 조회한다. 실제 지급 처리는 하지 않는다.
+  const approveRequest = async () => {
+    if (approvalLock.current || activityError || !current || current.error || !approveTarget || approveTarget.status !== '대기') return;
+    approvalLock.current = true;
+    setIsApproving(true);
+    const controller = new AbortController();
+    approvalController.current = controller;
+    try {
+      await approveSavingGroupPayoutRequest(savingGroupId, approveTarget.id, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setApproveTarget(null);
+      setNotice({ title: '요청 승인 완료', message: '요청을 승인했습니다. 실제 지급은 별도로 진행됩니다.' });
+      setRefresh((value) => value + 1);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setApproveTarget(null);
+      setNotice({ title: '요청 승인 실패', message: error.message || '승인하지 못했습니다. 다시 시도해주세요.' });
+      if (requiresPayoutRequestRefresh(error)) {
+        setActivityError(error.message || '요청을 처리할 수 없습니다. 목록을 다시 확인해주세요.');
+        setRefresh((value) => value + 1);
+      }
+    } finally {
+      approvalLock.current = false;
+      if (!controller.signal.aborted) setIsApproving(false);
+    }
+  };
+  // AI작성: 승인과 같은 잠금을 공유해 동시 심사를 막고, 서버 성공 후에만 입력창을 닫는다.
+  const rejectRequest = async () => {
+    if (rejectUnavailable) { setRejectTarget(null); return; }
+    if (activityError || !current || current.error) return;
+    if (approvalLock.current || !rejectTarget || rejectTarget.status !== '대기') return;
+    if (!rejectReason.trim() || rejectReason.length > 500) {
+      setRejectError('거절 사유를 입력해주세요. 공백만 입력할 수 없으며 최대 500자입니다.');
+      return;
+    }
+    approvalLock.current = true;
+    setIsApproving(true);
+    setRejectError('');
+    const controller = new AbortController();
+    approvalController.current = controller;
+    try {
+      await rejectSavingGroupPayoutRequest(savingGroupId, rejectTarget.id, rejectReason, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setRejectTarget(null);
+      setRejectReason('');
+      setNotice({ title: '요청 거절 완료', message: '요청을 거절했습니다.' });
+      setRefresh((value) => value + 1);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setRejectError(error.message || '거절하지 못했습니다. 사유를 확인하고 다시 시도해주세요.');
+      if (requiresPayoutRequestRefresh(error)) {
+        setRejectUnavailable(true);
+        setActivityError(error.message || '요청을 처리할 수 없습니다. 목록을 다시 확인해주세요.');
+        setRefresh((value) => value + 1);
+      }
+    } finally {
+      approvalLock.current = false;
+      if (!controller.signal.aborted) setIsApproving(false);
+    }
+  };
+  return <><SavingGroupPayoutRequestContent groupType={groupType} page={page} status={status}
+    items={current?.items} meta={current?.meta} isLoading={!current} errorMessage={current?.error || activityError}
+    onApprove={(request) => { if (!approvalLock.current && current && !current.error && !activityError) setApproveTarget(request); }} isApproving={isApproving}
+    onReject={(request) => {
+      if (approvalLock.current || !current || current.error || activityError) return;
+      setRejectTarget(request); setRejectReason(''); setRejectError(''); setRejectUnavailable(false);
+    }}
+    onStatusChange={(value) => { if (!approvalLock.current) { setStatus(value); setPage(1); } }}
+    onPageChange={(value) => { if (!approvalLock.current) setPage(value); }}
+    onRetry={() => setRefresh((value) => value + 1)} />
+    {approveTarget && <ConfirmModal title="요청을 승인할까요?"
+      description="승인은 요청 심사 처리이며 실제 지급은 별도입니다."
+      confirmLabel={isApproving ? '승인 중...' : '승인'} cancelFirst isBusy={isApproving}
+      onConfirm={approveRequest} onCancel={() => { if (!approvalLock.current) setApproveTarget(null); }}>
+      <p>{approveTarget.applicant}님의 {approveTarget.type} 요청</p>
+      <p>요청 금액: {approveTarget.amount}</p>
+    </ConfirmModal>}
+    {rejectTarget && <ConfirmModal title="요청을 거절할까요?"
+      description="요청을 거절하는 사유를 최대 500자로 입력해주세요."
+      confirmLabel={isApproving ? '거절 중...' : rejectUnavailable ? '목록 확인' : '거절'} confirmVariant="danger" cancelFirst isBusy={isApproving}
+      onConfirm={rejectRequest} onCancel={() => {
+        if (approvalLock.current) return;
+        setRejectTarget(null); setRejectReason(''); setRejectError('');
+      }}>
+      <p>{rejectTarget.applicant}님의 {rejectTarget.type} 요청</p>
+      <p>요청 금액: {rejectTarget.amount}</p>
+      <ReasonField>
+        <label htmlFor="payout-reject-reason">거절 사유 (필수)</label>
+        <textarea id="payout-reject-reason" value={rejectReason} maxLength={500} required disabled={isApproving || rejectUnavailable}
+          aria-invalid={Boolean(rejectError)} aria-describedby="payout-reject-count payout-reject-error"
+          onChange={(event) => { setRejectReason(event.target.value); setRejectError(''); }} />
+        <p id="payout-reject-count">{rejectReason.length}/500자</p>
+        <p id="payout-reject-error" role={rejectError ? 'alert' : undefined}>{rejectError}</p>
+      </ReasonField>
+    </ConfirmModal>}
+    {notice && <ConfirmModal title={notice.title} description={notice.message} showCancel={false}
+      onConfirm={() => setNotice(null)} onCancel={() => setNotice(null)} />}
+  </>;
 }
 
 export default SavingGroupPayoutApprovalList;
