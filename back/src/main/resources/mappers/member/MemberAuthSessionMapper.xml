@@ -119,4 +119,25 @@
         AND revoked_at IS NULL
     </update>
 
+    <update id="markMypageVerified">
+        UPDATE member_auth_session
+        SET mypage_verified_at = UTC_TIMESTAMP(6)
+        WHERE session_id = #{sessionId}
+        AND member_id = #{memberId}
+        AND revoked_at IS NULL
+        AND expires_at_ms &gt; #{nowMs}
+    </update>
+
+    <select id="hasRecentMypageVerification" resultType="boolean">
+        SELECT EXISTS (
+        SELECT 1
+        FROM member_auth_session
+        WHERE session_id = #{sessionId}
+        AND member_id = #{memberId}
+        AND revoked_at IS NULL
+        AND expires_at_ms &gt; #{nowMs}
+        AND mypage_verified_at &gt; UTC_TIMESTAMP(6) - INTERVAL 5 MINUTE
+        )
+    </select>
+
 </mapper>

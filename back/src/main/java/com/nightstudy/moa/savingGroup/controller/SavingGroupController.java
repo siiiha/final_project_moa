@@ -1,8 +1,14 @@
 package com.nightstudy.moa.savingGroup.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRequest;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeUpdateRequest;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticePinRequest;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupDetailPageResponse;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupListResponse;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsPatchRequest;
@@ -21,6 +27,8 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupDeletionRequest;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,11 +40,117 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 기존 추방 경로를 연결하고 인증 사용자·소속·권한·상태 판단은 Service에 위임한다.
+    @PatchMapping("/{groupId}/members/{memberId}/expel")
+    public ApiResponse<Void> expelMember(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("memberId") @Positive(message = "회원 ID는 1 이상이어야 합니다.") Long targetMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.expelApprovedSavingGroupMember(groupId, targetMemberId, memberId);
+        return ApiResponse.ok();
+    }
+    // AI작성: 대상 회원과 역할만 전달하고 처리자·권한·모임 소속은 Service에서 검증한다.
+    @PatchMapping("/{savingGroupId}/members/{memberId}/role")
+    public ApiResponse<Void> updateMemberRole(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @PathVariable("memberId") @Positive(message = "회원 ID는 1 이상이어야 합니다.") Long targetMemberId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.savingGroup.dto.SavingGroupMemberRoleUpdateRequest request) {
+        savingGroupService.updateSavingGroupMemberRole(savingGroupId, targetMemberId, memberId, request.getRole());
+        return ApiResponse.ok();
+    }
+    // AI작성: 검색 DTO는 기존 목록처럼 Validation 후 전달하고 인증·권한·검색 처리는 Service가 담당한다.
+    @GetMapping("/{savingGroupId}/members")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupMemberResponse>> members(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupMemberSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupMembers(savingGroupId, memberId, condition.getKeyword(), condition.getPage());
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+    // AI작성: 경로는 saving_group_id이며 인증·권한·유형별 조회는 Service에 위임한다.
+    @GetMapping("/{savingGroupId}/payout-requests")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRequestResponse>> payoutRequests(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRequestSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupPayoutRequests(savingGroupId, memberId, condition.getStatus(), condition.getPage());
+        return ApiResponse.ok(result.getItems(), result.getPageMeta());
+    }
+    // AI작성: 목록 조회와 동일한 saving_group_id와 유형별 요청 ID를 전달하며 승인 본문은 받지 않는다.
+    @PatchMapping("/{savingGroupId}/payout-requests/{payoutRequestId}/approve")
+    public ApiResponse<Void> approvePayoutRequest(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @PathVariable("payoutRequestId") @Positive(message = "요청 ID는 1 이상이어야 합니다.") Long payoutRequestId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.approveSavingGroupPayoutRequest(savingGroupId, payoutRequestId, memberId);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 사유만 검증해 전달하고 권한·소속·상태 변경은 Service에 위임한다.
+    @PatchMapping("/{savingGroupId}/payout-requests/{payoutRequestId}/reject")
+    public ApiResponse<Void> rejectPayoutRequest(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @PathVariable("payoutRequestId") @Positive(message = "요청 ID는 1 이상이어야 합니다.") Long payoutRequestId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRejectionRequest request) {
+        savingGroupService.rejectSavingGroupPayoutRequest(savingGroupId, payoutRequestId, memberId, request.getRejectReason());
+        return ApiResponse.ok();
+    }
+    // AI작성: 요청 본문이나 작성자 입력 없이 JWT 회원과 경로 ID만 Service로 전달한다.
+    @DeleteMapping("/{groupId}/notices/{noticeId}")
+    public ApiResponse<Void> deleteNotice(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.deleteSavingGroupNotice(groupId, noticeId, memberId);
+        return ApiResponse.ok();
+    }
+    // AI작성: 기존 상세·고정 API와 동일하게 경로 ID는 공통 groupId이고 인증 회원은 JWT 속성만 사용한다.
+    @PutMapping("/{groupId}/notices/{noticeId}")
+    public ApiResponse<Long> updateNotice(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SavingGroupNoticeUpdateRequest request) {
+        return ApiResponse.ok(savingGroupService.updateSavingGroupNotice(groupId, noticeId, memberId,
+                request.getTitle(), request.getContent()));
+    }
     private final SavingGroupService savingGroupService;
 
     // AI작성: 목록 조회 서비스만 주입한다.
     public SavingGroupController(SavingGroupService savingGroupService) {
         this.savingGroupService = savingGroupService;
+    }
+
+    // AI작성: 명시적 고정 상태와 양수 ID만 전달하며 권한·최대 개수는 Service 트랜잭션에서 검증한다.
+    @PatchMapping("/{groupId}/notices/{noticeId}/pin")
+    public ApiResponse<Void> pinNotice(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SavingGroupNoticePinRequest request) {
+        savingGroupService.updateSavingGroupNoticePinned(groupId, noticeId, memberId, request.getPinned());
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 경로의 groupId는 공통 모임 ID이며 공지 소속·승인 회원 권한은 Service에서 검증한다.
+    @GetMapping("/{groupId}/notices/{noticeId}")
+    public ApiResponse<SavingGroupNoticeDetailResponse> noticeDetail(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(savingGroupService.getSavingGroupNoticeDetail(groupId, noticeId, memberId));
+    }
+
+    // AI작성: JSON 입력을 검증하고 JWT 회원 ID만 전달하며 모임 상태·권한·저장은 Service에서 처리한다.
+    @PostMapping("/{savingGroupId}/notices")
+    public ApiResponse<Void> createNotice(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody SavingGroupNoticeCreateRequest request) {
+        savingGroupService.createSavingGroupNotice(savingGroupId, memberId, request.getTitle(), request.getContent());
+        return ApiResponse.ok();
     }
 
     // AI작성: JWT 필터가 설정한 인증 회원 ID가 없으면 신청 목록을 조회하지 않는다.
@@ -106,8 +220,11 @@ public class SavingGroupController {
     @GetMapping("/{id}")
     public ApiResponse<SavingGroupDetailResponse> detail(
             @PathVariable("id") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long id,
-            @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupDetail(id, memberId));
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute SavingGroupNoticeSearchCondition condition) {
+        // AI작성: 기존 상세 데이터는 data에 유지하고 검증된 공지 조회 조건의 페이징 정보만 meta로 전달한다.
+        SavingGroupDetailPageResponse result = savingGroupService.getSavingGroupDetail(id, memberId, condition);
+        return ApiResponse.ok(result.getDetail(), result.getPageMeta());
     }
 
     // AI작성: 인증 정보 없이 공개 목록을 조회하고 기존 성공 응답으로 감싼다.

@@ -37,6 +37,18 @@ public interface MemberAuthSessionMapper {
             @Param("tokenHash") String tokenHash
     );
 
+    boolean hasRecentMypageVerification(
+            @Param("sessionId") String sessionId,
+            @Param("memberId") Long memberId,
+            @Param("nowMs") long nowMs
+    );
+
+    int markMypageVerified(
+            @Param("sessionId") String sessionId,
+            @Param("memberId") Long memberId,
+            @Param("nowMs") long nowMs
+    );
+
     int revokeSession(
             @Param("sessionId") String sessionId
     );
