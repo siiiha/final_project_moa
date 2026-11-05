@@ -93,6 +93,23 @@ export async function createSavingGroupPayout(groupId, { amount, title, receipt 
   return payoutCall(() => client.post(`/saving-groups/${id}/payout-requests`, body, { signal }));
 }
 
+// AI작성: 목록의 savingGroupId·요청 ID만 사용하며 승인 본문이나 처리자 정보는 보내지 않는다.
+export async function approveSavingGroupPayoutRequest(savingGroupId, requestId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const targetId = savingGroupPathId(requestId);
+  return payoutCall(() => client.patch(`/saving-groups/${id}/payout-requests/${targetId}/approve`, undefined, { signal }));
+}
+
+// AI작성: 서버와 동일하게 원본 입력 길이·공백을 검증하고 사유만 전달한다. 앞뒤 공백 정리는 서버가 담당한다.
+export async function rejectSavingGroupPayoutRequest(savingGroupId, requestId, rejectReason, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const targetId = savingGroupPathId(requestId);
+  if (typeof rejectReason !== 'string' || !rejectReason.trim() || rejectReason.length > 500) {
+    throw new Error('거절 사유를 공백 없이 입력하고 500자 이내로 작성해주세요.');
+  }
+  return payoutCall(() => client.patch(`/saving-groups/${id}/payout-requests/${targetId}/reject`, { rejectReason }, { signal }));
+}
+
 // AI작성: 서버가 저장된 모임 유형에 따라 요청을 고르므로 클라이언트는 유형·처리자 정보를 보내지 않는다.
 export async function getSavingGroupPayoutRequests(savingGroupId, { status, page = 1, signal } = {}) {
   const id = savingGroupPathId(savingGroupId);
