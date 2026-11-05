@@ -2,6 +2,31 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 승인 계원 중 계주와 삭제 회원은 제외하며 집계·목록 조건을 공유한다. -->
+    <sql id="savingGroupMemberFromWhere">
+        FROM group_member gm
+        JOIN members m ON m.member_id = gm.member_id
+        WHERE gm.group_id = #{groupId}
+          AND gm.membership_status = 'APPROVED'
+          AND gm.member_role IN ('MEMBER', 'MANAGER')
+          AND m.deleted_at IS NULL
+    </sql>
+    <select id="selectSavingGroupMemberCount" resultType="int">
+        SELECT LEAST(COUNT(*), 20)
+        <include refid="savingGroupMemberFromWhere"/>
+    </select>
+    <!-- AI작성: 이름 원문은 확정 정책으로 제공하고 이메일은 로컬 부분 첫 글자 외 마스킹한다.
+         BIGINT는 문자열로 반환하며 가입일은 서비스 가입일이 아닌 모임 관계의 가입일이다. -->
+    <select id="selectSavingGroupMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMemberResponse">
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.name,
+               CASE WHEN m.email IS NULL THEN NULL
+                    WHEN LOCATE('@', m.email) &lt; 2 THEN '***'
+                    ELSE CONCAT(LEFT(m.email, 1), '***', SUBSTRING(m.email, LOCATE('@', m.email))) END AS email,
+               gm.member_role AS role, gm.joined_at
+        <include refid="savingGroupMemberFromWhere"/>
+        ORDER BY gm.joined_at DESC, gm.crew_member_id DESC
+        LIMIT 10 OFFSET #{offset}
+    </select>
     <!-- AI작성: 계주 본인 관계·탈퇴·추방·삭제 회원을 제외한 신청 상태를 동일한 조건으로 집계·조회한다. -->
     <sql id="joinRequestFromWhere">
         FROM group_member gm
