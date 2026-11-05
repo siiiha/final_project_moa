@@ -1092,3 +1092,14 @@
 - 명령: back에서 gradlew.bat -I C:/workspace/final_project_moa/back/build/merge-savinggroup-tests.init.gradle -Dorg.gradle.java.installations.paths=C:/dev/jdk-17.0.12_windows-x64_bin/jdk-17.0.12 test --offline --console=plain.
 - 주의: 이번 병합은 프론트 파일을 변경하지 않아 프론트 테스트·빌드를 반복하지 않았다. 실제 MySQL·브라우저·Postman·금융 호출·자금 이동 미실행. 개발자 검토·수정: 병합 검토 및 커밋 대기.
 - 최종 정리: 수신 MySQL 테스트 파일의 파일 끝 빈 줄 1개를 정리했고 git diff --cached --check 및 미해결 충돌 0건을 확인했다. 테스트 건수는 Gradle 콘솔의 649건/2실패/13생략 집계를 기준으로 기록했다.
+## 2026-11-05 계금 요청 프론트 1단계 — API 계약·화면 조건 확인
+
+- AI작성: 사용자 요청으로 feature/savinggroup 브랜치에서 계금 요청 승인·거절 프론트의 API 계약과 화면 연결 조건을 확인했다. 이번 단계는 설계 확인이며 구현 코드는 변경하지 않았다.
+- 확인 대상: front/src/api/savingGroups.js, SavingGroupDetail.jsx, SavingGroupJoinRequestList.jsx, SavingGroupPayoutApprovalList.jsx 및 백엔드 SavingGroupController·SavingGroupServiceImpl·SavingGroupPayoutRejectionRequest, docs/saving-groups-api.md.
+- 계약: PATCH /api/saving-groups/{savingGroupId}/payout-requests/{requestId}/approve는 본문 없이 요청한다. reject는 { rejectReason }을 보내며 공백만 입력 불가·입력 최대 500자다. 성공은 success=true, data=null이고 실패는 서버 error.code/message를 사용한다. 공통 client의 /api 기준 주소를 재사용한다.
+- 권한·상태: 해당 모임 개설자이면서 APPROVED OWNER만 처리하며 미삭제 모임 상태 01·02, 요청 상태 PENDING만 허용한다. 본인 요청 심사도 허용한다. 최종 권한·상태·소속 검증은 서버가 수행한다.
+- 유형별 조건: 순번계 승인은 요청자 순번과 요청 회차 일치가 필요하고, 친목계 승인은 영수증 첨부가 필요하다. 거절은 승인 전용 순번·증빙 조건을 적용하지 않는다. 승인으로 실제 지급은 실행되지 않는다.
+- 발견 사항: 현재 목록은 조회 전용이고 심사 API 함수·버튼이 없다. API 변환 과정에서 status가 한글 표시값으로 덮어써지므로 후속 단계에서 원본 상태를 별도 필드로 보존해야 한다. 목록 컴포넌트에는 savingGroupId·groupType만 전달되어 역할·모임 상태를 이용한 버튼 조건 전달도 필요하다.
+- 후속 설계: savingGroupId와 목록 requestId를 문자열로 유지한다. 대기 요청에 승인 확인창·거절 사유 입력창을 연결하고 처리 중 중복 클릭을 막는다. 성공 후 서버 목록을 재조회하고 실패 시 오류를 안내한다. 화면에 없는 요청자 자격·순번 정보는 추정하지 않고 서버 검증 결과를 표시한다. 기존 공통 버튼·모달과 오류 처리 방식을 우선 재사용한다.
+- 검증: 현재 브랜치와 깨끗한 작업 트리를 확인하고 프론트 목록·ID 전달 흐름 및 백엔드 Controller·Service와 명세를 대조했다. 실행 코드 변경이 없어 테스트·빌드는 실행하지 않았다. 브라우저·Postman·실제 DB 검증은 후속 구현 단계에서 수행한다.
+- 개발자 검토·수정: 설계 검토 대기. 다음 단계는 savingGroups.js의 승인·거절 API 함수 추가다. 커밋·push는 수행하지 않았다.
