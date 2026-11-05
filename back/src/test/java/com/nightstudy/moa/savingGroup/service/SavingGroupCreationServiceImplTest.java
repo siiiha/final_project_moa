@@ -229,6 +229,12 @@ class SavingGroupCreationServiceImplTest {
 
         verify(savingGroupMapper).rejectSavingGroupDeletionApplication(1L, "공동자금 정리 필요");
         verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_DELETION_REJECTED,
+                "계모임 삭제 신청이 반려되었습니다.",
+                "/saving-groups/200"
+        );
     }
 
     @Test

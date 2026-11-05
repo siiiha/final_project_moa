@@ -161,6 +161,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             if (savingGroupMapper.rejectSavingGroupDeletionApplication(approvalId, normalizedRejectReason) != 1) {
                 throw applicationProcessFailed();
             }
+            // AI작성: 삭제 신청이 반려된 뒤 신청자인 계주에게 유지된 계모임의 상세 경로와 결과를 알린다.
+            notificationService.send(
+                    application.getApplicantMemberId(),
+                    NotificationType.SAVING_GROUP_DELETION_REJECTED,
+                    "계모임 삭제 신청이 반려되었습니다.",
+                    "/saving-groups/" + application.getSavingGroupId()
+            );
             return;
         }
         if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, normalizedRejectReason) != 1

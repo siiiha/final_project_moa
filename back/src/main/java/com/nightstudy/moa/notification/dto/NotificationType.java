@@ -18,6 +18,8 @@ public enum NotificationType {
     SAVING_GROUP_CREATION_REJECTED,
     // AI작성: 관리자가 계모임 삭제 신청을 승인했을 때 신청자인 계주에게 결과를 알립니다.
     SAVING_GROUP_DELETION_APPROVED,
+    // AI작성: 관리자가 계모임 삭제 신청을 반려했을 때 신청자인 계주에게 결과를 알립니다.
+    SAVING_GROUP_DELETION_REJECTED,
 
     // AI작성: 소모임 가입 신청이 접수되거나 신청 결과가 결정되었을 때 사용하는 알림입니다.
     SMALL_GROUP_JOIN_REQUEST,
