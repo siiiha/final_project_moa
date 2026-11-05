@@ -10,6 +10,10 @@ public interface AuthSessionService {
     // refresh token 검증 후 새 토큰으로 교체
     MemberAuthTokenDto refresh(String refreshToken);
 
+    boolean hasRecentMypageVerification(String sessionId, Long memberId);
+
+    boolean markMypageVerified(String sessionId, Long memberId);
+
     // 토큰에 연결된 로그인 세션 폐기
     void logout(String refreshToken, String accessToken);
 

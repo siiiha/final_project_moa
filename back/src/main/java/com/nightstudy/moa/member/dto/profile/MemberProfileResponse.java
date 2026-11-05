@@ -15,6 +15,7 @@ public class MemberProfileResponse {
     private Long memberId;
     private String name;
     private String email;
+    private boolean hasPassword;
     private String phone;
     private String nickname;
     private Integer age;

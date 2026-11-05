@@ -157,6 +157,32 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         return tokens;
     }
 
+    @Override
+    public boolean hasRecentMypageVerification(String sessionId, Long memberId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+
+        return sessionMapper.hasRecentMypageVerification(
+                sessionId,
+                memberId,
+                System.currentTimeMillis()
+        );
+    }
+
+    @Override
+    public boolean markMypageVerified(String sessionId, Long memberId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+
+        return sessionMapper.markMypageVerified(
+                sessionId,
+                memberId,
+                System.currentTimeMillis()
+        ) == 1;
+    }
+
     // access token이 만료됐어도 refresh token 세션은 로그아웃할 수 있음
     @Override
     @Transactional
