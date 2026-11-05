@@ -1,5 +1,62 @@
 import client from './client.js';
 
+// AI작성: 계원 관리 요청은 공통 JWT client를 사용하고 서버 코드·상태·취소를 보존한다.
+async function savingGroupMemberResponse(send, fallbackMessage) {
+  try {
+    const response = await send();
+    if (response.data?.success !== true) throw { response };
+    return response.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || fallbackMessage);
+    failure.code = serverError?.code || 'SAVING_GROUP_MEMBER_REQUEST_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
+// AI작성: savingGroupId를 사용하고 서버가 제한한 최대 20명의 목록만 표시용 데이터로 변환한다.
+export async function getSavingGroupMembers(savingGroupId, { page = 1, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  if (!Number.isSafeInteger(page) || page < 1) throw new Error('페이지는 1 이상이어야 합니다.');
+  const result = await savingGroupMemberResponse(
+    () => client.get(`/saving-groups/${id}/members`, { params: { page }, signal }),
+    '계원 목록을 불러오지 못했습니다. 다시 시도해주세요.'
+  );
+  const meta = result.meta;
+  if (!Array.isArray(result.data) || result.data.length > 10 || !meta
+      || meta.page !== page || meta.size !== 10 || !Number.isInteger(meta.total) || meta.total < 0 || meta.total > 20
+      || meta.totalPages !== Math.ceil(meta.total / 10)
+      || result.data.some((item) => !item || !['MEMBER', 'MANAGER'].includes(item.role))) {
+    const failure = new Error('계원 목록 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+    failure.code = 'INVALID_RESPONSE';
+    throw failure;
+  }
+  return {
+    items: result.data.map((item) => ({
+      id: savingGroupPathId(item.memberId),
+      name: item.name || '이름 미등록',
+      email: item.email || '이메일 미등록',
+      role: item.role,
+      joinedAt: formatApplicationDate(item.joinedAt),
+    })),
+    meta,
+  };
+}
+
+// AI작성: OWNER·처리자 입력은 보내지 않으며 변경된 회원의 목표 역할만 전송한다.
+export async function updateSavingGroupMemberRole(savingGroupId, memberId, role, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const targetId = savingGroupPathId(memberId);
+  if (!['MEMBER', 'MANAGER'].includes(role)) throw new Error('계원 또는 회계 역할만 지정할 수 있습니다.');
+  const result = await savingGroupMemberResponse(
+    () => client.patch(`/saving-groups/${id}/members/${targetId}/role`, { role }, { signal }),
+    '역할을 저장하지 못했습니다. 목록을 다시 확인해주세요.'
+  );
+  return result.data;
+}
+
 // AI작성: 관리자 계모임 심사의 API 코드와 화면 문구를 한곳에서 관리해 직접 문자열 비교를 줄인다.
 export const savingGroupReviewStatus = Object.freeze({
   PENDING: 'PENDING',
