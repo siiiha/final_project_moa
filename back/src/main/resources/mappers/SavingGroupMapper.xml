@@ -2,6 +2,59 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 친목계 지출과 순번계 계금은 기존 테이블을 각각 조회한다. 탈퇴 이력은 삭제하지 않고 조회에서 제외한다. -->
+    <select id="selectSavingGroupPayoutType" resultType="string">
+        SELECT saving_group_type FROM saving_group WHERE group_id = #{groupId}
+    </select>
+    <sql id="payoutRequestFromWhere">
+        <choose>
+            <when test="groupType == '순번계'">
+                FROM payout_request req
+                JOIN meeting_round mr ON mr.round_id = req.round_id
+                JOIN members requester ON requester.member_id = req.requester_id
+                WHERE mr.group_id = #{groupId}
+            </when>
+            <otherwise>
+                FROM expenses req
+                JOIN members requester ON requester.member_id = req.applicant_id
+                WHERE req.group_id = #{groupId}
+            </otherwise>
+        </choose>
+        AND requester.deleted_at IS NULL
+        AND EXISTS (SELECT 1 FROM group_member applicant_relation
+                    WHERE applicant_relation.group_id = #{groupId}
+                      AND applicant_relation.member_id = requester.member_id
+                      AND applicant_relation.membership_status = 'APPROVED')
+        <if test="status != null">AND req.status = #{status}</if>
+    </sql>
+    <select id="selectSavingGroupPayoutRequestCount" resultType="int">
+        SELECT COUNT(*) <include refid="payoutRequestFromWhere"/>
+    </select>
+    <select id="selectSavingGroupPayoutRequests" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRequestResponse">
+        SELECT requester.name AS requester_name, req.amount, req.status,
+        <choose>
+            <when test="groupType == '순번계'">
+                CAST(req.payout_request_id AS CHAR) AS request_id, req.requested_at,
+                mr.round_number, req.reviewed_at,
+                (SELECT reviewer.name FROM members reviewer
+                 WHERE reviewer.member_id = req.reviewer_id AND reviewer.deleted_at IS NULL
+                   AND EXISTS (SELECT 1 FROM group_member reviewer_relation
+                               WHERE reviewer_relation.group_id = #{groupId}
+                                 AND reviewer_relation.member_id = reviewer.member_id
+                                 AND reviewer_relation.membership_status = 'APPROVED')) AS reviewer_name
+            </when>
+            <otherwise>
+                CAST(req.expense_id AS CHAR) AS request_id, req.created_at AS requested_at,
+                req.title, (req.receipt_img_url IS NOT NULL AND TRIM(req.receipt_img_url) != '') AS has_evidence
+            </otherwise>
+        </choose>
+        <include refid="payoutRequestFromWhere"/>
+        <choose>
+            <when test="groupType == '순번계'">ORDER BY req.requested_at DESC, req.payout_request_id DESC</when>
+            <otherwise>ORDER BY req.created_at DESC, req.expense_id DESC</otherwise>
+        </choose>
+        LIMIT 10 OFFSET #{offset}
+    </select>
     <!-- AI작성: 계주 본인 관계·탈퇴·추방·삭제 회원을 제외한 신청 상태를 동일한 조건으로 집계·조회한다. -->
     <sql id="joinRequestFromWhere">
         FROM group_member gm
