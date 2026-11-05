@@ -18,6 +18,25 @@ import java.util.List;
 
 // AI작성: 소모임 공개 목록의 검색·필터 조회 계약이다.
 public interface SmallGroupService {
+    // AI작성: 해당 소모임장만 최대 두 공지의 고정 상태를 변경한다.
+    void updateSmallGroupNoticePinned(Long smallGroupId, Long noticeId, Long memberId, Boolean pinned);
+
+    // AI작성: 소모임장이며 작성자 본인인 공지만 논리 삭제한다.
+    void deleteSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId);
+
+    // AI작성: 현재 소모임장이면서 작성자 본인인 공지만 수정한다.
+    Long updateSmallGroupNotice(Long smallGroupId, Long noticeId, Long memberId, String title, String content);
+
+    // AI작성: 승인 OWNER·MEMBER에게만 소속 공지 본문을 제공한다.
+    com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse getSmallGroupNoticeDetail(Long smallGroupId, Long noticeId, Long memberId);
+
+    // AI작성: 공개 상세에서 검증한 공통 모임 ID로 목록·페이지 메타를 조회한다.
+    com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse getSmallGroupNotices(Long groupId,
+            com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSearchCondition condition);
+
+    // AI작성: 승인된 해당 소모임장만 공지를 작성한다.
+    void createSmallGroupNotice(Long smallGroupId, Long memberId, String title, String content);
+
     // AI작성: 서버 인증 회원 본인의 후기 작성 여부만 조회하고 작성자 정보는 반환하지 않는다.
     boolean hasWrittenSmallGroupReview(Long smallGroupId, Long memberId);
 

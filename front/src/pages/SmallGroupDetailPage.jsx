@@ -9,6 +9,8 @@ import {
   createSmallGroupVote,
   fetchSmallGroupCategories,
   getSmallGroupDetail,
+  readSmallGroupNoticeQuery,
+  toSmallGroupNoticeSearch,
   getSmallGroupSettings,
   getSmallGroupVotes,
   requestSmallGroupJoin,
@@ -60,6 +62,7 @@ function toSmallGroupDetailView(data) {
     meetDate: data.meetDate,
     location: data.location,
     notices: data.notices,
+    pinnedNotices: data.pinnedNotices,
     // AI작성: 표시용 변환에서 서버의 가입 신청 상태·판단 필드를 누락하지 않는다.
     membershipStatus: data.membershipStatus,
     canApply: data.canApply,
@@ -72,9 +75,12 @@ function SmallGroupDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
+  const noticeQuery = readSmallGroupNoticeQuery(location.search);
   // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
   const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
+  // AI작성: 상세 조회·작성 후 갱신 요청은 같은 순번으로 이전 응답을 폐기한다.
+  const detailRequest = useRef(0);
   const [retry, setRetry] = useState(0);
   const [menu, setMenu] = useState({
     id,
@@ -116,21 +122,28 @@ function SmallGroupDetailPage() {
     const controller = new AbortController();
     let active = true;
 
-    getSmallGroupDetail(id, { signal: controller.signal })
+    const requestVersion = ++detailRequest.current;
+    getSmallGroupDetail(id, { signal: controller.signal, noticePage: noticeQuery.page, noticeSort: noticeQuery.sort })
       .then((group) => {
-        if (active) setResult({ id, retry, authVersion, group });
+        // AI작성: 마지막 공지 삭제 등으로 서버가 페이지를 보정하면 URL도 같은 페이지로 맞춘다.
+        if (active && requestVersion === detailRequest.current && group.noticePageMeta?.page && group.noticePageMeta.page !== noticeQuery.page) {
+          navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(group.noticePageMeta.page, noticeQuery.sort, location.search) }, { replace: true });
+          return;
+        }
+        if (active && requestVersion === detailRequest.current) setResult({ id, retry, authVersion, search: location.search, group });
       })
       .catch((error) => {
-        if (active && !controller.signal.aborted) setResult({ id, retry, authVersion, error });
+        if (active && requestVersion === detailRequest.current && !controller.signal.aborted) setResult({ id, retry, authVersion, search: location.search, error });
       });
 
     return () => {
       active = false;
       controller.abort();
+      detailRequest.current += 1;
     };
-  }, [id, retry, authVersion]);
+  }, [id, retry, authVersion, location.search, location.pathname, navigate, noticeQuery.page, noticeQuery.sort]);
 
-  const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion ? result : null;
+  const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion && result?.search === location.search ? result : null;
   const isSettingsSelected = current?.group?.myRole === 'OWNER'
     && menu.id === id && menu.value === 'settings';
   const isVoteSelected = ['OWNER', 'MEMBER'].includes(current?.group?.myRole)
@@ -287,7 +300,7 @@ function SmallGroupDetailPage() {
             </EmptyCard>
           ) : (
             <SmallGroupDetail
-              key={id}
+              key={`${id}:${authVersion}`}
               group={group}
               groupId={current.group.groupId}
               smallGroupId={current.group.smallGroupId}
@@ -301,7 +314,11 @@ function SmallGroupDetailPage() {
               votes={currentVotes?.votes || []}
               isVoteLoading={isVoteSelected && (!currentVotes || currentVotes.loading)}
               voteErrorMessage={currentVotes?.error ? voteErrorMessage : null}
-              onMenuChange={(value) => setMenu({ id, value })}
+              onMenuChange={(value) => {
+                // AI작성: 변경 도중 다른 탭으로 이탈했어도 공지 재진입 시 서버 상태를 다시 확인한다.
+                setMenu({ id, value });
+                if (value === 'notice') setRetry((previous) => previous + 1);
+              }}
               onSettingsSubmit={handleSettingsSubmit}
               onSettingsCancel={() => setMenu({ id, value: 'notice' })}
               onRetrySettings={() => setSettingsRetry((value) => value + 1)}
@@ -311,6 +328,20 @@ function SmallGroupDetailPage() {
               onCreateVote={handleVoteCreate}
               isVoteCreating={isVoteCreating}
               onRetryVotes={() => setVoteRetry((value) => value + 1)}
+              onNoticeDetail={(noticeId) => navigate('/small-groups/' + encodeURIComponent(id) + '/notices/' + encodeURIComponent(noticeId) + '?' + toSmallGroupNoticeSearch(current.group.noticePageMeta?.page || noticeQuery.page, noticeQuery.sort))}
+              noticePageMeta={current.group.noticePageMeta}
+              noticeSort={noticeQuery.sort}
+              onNoticeQueryChange={(page, sort) => navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(page, sort, location.search) })}
+              onNoticeRefresh={async ({ resetNoticeQuery = false } = {}) => {
+                // AI작성: 작성 성공은 최신순 첫 페이지로 이동하고 재조회 실패 시 등록을 반복하지 않는다.
+                const query = resetNoticeQuery ? { page: 1, sort: 'LATEST' } : noticeQuery;
+                const version = ++detailRequest.current;
+                const data = await getSmallGroupDetail(id, { noticePage: query.page, noticeSort: query.sort });
+                if (version !== detailRequest.current) return;
+                const search = '?' + toSmallGroupNoticeSearch(data.noticePageMeta?.page || query.page, query.sort, location.search);
+                if (search !== location.search) navigate({ pathname: location.pathname, search }, { replace: true });
+                else setResult({ id, retry, authVersion, search: location.search, group: data });
+              }}
               onVoteDetail={(smallGroupVoteId) => navigate(`/small-groups/${id}/votes/${smallGroupVoteId}`)}
             />
           )}
