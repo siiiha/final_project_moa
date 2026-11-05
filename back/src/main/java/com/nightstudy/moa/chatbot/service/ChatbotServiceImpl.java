@@ -16,6 +16,7 @@ public class ChatbotServiceImpl implements ChatbotService {
 
     private final ChatClient chatClient;
     private final boolean enabled;
+    private final MessageChatMemoryAdvisor chatMemoryAdvisor;
 
     public ChatbotServiceImpl(
             ChatClient.Builder builder,
@@ -25,8 +26,10 @@ public class ChatbotServiceImpl implements ChatbotService {
     ) {
         this.chatClient = builder
                 .defaultSystem(systemPrompt, StandardCharsets.UTF_8)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
+        this.chatMemoryAdvisor =
+                MessageChatMemoryAdvisor.builder(chatMemory).build();
+
         this.enabled = !apiKey.isBlank() && !"no-key".equals(apiKey);
     }
 
@@ -41,13 +44,18 @@ public class ChatbotServiceImpl implements ChatbotService {
         }
 
         String maskedMessage = PiiMasker.mask(message);
-        String conversationId = "member-" + memberId;
+        ChatClient.ChatClientRequestSpec prompt = chatClient.prompt()
+                .user(maskedMessage);
 
-        String reply = chatClient.prompt()
-                .user(maskedMessage)
-                .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
-                .call()
-                .content();
+        if (memberId != null) {
+            // 로그한 회원에게만 회원별 대화 기록 연결
+            prompt.advisors(chatMemoryAdvisor)
+                    .advisors(advisor -> advisor.param(
+                            ChatMemory.CONVERSATION_ID, "member-" +
+                    memberId));
+        }
+
+        String reply = prompt.call().content();
 
         if (reply == null || reply.isBlank()) {
             throw new ApiException(

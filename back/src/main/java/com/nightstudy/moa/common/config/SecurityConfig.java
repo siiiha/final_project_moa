@@ -41,7 +41,7 @@ public class SecurityConfig {
 
         // AI작성: 회원 상태와 로그인 세션을 함께 검증하는 JWT 필터를 등록한다.
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter (
+                new JwtAuthenticationFilter(
                         jwtTokenProvider,
                         errorResponseWriter,
                         revokedTokenMapper,
@@ -145,6 +145,9 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/admin/**"
                         ).hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/chatbot/messages").permitAll()
 
                         .requestMatchers(
                                 "/api/**"

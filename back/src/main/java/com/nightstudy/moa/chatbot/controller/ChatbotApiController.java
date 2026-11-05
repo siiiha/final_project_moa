@@ -4,6 +4,7 @@ import com.nightstudy.moa.chatbot.dto.ChatbotReply;
 import com.nightstudy.moa.chatbot.dto.ChatbotRequest;
 import com.nightstudy.moa.chatbot.service.ChatbotService;
 import com.nightstudy.moa.common.dto.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,17 +17,27 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChatbotApiController {
 
     private final ChatbotService chatbotService;
+    private final GuestChatbotRateLimiter guestChatbotRateLimiter;
 
-    public ChatbotApiController(ChatbotService chatbotService) {
+    public ChatbotApiController(
+            ChatbotService chatbotService,
+            GuestChatbotRateLimiter guestChabotRateLimiter
+    ) {
         this.chatbotService = chatbotService;
+        this.guestChatbotRateLimiter = guestChabotRateLimiter;
     }
 
     @PostMapping("/messages")
     public ApiResponse<ChatbotReply> sendMessage(
             @AuthenticationPrincipal Long memberId,
-            @Valid @RequestBody ChatbotRequest request
+            @Valid @RequestBody ChatbotRequest request,
+            HttpServletRequest servletRequest
     ) {
-        String reply = chatbotService.answer(memberId, request.message());
+        if (memberId == null) {
+            guestChatbotRateLimiter.check(servletRequest.getRemoteAddr());
+        }
+
+        String reply = chatbotService.answer(memberId,request.message());
         return ApiResponse.ok(new ChatbotReply(reply));
     }
 }
