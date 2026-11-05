@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { getMyProfile, verifyMypagePassword } from '../api/member';
+import ConfirmModal from '../components/common/ConfirmModal';
+import PasswordInput from '../components/common/PasswordInput';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import EditProfileForm from '../components/member/EditProfileForm';
-import { memberMenuItems } from '../mocks/mypage';
+import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
+import useAuthStore from '../store/authStore';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
