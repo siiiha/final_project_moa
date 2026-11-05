@@ -55,6 +55,16 @@
         FROM `groups` g JOIN saving_group sg ON sg.group_id = g.group_id
         WHERE g.group_id = #{groupId} AND g.deleted_at IS NULL FOR UPDATE
     </select>
+    <!-- AI작성: 현재 심사 권한과 동일하게 승인 상태인 계주의 회원 번호만 알림 대상으로 조회한다. -->
+    <select id="selectSavingGroupPayoutReviewerIds" resultType="long">
+        SELECT DISTINCT gm.member_id
+        FROM group_member gm
+        JOIN `groups` g ON g.group_id = gm.group_id AND g.member_id = gm.member_id
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        WHERE gm.group_id = #{groupId}
+          AND gm.membership_status = 'APPROVED'
+          AND gm.member_role = 'OWNER'
+    </select>
     <select id="selectPayoutSequence" resultType="java.lang.Integer">
         SELECT sequence_number FROM group_member
         WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'

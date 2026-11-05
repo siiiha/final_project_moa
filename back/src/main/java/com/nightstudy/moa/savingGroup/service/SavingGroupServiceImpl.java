@@ -211,6 +211,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 approve ? "APPROVED" : "REJECTED", memberId, reason) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_REQUEST_ALREADY_PROCESSED", "요청 상태가 변경되었습니다. 다시 확인해 주세요.");
         }
+        // AI작성: 심사 상태 변경이 성공한 뒤 요청자에게 승인 또는 반려 결과를 알린다.
+        notificationService.send(
+                request.getRequesterId(),
+                approve ? NotificationType.SAVING_GROUP_PAYOUT_APPROVED
+                        : NotificationType.SAVING_GROUP_PAYOUT_REJECTED,
+                approve ? "계금·지출 요청이 승인되었습니다." : "계금·지출 요청이 반려되었습니다.",
+                "/saving-groups/" + savingGroupId
+        );
     }
     // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
     @Override
