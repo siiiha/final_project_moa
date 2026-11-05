@@ -566,7 +566,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 targetMemberId,
                 NotificationType.SAVING_GROUP_MEMBER_EXPELLED,
                 "계모임에서 제외되었습니다.",
-                "/saving-groups/" + groupId
+                null
         );
     }
 

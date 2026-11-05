@@ -2,6 +2,8 @@ package com.nightstudy.moa.savingGroup.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import org.junit.jupiter.api.Test;
@@ -14,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SavingGroupMemberExpulsionServiceTest {
  @Mock SavingGroupMapper mapper;
+ @Mock NotificationService notificationService;
  @InjectMocks SavingGroupServiceImpl service;
  SavingGroupMembershipRelationRow row(String role,String status) {
   var r=new SavingGroupMembershipRelationRow();r.setCrewMemberId(40L);r.setMemberRole(role);r.setMembershipStatus(status);return r;
@@ -34,6 +37,7 @@ class SavingGroupMemberExpulsionServiceTest {
   var order=inOrder(mapper);order.verify(mapper).selectSavingGroupExpulsionTargetForUpdate(20L);
   order.verify(mapper).selectSavingGroupMembershipForUpdate(20L,30L);order.verify(mapper).selectSavingGroupMembershipForUpdate(20L,50L);
   order.verify(mapper).existsMember(50L);order.verify(mapper).expelApprovedSavingGroupMember(40L,20L);verifyNoMoreInteractions(mapper);
+  verify(notificationService).send(50L,NotificationType.SAVING_GROUP_MEMBER_EXPELLED,"계모임에서 제외되었습니다.",null);
  }
  @Test void noLogin(){failure("UNAUTHORIZED",50L,null);verifyNoInteractions(mapper);}
  @Test void invalidTarget(){failure("BAD_REQUEST",0L,30L);}
