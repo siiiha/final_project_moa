@@ -19,6 +19,20 @@ export async function getMyProfile(token) {
     return response.data.data;
 }
 
+export async function getMypageVerification({ signal } = {}) {
+    const response = await client.get('/members/me/mypage-verification', {
+        signal,
+    });
+
+    return response.data.data;
+}
+
+export async function verifyMypagePassword(currentPassword) {
+    await client.post('/members/me/mypage-verification', {
+        currentPassword,
+    });
+}
+
 // AI작성: 로그인한 회원의 참여 모임 목록을 조회한다.
 export async function getMyJoinedGroups({ signal } = {}) {
     const response = await client.get('/members/me/joined-groups', { signal });
@@ -249,49 +263,49 @@ export async function resetMemberPassword(
 
 // AI작성: 서버에서 로그인 회원의 본인인증 요청 번호를 발급받습니다.
 export async function startMyIdentityVerification(token) {
-  const response = await client.post(
-    '/members/me/identity-verification/start',
-    null,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  );
+    const response = await client.post(
+        '/members/me/identity-verification/start',
+        null,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
 
-  return response.data.data;
+    return response.data.data;
 }
 
 // AI작성: 서버가 포트원 결과를 검증한 뒤 갱신된 회원 정보를 받습니다.
 export async function completeMyIdentityVerification(
-  token,
-  identityVerificationId,
+    token,
+    identityVerificationId,
 ) {
-  const response = await client.post(
-    '/members/me/identity-verification/complete',
-    { identityVerificationId },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      timeout: 20000,
-    },
-  );
+    const response = await client.post(
+        '/members/me/identity-verification/complete',
+        { identityVerificationId },
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+            timeout: 20000,
+        },
+    );
 
-  return response.data.data;
+    return response.data.data;
 }
 
 // AI작성: 활동 지역을 변경하고 갱신된 회원정보를 반환한다.
 export async function updateMyRegion(token, regionId) {
-  const response = await client.put(
-    '/members/me/region',
-    { regionId },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  );
+    const response = await client.put(
+        '/members/me/region',
+        { regionId },
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
 
-  return response.data.data;
+    return response.data.data;
 }

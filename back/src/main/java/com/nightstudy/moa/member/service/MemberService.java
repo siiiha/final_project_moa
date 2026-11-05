@@ -32,7 +32,13 @@ public interface MemberService {
     Long signupSocial(SocialSignupRequest request);
 
     List<MemberJoinedGroupResponse> getMyJoinedGroups(Long memberId);
+
+    void verifyMypagePassword(Long memberId, String sessionId, String currentPassword);
+
+    boolean hasRecentMypageVerification(Long memberId, String sessionId);
+
     MemberProfileResponse getMyProfile(Long memberId);
+
     MemberProfileResponse verifyRegion(
             Long memberId,
             RegionVerificationRequest request
@@ -45,6 +51,7 @@ public interface MemberService {
 
     MemberProfileResponse updateMyProfile(
             Long memberId,
+            String sessionId,
             MemberProfileUpdateRequest request
     );
 
@@ -61,6 +68,7 @@ public interface MemberService {
     void resetPassword(PasswordResetRequest request);
 
     List<MemberTermDto> getTerms();
+
     List<MemberRegionDto> getRegions();
 
     IdentityVerificationStartResponse startIdentityVerification(

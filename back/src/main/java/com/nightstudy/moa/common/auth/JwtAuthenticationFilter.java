@@ -122,6 +122,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.setContext(context);
 
             request.setAttribute("memberId", memberId);
+            request.setAttribute("sessionId", sessionId);
+            request.setAttribute("systemRole", systemRole);
             request.setAttribute("systemRole", systemRole);
             request.setAttribute("tokenId", tokenId);
             request.setAttribute(
