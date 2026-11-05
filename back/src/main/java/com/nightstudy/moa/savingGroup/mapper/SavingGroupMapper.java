@@ -9,6 +9,10 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 모임 잠금 후 현재 읽기로 승인된 회계 목록을 확인해 동시 지정 시 최대 한 명을 보장한다.
+    List<Long> selectSavingGroupManagerIdsForUpdate(@Param("groupId") Long groupId);
+    int updateSavingGroupMemberRole(@Param("groupId") Long groupId, @Param("crewMemberId") Long crewMemberId,
+            @Param("previousRole") String previousRole, @Param("role") String role);
     // AI작성: 계주를 제외한 승인 계원만 같은 조건으로 집계·조회한다. 집계도 최대 20명이다.
     int selectSavingGroupMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupMemberResponse> selectSavingGroupMembers(

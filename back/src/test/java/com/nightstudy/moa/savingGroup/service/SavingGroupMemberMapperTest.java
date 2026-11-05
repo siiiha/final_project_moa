@@ -34,4 +34,16 @@ class SavingGroupMemberMapperTest {
                 "ORDER BY gm.joined_at DESC, gm.crew_member_id DESC", "LIMIT 10 OFFSET ?");
         assertThat(rows.getParameterMappings()).extracting(p -> p.getProperty()).containsExactly("groupId", "offset");
     }
+    // AI작성: 역할 갱신의 소속·현재 상태·기존 역할 조건과 회계 현재 읽기 잠금을 확인한다.
+    @Test void roleUpdateProtectsScopeAndOwner() {
+        var params = Map.of("groupId", 20L, "crewMemberId", 40L, "previousRole", "MEMBER", "role", "MANAGER");
+        var update = configuration.getMappedStatement(prefix + "updateSavingGroupMemberRole").getBoundSql(params);
+        assertThat(update.getSql()).contains("m.deleted_at IS NULL", "SET gm.member_role = ?",
+                "gm.group_id = ? AND gm.crew_member_id = ?", "gm.membership_status = 'APPROVED'",
+                "gm.member_role = ? AND gm.member_role IN ('MEMBER', 'MANAGER')", "AND ? IN ('MEMBER', 'MANAGER')");
+        assertThat(update.getParameterMappings()).extracting(p -> p.getProperty())
+                .containsExactly("role", "groupId", "crewMemberId", "previousRole", "role");
+        assertThat(configuration.getMappedStatement(prefix + "selectSavingGroupManagerIdsForUpdate").getBoundSql(params).getSql())
+                .contains("group_id = ? AND membership_status = 'APPROVED' AND member_role = 'MANAGER'", "FOR UPDATE");
+    }
 }

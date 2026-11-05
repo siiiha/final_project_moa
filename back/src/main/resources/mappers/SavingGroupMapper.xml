@@ -2,6 +2,23 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 집계 스냅샷 대신 잠금 현재 읽기를 사용하며 기존 승인 회계만 센다. -->
+    <select id="selectSavingGroupManagerIdsForUpdate" resultType="long">
+        SELECT member_id FROM group_member
+        WHERE group_id = #{groupId} AND membership_status = 'APPROVED' AND member_role = 'MANAGER'
+        ORDER BY crew_member_id
+        FOR UPDATE
+    </select>
+    <!-- AI작성: 소속·승인 상태·변경 전 역할을 다시 확인하고 삭제된 회원과 OWNER는 변경하지 않는다. -->
+    <update id="updateSavingGroupMemberRole">
+        UPDATE group_member gm
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        SET gm.member_role = #{role}
+        WHERE gm.group_id = #{groupId} AND gm.crew_member_id = #{crewMemberId}
+          AND gm.membership_status = 'APPROVED'
+          AND gm.member_role = #{previousRole} AND gm.member_role IN ('MEMBER', 'MANAGER')
+          AND #{role} IN ('MEMBER', 'MANAGER')
+    </update>
     <!-- AI작성: 승인 계원 중 계주와 삭제 회원은 제외하며 집계·목록 조건을 공유한다. -->
     <sql id="savingGroupMemberFromWhere">
         FROM group_member gm
