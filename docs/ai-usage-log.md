@@ -955,3 +955,9 @@
 - 검증: 임시 Gradle init 스크립트에서 설치된 Java 21 + --release 17로 대상 Mapper·Service·저장소 테스트 통과. 프로젝트 Java 17 설정은 유지. 실제 Java 17 런타임·MySQL 미검증.
 - 증빙: JPG·PNG 최대 5MB·4096픽셀, 원본 바이트 SHA-256, OWNER만 열람. 개인정보 가림 처리는 첨부 전 운영 정책 확인 필요.
 - TODO: 회차 생성·산정값 확정 및 회원별 회비 부과는 별도. DB 담당자 신규 컬럼 적용 필요. 개발자 검토 대기.
+
+## 2026-11-05 계금 요청 Controller
+<!-- AI작성: 기존 경로 별칭·JWT memberId·ApiResponse 형식으로 multipart 생성과 요청 가능 정보 조회를 연결한다. -->
+- 파일: SavingGroupPayoutController.java, SavingGroupPayoutControllerTest.java.
+- 검증: 단독 MockMvc로 두 경로, 입력 검증, JWT 속성 전달, 401·403·404·409·500 응답, 증빙 no-store·attachment 헤더 테스트 통과. Java 21 + --release 17 임시 검증.
+- 실제 JWT 필터·MySQL·배포 환경 파일 경로 비공개 여부는 통합 검증 필요. 개발자 검토 대기.
