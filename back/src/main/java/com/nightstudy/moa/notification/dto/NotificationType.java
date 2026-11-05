@@ -29,5 +29,8 @@ public enum NotificationType {
 
     // AI작성: 작성한 게시글에 댓글이 등록되거나 댓글에 답글이 등록되었을 때 사용하는 알림입니다.
     POST_COMMENT_CREATED,
-    COMMENT_REPLY_CREATED
+    COMMENT_REPLY_CREATED,
+
+    // AI작성: 새로운 채팅 메시지가 도착했을 때 사용하는 알림입니다.
+    CHAT_MESSAGE_CREATED
 }
