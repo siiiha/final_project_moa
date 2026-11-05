@@ -62,6 +62,17 @@ export async function updateSavingGroupMemberRole(savingGroupId, memberId, role,
   return result.data;
 }
 
+// AI작성: 추방은 공통 groupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
+export async function expelSavingGroupMember(groupId, memberId, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  const targetId = savingGroupPathId(memberId);
+  const result = await savingGroupMemberResponse(
+    () => client.patch(`/saving-groups/${id}/members/${targetId}/expel`, undefined, { signal }),
+    '계원을 추방하지 못했습니다. 목록을 확인한 후 다시 시도해주세요.'
+  );
+  return result.data;
+}
+
 // AI작성: 기존 공통 클라이언트의 인증·오류 형식을 사용하며 계좌 정보는 전송하지 않는다.
 async function payoutCall(operation) {
   try {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import client from './client.js';
-import { getSavingGroupMembers, updateSavingGroupMemberRole } from './savingGroups.js';
+import { expelSavingGroupMember, getSavingGroupMembers, updateSavingGroupMemberRole } from './savingGroups.js';
 
 // AI작성: client 대역으로 큰 ID·계모임 ID·본문·메타 계약과 실패·취소를 검증한다.
 test('계원 목록은 savingGroupId와 페이지를 전달하고 서버 이름을 그대로 유지한다', async () => {
@@ -123,4 +123,37 @@ test('검색 해제는 keyword를 생략하고 잘못된 검색어는 요청 전
     for (const keyword of ['가'.repeat(21), 123, {}, []]) await assert.rejects(() => getSavingGroupMembers(10, { keyword }));
     assert.equal(calls, 5);
   } finally { client.get = original; }
+});
+
+// AI작성: 공통 ID·본문 없음·큰 ID 및 오류 보존을 검증한다.
+test('추방 요청 경로와 본문 및 실패 검증', async () => {
+ const original = client.patch;
+ const signal = new AbortController().signal;
+ try {
+  client.patch = async (path, body, options) => {
+   assert.equal(path, '/saving-groups/20/members/9223372036854775807/expel');
+   assert.equal(body, undefined); assert.deepEqual(options, { signal });
+   return { data: { success: true, data: null } };
+  };
+  assert.equal(await expelSavingGroupMember('20', '9223372036854775807', { signal }), null);
+  client.patch = async () => assert.fail('잘못된 ID는 전송 불가');
+  for (const id of [0, -1, null, 'abc', '9223372036854775808', Number.MAX_SAFE_INTEGER + 1]) {
+   await assert.rejects(() => expelSavingGroupMember(id, '50'));
+   await assert.rejects(() => expelSavingGroupMember('20', id));
+  }
+  for (const status of [401, 403, 404, 409, 500]) {
+   for (const reject of [true, false]) {
+    client.patch = async () => {
+     const response = { status, data: { success: false, error: { code: 'EXPEL_ERROR', message: '추방 불가' } } };
+     if (reject) throw { response }; return response;
+    };
+    await assert.rejects(() => expelSavingGroupMember('20', '50'), e => e.status === status && e.code === 'EXPEL_ERROR');
+   }
+  }
+  const canceled = { code: 'ERR_CANCELED' };
+  client.patch = async () => { throw canceled; };
+  await assert.rejects(() => expelSavingGroupMember('20', '50'), e => e === canceled);
+  client.patch = async () => { throw new Error('network'); };
+  await assert.rejects(() => expelSavingGroupMember('20', '50'), e => e.code === 'SAVING_GROUP_MEMBER_REQUEST_FAILED');
+ } finally { client.patch = original; }
 });
