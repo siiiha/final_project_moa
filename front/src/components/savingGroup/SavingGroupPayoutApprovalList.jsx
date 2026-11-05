@@ -3,9 +3,9 @@ import styled from 'styled-components';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import ConfirmModal from '../common/ConfirmModal';
-import { approveSavingGroupPayoutRequest, getSavingGroupPages, getSavingGroupPayoutRequests } from '../../api/savingGroups';
+import { approveSavingGroupPayoutRequest, rejectSavingGroupPayoutRequest, getSavingGroupPages, getSavingGroupPayoutRequests } from '../../api/savingGroups';
 
-// AI작성: 기존 계주 전용 목록에 승인 동작을 연결하고 큰 글씨·모바일 한 열 배치를 적용한다.
+// AI작성: 기존 계주 전용 목록에 승인·거절 동작을 연결하고 큰 글씨·모바일 한 열 배치를 적용한다.
 const Panel = styled.section`
   margin-top: 20px; padding: 20px;
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -36,12 +36,20 @@ const Item = styled.li`
 const Pagination = styled.nav`
   margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px;
 `;
+// AI작성: 거절 사유 입력과 오류 안내를 연결하고 고령 이용자가 읽기 쉬운 크기로 표시한다.
+const ReasonField = styled.div`
+  margin-top: 16px;
+  font-size: 16px;
+  label { display: block; margin-bottom: 8px; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 120px; padding: 12px; font: inherit; resize: vertical; }
+  p { line-height: 1.6; }
+`;
 const labels = { PENDING: '대기', APPROVED: '승인', REJECTED: '반려', COMPLETED: '완료' };
 const dateLabel = (value) => value ? String(value).replace('T', ' ').slice(0, 16) : '미검토';
 
 // AI작성: 화면 상태와 조회 동작을 분리해 빈 결과·실패·유형별 공개 필드를 렌더링 검증할 수 있게 한다.
 export function SavingGroupPayoutRequestContent({ groupType, items = [], meta, page = 1, status = '',
-  isLoading, errorMessage, onStatusChange, onPageChange, onRetry, onApprove, isApproving = false }) {
+  isLoading, errorMessage, onStatusChange, onPageChange, onRetry, onApprove, onReject, isApproving = false }) {
   const states = groupType === '순번계' ? ['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'] : ['PENDING', 'APPROVED', 'REJECTED'];
   const pages = getSavingGroupPages(page, meta?.totalPages || 0);
   return (
@@ -76,11 +84,14 @@ export function SavingGroupPayoutRequestContent({ groupType, items = [], meta, p
                   </>}
                 </dl>
                 {/* AI작성: 현재 API의 한글 상태값을 사용하고 대기 요청만 심사한다. 최종 권한·상태 검증은 서버가 수행한다. */}
-                {request.status === '대기' && onApprove && (
+                {request.status === '대기' && (onApprove || onReject) && (
                   <Toolbar>
-                    <Button type="button" disabled={isApproving} onClick={() => onApprove(request)}>
+                    {onApprove && <Button type="button" disabled={isApproving} onClick={() => onApprove(request)}>
                       승인
-                    </Button>
+                    </Button>}
+                    {onReject && <Button type="button" $variant="danger" disabled={isApproving} onClick={() => onReject(request)}>
+                      거절
+                    </Button>}
                   </Toolbar>
                 )}
               </Item>
@@ -104,6 +115,10 @@ function SavingGroupPayoutApprovalList({ savingGroupId, groupType }) {
   const [result, setResult] = useState(null);
   // AI작성: 렌더링 전 재클릭도 잠금으로 막고 모임 전환·언마운트 후에는 이전 요청 결과를 표시하지 않는다.
   const [approveTarget, setApproveTarget] = useState(null);
+  // AI작성: 실패한 거절의 대상·입력 사유를 유지하여 같은 창에서 확인하고 재시도할 수 있게 한다.
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
   const [isApproving, setIsApproving] = useState(false);
   const [notice, setNotice] = useState(null);
   const approvalLock = useRef(false);
@@ -141,9 +156,41 @@ function SavingGroupPayoutApprovalList({ savingGroupId, groupType }) {
       if (!controller.signal.aborted) setIsApproving(false);
     }
   };
+  // AI작성: 승인과 같은 잠금을 공유해 동시 심사를 막고, 서버 성공 후에만 입력창을 닫는다.
+  const rejectRequest = async () => {
+    if (approvalLock.current || !rejectTarget || rejectTarget.status !== '대기') return;
+    if (!rejectReason.trim() || rejectReason.length > 500) {
+      setRejectError('거절 사유를 입력해주세요. 공백만 입력할 수 없으며 최대 500자입니다.');
+      return;
+    }
+    approvalLock.current = true;
+    setIsApproving(true);
+    setRejectError('');
+    const controller = new AbortController();
+    approvalController.current = controller;
+    try {
+      await rejectSavingGroupPayoutRequest(savingGroupId, rejectTarget.id, rejectReason, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setRejectTarget(null);
+      setRejectReason('');
+      setNotice({ title: '요청 거절 완료', message: '요청을 거절했습니다.' });
+      setRefresh((value) => value + 1);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setRejectError(error.message || '거절하지 못했습니다. 사유를 확인하고 다시 시도해주세요.');
+      if (error.code === 'PAYOUT_REQUEST_ALREADY_PROCESSED') setRefresh((value) => value + 1);
+    } finally {
+      approvalLock.current = false;
+      if (!controller.signal.aborted) setIsApproving(false);
+    }
+  };
   return <><SavingGroupPayoutRequestContent groupType={groupType} page={page} status={status}
     items={current?.items} meta={current?.meta} isLoading={!current} errorMessage={current?.error}
     onApprove={(request) => { if (!approvalLock.current) setApproveTarget(request); }} isApproving={isApproving}
+    onReject={(request) => {
+      if (approvalLock.current) return;
+      setRejectTarget(request); setRejectReason(''); setRejectError('');
+    }}
     onStatusChange={(value) => { if (!approvalLock.current) { setStatus(value); setPage(1); } }}
     onPageChange={(value) => { if (!approvalLock.current) setPage(value); }}
     onRetry={() => setRefresh((value) => value + 1)} />
@@ -153,6 +200,24 @@ function SavingGroupPayoutApprovalList({ savingGroupId, groupType }) {
       onConfirm={approveRequest} onCancel={() => { if (!approvalLock.current) setApproveTarget(null); }}>
       <p>{approveTarget.applicant}님의 {approveTarget.type} 요청</p>
       <p>요청 금액: {approveTarget.amount}</p>
+    </ConfirmModal>}
+    {rejectTarget && <ConfirmModal title="요청을 거절할까요?"
+      description="요청을 거절하는 사유를 최대 500자로 입력해주세요."
+      confirmLabel={isApproving ? '거절 중...' : '거절'} confirmVariant="danger" cancelFirst isBusy={isApproving}
+      onConfirm={rejectRequest} onCancel={() => {
+        if (approvalLock.current) return;
+        setRejectTarget(null); setRejectReason(''); setRejectError('');
+      }}>
+      <p>{rejectTarget.applicant}님의 {rejectTarget.type} 요청</p>
+      <p>요청 금액: {rejectTarget.amount}</p>
+      <ReasonField>
+        <label htmlFor="payout-reject-reason">거절 사유 (필수)</label>
+        <textarea id="payout-reject-reason" value={rejectReason} maxLength={500} required disabled={isApproving}
+          aria-invalid={Boolean(rejectError)} aria-describedby="payout-reject-count payout-reject-error"
+          onChange={(event) => { setRejectReason(event.target.value); setRejectError(''); }} />
+        <p id="payout-reject-count">{rejectReason.length}/500자</p>
+        <p id="payout-reject-error" role={rejectError ? 'alert' : undefined}>{rejectError}</p>
+      </ReasonField>
     </ConfirmModal>}
     {notice && <ConfirmModal title={notice.title} description={notice.message} showCancel={false}
       onConfirm={() => setNotice(null)} onCancel={() => setNotice(null)} />}
