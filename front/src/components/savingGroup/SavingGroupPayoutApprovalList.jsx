@@ -1,301 +1,111 @@
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
+import Badge from '../common/Badge';
+import { getSavingGroupPages, getSavingGroupPayoutRequests } from '../../api/savingGroups';
 
-const Intro = styled.div`
-  margin-top: 20px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-
-  h2 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.9px;
-  }
-
-  p {
-    margin-top: 8px;
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    align-items: stretch;
-    flex-direction: column;
-  }
-`;
-
-const AdminBadge = styled(Badge)`
-  min-height: 28px;
-  padding: 4px 9px;
-  flex: 0 0 auto;
-`;
-
-const Card = styled.section`
-  margin-top: 16px;
-  padding: 18px;
-  background: ${({ theme }) => theme.colors.white};
+// AI작성: 기존 계금 요청 탭을 조회 전용으로 연결하고 큰 글씨·모바일 한 열 배치를 적용한다.
+const Panel = styled.section`
+  margin-top: 20px; padding: 20px;
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
-  box-shadow: ${({ theme }) => theme.shadow.card};
-
+  background: ${({ theme }) => theme.colors.white};
+  h2 { margin: 0 0 12px; font-size: 22px; }
+  p { line-height: 1.6; }
+`;
+const Toolbar = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0;
+  select { min-height: 44px; padding: 8px 12px; font-size: 16px; }
+`;
+const List = styled.ul`
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 16px;
+`;
+const Item = styled.li`
+  padding: 20px; border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  h3 { margin: 0 0 12px; font-size: 18px; }
+  dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0 0; }
+  dt { color: ${({ theme }) => theme.colors.secondaryText}; font-size: 16px; }
+  dd { margin: 6px 0 0; overflow-wrap: anywhere; font-size: 18px; }
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 14px;
+    padding: 16px;
+    dl { grid-template-columns: 1fr; }
   }
 `;
-
-const CardTitle = styled.h3`
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 15px;
-  font-weight: 800;
-`;
-
-const TableWrap = styled.div`
-  margin-top: 14px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: none;
-  }
-`;
-
-const Table = styled.table`
-  width: 100%;
-  overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-collapse: separate;
-  border-spacing: 0;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  table-layout: fixed;
-
-  th,
-  td {
-    padding: 10px 8px;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-    text-align: center;
-    vertical-align: middle;
-  }
-
-  th {
-    background: ${({ theme }) => theme.colors.background};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  td:first-child {
-    text-align: left;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: 0;
-  }
-`;
-
-const Applicant = styled.strong`
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
-`;
-
-const TypeBadge = styled(Badge)`
-  min-height: 22px;
-  padding: 3px 7px;
-  color: ${({ $type, theme }) => ($type === '지출' ? theme.colors.secondaryText : theme.colors.primary)};
-  background: ${({ $type, theme }) => ($type === '지출' ? theme.colors.background : theme.colors.primarySoft)};
-  font-size: 10px;
-`;
-
-const StatusBadge = styled(Badge)`
-  min-height: 22px;
-  padding: 3px 7px;
-  color: ${({ $status, theme }) => ($status === '반려' ? theme.colors.danger : $status === '대기' ? theme.colors.warning : theme.colors.primary)};
-  background: ${({ $status, theme }) => ($status === '반려' ? theme.colors.dangerSoft : $status === '대기' ? theme.colors.warningSoft : theme.colors.primarySoft)};
-  font-size: 10px;
-`;
-
-const ReviewButton = styled(Button)`
-  min-height: 29px;
-  padding: 5px 8px;
-  font-size: 10px;
-`;
-
-const MobileList = styled.div`
-  margin-top: 14px;
-  display: none;
-  gap: 10px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: grid;
-  }
-`;
-
-const MobileItem = styled.article`
-  padding: 14px;
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.sm};
-`;
-
-const MobileTop = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-`;
-
-const MobileInfo = styled.dl`
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 7px 10px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 11px;
-
-  dt {
-    color: ${({ theme }) => theme.colors.muted};
-    font-weight: 700;
-  }
-`;
-
-const MobileAction = styled.div`
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-`;
-
-const Empty = styled.p`
-  padding: 42px 16px;
-  color: ${({ theme }) => theme.colors.muted};
-  text-align: center;
-  font-size: 13px;
-`;
-
 const Pagination = styled.nav`
-  margin-top: 18px;
-  display: flex;
-  justify-content: center;
-  gap: 4px;
+  margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px;
 `;
+const labels = { PENDING: '대기', APPROVED: '승인', REJECTED: '반려', COMPLETED: '완료' };
+const dateLabel = (value) => value ? String(value).replace('T', ' ').slice(0, 16) : '미검토';
 
-const PageButton = styled(Button)`
-  min-width: 30px;
-`;
-
-const ReviewNotice = styled.p`
-  margin-top: 14px;
-  padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
-`;
-
-function SavingGroupPayoutApprovalList({ requests, currentPage, totalPages, onPageChange, totalCount, onReview, reviewApplicant }) {
+// AI작성: 화면 상태와 조회 동작을 분리해 빈 결과·실패·유형별 공개 필드를 렌더링 검증할 수 있게 한다.
+export function SavingGroupPayoutRequestContent({ groupType, items = [], meta, page = 1, status = '',
+  isLoading, errorMessage, onStatusChange, onPageChange, onRetry }) {
+  const states = groupType === '순번계' ? ['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'] : ['PENDING', 'APPROVED', 'REJECTED'];
+  const pages = getSavingGroupPages(page, meta?.totalPages || 0);
   return (
-    <>
-      <Intro>
-        <div>
-          <h2>계금·지출 승인</h2>
-          <p>요청 내역과 증빙을 확인한 뒤 처리해주세요.</p>
-        </div>
-        <AdminBadge>운영진 전용</AdminBadge>
-      </Intro>
-
-      <Card>
-        <CardTitle>승인 요청 {totalCount}건</CardTitle>
-        {requests.length ? (
-          <>
-            <TableWrap>
-              <Table>
-                <colgroup>
-                  <col width="22%" />
-                  <col width="18%" />
-                  <col width="20%" />
-                  <col width="18%" />
-                  <col width="22%" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">신청자</th>
-                    <th scope="col">유형</th>
-                    <th scope="col">금액</th>
-                    <th scope="col">상태</th>
-                    <th scope="col">처리</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map((request) => (
-                    <tr key={request.id}>
-                      <td><Applicant>{request.applicant}</Applicant></td>
-                      <td><TypeBadge $type={request.type}>{request.type}</TypeBadge></td>
-                      <td>{request.amount}</td>
-                      <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
-                      <td>
-                        <ReviewButton type="button" $variant="secondary" onClick={() => onReview(request.applicant)}>
-                          내역 확인·처리
-                        </ReviewButton>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </TableWrap>
-
-            <MobileList>
-              {requests.map((request) => (
-                <MobileItem key={request.id}>
-                  <MobileTop>
-                    <Applicant>{request.applicant}</Applicant>
-                    <StatusBadge $status={request.status}>{request.status}</StatusBadge>
-                  </MobileTop>
-                  <MobileInfo>
-                    <dt>유형</dt>
-                    <dd><TypeBadge $type={request.type}>{request.type}</TypeBadge></dd>
-                    <dt>금액</dt>
-                    <dd>{request.amount}</dd>
-                  </MobileInfo>
-                  <MobileAction>
-                    <ReviewButton type="button" $variant="secondary" onClick={() => onReview(request.applicant)}>
-                      내역 확인·처리
-                    </ReviewButton>
-                  </MobileAction>
-                </MobileItem>
-              ))}
-            </MobileList>
-          </>
-        ) : (
-          <Empty>처리할 계금 또는 지출 요청이 없습니다.</Empty>
-        )}
-        {reviewApplicant && <ReviewNotice role="status">{reviewApplicant}님의 요청 내역을 확인할 예정입니다.</ReviewNotice>}
-      </Card>
-
-      {totalPages > 1 && (
+    <Panel aria-busy={isLoading}>
+      <h2>{groupType === '친목계' ? '지출 요청 목록' : '계금 요청 목록'}</h2>
+      <Badge>계주 전용</Badge>
+      <Toolbar>
+        <label htmlFor="payout-status">요청 상태</label>
+        <select id="payout-status" value={status} onChange={(event) => onStatusChange(event.target.value)}>
+          <option value="">전체</option>
+          {states.map((value) => <option key={value} value={value}>{labels[value]}</option>)}
+        </select>
+        {!isLoading && !errorMessage && <strong>요청 {meta?.total || 0}건</strong>}
+      </Toolbar>
+      {isLoading ? <p role="status">요청 목록을 불러오는 중입니다.</p>
+        : errorMessage ? <div role="alert"><p>{errorMessage}</p><Button type="button" onClick={onRetry}>다시 시도</Button></div>
+          : !items.length ? <div><p>해당 조건의 요청이 없습니다.</p>
+            {page > 1 && <Button type="button" onClick={() => onPageChange(1)}>첫 페이지로</Button>}</div>
+            : <List>{items.map((request) => (
+              <Item key={request.id}>
+                <h3>{request.applicant}님의 {request.type} 요청</h3>
+                <Badge>{request.status}</Badge>
+                <dl>
+                  <div><dt>요청 금액</dt><dd>{request.amount}</dd></div>
+                  <div><dt>요청일</dt><dd>{dateLabel(request.requestedAt)}</dd></div>
+                  {request.roundNumber != null && <div><dt>회차</dt><dd>{request.roundNumber}회차</dd></div>}
+                  {request.title != null && <div><dt>지출 제목</dt><dd>{request.title}</dd></div>}
+                  {request.hasEvidence != null && <div><dt>증빙</dt><dd>{request.hasEvidence ? '첨부 있음' : '첨부 없음'}</dd></div>}
+                  {request.roundNumber != null && <>
+                    <div><dt>검토일</dt><dd>{dateLabel(request.reviewedAt)}</dd></div>
+                    <div><dt>검토자</dt><dd>{request.reviewerName || (request.reviewedAt ? '이름 비공개' : '미검토')}</dd></div>
+                  </>}
+                </dl>
+              </Item>
+            ))}</List>}
+      {!isLoading && !errorMessage && meta?.totalPages > 1 && (
         <Pagination aria-label="계금 요청 목록 페이지 이동">
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
-            이전
-          </PageButton>
-          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-            <PageButton
-              key={page}
-              type="button"
-              $variant={page === currentPage ? 'primary' : 'secondary'}
-              $size="small"
-              aria-current={page === currentPage ? 'page' : undefined}
-              onClick={() => onPageChange(page)}
-            >
-              {page}
-            </PageButton>
-          ))}
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
-            다음
-          </PageButton>
+          <Button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>이전</Button>
+          {pages.map((value) => <Button key={value} type="button" aria-current={page === value ? 'page' : undefined}
+            $variant={page === value ? 'primary' : 'secondary'} onClick={() => onPageChange(value)}>{value}</Button>)}
+          <Button type="button" disabled={page >= meta.totalPages} onClick={() => onPageChange(page + 1)}>다음</Button>
         </Pagination>
       )}
-    </>
+    </Panel>
   );
+}
+
+function SavingGroupPayoutApprovalList({ savingGroupId, groupType }) {
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const [result, setResult] = useState(null);
+  const key = `${savingGroupId}:${groupType}:${page}:${status}:${refresh}`;
+  const current = result?.key === key ? result : null;
+  useEffect(() => {
+    const controller = new AbortController();
+    getSavingGroupPayoutRequests(savingGroupId, { page, status, signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) setResult({ key, ...data }); })
+      .catch((error) => { if (!controller.signal.aborted) setResult({ key, error: error.message }); });
+    return () => controller.abort();
+  }, [savingGroupId, groupType, page, status, key]);
+  return <SavingGroupPayoutRequestContent groupType={groupType} page={page} status={status}
+    items={current?.items} meta={current?.meta} isLoading={!current} errorMessage={current?.error}
+    onStatusChange={(value) => { setStatus(value); setPage(1); }}
+    onPageChange={setPage} onRetry={() => setRefresh((value) => value + 1)} />;
 }
 
 export default SavingGroupPayoutApprovalList;
