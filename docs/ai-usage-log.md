@@ -1025,3 +1025,14 @@
 - 정책 점검: 회계 조회와 관련 계모임 운영 권한은 APPROVED 조건을 확인하며 EXPELLED는 재가입 불가. 역할값·left_at·승인 이력 보존. 사유·알림·금융·순번·정산 후속 처리는 추가하지 않았다.
 - 개발자 검토: MANAGER 직접 추방 및 6개 파일 범위 승인 완료. 작성 코드와 실행 결과는 개발자 최종 검토 대기. 개발자가 직접 수정한 내용은 아직 없음.
 - 한계: 실제 Java 17·MySQL·JWT 필터 통합·동시성·브라우저 미검증. DB/Mapper/설정/의존성 변경, 실제 금융 호출, 기준 브랜치 병합 및 원격 push 없음.
+
+## 2026-11-05 진행 전 계원 추방 프론트 4단계
+<!-- AI작성: 사용자 승인 범위 내 API·목록·패널 연결 및 검증 결과를 기록한다. -->
+- 목적: 기존 백엔드 추방 API를 OWNER 계원 관리 화면에 연결한다. 작업 브랜치 feature/kickout-savinggroup, 별도 워크트리 유지.
+- 1단계: front/src/api/savingGroups.js, front/src/api/savingGroupMembers.test.js. 공통 groupId·큰 회원 ID 보존, 본문 없는 PATCH 및 기존 인증·오류 처리 재사용. b284e4d — feat: 계모임 계원 추방 프론트 API 추가.
+- 2단계: front/src/components/savingGroup/SavingGroupMemberList.jsx 및 .test.js. MEMBER·MANAGER 추방 버튼, 기존 확인창·재가입 불가 경고, OWNER 제외·요청 중 차단. 1b60cd3 — feat: 계모임 계원 추방 버튼과 확인창 추가.
+- 3단계: SavingGroupMembersPanel.jsx, SavingGroupDetail.jsx, SavingGroupMemberList.jsx. 승인 OWNER·모집중 권한, ID 분리 전달, 중복 요청 잠금, 성공 재조회·빈 마지막 페이지 보정, 실패 목록 유지. 54f3cf3 — feat: 계모임 계원 추방 API와 목록 갱신 연결.
+- 4단계: API·목록 테스트 보강, docs/saving-groups-api.md 및 이 기록. 기존 의존성만 npm ci --ignore-scripts로 설치했으며 잠금 파일·설정·새 패키지 변경 없음.
+- 검증: 관련 Node 테스트 61건(실패·건너뜀 0) 및 npm run build 성공. 대상 lint 오류 없음, SavingGroupDetail.jsx의 기존 미사용 변수 2건 및 기존 대용량 번들 경고 유지. git diff --check 통과. 테스트는 client 대역 및 SSR로 실제 브라우저 클릭·JWT·DB 통합과 구분한다.
+- 브라우저: 임시 가상 데이터 서버로 확인을 시도했으나 앱 내 브라우저는 localhost 시간 초과, Windows 제어는 현재 URL을 확실히 확인할 수 없다는 정책 검사로 중단됐다. 클릭·취소·중복 클릭·페이지 이동의 실제 브라우저 검증은 개발자 확인 필요. 임시 검증 서버는 종료했다.
+- 개발자 검토: 4단계 범위·추천 이름으로 커밋 승인 완료. 개발자 코드 검토·수정 및 실제 환경 검증은 대기. DB·백엔드 변경, 실제 금융 호출, 기준 브랜치 병합·원격 push 없음.

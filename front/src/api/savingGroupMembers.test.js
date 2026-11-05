@@ -157,3 +157,14 @@ test('추방 요청 경로와 본문 및 실패 검증', async () => {
   await assert.rejects(() => expelSavingGroupMember('20', '50'), e => e.code === 'SAVING_GROUP_MEMBER_REQUEST_FAILED');
  } finally { client.patch = original; }
 });
+
+// AI작성: 통신은 성공했어도 공통 성공 플래그가 없으면 추방 성공으로 안내하지 않는다.
+test('추방 응답이 비어 있거나 성공 플래그가 없으면 실패한다', async () => {
+ const original = client.patch;
+ try {
+  for (const data of [null, {}, { success: false }, { success: 'true' }]) {
+   client.patch = async () => ({ data });
+   await assert.rejects(() => expelSavingGroupMember('20', '50'), e => e.code === 'SAVING_GROUP_MEMBER_REQUEST_FAILED');
+  }
+ } finally { client.patch = original; }
+});

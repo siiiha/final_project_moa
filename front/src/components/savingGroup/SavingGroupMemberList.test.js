@@ -40,6 +40,7 @@ test('계원 관리 목록·역할 편집·저장 중·빈 상태 렌더링', as
     assert.match(html, /검색 결과 11명/); assert.match(html, /t\*\*\*@example.com/);
     // AI작성: 권한 없음·회계 허용·OWNER 제외·편집/요청 중 차단을 렌더링으로 검증한다.
     assert.doesNotMatch(render(List, props), /계원 추방/);
+    assert.match(render(List, { ...props, canExpel: true, members: [{ ...props.members[0], role: 'MEMBER' }] }), /테스트계원 계원 추방/);
     html = render(List, { ...props, canExpel: true });
     assert.match(html, /테스트계원 계원 추방/);
     assert.doesNotMatch(render(List, { ...props, canExpel: true, members: [{ ...props.members[0], role: 'OWNER' }] }), /계원 추방/);
