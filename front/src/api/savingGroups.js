@@ -62,6 +62,37 @@ export async function updateSavingGroupMemberRole(savingGroupId, memberId, role,
   return result.data;
 }
 
+// AI작성: 기존 공통 클라이언트의 인증·오류 형식을 사용하며 계좌 정보는 전송하지 않는다.
+async function payoutCall(operation) {
+  try {
+    const response = await operation();
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || '계금 요청을 처리하지 못했습니다. 요청 내역을 확인한 후 다시 시도해주세요.');
+    failure.code = serverError?.code || 'PAYOUT_REQUEST_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
+export async function getSavingGroupPayoutOptions(groupId, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  return payoutCall(() => client.get(`/saving-groups/${id}/payout-requests/options`, { signal }));
+}
+
+// AI작성: 순번계는 빈 폼을 보내고 친목계만 금액·제목·영수증을 전달한다. multipart 경계는 브라우저가 생성한다.
+export async function createSavingGroupPayout(groupId, { amount, title, receipt } = {}, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  const body = new FormData();
+  if (amount != null) body.append('amount', String(amount));
+  if (title != null) body.append('title', title);
+  if (receipt != null) body.append('receipt', receipt);
+  return payoutCall(() => client.post(`/saving-groups/${id}/payout-requests`, body, { signal }));
+}
+
 // AI작성: 관리자 계모임 심사의 API 코드와 화면 문구를 한곳에서 관리해 직접 문자열 비교를 줄인다.
 export const savingGroupReviewStatus = Object.freeze({
   PENDING: 'PENDING',

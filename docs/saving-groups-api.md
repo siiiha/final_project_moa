@@ -1360,3 +1360,41 @@ Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트 �
 5. 같은 검색어로 OWNER·MANAGER·MEMBER·비회원·타 모임 OWNER 요청을 비교하고 기존 조회 권한이 유지되는지 확인한다. OWNER·미승인·삭제 관계는 검색 결과에서도 제외되어야 한다.
 6. 검색 결과에서 역할을 저장한 뒤 검색 조건과 페이지가 유지되는지, 저장 중 검색이 차단되는지 확인한다. 검색 시 미저장 역할 변경은 폐기되어야 한다.
 7. 빠르게 다른 검색을 제출해 이전 응답이 현재 결과를 덮어쓰지 않는지 확인한다. 검색 결과 없음·통신 오류·재조회 안내도 구분한다.
+
+# 2026-11-05 계금 요청 API
+
+<!-- AI작성: 실제 금융 호출 없이 내부 요청과 증빙만 저장한다. DB 담당자의 신규 컬럼 적용이 선행되어야 한다. -->
+
+기본 경로 `/saving-groups`와 `/api/saving-groups`는 동일하다. `{groupId}`는 `groups.group_id`다. 인증 사용자 ID는 JWT 속성에서만 사용한다.
+
+| 메서드·경로 | 입력 | 결과 |
+|---|---|---|
+| GET `/{groupId}/payout-requests/options` | 없음 | 현재 사용자의 유형·현재 회차·확정 금액·증빙 필요 여부 |
+| POST `/{groupId}/payout-requests` | multipart/form-data | 요청 ID·유형·금액·PENDING |
+| GET `/{groupId}/payout-requests/expenses/{expenseId}/receipt` | 없음, OWNER 전용 | 증빙 파일 다운로드, no-store |
+
+POST는 순번계의 경우 빈 multipart를 보내고, 친목계는 `amount`(1원 이상·13자리 이하 정수), `title`(공백 제외 필수·최대 100자), `receipt`(JPG/PNG·5MB 이하·각 변 4096픽셀 이하)를 보낸다. 사용자·상태·계좌·이체 정보는 입력하지 않는다. 순번계 금액·제목·증빙 입력은 거절한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "groupType": "순번계",
+    "roundNumber": 3,
+    "amount": 502000,
+    "receiptRequired": false,
+    "requestId": 10,
+    "status": "PENDING"
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+options에서는 requestId·status가 null이다. 친목계 options에서는 roundNumber·amount도 null이며 receiptRequired는 true다. 생성 후 친목계 amount는 입력한 금액이다. requestId는 유형에 따라 payout_request_id 또는 expense_id다. 큰 ID 직렬화는 기존 Java Long 계약을 따른다.
+
+대표 오류: 401 UNAUTHORIZED, 404 NOT_FOUND, 403 PAYOUT_FORBIDDEN / PAYOUT_NOT_YOUR_TURN / RECEIPT_FORBIDDEN, 409 PAYOUT_INACTIVE / PAYOUT_NOT_STARTED / PAYOUT_ROUND_MISSING / PAYOUT_SNAPSHOT_MISSING / PAYOUT_DUPLICATE / PAYOUT_INVALID_TYPE, 400 PAYOUT_INVALID_INPUT / INVALID_RECEIPT / 기존 Validation 오류. 인증 필터에서 차단되는 `/api` 미인증 응답은 기존 LOGIN_REQUIRED 정책을 따른다.
+
+진행중 APPROVED 회원만 요청 가능하다. 친목계 OWNER·MANAGER, 순번계 현재 순번 본인만 허용한다. 미납·잔액·예산은 접수 차단 조건이 아니다. 승인·거절·지급 완료·요청 목록 API는 이번에 추가하지 않았다.
+
+회차 금액 보존, 중복·증빙 접근 정책, 필요한 DB 컬럼과 검증 절차는 [계금 요청 설계·검증 기록](saving-group-payout-request-design.md)을 참고한다. 회차 생성과 추가 회비 부과 기능은 별도 구현이 필요하다.

@@ -673,8 +673,6 @@
 - 개발자 검토·수정: 단계별 커밋은 사용자 수행. 최종 정책·동작 검토 대기. DB 담당자 테이블 적용 및 삭제 정책 확정, Java 17 환경 테스트, 스크롤·등록 후 갱신을 검토해야 한다.
 - 남은 사항: 전달 DDL에는 삭제 컬럼이 없어 SQL 삭제 제외 조건은 미구현이며 물리 삭제만 자연스럽게 제외된다. 신고·비공개 숨김과 계정 삭제 작성자 닉네임 처리는 별도 정책이 필요하다. offset 방식의 동시 등록·삭제 시 페이지 구성 변화는 남아 있다.
 - DB·의존성·외부 서비스 변경: 없음. 후기 테이블 schema.sql·ERD·실제 DB 반영은 DB 담당자 작업이다. 기존 컴파일 환경과 공통 설정을 임의 변경하지 않았다.
-<<<<<<< Updated upstream
-=======
 
 <!-- AI작성: 계모임·소모임 검색 지역 필터 1단계 구조 조사 결과입니다. -->
 ## 2026-11-03 — 모임 검색 시·구·동 필터 1단계 구조 확인
@@ -752,7 +750,6 @@
 - 후속 검증·문서: 기존 SmallGroupServiceImplTest, 가입 신청/승인 Controller·Service 테스트, front/src/api/savingGroups.test.js·smallGroups.test.js를 활용한다. 계모임 신청·승인 조건 테스트 보강 필요성을 확인하고 실제 MySQL 반복 요청·동시 승인 검증을 수행한다. docs/saving-group-join-request-design.md, saving-groups-api.md, small-group-public-detail-api.md와 DB 변경 시 해당 설계서를 갱신한다.
 - 검증 방법: 브라우저에서 각 관계 상태의 버튼·사유 및 성공 후 심사 중 전환을 확인한다. Postman POST /api/saving-groups/{savingGroupId}/join-requests와 POST /api/small-groups/{smallGroupId}/join-requests를 상태별·반복 호출하고 DB 행 수를 비교한다. 마지막 빈자리 동시 승인은 실제 DB 환경에서 별도 검증한다.
 - 이번 검증: 소스·기존 테스트·문서·schema.sql 정적 조사만 수행했다. 브라우저·Postman·테스트·실제 DB 실행은 수행하지 않았다. 개발자 검토·수정은 대기 상태이며 커밋은 수행하지 않는다.
->>>>>>> Stashed changes
 
 <!-- AI작성: 승인된 가입 신청 제한 3단계 서버 구현·검증 기록입니다. -->
 ## 2026-11-03 — 계모임·소모임 가입 신청 가능 여부 서버 구현
@@ -964,3 +961,55 @@
 - 검증: Java 17 컴파일, 관련 백엔드 432건 통과·선택형 MySQL 5건 건너뜀(총 437건), 프론트 57건 통과, 변경 파일 oxlint 오류·경고 없음, 프로덕션 빌드·diff 공백 검사 통과. 기존 번들 크기 경고 유지.
 - 검증 한계: 기존 다른 도메인 테스트 import 오류 때문에 임시 init script로 관련 테스트만 실행했다. 실제 MySQL 검색·브라우저 이벤트·JWT HTTP 통합은 미실행이다. 화면 테스트는 SSR이고 Service/Controller/API는 대역 검증이다. 선택형 MySQL 검색 테스트 2건을 추가해 컴파일했으나 전용 환경이 없어 실행하지 않았다.
 - 개발자 검토·수정: 정책·구현 승인 외에 최종 코드 별도 수정·실환경 검토 완료 여부는 확인되지 않았다. 실제 Postman/브라우저 확인 절차는 API 명세에 정리했다. DB 구조·의존성·공통 설정·외부 서비스 변경은 없다.
+
+# 2026-11-05 계금 요청 DTO·Mapper
+
+<!-- AI작성: 계금 요청만 저장하는 DTO·조회·중복 검사·INSERT 초안을 추가했다. -->
+- 목적: 순번계 확정 금액과 친목계 증빙 해시를 재사용하는 요청 저장 기반 마련.
+- 제안: 모임 행 잠금, 현재 승인 회원 조회, 기존 회차 산정값 조회, 거절 후 재요청을 허용하는 중복 조회.
+- DB·schema.sql 변경 없음. 산정 컬럼 5개와 receipt_sha256은 DB 담당자 적용 전제.
+- 개발자 검토·수정: 검토 대기. 회차 생성과 회비 부과 구현은 별도 작업.
+- 검증: Gradle test --tests '*SavingGroupPayoutMapperTest' 실행 시 Java 17 설치를 찾지 못해 테스트 실행 전 실패. 실제 DB 실행은 담당자 컬럼 적용 후 필요.
+
+
+## 2026-11-05 계금 요청 Service·비공개 영수증
+<!-- AI작성: 확정 회차 금액만 복사하고 OWNER·MANAGER 친목계 권한 및 OWNER 증빙 열람을 검증한다. -->
+- 추가: 계금 요청 Service 인터페이스·구현체, 응답 DTO, 비공개 이미지 저장소, Service·저장소 테스트.
+- 정책: KST 시작 월 기준 현재 회차, APPROVED 회원, 진행중만 허용. 현재 회비·인원으로 재산정하지 않음. 거절 후 재요청 허용. 원장·잔액·금융 API 변경 없음.
+- 검증: 임시 Gradle init 스크립트에서 설치된 Java 21 + --release 17로 대상 Mapper·Service·저장소 테스트 통과. 프로젝트 Java 17 설정은 유지. 실제 Java 17 런타임·MySQL 미검증.
+- 증빙: JPG·PNG 최대 5MB·4096픽셀, 원본 바이트 SHA-256, OWNER만 열람. 개인정보 가림 처리는 첨부 전 운영 정책 확인 필요.
+- TODO: 회차 생성·산정값 확정 및 회원별 회비 부과는 별도. DB 담당자 신규 컬럼 적용 필요. 개발자 검토 대기.
+
+## 2026-11-05 계금 요청 Controller
+<!-- AI작성: 기존 경로 별칭·JWT memberId·ApiResponse 형식으로 multipart 생성과 요청 가능 정보 조회를 연결한다. -->
+- 파일: SavingGroupPayoutController.java, SavingGroupPayoutControllerTest.java.
+- 검증: 단독 MockMvc로 두 경로, 입력 검증, JWT 속성 전달, 401·403·404·409·500 응답, 증빙 no-store·attachment 헤더 테스트 통과. Java 21 + --release 17 임시 검증.
+- 실제 JWT 필터·MySQL·배포 환경 파일 경로 비공개 여부는 통합 검증 필요. 개발자 검토 대기.
+
+## 2026-11-05 프론트 계금 요청 API
+<!-- AI작성: 공통 Axios 인증·오류 처리를 재사용하는 요청 가능 정보 조회와 multipart 요청 함수를 추가했다. -->
+- 파일: savingGroups.js, savingGroupPayout.test.js.
+- 검증: node --test src/api/savingGroupPayout.test.js 2건 통과. 큰 문자열 ID, 빈 순번계 폼, 친목계 증빙, 오류·취소·잘못된 ID 차단 확인.
+- 기존 lockfile로 npm ci 실행. 신규 의존성·lockfile 변경 없음. 개발자 검토 대기.
+
+## 2026-11-05 계금 요청 화면 연결
+<!-- AI작성: 예시 계좌·고정 금액·가짜 OCR 결과를 제거하고 서버의 요청 가능 정보와 multipart 요청으로 연결했다. -->
+- 파일: SavingGroupPayoutRequestPanel.jsx, SavingGroupDetail.jsx.
+- 화면: 순번계 확정 금액 표시, 친목계 사용 금액·제목·필수 영수증 입력, 서버 오류·로딩·완료 안내. 계정·모임 변경 시 상태 초기화, 중복 클릭 차단.
+- 검증: 기존 계모임 API 포함 Node 테스트 51건 통과, npm run build 성공(기존 대용량 번들 경고). 실제 브라우저·MySQL 연동은 미검증.
+- 남은 주의: 회차 생성·DB 컬럼 준비 후 요청 가능. 계금 요청 목록·승인·지급·금융 API는 이번 범위 제외. 개발자 검토 대기.
+## 2026-11-05 계금 요청 최종 검증·문서
+<!-- AI작성: 확정 정책·API·단계별 커밋과 DB 적용 후 수동 검증 절차를 정리했다. -->
+- 파일: SavingGroupPayoutServiceTest.java, docs/saving-groups-api.md, docs/saving-group-payout-request-design.md, 이 기록.
+- 검증: 대상 백엔드 55건(Mapper 1·Service 37·저장소 2·Controller 15) 통과. Java 21의 --release 17 컴파일이며 실제 Java 17 런타임·전체 백엔드 테스트·MySQL·JWT 필터·브라우저·실제 동시 요청은 미검증.
+- 프론트 계모임 API 테스트 51건·빌드 성공. 대상 lint 오류 없음, 기존 미사용 변수 경고 2건·대용량 번들 경고 유지. git diff --check 통과.
+- 확인: schema.sql·build.gradle·package.json·package-lock.json 변경 없음. DB 실행·실제 금융 호출·기준 브랜치 병합·push 없음.
+- 남은 작업: DB 담당자 컬럼 적용, 회차 생성 시 산정값 저장 및 회원별 추가 회비 부과 별도 구현, 실제 DB 기반 동시성·접근 권한 검증, 증빙 보관·개인정보 정책 확정. 개발자 검토 대기.
+
+## 2026-11-05 계원 관리·계금 요청 병합 충돌 해결
+<!-- AI작성: 사용자 요청으로 남은 세 파일의 충돌만 해결하고 커밋은 사용자에게 맡긴다. -->
+- 대상: front/src/api/savingGroups.js, docs/saving-groups-api.md, docs/ai-usage-log.md.
+- 처리: 계원 관리 함수 전체 뒤에 계금 요청 함수 전체를 배치했다. 응답 전체와 내부 data 반환 계약은 각각 유지했다. 문서는 계원 관리·검색 기록 다음에 계금 요청 내용을 모두 보존했다. 기존 양쪽 문서에 있던 stash 충돌 표시도 내용 손실 없이 제거했다.
+- 사용자 해결 파일: SavingGroupMapper.java와 SavingGroupMapper.xml은 변경 전후 SHA-256 동일, 수정하지 않음.
+- 검증: front 기준 계모임 API·계원 관리·계금 요청·계원 목록 SSR 테스트 59건 통과, node --check 통과, npm run build 성공(기존 번들 크기 경고), 대상 diff 공백 검사 통과.
+- 한계: 백엔드·MySQL·브라우저 검증은 이번 충돌 해결에서 수행하지 않음. 커밋·push는 수행하지 않음. 개발자 최종 검토 대기.

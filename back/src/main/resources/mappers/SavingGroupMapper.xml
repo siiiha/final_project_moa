@@ -49,6 +49,43 @@
         ORDER BY gm.joined_at DESC, gm.crew_member_id DESC
         LIMIT 10 OFFSET #{offset}
     </select>
+    <!-- AI작성: 동시 요청은 기존 모임 행을 공통 잠금으로 사용해 직렬화한다. -->
+    <select id="selectPayoutTargetForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutTargetRow">
+        SELECT g.group_id, sg.saving_group_type AS group_type, sg.status, sg.start_date
+        FROM `groups` g JOIN saving_group sg ON sg.group_id = g.group_id
+        WHERE g.group_id = #{groupId} AND g.deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="selectPayoutSequence" resultType="java.lang.Integer">
+        SELECT sequence_number FROM group_member
+        WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'
+    </select>
+    <!-- AI작성: 기존 회차만 조회하며 확정 산정값이 없는 과거 행을 현재 데이터로 보정하지 않는다. -->
+    <select id="selectPayoutRoundForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRoundRow">
+        SELECT round_id, round_number, base_dues_amount, approved_member_count,
+               previous_paid_member_count, additional_dues_amount, payout_amount
+        FROM meeting_round WHERE group_id = #{groupId} AND round_number = #{roundNumber} FOR UPDATE
+    </select>
+    <select id="existsBlockingRoundPayout" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM payout_request WHERE round_id = #{roundId}
+            AND status IN ('PENDING', 'APPROVED', 'COMPLETED'))
+    </select>
+    <select id="existsBlockingReceiptExpense" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM expenses WHERE group_id = #{groupId} AND receipt_sha256 = #{hash}
+            AND status IN ('PENDING', 'APPROVED'))
+    </select>
+    <!-- AI작성: 승인·거래·지급 완료 필드는 건드리지 않고 요청 상태만 저장한다. -->
+    <insert id="insertRoundPayout" useGeneratedKeys="true" keyProperty="id" keyColumn="payout_request_id">
+        INSERT INTO payout_request (round_id, requester_id, amount, status)
+        VALUES (#{roundId}, #{requesterId}, #{amount}, 'PENDING')
+    </insert>
+    <insert id="insertReceiptExpense" useGeneratedKeys="true" keyProperty="id" keyColumn="expense_id">
+        INSERT INTO expenses (group_id, applicant_id, amount, title, receipt_img_url, receipt_sha256, status)
+        VALUES (#{groupId}, #{requesterId}, #{amount}, #{title}, #{receiptImgUrl}, #{receiptSha256}, 'PENDING')
+    </insert>
+    <!-- AI작성: OWNER 검증은 Service에서 모임·관계 잠금 후 수행하며 이 쿼리는 모임 소속 증빙만 반환한다. -->
+    <select id="selectPayoutReceiptForOwner" resultType="string">
+        SELECT receipt_img_url FROM expenses WHERE group_id = #{groupId} AND expense_id = #{expenseId}
+    </select>
     <!-- AI작성: 계주 본인 관계·탈퇴·추방·삭제 회원을 제외한 신청 상태를 동일한 조건으로 집계·조회한다. -->
     <sql id="joinRequestFromWhere">
         FROM group_member gm

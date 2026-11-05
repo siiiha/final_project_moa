@@ -17,6 +17,16 @@ public interface SavingGroupMapper {
     int selectSavingGroupMemberCount(@Param("groupId") Long groupId, @Param("keywordPattern") String keywordPattern);
     List<SavingGroupMemberResponse> selectSavingGroupMembers(
             @Param("groupId") Long groupId, @Param("keywordPattern") String keywordPattern, @Param("offset") int offset);
+    // AI작성: 모임 잠금으로 같은 모임의 중복 검사와 저장을 직렬화한다. DB 컬럼 적용 후 사용한다.
+    SavingGroupPayoutTargetRow selectPayoutTargetForUpdate(@Param("groupId") Long groupId);
+    Integer selectPayoutSequence(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    SavingGroupPayoutRoundRow selectPayoutRoundForUpdate(@Param("groupId") Long groupId,
+            @Param("roundNumber") int roundNumber);
+    boolean existsBlockingRoundPayout(@Param("roundId") Long roundId);
+    boolean existsBlockingReceiptExpense(@Param("groupId") Long groupId, @Param("hash") String hash);
+    int insertRoundPayout(SavingGroupPayoutInsertRow row);
+    int insertReceiptExpense(SavingGroupPayoutInsertRow row);
+    String selectPayoutReceiptForOwner(@Param("groupId") Long groupId, @Param("expenseId") Long expenseId);
     // AI작성: 인증된 작성자의 미삭제 소속 공지만 논리 삭제하고 영향 행 수를 반환한다.
     int deleteSavingGroupNotice(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId,
             @Param("memberId") Long memberId);
