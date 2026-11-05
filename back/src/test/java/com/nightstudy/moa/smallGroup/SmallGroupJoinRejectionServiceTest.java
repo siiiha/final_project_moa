@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinApprovalTargetRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinTargetRow;
@@ -32,6 +34,9 @@ class SmallGroupJoinRejectionServiceTest {
     @Mock
     private SmallGroupMapper smallGroupMapper;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private SmallGroupServiceImpl smallGroupService;
 
@@ -45,6 +50,12 @@ class SmallGroupJoinRejectionServiceTest {
         verify(smallGroupMapper).rejectSmallGroupJoinRequest(REQUEST_ID, GROUP_ID);
         verify(smallGroupMapper, never()).insertSmallGroupJoinRequest(GROUP_ID, APPLICANT_ID);
         verify(smallGroupMapper, never()).approveSmallGroupJoinRequest(REQUEST_ID, GROUP_ID, OWNER_ID);
+        verify(notificationService).send(
+                APPLICANT_ID,
+                NotificationType.SMALL_GROUP_JOIN_REJECTED,
+                "소모임 가입 신청이 거절되었습니다.",
+                null
+        );
     }
 
     @Test

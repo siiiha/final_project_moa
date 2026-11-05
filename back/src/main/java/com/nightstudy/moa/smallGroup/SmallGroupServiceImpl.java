@@ -846,7 +846,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 request.getMemberId(),
                 NotificationType.SMALL_GROUP_JOIN_REJECTED,
                 "소모임 가입 신청이 거절되었습니다.",
-                "/small-groups/" + smallGroupId
+                null
         );
     }
 
