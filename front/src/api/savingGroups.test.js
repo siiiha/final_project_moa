@@ -1,6 +1,46 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import client from './client.js';
+import { approveSavingGroupPayoutRequest, rejectSavingGroupPayoutRequest } from './savingGroups.js';
+
+// AI작성: 심사 요청의 ID·본문·사유 경계와 오류·취소 계약을 실제 통신 없이 검증한다.
+test('계금 승인·거절은 큰 ID를 보존하고 사유만 전송하며 실패를 보존한다', async () => {
+  const original = client.patch;
+  const calls = [];
+  const signal = new AbortController().signal;
+  const approve = () => approveSavingGroupPayoutRequest('9223372036854775807', '40', { signal });
+  const reject = (reason = '증빙 확인 필요') => rejectSavingGroupPayoutRequest('20', '40', reason, { signal });
+  try {
+    client.patch = async (...args) => { calls.push(args); return { data: { success: true, data: null } }; };
+    assert.equal(await approve(), null);
+    assert.deepEqual(calls[0], ['/saving-groups/9223372036854775807/payout-requests/40/approve', undefined, { signal }]);
+    assert.equal(await reject(' 사유 '), null);
+    assert.deepEqual(calls[1], ['/saving-groups/20/payout-requests/40/reject', { rejectReason: ' 사유 ' }, { signal }]);
+    await reject('가'.repeat(500));
+    for (const reason of [null, '', ' \n ', 123, '가'.repeat(501)]) await assert.rejects(() => reject(reason));
+    for (const [groupId, requestId] of [[0, '40'], ['20', -1], ['abc', '40'], ['20', null]]) {
+      await assert.rejects(() => approveSavingGroupPayoutRequest(groupId, requestId));
+      await assert.rejects(() => rejectSavingGroupPayoutRequest(groupId, requestId, '사유'));
+    }
+    assert.equal(calls.length, 3);
+    for (const status of [400, 401, 403, 404, 409, 500]) {
+      for (const thrown of [true, false]) {
+        client.patch = async () => {
+          const response = { status, data: { success: false, error: { code: 'DECISION_ERROR', message: '심사 실패' } } };
+          if (thrown) throw { response };
+          return response;
+        };
+        for (const operation of [approve, () => reject()]) await assert.rejects(operation,
+          error => error.code === 'DECISION_ERROR' && error.status === status && error.message === '심사 실패');
+      }
+    }
+    client.patch = async () => { throw new Error('network'); };
+    for (const operation of [approve, () => reject()]) await assert.rejects(operation, error => error.code === 'PAYOUT_REQUEST_FAILED');
+    const canceled = { code: 'ERR_CANCELED' };
+    client.patch = async () => { throw canceled; };
+    for (const operation of [approve, () => reject()]) await assert.rejects(operation, error => error === canceled);
+  } finally { client.patch = original; }
+});
 import { getSavingGroups, getSavingGroupPages, savingGroupRegionOptions, toSavingGroupCard,
   getSavingGroupDetail, getSavingGroupMenus, formatSavingGroupAmount, requestSavingGroupJoin,
   approveSavingGroupJoin, rejectSavingGroupJoin, getSavingGroupJoinRequests, createSavingGroupApplication,

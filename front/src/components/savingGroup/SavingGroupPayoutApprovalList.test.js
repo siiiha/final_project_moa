@@ -6,7 +6,7 @@ import { createServer } from 'vite';
 import theme from '../../styles/theme.js';
 
 // AI작성: 기존 Vite·React SSR로 화면을 렌더링하며 추가 테스트 패키지나 실제 금융 연결을 사용하지 않는다.
-test('유형별 공개 필드와 로딩·실패·빈 상태를 표시하며 처리 버튼은 제공하지 않는다', async () => {
+test('유형별 공개 필드와 로딩·실패·빈 상태 및 대기 요청 심사 버튼을 표시한다', async () => {
   const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', ssr: { noExternal: ['styled-components'] } });
   try {
     const { ThemeProvider } = await server.ssrLoadModule('styled-components');
@@ -25,5 +25,24 @@ test('유형별 공개 필드와 로딩·실패·빈 상태를 표시하며 처�
     assert.match(rotation, /3회차/); assert.match(rotation, /이름 비공개/); assert.match(rotation, /2026-11-05 10:00/);
     assert.match(rotation, /COMPLETED/); assert.match(rotation, /aria-current="page"/);
     assert.doesNotMatch(rotation, /지출 제목|내역 확인·처리/);
+    // AI작성: 두 유형 모두 대기에만 심사를 허용하고 처리 중에는 두 버튼·필터·페이지를 함께 잠근다.
+    for (const groupType of ['친목계', '순번계']) {
+      const props = { groupType, onApprove() {}, onReject() {}, page: 2, meta: { total: 12, totalPages: 2 } };
+      const items = status => [{ id: '40', applicant: '테스트', type: '계금', amount: '1,000원', status }];
+      for (const label of ['승인', '거절']) {
+        assert.match(render({ ...props, items: items('대기') }), new RegExp('<button[^>]*>' + label + '</button>'));
+        assert.match(render({ ...props, items: items('대기'), isApproving: true }), new RegExp('<button[^>]*disabled[^>]*>' + label + '</button>'));
+        for (const status of ['승인', '반려', '완료', '상태 확인 필요']) {
+          assert.doesNotMatch(render({ ...props, items: items(status) }), new RegExp('<button[^>]*>' + label + '</button>'));
+        }
+      }
+      const busy = render({ ...props, items: items('대기'), isApproving: true });
+      assert.match(busy, /<select[^>]*disabled/);
+      assert.doesNotMatch(busy, /<button(?![^>]*disabled)[^>]*>/);
+      for (const state of [{ isLoading: true }, { errorMessage: '권한 없음' }]) {
+        const hidden = render({ ...props, items: items('대기'), ...state });
+        assert.doesNotMatch(hidden, /<button[^>]*>(승인|거절)<\/button>/);
+      }
+    }
   } finally { await server.close(); }
 });
