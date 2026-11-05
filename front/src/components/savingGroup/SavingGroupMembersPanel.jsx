@@ -42,8 +42,10 @@ const SearchButton = styled(Button)`
   }
 `;
 
-// AI작성: Mock을 섞지 않고 현재 모임·페이지의 서버 결과만 표시하며 검색은 후속 작업까지 유지한다.
+// AI작성: 입력 중 검색어와 적용한 검색어를 분리하고 현재 모임·검색·페이지의 서버 결과만 표시한다.
 function SavingGroupMembersPanel({ savingGroupId }) {
+  const [keyword, setKeyword] = useState('');
+  const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isRoleEditing, setIsRoleEditing] = useState(false);
   const [result, setResult] = useState(null);
@@ -53,7 +55,7 @@ function SavingGroupMembersPanel({ savingGroupId }) {
   const [notice, setNotice] = useState('');
   const active = useRef(false);
   const submitting = useRef(false);
-  const queryKey = `${savingGroupId}:${currentPage}:${refresh}`;
+  const queryKey = JSON.stringify([savingGroupId, submittedKeyword, currentPage, refresh]);
   const currentResult = result?.key === queryKey ? result : null;
   const loading = !currentResult;
   const members = currentResult?.items || [];
@@ -68,7 +70,7 @@ function SavingGroupMembersPanel({ savingGroupId }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    getSavingGroupMembers(savingGroupId, { page: currentPage, signal: controller.signal })
+    getSavingGroupMembers(savingGroupId, { keyword: submittedKeyword, page: currentPage, signal: controller.signal })
       .then((data) => {
         if (controller.signal.aborted) return;
         setResult({ key: queryKey, ...data });
@@ -79,7 +81,19 @@ function SavingGroupMembersPanel({ savingGroupId }) {
         if (!controller.signal.aborted) setResult({ key: queryKey, items: [], error: failure.message });
       });
     return () => controller.abort();
-  }, [savingGroupId, currentPage, queryKey]);
+  }, [savingGroupId, submittedKeyword, currentPage, queryKey]);
+
+  // AI작성: 검색 버튼·Enter에서만 적용하고 검색 전 페이지와 미저장 역할 편집값은 초기화한다.
+  const handleSearch = (event) => {
+    event.preventDefault();
+    if (submitting.current) return;
+    const normalizedKeyword = keyword.trim();
+    if (normalizedKeyword.length > 20) { setNotice('검색어는 20자 이내로 입력해 주세요.'); return; }
+    setSubmittedKeyword(normalizedKeyword); setCurrentPage(1);
+    setDrafts({}); setIsRoleEditing(false); setNotice('');
+    // AI작성: 같은 검색어로 다시 검색해도 서버 상태를 재조회하며 이전 GET은 effect 정리에서 취소한다.
+    setRefresh((value) => value + 1);
+  };
 
   const handlePageChange = (page) => {
     if (submitting.current || blocked) return;
@@ -111,19 +125,22 @@ function SavingGroupMembersPanel({ savingGroupId }) {
     <Panel>
       <Intro>
         <h2>계원 관리</h2>
-        <p>승인된 계원을 최대 20명까지 조회합니다. 회계는 한 명만 지정할 수 있습니다.</p>
+        <p>승인된 계원의 이름 또는 이메일로 검색할 수 있습니다. 회계는 한 명만 지정할 수 있습니다.</p>
         <p>회계를 교체하려면 기존 회계를 계원으로 변경한 뒤 새 회계를 지정해주세요.</p>
       </Intro>
-      <SearchForm onSubmit={(event) => event.preventDefault()}>
+      <SearchForm onSubmit={handleSearch}>
         <TextInput
           id="saving-group-member-search"
           label="계원 검색"
           type="search"
           compact
-          disabled
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          maxLength={20}
+          disabled={pendingId !== null}
           placeholder="이름 또는 이메일을 입력하세요"
-          helpText="검색 기능은 준비 중입니다."
-          action={<SearchButton type="submit" disabled>검색</SearchButton>}
+          helpText="검색어는 20자까지 입력할 수 있습니다. 비우고 검색하면 전체 계원이 표시됩니다."
+          action={<SearchButton type="submit" disabled={pendingId !== null}>검색</SearchButton>}
         />
       </SearchForm>
       {notice && <p role="status">{notice}</p>}
@@ -134,6 +151,7 @@ function SavingGroupMembersPanel({ savingGroupId }) {
         currentPage={currentPage}
         totalPages={totalPages}
         totalCount={currentResult.meta.total}
+        hasSearch={Boolean(submittedKeyword)}
         onPageChange={handlePageChange}
         isRoleEditing={isRoleEditing}
         onStartRoleEdit={() => { if (!submitting.current) setIsRoleEditing(true); }}

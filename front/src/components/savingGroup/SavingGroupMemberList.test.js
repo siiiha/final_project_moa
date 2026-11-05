@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer } from 'vite';
 
-// AI작성: 실제 JSX를 SSR로 렌더링해 역할 편집·최대 두 페이지·저장 중 상태·검색 보존을 검증한다.
+// AI작성: 실제 JSX를 SSR로 렌더링해 역할 편집·최대 두 페이지·저장 중 상태·검색 화면을 검증한다.
 // 브라우저 클릭 테스트 및 실제 JWT/DB 연동과 구분한다.
 test('계원 관리 목록·역할 편집·저장 중·빈 상태 렌더링', async () => {
   const entry = 'virtual:moa-members-render';
@@ -33,8 +33,14 @@ test('계원 관리 목록·역할 편집·저장 중·빈 상태 렌더링', as
     assert.doesNotMatch(html, /<button(?![^>]*disabled)[^>]*>/);
     html = render(List, { ...props, members: [], totalPages: 0, totalCount: 0 });
     assert.match(html, /승인된 계원이 없습니다/); assert.doesNotMatch(html, /계원 목록 페이지 이동/);
+    html = render(List, { ...props, members: [], totalPages: 0, totalCount: 0, hasSearch: true });
+    assert.match(html, /검색 조건에 맞는 계원이 없습니다/); assert.match(html, /검색 결과 0명/);
+    assert.doesNotMatch(html, /승인된 계원이 없습니다/);
+    html = render(List, { ...props, hasSearch: true });
+    assert.match(html, /검색 결과 11명/); assert.match(html, /t\*\*\*@example.com/);
     html = render(Panel, { savingGroupId: '10' });
-    assert.match(html, /계원 목록을 불러오고 있습니다/); assert.match(html, /검색 기능은 준비 중/);
-    assert.match(html, /type="search"[^>]*disabled/); assert.doesNotMatch(html, /example.com|김영희/);
+    assert.match(html, /계원 목록을 불러오고 있습니다/); assert.match(html, /비우고 검색하면 전체 계원/);
+    assert.match(html, /type="search"[^>]*maxLength="20"/);
+    assert.doesNotMatch(html, /type="search"[^>]*disabled|검색 기능은 준비 중|example.com|김영희/);
   } finally { await vite.close(); }
 });

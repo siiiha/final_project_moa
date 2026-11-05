@@ -182,6 +182,7 @@ function SavingGroupMemberList({
   currentPage,
   totalPages,
   totalCount,
+  hasSearch = false,
   onPageChange,
   isRoleEditing,
   onStartRoleEdit,
@@ -209,7 +210,7 @@ function SavingGroupMemberList({
     <>
       <Card>
         <CardHeader>
-          <Count>계원 {totalCount}명</Count>
+          <Count>{hasSearch ? '검색 결과' : '계원'} {totalCount}명</Count>
           <RoleEditButton type="button" disabled={busy || !members.length} onClick={isRoleEditing ? onCancelRoleEdit : onStartRoleEdit}>
             {isRoleEditing ? '편집 종료' : '역할 수정'}
           </RoleEditButton>
@@ -267,7 +268,7 @@ function SavingGroupMemberList({
             </MobileList>
           </>
         ) : (
-          <Empty>승인된 계원이 없습니다.</Empty>
+          <Empty>{hasSearch ? '검색 조건에 맞는 계원이 없습니다.' : '승인된 계원이 없습니다.'}</Empty>
         )}
       </Card>
 
