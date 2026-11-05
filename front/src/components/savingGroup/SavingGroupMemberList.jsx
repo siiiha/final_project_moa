@@ -201,6 +201,7 @@ function SavingGroupMemberList({
   onSaveRole,
   canExpel = false,
   onExpel,
+  onExpelOpen,
   expulsionError = '',
   expellingId = null,
 }) {
@@ -209,7 +210,7 @@ function SavingGroupMemberList({
   // AI작성: 승인 OWNER·모집중 여부는 상위 화면에서 전달하며 대상 OWNER는 여기서도 차단한다.
   const renderExpel = (member) => canExpel && ['MEMBER', 'MANAGER'].includes(member.role) ? (
     <ExpelButton type="button" $variant="danger" disabled={busy || isRoleEditing}
-      aria-label={`${member.name} 계원 추방`} onClick={() => setSelectedMember(member)}>추방</ExpelButton>
+      aria-label={`${member.name} 계원 추방`} onClick={() => { onExpelOpen?.(); setSelectedMember(member); }}>추방</ExpelButton>
   ) : null;
   const confirmExpel = async () => {
     if (busy || !canExpel || !selectedMember || !onExpel) return;

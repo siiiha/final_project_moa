@@ -389,7 +389,11 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         <MembersContent>
           {/* AI작성: 승인 계주와 운영 가능한 모임 상태에서만 관리 API를 요청하고 모임 변경 시 편집 상태를 초기화한다. */}
           {group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' && ['01', '02'].includes(group.status)
-            ? <SavingGroupMembersPanel key={group.savingGroupId} savingGroupId={String(group.savingGroupId)} />
+            ? <SavingGroupMembersPanel
+                /* AI작성: ID 종류를 구분하고 모임·권한 변경 시 이전 편집/요청 상태를 폐기한다. */
+                key={JSON.stringify([group.savingGroupId, group.groupId, group.myRole, group.membershipStatus, group.status])}
+                savingGroupId={String(group.savingGroupId)} groupId={group.groupId}
+                myRole={group.myRole} membershipStatus={group.membershipStatus} status={group.status} />
             : <p>모집중 또는 진행중인 계모임의 계주만 계원을 관리할 수 있습니다.</p>}
         </MembersContent>
       ) : currentMenu === 'payment' ? (

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import TextInput from '../common/TextInput';
-import { getSavingGroupMembers, updateSavingGroupMemberRole } from '../../api/savingGroups';
+import { expelSavingGroupMember, getSavingGroupMembers, updateSavingGroupMemberRole } from '../../api/savingGroups';
 import SavingGroupMemberList from './SavingGroupMemberList';
 
 const Panel = styled.section`
@@ -43,7 +43,7 @@ const SearchButton = styled(Button)`
 `;
 
 // AI작성: 입력 중 검색어와 적용한 검색어를 분리하고 현재 모임·검색·페이지의 서버 결과만 표시한다.
-function SavingGroupMembersPanel({ savingGroupId }) {
+function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipStatus, status }) {
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,6 +52,10 @@ function SavingGroupMembersPanel({ savingGroupId }) {
   const [refresh, setRefresh] = useState(0);
   const [drafts, setDrafts] = useState({});
   const [pendingId, setPendingId] = useState(null);
+  // AI작성: 추방과 역할 저장은 같은 요청 잠금을 공유하고 오류는 확인창에 유지한다.
+  const [expellingId, setExpellingId] = useState(null);
+  const [expulsionError, setExpulsionError] = useState('');
+  const canExpel = myRole === 'OWNER' && membershipStatus === 'APPROVED' && status === '01';
   const [notice, setNotice] = useState('');
   const active = useRef(false);
   const submitting = useRef(false);
@@ -61,7 +65,7 @@ function SavingGroupMembersPanel({ savingGroupId }) {
   const members = currentResult?.items || [];
   const totalPages = currentResult?.meta?.totalPages || 0;
   const error = currentResult?.error || '';
-  const blocked = loading || Boolean(error) || pendingId !== null;
+  const blocked = loading || Boolean(error) || pendingId !== null || expellingId !== null;
 
   useEffect(() => {
     active.current = true;
@@ -121,6 +125,27 @@ function SavingGroupMembersPanel({ savingGroupId }) {
     }
   };
 
+  // AI작성: MEMBER·MANAGER만 직접 추방하며 실패 시 기존 목록과 확인창을 유지한다.
+  const handleExpel = async (memberId) => {
+    const member = members.find((item) => item.id === memberId);
+    if (submitting.current || blocked || !canExpel || !member || !['MEMBER', 'MANAGER'].includes(member.role)) return false;
+    submitting.current = true; setExpellingId(memberId); setExpulsionError(''); setNotice('');
+    try {
+      await expelSavingGroupMember(groupId, memberId);
+      if (!active.current) return false;
+      setNotice('계원을 추방했습니다.'); setDrafts({}); setIsRoleEditing(false);
+      // AI작성: 현재 검색·페이지로 재조회하고 빈 마지막 페이지는 기존 GET 보정으로 이전 페이지를 읽는다.
+      setRefresh((value) => value + 1);
+      return true;
+    } catch (failure) {
+      if (active.current) setExpulsionError(failure.message);
+      return false;
+    } finally {
+      submitting.current = false;
+      if (active.current) setExpellingId(null);
+    }
+  };
+
   return (
     <Panel>
       <Intro>
@@ -137,10 +162,10 @@ function SavingGroupMembersPanel({ savingGroupId }) {
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
           maxLength={20}
-          disabled={pendingId !== null}
+          disabled={pendingId !== null || expellingId !== null}
           placeholder="이름 또는 이메일을 입력하세요"
           helpText="검색어는 20자까지 입력할 수 있습니다. 비우고 검색하면 전체 계원이 표시됩니다."
-          action={<SearchButton type="submit" disabled={pendingId !== null}>검색</SearchButton>}
+          action={<SearchButton type="submit" disabled={pendingId !== null || expellingId !== null}>검색</SearchButton>}
         />
       </SearchForm>
       {notice && <p role="status">{notice}</p>}
@@ -160,6 +185,11 @@ function SavingGroupMembersPanel({ savingGroupId }) {
         pendingId={pendingId}
         onRoleChange={(id, role) => { if (!submitting.current) setDrafts((current) => ({ ...current, [id]: role })); }}
         onSaveRole={handleRoleSave}
+        canExpel={canExpel}
+        onExpel={handleExpel}
+        onExpelOpen={() => setExpulsionError('')}
+        expellingId={expellingId}
+        expulsionError={expulsionError}
       />}
     </Panel>
   );
