@@ -43,6 +43,7 @@ public class CardExpensePreviewServiceImpl implements CardExpensePreviewService 
     private CardExpensePreview createPreviewRow(CardExpenseParsedRow row) {
         if (row.getApprovalStatus() == CardExpenseApprovalStatus.CANCELED) {
             return new CardExpensePreview(
+                    null,
                     row.getUsedDate(),
                     row.getMerchantName(),
                     row.getAmount(),
@@ -60,6 +61,7 @@ public class CardExpensePreviewServiceImpl implements CardExpensePreviewService 
                 row.getAmount()
         );
         return new CardExpensePreview(
+                null,
                 row.getUsedDate(),
                 row.getMerchantName(),
                 row.getAmount(),

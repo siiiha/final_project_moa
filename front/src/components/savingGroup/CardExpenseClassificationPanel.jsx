@@ -1,9 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
 import { cardExpenseClassificationMock, expenseCategories } from '../../mocks/cardExpenseClassification';
-import { previewCardExpenses } from '../../api/savingGroups';
+import { confirmCardExpenseCategories, uploadCardExpenses } from '../../api/savingGroups';
 
 const Panel = styled.section`
   margin-top: 22px;
@@ -38,6 +37,16 @@ const UploadButton = styled(Button)`
   min-height: 38px;
   padding: 8px 12px;
   font-size: 12px;
+`;
+
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    width: 100%;
+    display: grid;
+  }
 `;
 
 const Summary = styled.div`
@@ -122,20 +131,6 @@ const Select = styled.select`
   font-size: 11px;
 `;
 
-const StatusBadge = styled(Badge)`
-  min-height: 22px;
-  padding: 3px 7px;
-  color: ${({ $status, theme }) => ($status === '확인 필요' || $status === '처리 보류' ? theme.colors.danger : theme.colors.primary)};
-  background: ${({ $status, theme }) => ($status === '확인 필요' || $status === '처리 보류' ? theme.colors.dangerSoft : theme.colors.primarySoft)};
-  font-size: 10px;
-`;
-
-const ConfirmButton = styled(Button)`
-  min-height: 31px;
-  padding: 5px 9px;
-  font-size: 11px;
-`;
-
 const Notice = styled.p`
   margin-top: 14px;
   padding: 11px 12px;
@@ -146,39 +141,53 @@ const Notice = styled.p`
   line-height: 1.6;
 `;
 
-const formatAmount = (amount) => `${amount.toLocaleString()}원`;
+const formatAmount = (amount, approvalStatus) => (approvalStatus === '취소' ? '취소' : `${amount.toLocaleString()}원`);
 
-const categoryLabel = { FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비', ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타' };
-const statusLabel = { REVIEW_PENDING: '검토 대기', REVIEW_REQUIRED: '확인 필요', CANCEL_PENDING: '처리 보류' };
-const sourceLabel = { KEYWORD_RULE: '키워드 규칙', MACHINE_LEARNING: '머신러닝', PAYMENT_PROVIDER: '결제대행사' };
+const categoryLabel = { FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비', ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타', NEEDS_REVIEW: '확인 필요' };
+const categoryCode = Object.fromEntries(Object.entries(categoryLabel).map(([code, label]) => [label, code]));
 
 function CardExpenseClassificationPanel({ groupId }) {
   // AI작성: 서버 연동 전, 사용자가 추천 항목을 바꾸고 확정하는 흐름을 확인한다.
   const [expenses, setExpenses] = useState(() => cardExpenseClassificationMock.map((expense) => ({
     ...expense,
-    finalCategory: expense.suggestedCategory,
+    finalCategory: expense.suggestedCategory || '확인 필요',
+    isFinalized: false,
   })));
   const [isUploadPreparing, setIsUploadPreparing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const fileInputRef = useRef(null);
 
   const summary = useMemo(() => ({
     total: expenses.length,
-    reviewRequired: expenses.filter((expense) => expense.classificationStatus === '확인 필요').length,
-    confirmed: expenses.filter((expense) => expense.classificationStatus === '확정').length,
+    reviewRequired: expenses.filter((expense) => expense.finalCategory === '확인 필요').length,
+    confirmed: expenses.filter((expense) => expense.isFinalized).length,
   }), [expenses]);
 
   const handleCategoryChange = (id, finalCategory) => {
     setExpenses((current) => current.map((expense) => (
-      expense.id === id ? { ...expense, finalCategory } : expense
+      expense.id === id ? { ...expense, finalCategory, isFinalized: false } : expense
     )));
   };
 
-  const handleConfirm = (id) => {
-    setExpenses((current) => current.map((expense) => {
-      if (expense.id !== id || expense.approvalStatus === '취소' || !expense.finalCategory) return expense;
-      return { ...expense, classificationStatus: '확정' };
+  const handleConfirmAll = async () => {
+    if (!expenses.length || isConfirming) return;
+    const persistedItems = expenses.filter((expense) => expense.isPersisted).map((expense) => ({
+      cardExpenseId: expense.id,
+      finalCategory: categoryCode[expense.finalCategory],
     }));
+    setIsConfirming(true);
+    try {
+      if (persistedItems.length) {
+        await confirmCardExpenseCategories(groupId, persistedItems);
+      }
+      setExpenses((current) => current.map((expense) => ({ ...expense, isFinalized: true })));
+      setUploadMessage('현재 선택한 항목을 모두 저장했습니다.');
+    } catch (error) {
+      setUploadMessage(error.message);
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handleFileChange = async (event) => {
@@ -187,18 +196,18 @@ function CardExpenseClassificationPanel({ groupId }) {
     setIsUploadPreparing(true);
     setUploadMessage('');
     try {
-      const previewRows = await previewCardExpenses(groupId, file);
+      const previewRows = await uploadCardExpenses(groupId, file);
       setExpenses(previewRows.map((row, index) => ({
-        id: index + 1,
+        id: row.cardExpenseId || index + 1,
+        isPersisted: Boolean(row.cardExpenseId),
         usedAt: row.usedDate,
         merchantName: row.merchantName,
         amount: Number(row.amount),
         approvalStatus: row.approvalStatus === 'CANCELED' ? '취소' : '승인',
         suggestedCategory: categoryLabel[row.suggestedCategory] || '',
         confidenceScore: row.confidence,
-        classificationStatus: statusLabel[row.classificationStatus] || '확인 필요',
-        classificationSource: sourceLabel[row.classificationSource] || '취소 건',
-        finalCategory: categoryLabel[row.suggestedCategory] || '',
+        finalCategory: categoryLabel[row.suggestedCategory] || '확인 필요',
+        isFinalized: row.classificationStatus === 'CONFIRMED',
       })));
       setUploadMessage(`${file.name}의 분류 결과를 불러왔습니다.`);
     } catch (error) {
@@ -216,10 +225,15 @@ function CardExpenseClassificationPanel({ groupId }) {
           <Title>카드 지출 분류 검토</Title>
           <Description>추천 항목을 확인·수정한 뒤 확정하면, 확정된 지출만 통계에 반영됩니다.</Description>
         </div>
-        <UploadButton type="button" $variant="secondary" disabled={isUploadPreparing} onClick={() => fileInputRef.current?.click()}>
-          {isUploadPreparing ? '분류 중...' : '카드 내역 엑셀 업로드'}
-        </UploadButton>
-        <input ref={fileInputRef} type="file" accept=".xls,.xlsx" hidden onChange={handleFileChange} />
+        <HeaderActions>
+          <UploadButton type="button" $variant="secondary" disabled={isUploadPreparing} onClick={() => fileInputRef.current?.click()}>
+            {isUploadPreparing ? '분류 중...' : '카드 내역 엑셀 업로드'}
+          </UploadButton>
+          <UploadButton type="button" disabled={isConfirming || !expenses.length} onClick={handleConfirmAll}>
+            {isConfirming ? '저장 중...' : '확정하기'}
+          </UploadButton>
+          <input ref={fileInputRef} type="file" accept=".xls,.xlsx" hidden onChange={handleFileChange} />
+        </HeaderActions>
       </Header>
 
       <Summary>
@@ -231,34 +245,25 @@ function CardExpenseClassificationPanel({ groupId }) {
       <ListCard>
         <Table>
           <thead>
-            <tr><th scope="col">이용일시</th><th scope="col">가맹점명</th><th scope="col">금액</th><th scope="col">추천 항목</th><th scope="col">분류 방식</th><th scope="col">상태</th><th scope="col">최종 항목</th><th scope="col">확정</th></tr>
+            <tr><th scope="col">이용일시</th><th scope="col">가맹점명</th><th scope="col">금액</th><th scope="col">지출 항목</th></tr>
           </thead>
           <tbody>
             {expenses.map((expense) => (
               <tr key={expense.id}>
                 <td>{expense.usedAt}</td>
                 <td>{expense.merchantName}</td>
-                <td>{formatAmount(expense.amount)}</td>
-                <td>{expense.suggestedCategory || '-'}</td>
-                <td>{expense.classificationSource}{expense.confidenceScore ? ` (${Math.round(expense.confidenceScore * 100)}%)` : ''}</td>
-                <td><StatusBadge $status={expense.classificationStatus}>{expense.classificationStatus}</StatusBadge></td>
+                <td>{formatAmount(expense.amount, expense.approvalStatus)}</td>
                 <td>
                   <Select value={expense.finalCategory} disabled={expense.approvalStatus === '취소'} onChange={(event) => handleCategoryChange(expense.id, event.target.value)}>
                     <option value="">선택</option>
                     {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                   </Select>
                 </td>
-                <td>
-                  <ConfirmButton type="button" $size="small" disabled={expense.approvalStatus === '취소' || expense.classificationStatus === '확정' || !expense.finalCategory} onClick={() => handleConfirm(expense.id)}>
-                    {expense.classificationStatus === '확정' ? '확정 완료' : '확정'}
-                  </ConfirmButton>
-                </td>
               </tr>
             ))}
           </tbody>
         </Table>
         {uploadMessage && <Notice role="status">{uploadMessage}</Notice>}
-        <Notice>취소 건은 처리 기준이 정해질 때까지 보류하며, 확정 전 내역은 지출 통계에 반영하지 않습니다.</Notice>
       </ListCard>
     </Panel>
   );

@@ -9,7 +9,8 @@ public enum CardExpenseCategory {
     ACTIVITY("활동비"),
     ACCOMMODATION("숙박비"),
     FEE("수수료"),
-    OTHER("기타");
+    OTHER("기타"),
+    NEEDS_REVIEW("확인 필요");
 
     private final String displayName;
 

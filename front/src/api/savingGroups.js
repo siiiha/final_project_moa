@@ -587,7 +587,7 @@ export function getSavingGroupMenus(role) {
 }
 
 // AI작성: 카드 명세서는 서버에서만 해석하고, 프론트는 사용자 검토용 분류 결과만 받는다.
-export async function previewCardExpenses(savingGroupId, file) {
+export async function uploadCardExpenses(savingGroupId, file) {
   const groupId = savingGroupPathId(savingGroupId);
   if (!(file instanceof File) || file.size <= 0) {
     throw new Error('카드 명세서 파일을 선택해 주세요.');
@@ -596,13 +596,43 @@ export async function previewCardExpenses(savingGroupId, file) {
   const requestData = new FormData();
   requestData.append('file', file);
   try {
-    const response = await client.post(`/saving-groups/${groupId}/card-expenses/preview`, requestData);
+    const response = await client.post(`/saving-groups/${groupId}/card-expenses/uploads`, requestData);
     if (response.data?.success !== true || !Array.isArray(response.data.data)) {
       throw new Error(response.data?.error?.message || '카드 지출 분류 결과를 확인할 수 없습니다.');
     }
     return response.data.data;
   } catch (error) {
     throw new Error(error.response?.data?.error?.message || error.message || '카드 지출 분류에 실패했습니다.');
+  }
+}
+
+// AI작성: 자동 추천은 확정하지 않고, 사용자가 고른 최종 항목만 별도 요청으로 저장한다.
+export async function confirmCardExpenseCategory(savingGroupId, cardExpenseId, finalCategory) {
+  const groupId = savingGroupPathId(savingGroupId);
+  const expenseId = savingGroupPathId(cardExpenseId);
+  try {
+    const response = await client.patch(
+      `/saving-groups/${groupId}/card-expenses/${expenseId}/classification`,
+      { finalCategory }
+    );
+    if (response.data?.success !== true) {
+      throw new Error(response.data?.error?.message || '지출 항목을 확정하지 못했습니다.');
+    }
+  } catch (error) {
+    throw new Error(error.response?.data?.error?.message || error.message || '지출 항목을 확정하지 못했습니다.');
+  }
+}
+
+// AI작성: 목록 위 확정하기는 현재 선택된 모든 카드 지출 항목을 한 번에 저장한다.
+export async function confirmCardExpenseCategories(savingGroupId, items) {
+  const groupId = savingGroupPathId(savingGroupId);
+  try {
+    const response = await client.patch(`/saving-groups/${groupId}/card-expenses/classifications`, { items });
+    if (response.data?.success !== true) {
+      throw new Error(response.data?.error?.message || '지출 항목을 확정하지 못했습니다.');
+    }
+  } catch (error) {
+    throw new Error(error.response?.data?.error?.message || error.message || '지출 항목을 확정하지 못했습니다.');
   }
 }
 

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public class CardExpensePreview {
+    private final Long cardExpenseId;
     private final LocalDate usedDate;
     private final String merchantName;
     private final BigDecimal amount;
