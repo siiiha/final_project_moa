@@ -21,6 +21,41 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 기존 모임→계주 잠금 순서로 승인 관계를 확인하며 조회 이외의 금융 처리는 하지 않는다.
+    @Override
+    @Transactional
+    public SavingGroupPayoutRequestListResponse getSavingGroupPayoutRequests(
+            Long savingGroupId, Long memberId, String status, int page) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (savingGroupId == null || savingGroupId <= 0 || page < 1
+                || (status != null && !List.of("PENDING", "APPROVED", "REJECTED", "COMPLETED").contains(status))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 상태 또는 페이지가 올바르지 않습니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
+        validateSavingGroupOwner(target, memberId);
+        String groupType = savingGroupMapper.selectSavingGroupPayoutType(target.getGroupId());
+        // AI작성: 미정의 모임 유형을 친목계로 추정하지 않고 차단한다.
+        if (!"순번계".equals(groupType) && !"친목계".equals(groupType)) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TYPE_INVALID", "계모임 종류를 확인해 주세요.");
+        }
+        if ("친목계".equals(groupType) && "COMPLETED".equals(status)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "친목계 지출 요청에는 완료 상태가 없습니다.");
+        }
+        int total = savingGroupMapper.selectSavingGroupPayoutRequestCount(target.getGroupId(), groupType, status);
+        PageMeta meta = PageMeta.of(page, 10, total);
+        // AI작성: 범위 초과는 곱셈 전에 빈 배열을 반환해 큰 페이지 값의 offset 오버플로를 방지한다.
+        var items = page > meta.getTotalPages() ? List.<SavingGroupPayoutRequestResponse>of()
+                : savingGroupMapper.selectSavingGroupPayoutRequests(target.getGroupId(), groupType, status, meta.getOffset());
+        return new SavingGroupPayoutRequestListResponse(items, meta);
+    }
     // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
     @Override
     @Transactional
