@@ -938,3 +938,16 @@
 - 검증: Java 17 공지 관련 295건·프론트 API 49건 통과, 변경 파일 lint·빌드·수정 및 삭제 컴포넌트 초기 SSR 렌더링 통과. Service 대역에서 수정→삭제→재변경 차단, 실제 MyBatis XML에서 논리 삭제 및 전체 계모임 공지 조회·변경의 deleted_at 조건 확인.
 - 미검증: 실제 MySQL·Postman·브라우저 상호작용·JWT 필터 통합. DB 컬럼 준비는 사용자 확인이며 독립 DB 조회는 하지 않았다. 기존 다른 도메인 테스트 import 오류로 임시 Gradle 스크립트에서 공지 테스트만 실행. 기존 번들 크기 경고 존재.
 - 개발자 검토·수정: 검토 대기. DB·마이그레이션·의존성·외부 서비스 변경·원격 push·기준 브랜치 반영 없음. 첨부파일·댓글·알림·삭제 이력 연계는 TODO.
+
+<!-- AI작성: 사용자 승인에 따라 계원 관리 기능을 아홉 단계로 구현하고 커밋한 기록. -->
+## 2026-11-05 — 계주 전용 계원 목록 및 역할 관리
+
+- 목적·승인: 사용자가 단계별 설계를 확인하고 여러 파일 변경·프론트 연결·단계별 커밋 및 연속 진행을 승인했다. 기존 공지 기능 커밋의 DTO/Mapper→Service→Controller→프론트 API→화면→문서 순서를 따랐다.
+- 확정 정책: 승인 OWNER만 조회/변경, 모집중·진행중만 허용. OWNER 제외 APPROVED 계원 최대 20명·10명씩 최대 2페이지. 이름 원문은 사용자가 명시적으로 승인해 기존 일반 마스킹 규칙보다 우선 적용하고 이메일은 마스킹 유지. MEMBER↔MANAGER만 변경, 회계 최대 한 명(0명 허용), OWNER 이전·해제 불가. 알림 없음. 검색창은 유지하되 검색 기능은 별도 후속 구현.
+- AI 제안·작성: 기존 OWNER 검증·회원 관계·ApiResponse·PageMeta·MyBatis 구조 재사용. 모임 잠금과 회계 현재 읽기, 조건부 역할 변경, 큰 회원 ID 문자열 반환, 실제 API 연동, 회원별 저장·재조회, 검색창 비활성/준비 중 안내, 로딩·실패·빈 상태. 새 DB 구조·의존성·공통 설정·강제 탈퇴·가입 심사 기능은 변경하지 않았다.
+- 변경 파일: SavingGroupMemberResponse/ListResponse/RoleUpdateRequest, SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupController, SavingGroupMemberListServiceTest/RoleServiceTest/MapperTest/MySqlIntegrationTest/ListControllerTest/RoleControllerTest, savingGroups.js, savingGroupMembers.test.js, SavingGroupDetail.jsx, SavingGroupMembersPanel.jsx, SavingGroupMemberList.jsx/test.js, API 명세·본 기록. 정확한 단계별 목록은 saving-groups-api.md에 기록했다.
+- 단계 커밋: 1단계 `4e2de3b`, 2단계 `f2a507d`, 3단계 `e388473`, 4단계 `cbbed63`, 5단계 `204c02b`, 6단계 `13231e0`, 7단계 `0006031`, 8단계 `91a8946`. 9단계는 선택형 MySQL 테스트와 검증 기록·문서를 함께 커밋한다. 원격 push는 하지 않았다.
+- 검증: Java 17 운영 코드 컴파일, 관련 백엔드 406건 통과·선택형 MySQL 3건 건너뜀(총 409건), 프론트 55건 통과(기존 API 49+신규 API 5+SSR 1), 변경 파일 lint 오류 없음·프로덕션 빌드·diff 공백 검사 통과. 기존 미사용 스타일 경고 2건·번들 크기 경고 유지.
+- 한계: 일반 Gradle test는 기존 다른 도메인 테스트 import 오류 13건으로 컴파일 실패. 임시 init script로 관련 소스만 분리 실행했으며 저장소 설정은 수정하지 않았다. Service/Controller/API는 대역, SQL은 바인딩, 화면은 SSR 검증이다. 실제 MySQL·브라우저 클릭·Postman·JWT HTTP 통합은 미실행이다.
+- 선택형 DB 테스트: 명시적 환경 변수와 빈 `moa_members_test_*` 전용 MySQL 8 이상만 허용한다. 실제 조회·회계 동시 지정·롤백을 검증하도록 작성했으나 DB 설정이 없어 컴파일만 확인했다. 인증 정보·실제 개인정보는 코드/문서/로그에 추가하지 않았다.
+- 개발자 검토·수정: 사용자 정책 확정·구현 승인은 받았으나 최종 코드에 대한 개발자의 별도 수정·실환경 검토 완료는 확인되지 않았다. 수동 확인 절차와 검색·20명 초과 관리 한계를 API 명세에 남겼다.
