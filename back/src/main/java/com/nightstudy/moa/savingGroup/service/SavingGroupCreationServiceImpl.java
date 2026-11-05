@@ -197,6 +197,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                 || savingGroupMapper.softDeleteSavingGroup(groupId) != 1) {
             throw applicationProcessFailed();
         }
+        // AI작성: 삭제 심사 승인과 소프트 삭제가 모두 성공한 뒤 신청자인 계주에게 결과만 알린다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_DELETION_APPROVED,
+                "계모임 삭제 신청이 승인되었습니다.",
+                null
+        );
     }
 
     private ApiException applicationProcessFailed() {

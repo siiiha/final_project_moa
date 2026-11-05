@@ -167,6 +167,12 @@ class SavingGroupCreationServiceImplTest {
 
         verify(savingGroupMapper).approveSavingGroupDeletionApplication(1L);
         verify(savingGroupMapper).softDeleteSavingGroup(100L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_DELETION_APPROVED,
+                "계모임 삭제 신청이 승인되었습니다.",
+                null
+        );
     }
 
     @Test
