@@ -15,6 +15,8 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListCond
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.math.BigDecimal;
 import java.util.List;
 import com.nightstudy.moa.member.dto.region.MemberRegionDto;
@@ -36,6 +38,9 @@ class SavingGroupCreationServiceImplTest {
 
     @Mock
     private FileStorageService fileStorageService;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private SavingGroupCreationServiceImpl savingGroupCreationService;
@@ -123,6 +128,12 @@ class SavingGroupCreationServiceImplTest {
         savingGroupCreationService.approveCreationApplication(1L, 20L);
 
         verify(savingGroupMapper).approveSavingGroupCreationOwnerMembership(100L, 20L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_CREATION_APPROVED,
+                "계모임 개설 신청이 승인되었습니다.",
+                "/saving-groups/200"
+        );
     }
 
     @Test
@@ -324,7 +335,10 @@ class SavingGroupCreationServiceImplTest {
     private SavingGroupCreationApplicationDetailResponse pendingApplication(Long groupId) {
         SavingGroupCreationApplicationDetailResponse application = new SavingGroupCreationApplicationDetailResponse();
         application.setGroupId(groupId);
+        application.setSavingGroupId(200L);
+        application.setApplicantMemberId(10L);
         application.setStatus("PENDING");
+        application.setType("CREATE");
         return application;
     }
 

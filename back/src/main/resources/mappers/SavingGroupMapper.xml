@@ -1092,6 +1092,8 @@
     <sql id="creationApplicationDetailColumns">
         SELECT ma.approval_id,
         g.group_id,
+        sg.saving_group_id,
+        g.member_id AS applicant_member_id,
         g.group_name,
         <include refid="savingGroupApplicationApplicantName"/>,
         r.region_name,
