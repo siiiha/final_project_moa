@@ -951,3 +951,10 @@
 - AI작성: 계주 권한·현재 요청자 자격·모집중/진행중·소속·PENDING 상태를 트랜잭션에서 확인하고 심사 기록을 저장한다. OWNER 본인 심사를 허용하며 순번 일치·영수증 존재는 승인에만 적용한다.
 - 변경: SavingGroupService.java/Impl, SavingGroupPayoutDecisionServiceTest. Mapper와 Service 대상 테스트 통과(JDK 21 임시 설정).
 - 주의: 실제 지급·잔액·순번 변경 없음. 현재 회차 자동 판정·금액 재산정·새 예산 검증 정책은 추가하지 않았다. 실제 DB 및 JDK 17 검증 대기. 개발자 검토·수정: 검토 대기.
+
+## 2026-11-05 계금 요청 심사 3단계 — Controller
+
+- AI작성: saving_group_id 경로의 approve/reject PATCH와 거절 사유 NotBlank/최대 500자 DTO를 추가했다. 기존 /saving-groups 및 /api/saving-groups 별칭과 ApiResponse를 유지하고 인증 memberId만 전달한다.
+- 변경: SavingGroupController, SavingGroupPayoutRejectionRequest, SavingGroupPayoutDecisionControllerTest.
+- 검증: Controller·Service·Mapper 대상 테스트 통과(JDK 21 임시 설정). 본문·경로 검증, 500자 경계, 공통 오류 응답 및 사용자 ID 위조 입력 무시 확인.
+- 주의: 실제 JWT 필터 검증은 다음 단계. 실제 DB 적용·JDK 17 검증 및 개발자 검토 대기.
