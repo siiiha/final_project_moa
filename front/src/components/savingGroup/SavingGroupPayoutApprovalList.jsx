@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
-import { getSavingGroupPages, getSavingGroupPayoutRequests } from '../../api/savingGroups';
+import ConfirmModal from '../common/ConfirmModal';
+import { approveSavingGroupPayoutRequest, getSavingGroupPages, getSavingGroupPayoutRequests } from '../../api/savingGroups';
 
-// AI작성: 기존 계금 요청 탭을 조회 전용으로 연결하고 큰 글씨·모바일 한 열 배치를 적용한다.
+// AI작성: 기존 계주 전용 목록에 승인 동작을 연결하고 큰 글씨·모바일 한 열 배치를 적용한다.
 const Panel = styled.section`
   margin-top: 20px; padding: 20px;
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -40,7 +41,7 @@ const dateLabel = (value) => value ? String(value).replace('T', ' ').slice(0, 16
 
 // AI작성: 화면 상태와 조회 동작을 분리해 빈 결과·실패·유형별 공개 필드를 렌더링 검증할 수 있게 한다.
 export function SavingGroupPayoutRequestContent({ groupType, items = [], meta, page = 1, status = '',
-  isLoading, errorMessage, onStatusChange, onPageChange, onRetry }) {
+  isLoading, errorMessage, onStatusChange, onPageChange, onRetry, onApprove, isApproving = false }) {
   const states = groupType === '순번계' ? ['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'] : ['PENDING', 'APPROVED', 'REJECTED'];
   const pages = getSavingGroupPages(page, meta?.totalPages || 0);
   return (
@@ -74,6 +75,14 @@ export function SavingGroupPayoutRequestContent({ groupType, items = [], meta, p
                     <div><dt>검토자</dt><dd>{request.reviewerName || (request.reviewedAt ? '이름 비공개' : '미검토')}</dd></div>
                   </>}
                 </dl>
+                {/* AI작성: 현재 API의 한글 상태값을 사용하고 대기 요청만 심사한다. 최종 권한·상태 검증은 서버가 수행한다. */}
+                {request.status === '대기' && onApprove && (
+                  <Toolbar>
+                    <Button type="button" disabled={isApproving} onClick={() => onApprove(request)}>
+                      승인
+                    </Button>
+                  </Toolbar>
+                )}
               </Item>
             ))}</List>}
       {!isLoading && !errorMessage && meta?.totalPages > 1 && (
@@ -93,6 +102,13 @@ function SavingGroupPayoutApprovalList({ savingGroupId, groupType }) {
   const [status, setStatus] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState(null);
+  // AI작성: 렌더링 전 재클릭도 잠금으로 막고 모임 전환·언마운트 후에는 이전 요청 결과를 표시하지 않는다.
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [isApproving, setIsApproving] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const approvalLock = useRef(false);
+  const approvalController = useRef(null);
+  useEffect(() => () => approvalController.current?.abort(), [savingGroupId, groupType]);
   const key = `${savingGroupId}:${groupType}:${page}:${status}:${refresh}`;
   const current = result?.key === key ? result : null;
   useEffect(() => {
@@ -102,10 +118,45 @@ function SavingGroupPayoutApprovalList({ savingGroupId, groupType }) {
       .catch((error) => { if (!controller.signal.aborted) setResult({ key, error: error.message }); });
     return () => controller.abort();
   }, [savingGroupId, groupType, page, status, key]);
-  return <SavingGroupPayoutRequestContent groupType={groupType} page={page} status={status}
+  // AI작성: 확인 시에만 승인하고 성공 후 서버 목록을 다시 조회한다. 실제 지급 처리는 하지 않는다.
+  const approveRequest = async () => {
+    if (approvalLock.current || !approveTarget || approveTarget.status !== '대기') return;
+    approvalLock.current = true;
+    setIsApproving(true);
+    const controller = new AbortController();
+    approvalController.current = controller;
+    try {
+      await approveSavingGroupPayoutRequest(savingGroupId, approveTarget.id, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setApproveTarget(null);
+      setNotice({ title: '요청 승인 완료', message: '요청을 승인했습니다. 실제 지급은 별도로 진행됩니다.' });
+      setRefresh((value) => value + 1);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setApproveTarget(null);
+      setNotice({ title: '요청 승인 실패', message: error.message || '승인하지 못했습니다. 다시 시도해주세요.' });
+      if (error.code === 'PAYOUT_REQUEST_ALREADY_PROCESSED') setRefresh((value) => value + 1);
+    } finally {
+      approvalLock.current = false;
+      if (!controller.signal.aborted) setIsApproving(false);
+    }
+  };
+  return <><SavingGroupPayoutRequestContent groupType={groupType} page={page} status={status}
     items={current?.items} meta={current?.meta} isLoading={!current} errorMessage={current?.error}
-    onStatusChange={(value) => { setStatus(value); setPage(1); }}
-    onPageChange={setPage} onRetry={() => setRefresh((value) => value + 1)} />;
+    onApprove={(request) => { if (!approvalLock.current) setApproveTarget(request); }} isApproving={isApproving}
+    onStatusChange={(value) => { if (!approvalLock.current) { setStatus(value); setPage(1); } }}
+    onPageChange={(value) => { if (!approvalLock.current) setPage(value); }}
+    onRetry={() => setRefresh((value) => value + 1)} />
+    {approveTarget && <ConfirmModal title="요청을 승인할까요?"
+      description="승인은 요청 심사 처리이며 실제 지급은 별도입니다."
+      confirmLabel={isApproving ? '승인 중...' : '승인'} cancelFirst isBusy={isApproving}
+      onConfirm={approveRequest} onCancel={() => { if (!approvalLock.current) setApproveTarget(null); }}>
+      <p>{approveTarget.applicant}님의 {approveTarget.type} 요청</p>
+      <p>요청 금액: {approveTarget.amount}</p>
+    </ConfirmModal>}
+    {notice && <ConfirmModal title={notice.title} description={notice.message} showCancel={false}
+      onConfirm={() => setNotice(null)} onCancel={() => setNotice(null)} />}
+  </>;
 }
 
 export default SavingGroupPayoutApprovalList;
