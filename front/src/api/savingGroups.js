@@ -580,8 +580,30 @@ export function toSavingGroupCard(item) {
 // AI작성: 회원 역할은 서버 응답만 사용하며 승인되지 않은 사용자는 공지만 표시한다.
 export function getSavingGroupMenus(role) {
   const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
-  if (role === 'OWNER') return [...common, 'members', 'settings', 'joinRequests'];
-  return ['MANAGER', 'MEMBER'].includes(role) ? common : ['notice'];
+  // AI작성: 카드 지출 분류의 수정·확정은 계주와 회계 담당자만 수행한다.
+  const financialManagerMenus = [...common, 'cardExpenseClassification'];
+  if (role === 'OWNER') return [...financialManagerMenus, 'members', 'settings', 'joinRequests'];
+  return role === 'MANAGER' ? financialManagerMenus : role === 'MEMBER' ? common : ['notice'];
+}
+
+// AI작성: 카드 명세서는 서버에서만 해석하고, 프론트는 사용자 검토용 분류 결과만 받는다.
+export async function previewCardExpenses(savingGroupId, file) {
+  const groupId = savingGroupPathId(savingGroupId);
+  if (!(file instanceof File) || file.size <= 0) {
+    throw new Error('카드 명세서 파일을 선택해 주세요.');
+  }
+
+  const requestData = new FormData();
+  requestData.append('file', file);
+  try {
+    const response = await client.post(`/saving-groups/${groupId}/card-expenses/preview`, requestData);
+    if (response.data?.success !== true || !Array.isArray(response.data.data)) {
+      throw new Error(response.data?.error?.message || '카드 지출 분류 결과를 확인할 수 없습니다.');
+    }
+    return response.data.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.error?.message || error.message || '카드 지출 분류에 실패했습니다.');
+  }
 }
 
 // AI작성: null을 0원으로 바꾸거나 소수 금액을 반올림하지 않고 표시 직전에 포맷한다.

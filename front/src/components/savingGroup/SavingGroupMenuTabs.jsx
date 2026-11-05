@@ -57,6 +57,7 @@ const menuItems = [
   { id: 'calendar', label: '캘린더' },
   { id: 'dues', label: '대시보드' },
   { id: 'transactionHistory', label: '거래 내역' },
+  { id: 'cardExpenseClassification', label: '카드 지출 분류' },
   { id: 'payoutRequest', label: '계금 요청' },
   { id: 'settings', label: '설정' },
   { id: 'joinRequests', label: '신청 목록' },

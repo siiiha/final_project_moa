@@ -1,0 +1,101 @@
+﻿record_id,merchant_name,amount,expected_route
+payment-provider-001,네이버페이 스마트스토어,280100,PAYMENT_PROVIDER
+payment-provider-002,다날 결제,62800,PAYMENT_PROVIDER
+payment-provider-003,스마트로,248600,PAYMENT_PROVIDER
+payment-provider-004,네이버페이 주문,169000,PAYMENT_PROVIDER
+payment-provider-005,KG이니시스,260300,PAYMENT_PROVIDER
+payment-provider-006,네이버페이 스마트스토어,174500,PAYMENT_PROVIDER
+payment-provider-007,스마트로,122600,PAYMENT_PROVIDER
+payment-provider-008,네이버페이 스마트스토어,272400,PAYMENT_PROVIDER
+payment-provider-009,다날,187800,PAYMENT_PROVIDER
+payment-provider-010,KG이니시스,129000,PAYMENT_PROVIDER
+payment-provider-011,네이버페이 스마트스토어,70600,PAYMENT_PROVIDER
+payment-provider-012,네이버페이,126800,PAYMENT_PROVIDER
+payment-provider-013,카카오페이 결제,139100,PAYMENT_PROVIDER
+payment-provider-014,스마트로,20700,PAYMENT_PROVIDER
+payment-provider-015,PAYCO,28600,PAYMENT_PROVIDER
+payment-provider-016,PAYCO,232000,PAYMENT_PROVIDER
+payment-provider-017,스마트로 결제,77100,PAYMENT_PROVIDER
+payment-provider-018,PAYCO,67700,PAYMENT_PROVIDER
+payment-provider-019,스마트로,230300,PAYMENT_PROVIDER
+payment-provider-020,토스페이 결제,46200,PAYMENT_PROVIDER
+payment-provider-021,PAYCO,110900,PAYMENT_PROVIDER
+payment-provider-022,페이코,177700,PAYMENT_PROVIDER
+payment-provider-023,네이버페이,288700,PAYMENT_PROVIDER
+payment-provider-024,페이코,234000,PAYMENT_PROVIDER
+payment-provider-025,PAYCO,270700,PAYMENT_PROVIDER
+payment-provider-026,네이버페이,194700,PAYMENT_PROVIDER
+payment-provider-027,PAYCO,179700,PAYMENT_PROVIDER
+payment-provider-028,KG이니시스,143100,PAYMENT_PROVIDER
+payment-provider-029,스마트로,245600,PAYMENT_PROVIDER
+payment-provider-030,네이버페이 스마트스토어,95000,PAYMENT_PROVIDER
+payment-provider-031,네이버페이 주문,101000,PAYMENT_PROVIDER
+payment-provider-032,네이버페이,291700,PAYMENT_PROVIDER
+payment-provider-033,KG이니시스,209600,PAYMENT_PROVIDER
+payment-provider-034,다날 결제,23400,PAYMENT_PROVIDER
+payment-provider-035,다날,297400,PAYMENT_PROVIDER
+payment-provider-036,다날 결제,83800,PAYMENT_PROVIDER
+payment-provider-037,페이코,29900,PAYMENT_PROVIDER
+payment-provider-038,스마트로,165300,PAYMENT_PROVIDER
+payment-provider-039,카카오페이 결제,162400,PAYMENT_PROVIDER
+payment-provider-040,네이버페이,64800,PAYMENT_PROVIDER
+payment-provider-041,PAYCO,219900,PAYMENT_PROVIDER
+payment-provider-042,다날,104100,PAYMENT_PROVIDER
+payment-provider-043,페이코,277000,PAYMENT_PROVIDER
+payment-provider-044,스마트로 결제,112600,PAYMENT_PROVIDER
+payment-provider-045,토스페이,254100,PAYMENT_PROVIDER
+payment-provider-046,KG이니시스 결제,105700,PAYMENT_PROVIDER
+payment-provider-047,토스페이 결제,110900,PAYMENT_PROVIDER
+payment-provider-048,KG이니시스 결제,298000,PAYMENT_PROVIDER
+payment-provider-049,네이버페이 주문,261700,PAYMENT_PROVIDER
+payment-provider-050,스마트로,255400,PAYMENT_PROVIDER
+payment-provider-051,KG이니시스,290300,PAYMENT_PROVIDER
+payment-provider-052,카카오페이,30600,PAYMENT_PROVIDER
+payment-provider-053,네이버페이 주문,178500,PAYMENT_PROVIDER
+payment-provider-054,네이버페이,99700,PAYMENT_PROVIDER
+payment-provider-055,네이버페이 스마트스토어,29500,PAYMENT_PROVIDER
+payment-provider-056,KG이니시스,105600,PAYMENT_PROVIDER
+payment-provider-057,PAYCO,133200,PAYMENT_PROVIDER
+payment-provider-058,네이버페이 스마트스토어,178100,PAYMENT_PROVIDER
+payment-provider-059,카카오페이 결제,19900,PAYMENT_PROVIDER
+payment-provider-060,스마트로,32000,PAYMENT_PROVIDER
+payment-provider-061,네이버페이 스마트스토어,260300,PAYMENT_PROVIDER
+payment-provider-062,토스페이,5200,PAYMENT_PROVIDER
+payment-provider-063,네이버페이,161000,PAYMENT_PROVIDER
+payment-provider-064,네이버페이,152400,PAYMENT_PROVIDER
+payment-provider-065,PAYCO,179200,PAYMENT_PROVIDER
+payment-provider-066,다날,245700,PAYMENT_PROVIDER
+payment-provider-067,토스페이,48100,PAYMENT_PROVIDER
+payment-provider-068,다날,274200,PAYMENT_PROVIDER
+payment-provider-069,카카오페이,205300,PAYMENT_PROVIDER
+payment-provider-070,토스페이 결제,244500,PAYMENT_PROVIDER
+payment-provider-071,네이버페이 주문,5700,PAYMENT_PROVIDER
+payment-provider-072,KG이니시스 결제,53600,PAYMENT_PROVIDER
+payment-provider-073,KG이니시스,246700,PAYMENT_PROVIDER
+payment-provider-074,카카오페이 결제,65000,PAYMENT_PROVIDER
+payment-provider-075,스마트로,274300,PAYMENT_PROVIDER
+payment-provider-076,스마트로,191200,PAYMENT_PROVIDER
+payment-provider-077,다날 결제,128700,PAYMENT_PROVIDER
+payment-provider-078,페이코,291100,PAYMENT_PROVIDER
+payment-provider-079,카카오페이 결제,172500,PAYMENT_PROVIDER
+payment-provider-080,카카오페이 결제,141900,PAYMENT_PROVIDER
+payment-provider-081,KG이니시스 결제,187300,PAYMENT_PROVIDER
+payment-provider-082,토스페이 결제,163000,PAYMENT_PROVIDER
+payment-provider-083,KG이니시스 결제,87200,PAYMENT_PROVIDER
+payment-provider-084,토스페이,154200,PAYMENT_PROVIDER
+payment-provider-085,네이버페이 주문,22600,PAYMENT_PROVIDER
+payment-provider-086,네이버페이,206700,PAYMENT_PROVIDER
+payment-provider-087,네이버페이 스마트스토어,175900,PAYMENT_PROVIDER
+payment-provider-088,페이코,232800,PAYMENT_PROVIDER
+payment-provider-089,페이코,118000,PAYMENT_PROVIDER
+payment-provider-090,KG이니시스,259100,PAYMENT_PROVIDER
+payment-provider-091,PAYCO,213500,PAYMENT_PROVIDER
+payment-provider-092,페이코,187300,PAYMENT_PROVIDER
+payment-provider-093,스마트로,137300,PAYMENT_PROVIDER
+payment-provider-094,네이버페이,292000,PAYMENT_PROVIDER
+payment-provider-095,카카오페이,216400,PAYMENT_PROVIDER
+payment-provider-096,KG이니시스,150600,PAYMENT_PROVIDER
+payment-provider-097,다날,217900,PAYMENT_PROVIDER
+payment-provider-098,카카오페이 결제,124600,PAYMENT_PROVIDER
+payment-provider-099,다날,57000,PAYMENT_PROVIDER
+payment-provider-100,네이버페이,110000,PAYMENT_PROVIDER
