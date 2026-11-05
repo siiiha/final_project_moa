@@ -66,10 +66,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
         }
         SavingGroupJoinTargetRow target = validateSavingGroupMemberManagement(savingGroupId, memberId);
-        int total = Math.min(20, savingGroupMapper.selectSavingGroupMemberCount(target.getGroupId()));
+        int total = Math.min(20, savingGroupMapper.selectSavingGroupMemberCount(target.getGroupId(), null));
         PageMeta meta = PageMeta.of(page, 10, total);
         List<SavingGroupMemberResponse> items = page > meta.getTotalPages() ? List.of()
-                : savingGroupMapper.selectSavingGroupMembers(target.getGroupId(), meta.getOffset());
+                : savingGroupMapper.selectSavingGroupMembers(target.getGroupId(), null, meta.getOffset());
         return new SavingGroupMemberListResponse(items, meta);
     }
 

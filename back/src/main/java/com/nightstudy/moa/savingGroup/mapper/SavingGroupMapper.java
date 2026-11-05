@@ -14,9 +14,9 @@ public interface SavingGroupMapper {
     int updateSavingGroupMemberRole(@Param("groupId") Long groupId, @Param("crewMemberId") Long crewMemberId,
             @Param("previousRole") String previousRole, @Param("role") String role);
     // AI작성: 계주를 제외한 승인 계원만 같은 조건으로 집계·조회한다. 집계도 최대 20명이다.
-    int selectSavingGroupMemberCount(@Param("groupId") Long groupId);
+    int selectSavingGroupMemberCount(@Param("groupId") Long groupId, @Param("keywordPattern") String keywordPattern);
     List<SavingGroupMemberResponse> selectSavingGroupMembers(
-            @Param("groupId") Long groupId, @Param("offset") int offset);
+            @Param("groupId") Long groupId, @Param("keywordPattern") String keywordPattern, @Param("offset") int offset);
     // AI작성: 인증된 작성자의 미삭제 소속 공지만 논리 삭제하고 영향 행 수를 반환한다.
     int deleteSavingGroupNotice(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId,
             @Param("memberId") Long memberId);

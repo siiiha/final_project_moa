@@ -33,14 +33,14 @@ class SavingGroupMemberListServiceTest {
     void error(String code, Long groupId, Long memberId, int page) {
         assertThatThrownBy(() -> service.getSavingGroupMembers(groupId, memberId, page))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo(code));
-        verify(mapper, never()).selectSavingGroupMembers(anyLong(), anyInt());
+        verify(mapper, never()).selectSavingGroupMembers(anyLong(), any(), anyInt());
     }
     @ParameterizedTest @ValueSource(strings = {"01", "02"})
     void ownerReadsSecondPageCappedAtTwenty(String status) {
         target(status, 30L); owner("OWNER", "APPROVED");
-        when(mapper.selectSavingGroupMemberCount(20L)).thenReturn(25);
+        when(mapper.selectSavingGroupMemberCount(20L, null)).thenReturn(25);
         var row = new SavingGroupMemberResponse(); row.setMemberId("50");
-        when(mapper.selectSavingGroupMembers(20L, 10)).thenReturn(List.of(row));
+        when(mapper.selectSavingGroupMembers(20L, null, 10)).thenReturn(List.of(row));
         var result = service.getSavingGroupMembers(10L, 30L, 2);
         assertThat(result.getItems()).containsExactly(row);
         assertThat(result.getPageMeta().getTotal()).isEqualTo(20);
@@ -50,15 +50,15 @@ class SavingGroupMemberListServiceTest {
     @ParameterizedTest @ValueSource(ints = {1, 3, Integer.MAX_VALUE})
     void emptyOrBeyondRangeDoesNotReadRows(int page) {
         target("01", 30L); owner("OWNER", "APPROVED");
-        when(mapper.selectSavingGroupMemberCount(20L)).thenReturn(page == 1 ? 0 : 20);
+        when(mapper.selectSavingGroupMemberCount(20L, null)).thenReturn(page == 1 ? 0 : 20);
         assertThat(service.getSavingGroupMembers(10L, 30L, page).getItems()).isEmpty();
-        verify(mapper, never()).selectSavingGroupMembers(anyLong(), anyInt());
+        verify(mapper, never()).selectSavingGroupMembers(anyLong(), any(), anyInt());
     }
     @ParameterizedTest @ValueSource(ints = {1, 10, 11, 20})
     void pageMetaUsesTenRows(int count) {
         target("02", 30L); owner("OWNER", "APPROVED");
-        when(mapper.selectSavingGroupMemberCount(20L)).thenReturn(count);
-        when(mapper.selectSavingGroupMembers(20L, 0)).thenReturn(List.of());
+        when(mapper.selectSavingGroupMemberCount(20L, null)).thenReturn(count);
+        when(mapper.selectSavingGroupMembers(20L, null, 0)).thenReturn(List.of());
         assertThat(service.getSavingGroupMembers(10L, 30L, 1).getPageMeta().getTotalPages())
                 .isEqualTo((count + 9) / 10);
     }

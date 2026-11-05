@@ -27,6 +27,11 @@
           AND gm.membership_status = 'APPROVED'
           AND gm.member_role IN ('MEMBER', 'MANAGER')
           AND m.deleted_at IS NULL
+        <!-- AI작성: 전체 승인 계원에서 이름·원문 이메일을 먼저 검색하고 결과에 기존 20명 제한을 적용한다. -->
+        <if test="keywordPattern != null">
+          AND (m.name LIKE #{keywordPattern} ESCAPE '!'
+               OR m.email LIKE #{keywordPattern} ESCAPE '!')
+        </if>
     </sql>
     <select id="selectSavingGroupMemberCount" resultType="int">
         SELECT LEAST(COUNT(*), 20)

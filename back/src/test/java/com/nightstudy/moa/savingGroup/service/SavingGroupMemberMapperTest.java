@@ -34,6 +34,22 @@ class SavingGroupMemberMapperTest {
                 "ORDER BY gm.joined_at DESC, gm.crew_member_id DESC", "LIMIT 10 OFFSET ?");
         assertThat(rows.getParameterMappings()).extracting(p -> p.getProperty()).containsExactly("groupId", "offset");
     }
+    // AI작성: 검색은 이름·원문 이메일의 OR 조건으로 묶고 count와 rows의 바인딩을 동일하게 유지한다.
+    @Test void searchIsBoundAndSharesCountScope() {
+        var params = Map.of("groupId", 20L, "offset", 0, "keywordPattern", "%!%!_!!'검색%");
+        for (String statement : new String[]{"selectSavingGroupMemberCount", "selectSavingGroupMembers"}) {
+            var bound = configuration.getMappedStatement(prefix + statement).getBoundSql(params);
+            assertThat(bound.getSql().replaceAll("\\s+", " "))
+                    .contains("AND (m.name LIKE ? ESCAPE '!' OR m.email LIKE ? ESCAPE '!')")
+                    .contains("gm.group_id = ?", "m.deleted_at IS NULL")
+                    .doesNotContain("!%!_!!'검색");
+            assertThat(bound.getParameterMappings()).extracting(p -> p.getProperty())
+                    .containsSubsequence("groupId", "keywordPattern", "keywordPattern");
+        }
+        var plain = configuration.getMappedStatement(prefix + "selectSavingGroupMembers")
+                .getBoundSql(Map.of("groupId", 20L, "offset", 0)).getSql();
+        assertThat(plain).doesNotContain("m.name LIKE", "m.email LIKE");
+    }
     // AI작성: 역할 갱신의 소속·현재 상태·기존 역할 조건과 회계 현재 읽기 잠금을 확인한다.
     @Test void roleUpdateProtectsScopeAndOwner() {
         var params = Map.of("groupId", 20L, "crewMemberId", 40L, "previousRole", "MEMBER", "role", "MANAGER");
