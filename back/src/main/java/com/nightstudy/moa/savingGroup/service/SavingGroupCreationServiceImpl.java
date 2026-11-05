@@ -168,6 +168,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 반려할 수 없는 신청입니다.");
         }
+        // AI작성: 개설 심사와 대기 계주 관계가 모두 반려된 뒤 신청자에게 결과를 알리며 비공개 모임 링크는 제공하지 않는다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_CREATION_REJECTED,
+                "계모임 개설 신청이 반려되었습니다.",
+                null
+        );
     }
 
     // AI작성: 승인 시점에 상태·공동자금·출금을 다시 확인해 신청 이후 변경으로 인한 잘못된 삭제를 막는다.

@@ -146,6 +146,12 @@ class SavingGroupCreationServiceImplTest {
         savingGroupCreationService.rejectCreationApplication(1L, "사유");
 
         verify(savingGroupMapper).rejectSavingGroupCreationOwnerMembership(100L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_CREATION_REJECTED,
+                "계모임 개설 신청이 반려되었습니다.",
+                null
+        );
     }
 
     @Test
