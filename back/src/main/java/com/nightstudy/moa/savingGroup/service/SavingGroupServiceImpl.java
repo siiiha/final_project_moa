@@ -140,6 +140,76 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 : savingGroupMapper.selectSavingGroupPayoutRequests(target.getGroupId(), groupType, status, meta.getOffset());
         return new SavingGroupPayoutRequestListResponse(items, meta);
     }
+    // AI작성: 모임 잠금으로 같은 모임의 요청 처리와 직렬화하며 승인으로 지급·순번·잔액은 변경하지 않는다.
+    @Override
+    @Transactional
+    public void approveSavingGroupPayoutRequest(Long savingGroupId, Long requestId, Long memberId) {
+        decideSavingGroupPayout(savingGroupId, requestId, memberId, null, true);
+    }
+
+    // AI작성: 거절에도 현재 회원 자격을 확인하되 순번·증빙 조건은 적용하지 않는다.
+    @Override
+    @Transactional
+    public void rejectSavingGroupPayoutRequest(Long savingGroupId, Long requestId, Long memberId, String rejectReason) {
+        if (rejectReason == null || rejectReason.isBlank() || rejectReason.length() > 500) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "거절 사유는 공백 없이 입력하고 500자 이내여야 합니다.");
+        }
+        decideSavingGroupPayout(savingGroupId, requestId, memberId, rejectReason.strip(), false);
+    }
+
+    private void decideSavingGroupPayout(Long savingGroupId, Long requestId, Long memberId, String reason, boolean approve) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (savingGroupId == null || savingGroupId <= 0 || requestId == null || requestId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 또는 요청 번호가 올바르지 않습니다.");
+        }
+        var group = savingGroupMapper.selectPayoutDecisionGroupForUpdate(savingGroupId);
+        if (group == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        if (!List.of("01", "02").contains(group.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
+        var owner = savingGroupMapper.selectSavingGroupMembershipForUpdate(group.getGroupId(), memberId);
+        if (!Objects.equals(group.getOwnerMemberId(), memberId) || owner == null
+                || !"APPROVED".equals(owner.getMembershipStatus()) || !"OWNER".equals(owner.getMemberRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "승인된 계주만 계금 요청을 심사할 수 있습니다.");
+        }
+        String type = group.getGroupType();
+        if (!"순번계".equals(type) && !"친목계".equals(type)) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_GROUP_TYPE_UNSUPPORTED", "계모임 종류를 확인해 주세요.");
+        }
+        var request = savingGroupMapper.selectPayoutDecisionRequestForUpdate(group.getGroupId(), requestId, type);
+        if (request == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "PAYOUT_REQUEST_NOT_FOUND", "해당 모임의 계금 요청을 찾을 수 없습니다.");
+        }
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_REQUEST_ALREADY_PROCESSED", "이미 처리된 요청입니다.");
+        }
+        var applicant = savingGroupMapper.selectSavingGroupMembershipForUpdate(group.getGroupId(), request.getRequesterId());
+        // AI작성: 모임 탈퇴·추방 외에 회원 자체의 소프트 삭제도 기존 회원 잠금 조회로 차단한다.
+        if (applicant == null || !"APPROVED".equals(applicant.getMembershipStatus())
+                || !("OWNER".equals(applicant.getMemberRole()) || "MANAGER".equals(applicant.getMemberRole())
+                || ("순번계".equals(type) && "MEMBER".equals(applicant.getMemberRole())))
+                || savingGroupMapper.selectSavingGroupJoinMemberForUpdate(request.getRequesterId()) == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_REQUESTER_INELIGIBLE", "현재 요청자의 회원 자격으로 처리할 수 없습니다.");
+        }
+        if (approve && "순번계".equals(type)) {
+            Integer sequence = savingGroupMapper.selectPayoutDecisionSequence(group.getGroupId(), request.getRequesterId());
+            if (sequence == null || sequence <= 0 || !sequence.equals(request.getRoundNumber())) {
+                throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_SEQUENCE_MISMATCH", "요청자의 지급 순번과 요청 회차가 일치하지 않습니다.");
+            }
+            // AI작성: 현재 회차 산정이나 지급 완료 판단을 새로 정의하지 않고 요청 회차와 순번만 검증한다.
+        }
+        if (approve && "친목계".equals(type) && !Boolean.TRUE.equals(request.getHasEvidence())) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_EVIDENCE_REQUIRED", "영수증이 첨부된 요청만 승인할 수 있습니다.");
+        }
+        if (savingGroupMapper.updatePayoutDecision(group.getGroupId(), requestId, type,
+                approve ? "APPROVED" : "REJECTED", memberId, reason) != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_REQUEST_ALREADY_PROCESSED", "요청 상태가 변경되었습니다. 다시 확인해 주세요.");
+        }
+    }
     // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
     @Override
     @Transactional

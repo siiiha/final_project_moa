@@ -139,6 +139,47 @@
         </choose>
         LIMIT 10 OFFSET #{offset}
     </select>
+    <!-- AI작성: 목록 조회와 같은 saving_group_id를 공통 group_id로 해석하고 모임을 먼저 잠근다. -->
+    <select id="selectPayoutDecisionGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutDecisionRow">
+        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, g.member_id AS owner_member_id
+        FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL FOR UPDATE
+    </select>
+    <!-- AI작성: 유형은 서버에서 확인하며 ID가 같은 다른 테이블 요청으로 교차 처리하지 않는다. -->
+    <select id="selectPayoutDecisionRequestForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutDecisionRow">
+        <choose>
+            <when test="groupType == '순번계'">
+                SELECT pr.requester_id, pr.status, mr.round_number
+                FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                WHERE pr.payout_request_id = #{requestId} AND mr.group_id = #{groupId} FOR UPDATE
+            </when>
+            <otherwise>
+                SELECT applicant_id AS requester_id, status,
+                       (receipt_img_url IS NOT NULL AND TRIM(receipt_img_url) != '') AS has_evidence
+                FROM expenses WHERE expense_id = #{requestId} AND group_id = #{groupId} FOR UPDATE
+            </otherwise>
+        </choose>
+    </select>
+    <select id="selectPayoutDecisionSequence" resultType="java.lang.Integer">
+        SELECT sequence_number FROM group_member
+        WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'
+    </select>
+    <!-- AI작성: 친목계 심사 기록 3개 컬럼은 DB 담당자 적용이 선행되어야 한다. 거래・완료 필드는 변경하지 않는다. -->
+    <update id="updatePayoutDecision">
+        <choose>
+            <when test="groupType == '순번계'">
+                UPDATE payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                SET pr.status = #{status}, pr.reviewer_id = #{reviewerId},
+                    pr.reviewed_at = CURRENT_TIMESTAMP, pr.reject_reason = #{rejectReason}
+                WHERE pr.payout_request_id = #{requestId} AND mr.group_id = #{groupId} AND pr.status = 'PENDING'
+            </when>
+            <otherwise>
+                UPDATE expenses SET status = #{status}, reviewer_id = #{reviewerId},
+                    reviewed_at = CURRENT_TIMESTAMP, reject_reason = #{rejectReason}
+                WHERE expense_id = #{requestId} AND group_id = #{groupId} AND status = 'PENDING'
+            </otherwise>
+        </choose>
+    </update>
     <!-- AI작성: 계주 본인 관계·탈퇴·추방·삭제 회원을 제외한 신청 상태를 동일한 조건으로 집계·조회한다. -->
     <sql id="joinRequestFromWhere">
         FROM group_member gm

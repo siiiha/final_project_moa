@@ -68,6 +68,26 @@ public class SavingGroupController {
         var result = savingGroupService.getSavingGroupPayoutRequests(savingGroupId, memberId, condition.getStatus(), condition.getPage());
         return ApiResponse.ok(result.getItems(), result.getPageMeta());
     }
+    // AI작성: 목록 조회와 동일한 saving_group_id와 유형별 요청 ID를 전달하며 승인 본문은 받지 않는다.
+    @PatchMapping("/{savingGroupId}/payout-requests/{payoutRequestId}/approve")
+    public ApiResponse<Void> approvePayoutRequest(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @PathVariable("payoutRequestId") @Positive(message = "요청 ID는 1 이상이어야 합니다.") Long payoutRequestId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.approveSavingGroupPayoutRequest(savingGroupId, payoutRequestId, memberId);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: 사유만 검증해 전달하고 권한·소속·상태 변경은 Service에 위임한다.
+    @PatchMapping("/{savingGroupId}/payout-requests/{payoutRequestId}/reject")
+    public ApiResponse<Void> rejectPayoutRequest(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @PathVariable("payoutRequestId") @Positive(message = "요청 ID는 1 이상이어야 합니다.") Long payoutRequestId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRejectionRequest request) {
+        savingGroupService.rejectSavingGroupPayoutRequest(savingGroupId, payoutRequestId, memberId, request.getRejectReason());
+        return ApiResponse.ok();
+    }
     // AI작성: 요청 본문이나 작성자 입력 없이 JWT 회원과 경로 ID만 Service로 전달한다.
     @DeleteMapping("/{groupId}/notices/{noticeId}")
     public ApiResponse<Void> deleteNotice(

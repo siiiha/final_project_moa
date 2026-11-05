@@ -1043,3 +1043,52 @@
 - 일반 백엔드 전체 테스트 컴파일은 기존 다른 도메인 import 13건 오류로 차단된다. 추적하지 않는 back/build/merge-savinggroup-tests.init.gradle로 계모임 패키지만 컴파일·실행했다. 실제 MySQL 테스트는 전용 환경변수 미설정으로 생략.
 - 프론트: API·화면 회귀 121건 통과, 프로덕션 빌드 통과. 변경 범위 lint 오류 없음(기존 상세 컴포넌트 미사용 변수 2건 경고). 기존 번들 크기 경고 유지.
 - 개발자 검토·수정: 검토·병합 커밋 대기. 실제 인증 브라우저·Postman·MySQL·금융 API 호출 미실행.
+
+## 2026-11-05 계금 요청 심사 1단계 — DTO·Mapper
+
+- AI작성: 사용자 승인으로 별도 feature/apply-request-savinggroup-thepool에서 조회 DTO, 유형별 요청 잠금 조회 및 PENDING 조건부 심사 SQL을 추가했다. 경로는 saving_group_id, 친목계 요청 ID는 expense_id다.
+- 변경: SavingGroupPayoutDecisionRow, SavingGroupMapper.java/XML, SavingGroupPayoutDecisionMapperTest.
+- 검증: XML 실제 바인딩 테스트 2건 통과. JDK 17 부재와 기존 타 도메인 테스트 import 오류 때문에 임시 Gradle init으로 JDK 21 및 savingGroup 테스트 소스만 사용했다. 저장소 설정 변경 없음.
+- 주의: expenses 심사 기록 3개 컬럼의 실제 DB 적용 및 MySQL 실행 검증은 대기. 개발자 검토·수정: 검토 대기. 실제 자금 이동·DB 변경 없음.
+
+## 2026-11-05 계금 요청 심사 2단계 — Service
+
+- AI작성: 계주 권한·현재 요청자 자격·모집중/진행중·소속·PENDING 상태를 트랜잭션에서 확인하고 심사 기록을 저장한다. OWNER 본인 심사를 허용하며 순번 일치·영수증 존재는 승인에만 적용한다.
+- 변경: SavingGroupService.java/Impl, SavingGroupPayoutDecisionServiceTest. Mapper와 Service 대상 테스트 통과(JDK 21 임시 설정).
+- 주의: 실제 지급·잔액·순번 변경 없음. 현재 회차 자동 판정·금액 재산정·새 예산 검증 정책은 추가하지 않았다. 실제 DB 및 JDK 17 검증 대기. 개발자 검토·수정: 검토 대기.
+
+## 2026-11-05 계금 요청 심사 3단계 — Controller
+
+- AI작성: saving_group_id 경로의 approve/reject PATCH와 거절 사유 NotBlank/최대 500자 DTO를 추가했다. 기존 /saving-groups 및 /api/saving-groups 별칭과 ApiResponse를 유지하고 인증 memberId만 전달한다.
+- 변경: SavingGroupController, SavingGroupPayoutRejectionRequest, SavingGroupPayoutDecisionControllerTest.
+- 검증: Controller·Service·Mapper 대상 테스트 통과(JDK 21 임시 설정). 본문·경로 검증, 500자 경계, 공통 오류 응답 및 사용자 ID 위조 입력 무시 확인.
+- 주의: 실제 JWT 필터 검증은 다음 단계. 실제 DB 적용·JDK 17 검증 및 개발자 검토 대기.
+
+## 2026-11-05 계금 요청 심사 4단계 — 인증·트랜잭션 검증
+
+- AI작성: 실제 JWT 필터→Controller→Service 연결(서명 파서·세션·Mapper 대역), 실제 Spring 트랜잭션 프록시와 JDBC 매니저 commit/rollback 테스트, 선택 실행 MySQL 임시 테이블 테스트를 추가했다.
+- 변경: SavingGroupPayoutDecisionSecurityTest, SavingGroupPayoutDecisionTransactionTest, SavingGroupPayoutDecisionMySqlTest.
+- 검증: 대상 내부 테스트 통과(JDK 21). MySQL 테스트는 MOA_PAYOUT_TEST_DB_ENABLED와 테스트 DB 정보 미설정으로 건너뛰었다. 실제 MySQL 저장·동시 잠금·운영 스키마 적용은 확인하지 않았다. 전체 SecurityFilterChain 및 JWT 서명 검증은 이 테스트의 범위가 아니다.
+- DB 테스트: MOA_TEST_DB_URL/USER/PASSWORD와 MOA_PAYOUT_TEST_DB_ENABLED=true 설정. 카탈로그 moa_payout_test_*만 허용하고 연결 전용 TEMPORARY TABLE에서 상태·처리 기록·중복·소속·rollback/commit을 검증한다. 자격 증명을 저장하거나 출력하지 않는다.
+- 주의: 실제 DB 컬럼 적용과 JDK 17 환경 재검증 대기. 개발자 검토·수정: 검토 대기.
+
+## 2026-11-05 계금 요청 심사 5단계 — 명세·최종 검증
+
+- AI작성: API 경로와 saving_group_id·유형별 요청 ID 계약, 승인·거절 자격 및 상태 전이, 오류 코드, 실제 지급 미수행, 친목계 컬럼 선행 적용, Postman 확인 절차와 테스트 재현 방법을 문서화했다.
+- 변경: docs/saving-groups-api.md, docs/ai-usage-log.md.
+- 커밋: 49df98a DTO·Mapper, 4a25215 Service·계주 검증, 79e8163 API·사유 검증, e8c70e2 인증·트랜잭션 테스트. 최종 문서 커밋명: docs: 계모임 계금 심사 API와 단계별 검증 결과 정리.
+- 검증: 신규 내부 테스트 68건 통과. 최종 공지·가입 거절 포함 회귀 검증 373건 통과, 실패 0, MySQL 테스트 클래스 1개 건너뜀. git diff --check 통과. JDK 21 임시 Gradle init과 savingGroup 테스트 소스 컴파일 범위 제한을 사용했다.
+- 남은 TODO: DB 담당자의 expenses 심사 기록 3개 컬럼 적용 확인, 실제 MySQL 저장·동시 잠금 및 JDK 17 검증, 전체 저장소 기존 import 오류 해결 후 전체 테스트, 요청 생성·조회 브랜치 통합 및 계주 전용 영수증 열람·프론트 연결. Postman·브라우저·실제 JWT 서명 검증은 실행하지 않았다.
+- 개발자 검토·수정: 검토 대기. 요청 문서의 제안 9개 컬럼을 확정·적용된 DB로 간주하지 않았다. DB 변경·금융 호출·실제 자금 이동·다른 작업 되돌리기·기준 브랜치 병합·원격 push 없음.
+
+## 2026-11-05 계금 요청 승인·거절 병합 충돌 해결
+
+- AI작성: 사용자 요청으로 feature/savinggroup(9dbd9ae)에서 feature/apply-request-savinggroup-thepool(86a3d6b) 병합 충돌 7개 파일을 해결했다. 커밋·push는 수행하지 않으며 사용자가 병합 커밋을 작성한다.
+- 대상: SavingGroupController.java, SavingGroupMapper.java/XML, SavingGroupService.java/Impl, docs/saving-groups-api.md, 본 기록. 자동 병합된 DTO 2개·테스트 6개도 유지했다.
+- 보존 검증: 수신 브랜치의 공통 조상 이후 코드가 승인·거절 추가 블록뿐인지 확인한 뒤 HEAD 원문에 해당 블록을 독립 삽입했다. 추가 블록을 제거하면 기존 HEAD 코드 5개 파일과 정확히 일치한다. 두 문서는 HEAD 전체와 수신 브랜치의 추가 기록·명세를 각각 보존했다. 기존 계원관리·요청 등록·목록 SQL·API는 삭제하거나 재작성하지 않았다.
+- 계약: 등록/options/영수증은 기존 groupId, 목록 및 승인·거절은 savingGroupId를 사용한다. 모임 유형으로 순번계 payout_request_id / 친목계 expense_id를 결정한다. 기준 schema.sql의 회차 산정·영수증 해시·expenses 심사 기록 3개 컬럼을 유지했다. 실제 DB 적용 여부는 확인하지 않았다.
+- 검증: 설치된 JDK 17 경로를 지정해 본문·테스트 컴파일 통과. 추적하지 않는 기존 back/build/merge-savinggroup-tests.init.gradle을 사용해 계모임 패키지 회귀 649건 실행: 634 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 신규 승인·거절 내부 테스트 68건은 전부 통과했다. 기존 계원관리·계금 등록·계금 목록 기능에서 신규 실패 없음.
+- 기존 실패: SavingGroupDeletionApplicationServiceTest.ownerCanRequestDeletion, duplicatePendingRequestIsRejected. 승인 OWNER 관계 Mock 누락으로 이전 작업 기록에서도 실패했던 동일 두 건이다. 해당 로직·테스트는 변경하지 않았다. 전체 저장소 테스트의 기존 타 도메인 import 오류를 우회하기 위해 계모임 테스트 소스 범위만 컴파일했다.
+- 명령: back에서 gradlew.bat -I C:/workspace/final_project_moa/back/build/merge-savinggroup-tests.init.gradle -Dorg.gradle.java.installations.paths=C:/dev/jdk-17.0.12_windows-x64_bin/jdk-17.0.12 test --offline --console=plain.
+- 주의: 이번 병합은 프론트 파일을 변경하지 않아 프론트 테스트·빌드를 반복하지 않았다. 실제 MySQL·브라우저·Postman·금융 호출·자금 이동 미실행. 개발자 검토·수정: 병합 검토 및 커밋 대기.
+- 최종 정리: 수신 MySQL 테스트 파일의 파일 끝 빈 줄 1개를 정리했고 git diff --cached --check 및 미해결 충돌 0건을 확인했다. 테스트 건수는 Gradle 콘솔의 649건/2실패/13생략 집계를 기준으로 기록했다.

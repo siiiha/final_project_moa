@@ -1509,3 +1509,106 @@ Postman에서 테스트 계정의 기존 인증을 사용해 순번계·친목�
 - 등록 POST 및 options·영수증 GET은 기존 공통 groupId 계약을 유지한다. 목록 GET의 경로 ID는 savingGroupId다. 프론트는 각각 group.groupId / group.savingGroupId를 전달한다. HTTP 메서드와 하위 경로가 달라 별도의 핸들러로 유지한다.
 - 기준 브랜치의 계금 산정·지출 검토 컬럼을 유지한다. 목록 응답은 사용자 확정 범위대로 유지하며 새 컬럼을 자동 노출하지 않는다.
 - 충돌 해결 후 프론트 테스트 121건·빌드 통과. 백엔드 계모임 회귀 581건 중 566 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 계원 관리 및 계금 등록·목록 테스트에는 실패 없음. 일반 전체 테스트 컴파일의 기존 import 오류 13건·실제 DB/브라우저 미검증은 AI 사용 기록에 별도 기재했다.
+
+## 계금 요청 승인·거절 (2026-11-05)
+
+<!-- AI작성: 사용자 확정 정책과 feature/apply-request-savinggroup-thepool 구현을 반영한다. 실제 지급 API가 아니다. -->
+
+### 경로와 데이터 계약
+
+- `PATCH /api/saving-groups/{savingGroupId}/payout-requests/{payoutRequestId}/approve`
+- `PATCH /api/saving-groups/{savingGroupId}/payout-requests/{payoutRequestId}/reject`
+- 기존 Controller의 `/saving-groups` 별칭도 지원한다. 인증은 기존 JWT Authorization Bearer 방식이다.
+- savingGroupId는 `saving_group.saving_group_id`이며 공통 `groups.group_id`가 아니다. 서버가 내부 group_id로 변환한다.
+- 모임 유형은 DB의 saving_group_type으로 판별한다. 순번계 요청 ID는 payout_request.payout_request_id, 친목계 요청 ID는 expenses.expense_id다. 클라이언트가 유형·처리자·처리 상태를 지정하지 않는다.
+- 요청 생성 작업 a2c30ef 및 목록 조회 작업 5709a5f/e6e967d의 유형별 저장 테이블·목록 ID 계약을 확인했다. 다른 브랜치의 코드는 병합하지 않았다.
+
+### 요청·응답
+
+승인은 요청 본문이 없다. 거절은 JSON `{ "rejectReason": "증빙을 다시 확인해 주세요." }`를 보낸다. 사유는 공백만 있는 값 불가, 입력 문자열 최대 500자이며 저장 시 앞뒤 공백을 제거한다.
+성공은 HTTP 200 및 기존 ApiResponse.ok() 봉투(`success=true`, `data=null`, `meta=null`, `error=null`)다. 실패는 기존 ApiResponse.fail의 `error.code`와 `error.message`를 따른다.
+
+### 권한·상태·검증
+
+| 항목 | 정책 |
+|---|---|
+| 처리자 | 로그인한 해당 모임의 APPROVED OWNER이며 groups.member_id와 일치해야 함 |
+| 본인 심사 | OWNER 자신의 요청 승인·거절 허용 |
+| 모임 | 삭제되지 않은 모집중(01)·진행중(02)만 허용 |
+| 요청 | 해당 모임에 속하는 PENDING 한 건만 처리 |
+| 순번계 요청자 | 현재 APPROVED OWNER·MANAGER·MEMBER |
+| 친목계 요청자 | 현재 APPROVED OWNER·MANAGER |
+| 탈퇴·추방·대기·회원 삭제 | 요청자 처리 불가. 처리자의 회원 자체 상태는 기존 JWT 세션 정책을 따름 |
+| 순번계 승인 | 현재 요청자 sequence_number가 양수이고 요청 meeting_round.round_number와 동일 |
+| 친목계 승인 | receipt_img_url이 NULL·빈 문자열이 아닌 요청만 허용. 영수증 내용은 계주가 판단 |
+| 거절 | 순번 일치·영수증 첨부 조건 미적용. 나머지 인증·권한·모임·소속·상태·요청자 자격은 유지 |
+
+별도의 현재 회차 자동 판정, 약정 금액 재계산, 금액 한도·예산·잔액·증빙 진위 판단 정책은 추가하지 않았다. receipt_sha256은 요청 생성에서의 중복 판별이며 심사에서 파일을 다시 업로드하거나 해시를 계산하지 않는다.
+
+### 저장과 트랜잭션
+
+Service의 승인·거절 진입점에 @Transactional을 적용한다. 공통 모임을 먼저 잠그고 계주 관계, 대상 요청·회차, 요청자 관계와 회원 행을 확인한다. 순번은 잠근 요청자 관계에서 확인되는 현재 값을 사용한다. 변경 SQL은 요청 ID·모임 소속·PENDING을 다시 제한하고 변경 행 수가 1이 아니면 409로 롤백한다.
+
+- 승인: status=APPROVED, reviewer_id=인증 계주, reviewed_at=DB CURRENT_TIMESTAMP, reject_reason=NULL.
+- 거절: status=REJECTED, reviewer_id=인증 계주, reviewed_at=DB CURRENT_TIMESTAMP, reject_reason=검증한 사유.
+- 실제 이체·출금·금융 API·자동 지급 호출 없음. completed_at·transaction_id·순번·잔액·거래·승인 이력·알림은 변경하거나 생성하지 않는다.
+- 친목계 UPDATE는 DB 담당자가 제안서의 expenses.reviewer_id BIGINT NULL, reviewed_at DATETIME NULL, reject_reason VARCHAR(500) NULL을 적용한 후 사용해야 한다. 운영 DB에서 적용 여부를 확인하지 않았다.
+- schema.sql·마이그레이션은 변경하지 않았다. 회차 산정 5개 컬럼과 영수증 해시 컬럼은 이번 심사 SQL에서 참조하지 않는다. 회차 생성 및 요청 생성 작업과의 연결은 별도다.
+
+### 오류
+
+| HTTP | 코드 | 조건 |
+|---|---|---|
+| 400 | BAD_REQUEST | 잘못된 경로·거절 사유; 세부 입력 예외 봉투는 기존 공통 처리 적용 |
+| 401 | 기존 JWT 오류 / UNAUTHORIZED | 토큰·세션 오류 또는 인증 회원 없음 |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 해당 모임의 승인된 계주가 아님 |
+| 404 | NOT_FOUND | 계모임 없음·삭제됨 |
+| 404 | PAYOUT_REQUEST_NOT_FOUND | 요청 없음 또는 다른 모임에 속함 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중이 아님 |
+| 409 | PAYOUT_GROUP_TYPE_UNSUPPORTED | 지원하지 않는 모임 유형 |
+| 409 | PAYOUT_REQUEST_ALREADY_PROCESSED | 이미 처리됐거나 조건부 UPDATE 실패 |
+| 409 | PAYOUT_REQUESTER_INELIGIBLE | 요청자의 현재 회원 상태·역할 부적합 또는 회원 삭제 |
+| 409 | PAYOUT_SEQUENCE_MISMATCH | 승인 시 순번 미지정·불일치 |
+| 409 | PAYOUT_EVIDENCE_REQUIRED | 승인 시 영수증 미첨부 |
+
+### 검증 및 Postman 확인 방법
+
+1. 테스트 DB에 승인된 OWNER와 유형별 적격 요청자, 모집중 또는 진행중 모임, PENDING 요청을 준비한다. 순번계는 sequence_number=round_number, 친목계는 접근 정책에 맞는 영수증을 준비한다.
+2. OWNER의 유효한 JWT로 approve를 호출하고 200 및 대상 테이블의 status/reviewer_id/reviewed_at/reject_reason을 확인한다. transaction_id/completed_at과 잔액·거래·순번은 변경되지 않아야 한다.
+3. 별도 대기 요청에 rejectReason JSON으로 reject를 호출한다. 사유 앞뒤 공백 제거와 처리 기록을 확인한다.
+4. 같은 요청 재처리는 409, 다른 모임 요청은 404, 회계·일반회원·비회원·대기·탈퇴 계주의 처리는 403 또는 기존 인증 정책의 401인지 확인한다.
+5. 순번 불일치·영수증 누락은 승인 409, 거절은 다른 자격 조건 충족 시 200인지 확인한다. 요청자 탈퇴·추방은 승인·거절 모두 409다.
+6. 모든 확인은 내부 테스트 데이터만 사용하며 실제 자금 이동은 수행하지 않는다. Postman·브라우저 검증은 이번 작업에서 실행하지 않았다.
+
+내부 테스트는 Mapper XML 바인딩, Service 정책, Controller 입력·응답, 실제 JWT 필터 연결(서명 파서·세션 대역), 실제 Spring/JDBC 트랜잭션 경계(commit/rollback)를 검증한다. 전체 SecurityFilterChain·서명 파서·실제 DB 잠금 경합 검증과 구분한다.
+선택 실행 SavingGroupPayoutDecisionMySqlTest는 MOA_PAYOUT_TEST_DB_ENABLED=true 및 MOA_TEST_DB_URL/USER/PASSWORD가 필요하다. moa_payout_test_* 테스트 카탈로그에서만 실행하며 연결 전용 임시 테이블로 실제 MySQL의 저장·소속 제한·중복 UPDATE·롤백·커밋을 확인한다. 이 테스트의 임시 테이블은 운영 스키마 적용 여부를 증명하지 않는다.
+
+로컬 JDK 17이 없어 저장소 설정을 바꾸지 않고 JDK 21 임시 Gradle init을 사용했다. 기존 타 도메인 테스트의 import 오류 때문에 테스트 소스 컴파일 범위는 savingGroup으로 제한했다. JDK 17 및 전체 저장소 테스트는 별도 확인이 필요하다. 실제 DB 정보가 없어 MySQL 테스트는 건너뛰었다.
+
+재현용 임시 Gradle init 내용(저장소 설정에 반영하지 않음):
+
+```groovy
+allprojects {
+    afterEvaluate {
+        plugins.withId('java') {
+            java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+            sourceSets.test.java.setIncludes(['**/savingGroup/**/*Test.java'])
+        }
+    }
+}
+```
+
+back 폴더에서 `gradlew.bat -I <임시-init-절대경로> test --tests '*SavingGroupPayoutDecision*Test' --tests '*SavingGroupNotice*Test' --tests '*SavingGroupJoinRejection*Test' --console=plain`으로 실행한다. DB 테스트 환경변수는 자격 증명을 문서·명령 이력·코드에 직접 쓰지 않고 별도로 주입한다.
+
+남은 TODO: DB 담당자의 친목계 심사 기록 컬럼 적용 확인, 실제 MySQL 동시 승인·거절 잠금 검증, JDK 17 재검증, 요청 생성·조회 브랜치 통합 시 충돌 및 계약 확인, 계주 전용 영수증 열람·프론트 승인 UI 연결. 이번 범위는 승인·거절 백엔드 API다.
+
+최종 회귀 검증 결과: 계금 심사·기존 공지·가입 거절 관련 373건 통과, 실패 0건, MySQL 테스트 클래스 1개 건너뜀(2026-11-05, JDK 21 임시 설정). 신규 심사 테스트만은 68건 통과다. `git diff --check` 통과.
+
+## 승인·거절 병합 확인 (2026-11-05)
+
+<!-- AI작성: 위 개별 브랜치 작업 당시의 미검증 사항과 구분하여 현재 병합 검증 결과를 기록한다. -->
+
+- feature/savinggroup(9dbd9ae)에 승인·거절 작업(86a3d6b)을 병합하면서 계원관리·요청 등록·목록·승인·거절 API와 SQL을 모두 보존했다. 등록/options/영수증은 groupId, 목록과 승인·거절은 savingGroupId 계약을 유지한다. 승인·거절의 requestId는 해당 유형의 목록 응답 request_id와 같다.
+- 기준 schema.sql에 expenses.reviewer_id/reviewed_at/reject_reason이 반영되어 있음을 확인했다. 위 심사 브랜치 작성 당시의 컬럼 적용 대기 기록은 이 스키마 정의 확인으로 보완되지만, 운영·개발 DB에 실제 적용됐는지는 별도 확인이 필요하다.
+- 이번에는 설치된 JDK 17 경로를 명시하여 본문·테스트를 컴파일했다. 계모임 회귀 649건 중 634 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 신규 승인·거절 내부 테스트 68건은 전부 통과했다. 기존 두 실패는 승인 OWNER 관계 Mock 누락이며 이전 병합 기록과 동일하다.
+- 실제 MySQL 저장·동시 잠금·브라우저·Postman 검증은 실행하지 않았다. 계주 전용 영수증 조회는 기존 등록 작업의 구현을 보존했으며 이번에 API를 새로 만들거나 프론트 승인 버튼을 연결하지 않았다. 커밋은 사용자 진행 예정이다.
