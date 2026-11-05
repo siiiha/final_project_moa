@@ -958,3 +958,11 @@
 - 변경: SavingGroupController, SavingGroupPayoutRejectionRequest, SavingGroupPayoutDecisionControllerTest.
 - 검증: Controller·Service·Mapper 대상 테스트 통과(JDK 21 임시 설정). 본문·경로 검증, 500자 경계, 공통 오류 응답 및 사용자 ID 위조 입력 무시 확인.
 - 주의: 실제 JWT 필터 검증은 다음 단계. 실제 DB 적용·JDK 17 검증 및 개발자 검토 대기.
+
+## 2026-11-05 계금 요청 심사 4단계 — 인증·트랜잭션 검증
+
+- AI작성: 실제 JWT 필터→Controller→Service 연결(서명 파서·세션·Mapper 대역), 실제 Spring 트랜잭션 프록시와 JDBC 매니저 commit/rollback 테스트, 선택 실행 MySQL 임시 테이블 테스트를 추가했다.
+- 변경: SavingGroupPayoutDecisionSecurityTest, SavingGroupPayoutDecisionTransactionTest, SavingGroupPayoutDecisionMySqlTest.
+- 검증: 대상 내부 테스트 통과(JDK 21). MySQL 테스트는 MOA_PAYOUT_TEST_DB_ENABLED와 테스트 DB 정보 미설정으로 건너뛰었다. 실제 MySQL 저장·동시 잠금·운영 스키마 적용은 확인하지 않았다. 전체 SecurityFilterChain 및 JWT 서명 검증은 이 테스트의 범위가 아니다.
+- DB 테스트: MOA_TEST_DB_URL/USER/PASSWORD와 MOA_PAYOUT_TEST_DB_ENABLED=true 설정. 카탈로그 moa_payout_test_*만 허용하고 연결 전용 TEMPORARY TABLE에서 상태·처리 기록·중복·소속·rollback/commit을 검증한다. 자격 증명을 저장하거나 출력하지 않는다.
+- 주의: 실제 DB 컬럼 적용과 JDK 17 환경 재검증 대기. 개발자 검토·수정: 검토 대기.
