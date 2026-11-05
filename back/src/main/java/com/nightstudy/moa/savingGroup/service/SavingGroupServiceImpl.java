@@ -21,6 +21,40 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 목록도 모임→계주 관계 잠금 순서로 권한을 확인하고 최대 두 페이지로 제한한다.
+    @Override
+    @Transactional
+    public SavingGroupMemberListResponse getSavingGroupMembers(Long savingGroupId, Long memberId, int page) {
+        if (page < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
+        }
+        SavingGroupJoinTargetRow target = validateSavingGroupMemberManagement(savingGroupId, memberId);
+        int total = Math.min(20, savingGroupMapper.selectSavingGroupMemberCount(target.getGroupId()));
+        PageMeta meta = PageMeta.of(page, 10, total);
+        List<SavingGroupMemberResponse> items = page > meta.getTotalPages() ? List.of()
+                : savingGroupMapper.selectSavingGroupMembers(target.getGroupId(), meta.getOffset());
+        return new SavingGroupMemberListResponse(items, meta);
+    }
+
+    // AI작성: 역할 관리와 목록에 동일한 인증·모집중/진행중·승인 계주 정책을 적용한다.
+    private SavingGroupJoinTargetRow validateSavingGroupMemberManagement(Long savingGroupId, Long memberId) {
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+        if (savingGroupId == null || savingGroupId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호가 올바르지 않습니다.");
+        }
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        }
+        if (!List.of("01", "02").contains(target.getStatus() == null ? "" : target.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED",
+                    "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
+        }
+        validateSavingGroupOwner(target, memberId);
+        return target;
+    }
     // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
     @Override
     @Transactional
