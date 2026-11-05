@@ -9,6 +9,14 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 모임→요청→회원 잠금 후 대기 상태 한 건만 심사하며 자금 이동은 수행하지 않는다.
+    SavingGroupPayoutDecisionRow selectPayoutDecisionGroupForUpdate(@Param("savingGroupId") Long savingGroupId);
+    SavingGroupPayoutDecisionRow selectPayoutDecisionRequestForUpdate(@Param("groupId") Long groupId,
+            @Param("requestId") Long requestId, @Param("groupType") String groupType);
+    Integer selectPayoutDecisionSequence(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    int updatePayoutDecision(@Param("groupId") Long groupId, @Param("requestId") Long requestId,
+            @Param("groupType") String groupType, @Param("status") String status,
+            @Param("reviewerId") Long reviewerId, @Param("rejectReason") String rejectReason);
     // AI작성: 인증된 작성자의 미삭제 소속 공지만 논리 삭제하고 영향 행 수를 반환한다.
     int deleteSavingGroupNotice(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId,
             @Param("memberId") Long memberId);

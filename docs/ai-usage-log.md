@@ -938,3 +938,10 @@
 - 검증: Java 17 공지 관련 295건·프론트 API 49건 통과, 변경 파일 lint·빌드·수정 및 삭제 컴포넌트 초기 SSR 렌더링 통과. Service 대역에서 수정→삭제→재변경 차단, 실제 MyBatis XML에서 논리 삭제 및 전체 계모임 공지 조회·변경의 deleted_at 조건 확인.
 - 미검증: 실제 MySQL·Postman·브라우저 상호작용·JWT 필터 통합. DB 컬럼 준비는 사용자 확인이며 독립 DB 조회는 하지 않았다. 기존 다른 도메인 테스트 import 오류로 임시 Gradle 스크립트에서 공지 테스트만 실행. 기존 번들 크기 경고 존재.
 - 개발자 검토·수정: 검토 대기. DB·마이그레이션·의존성·외부 서비스 변경·원격 push·기준 브랜치 반영 없음. 첨부파일·댓글·알림·삭제 이력 연계는 TODO.
+
+## 2026-11-05 계금 요청 심사 1단계 — DTO·Mapper
+
+- AI작성: 사용자 승인으로 별도 feature/apply-request-savinggroup-thepool에서 조회 DTO, 유형별 요청 잠금 조회 및 PENDING 조건부 심사 SQL을 추가했다. 경로는 saving_group_id, 친목계 요청 ID는 expense_id다.
+- 변경: SavingGroupPayoutDecisionRow, SavingGroupMapper.java/XML, SavingGroupPayoutDecisionMapperTest.
+- 검증: XML 실제 바인딩 테스트 2건 통과. JDK 17 부재와 기존 타 도메인 테스트 import 오류 때문에 임시 Gradle init으로 JDK 21 및 savingGroup 테스트 소스만 사용했다. 저장소 설정 변경 없음.
+- 주의: expenses 심사 기록 3개 컬럼의 실제 DB 적용 및 MySQL 실행 검증은 대기. 개발자 검토·수정: 검토 대기. 실제 자금 이동·DB 변경 없음.
