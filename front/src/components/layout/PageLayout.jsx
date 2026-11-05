@@ -26,7 +26,7 @@ function PageLayout() {
       <Main $isSocialFlow={isSocialFlow}>
         <Outlet />
       </Main>
-      {!isSocialFlow && token && <ChatbotWidget />}
+      {!isSocialFlow && <ChatbotWidget key={token ? 'member' : 'guest'} />}
     </>
   );
 }

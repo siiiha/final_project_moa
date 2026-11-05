@@ -138,9 +138,12 @@ export default function ChatbotWidget() {
                 { speaker: '모아', text: reply },
             ]);
             setQuestion('');
-        } catch {
-            // 전송에 실패하면 입력을 남겨 두어 다시 보낼 수 있게 합니다.
-            setErrorMessage('답변을 받지 못했어요. 잠시 후 다시 보내 주세요.');
+        } catch (error) {
+            if (error.response?.status === 429) {
+                setErrorMessage('질문을 여러 번 보내셨어요. 잠시 후 다시 시도해 주세요.');
+            } else {
+                setErrorMessage('답변을 받지 못했어요. 잠시 후 다시 보내 주세요.');
+            }
         } finally {
             sendingRef.current = false;
             setIsSending(false);
