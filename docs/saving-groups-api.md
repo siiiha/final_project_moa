@@ -489,15 +489,17 @@ PATCH /saving-groups/{groupId}/members/{memberId}/expel
 - groupId: 양수 Long, `groups.group_id`이면서 삭제되지 않은 계모임이어야 한다.
 - memberId: 양수 Long, 추방 대상 `members.member_id`다.
 - 요청 본문은 없다. 대상은 URL 경로로만 식별하며, 실행 계주·상태·역할은 클라이언트 입력으로 받지 않는다.
-- 실행자는 서버 인증 처리에서 설정한 request attribute `memberId`(Long)만 사용한다. 현재 JWT 연결 전에는 이 속성이 없으므로 HTTP 요청은 401을 반환한다.
+- 실행자는 서버 인증 처리에서 설정한 request attribute `memberId`(Long)만 사용한다. 기존 JWT 인증 필터가 설정한 속성을 사용하며, `/api` 인증 실패는 LOGIN_REQUIRED, Service 인증 속성 누락은 UNAUTHORIZED 정책을 따른다.
 - Service는 `groups.member_id` 일치와 `group_member`의 `OWNER` + `APPROVED` 관계를 모두 확인한다.
 
 ### 처리와 상태 전이
 
-1. 계모임과 요청 계주 관계를 `FOR UPDATE`로 확인한다.
+1. 계모임을 `FOR UPDATE`로 조회하고 모집중(`01`)인지 확인한 뒤, 생성자 일치 및 요청자의 `APPROVED OWNER` 관계를 잠금 검증한다. 진행중(`02`)·종료 등 나머지 상태에서는 추방할 수 없다.
 2. `groupId`와 대상 `memberId`의 `group_member` 행을 잠금 조회하고, `APPROVED` 상태인 경우에만 `crew_member_id`를 사용한다.
-3. 계주 본인을 대상자로 요청하면 상태를 변경하지 않고 409을 반환한다.
+3. 대상 회원이 미삭제 상태로 존재하는지 확인한다. 계주 본인 및 다른 OWNER 대상은 409이며, MEMBER·MANAGER는 직접 추방할 수 있다. 미정의 역할은 차단한다.
 4. 대상 행의 `crew_member_id`, `group_id`, `membership_status = 'APPROVED'`가 모두 일치할 때만 `membership_status`를 `EXPELLED`로 변경한다.
+
+MANAGER는 MEMBER로 먼저 변경할 필요가 없다(B 방식). 추방된 MANAGER는 APPROVED 회계 조회에서 제외되어 새 회계 지정을 막지 않는다. 기존 가입 정책에 따라 EXPELLED 회원의 재가입 신청은 JOIN_REAPPLICATION_FORBIDDEN으로 차단한다.
 
 `EXPELLED`는 기존 `group_member.membership_status` 상태값이므로 DB 마이그레이션·컬럼 변경은 없다. `left_at`, 역할, 승인 이력은 이 작업에서 변경하지 않는다.
 
@@ -531,19 +533,28 @@ HTTP 200, 기존 `ApiResponse.ok()`를 사용한다.
 | 403 | SAVING_GROUP_OWNER_REQUIRED | 해당 모임의 승인된 계주가 아님 |
 | 404 | SAVING_GROUP_NOT_FOUND | 계모임이 없거나 삭제됨 |
 | 404 | SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND | 대상 계원이 없거나 현재 상태가 APPROVED가 아님 |
-| 409 | SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED | 계주 본인을 추방하려는 요청 |
+| 409 | SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED | 계주 본인 또는 다른 OWNER를 추방하려는 요청 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중(01) 외 상태 |
+| 409 | SAVING_GROUP_MEMBER_ROLE_INVALID | MEMBER·MANAGER·OWNER 외 역할 |
 | 409 | SAVING_GROUP_MEMBER_EXPULSION_FAILED | 조건부 상태 변경 영향 행 수가 1이 아님 |
 | 500 | INTERNAL_ERROR | 예상하지 못한 DB·서버 오류 |
 
 ### 테스트 및 직접 검증
 
-`SavingGroupJoinApprovalServiceTest`는 계주 성공, 비계주, 대상 없음·비승인 상태, 계주 본인 차단, 조건부 UPDATE 영향 행 수 불일치를 검증한다. `SavingGroupJoinApprovalControllerTest`는 두 URL 별칭, 인증 누락, 잘못된 경로 값, Service 오류의 공통 응답을 검증한다.
+<!-- AI작성: 2026-11-05 진행 전 추방 구현 및 실제 검증 결과로 갱신한다. -->
+신규 SavingGroupMemberExpulsionServiceTest 29건, SavingGroupMemberExpulsionControllerTest 14건을 검증한다. 기존 역할 관리 Service 34건·Controller 19건, 가입 가능 여부 10건을 포함한 총 106건이 통과했다.
 
-현재 실행 환경에는 Java 17 toolchain이 없어 Gradle 테스트는 컴파일 전에 중단된다. Java 17을 준비한 뒤 아래 명령으로 재검증한다.
+기본 Gradle 실행은 Java 17 toolchain 부재로 실패했다. 설치된 Java 21과 `options.release = 17`을 사용하는 임시 init script로 운영 코드를 컴파일했다. 전체 테스트 컴파일은 기존 다른 영역의 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient import 오류 13건으로 실패하여, 임시 sourceSets 필터로 위 5개 테스트 클래스만 컴파일·실행했다. 저장소 build.gradle은 변경하지 않았다. 실제 Java 17 런타임·MySQL·JWT 필터 통합·동시 요청은 미검증이다.
+
+Java 17 및 기존 테스트 컴파일 오류 해결 후 재실행:
 
 ```powershell
-.\gradlew.bat test --tests '*SavingGroupJoinApprovalServiceTest' --tests '*SavingGroupJoinApprovalControllerTest' --tests '*SavingGroupServiceImplTest'
+.\gradlew.bat test --tests '*SavingGroupMemberExpulsion*' --tests '*SavingGroupMemberRole*' --tests '*SavingGroupJoinAvailabilityServiceTest'
 ```
+
+Postman 수동 검증: 테스트 DB에서 모집중 모임의 OWNER JWT로 본문 없이 PATCH를 호출하여 200 및 EXPELLED 저장을 확인한다. MANAGER 대상도 같은 결과여야 한다. 비OWNER는 403, 다른 모임·비승인 대상은 404, 진행중·종료 및 OWNER 대상은 409인지 확인한다. 재추방은 404, 재가입 신청은 기존 JOIN_REAPPLICATION_FORBIDDEN이어야 한다. 실제 금융 호출은 하지 않는다.
+
+TODO: 추방 사유·추방일·추방자·별도 이력·순번·회비·공동자금·정산 후속 정책은 미확정이며 새 컬럼이나 처리를 추가하지 않았다. 알림은 기존 TODO를 유지한다.
 
 <!-- AI작성: 실제 가입 신청 조회 API와 프론트 개별 승인 연결의 계약·제한·파일 목록을 기록한다. -->
 ## 계주 전용 가입 신청 목록과 프론트 승인 연결
