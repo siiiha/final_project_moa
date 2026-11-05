@@ -966,3 +966,12 @@
 - 검증: 대상 내부 테스트 통과(JDK 21). MySQL 테스트는 MOA_PAYOUT_TEST_DB_ENABLED와 테스트 DB 정보 미설정으로 건너뛰었다. 실제 MySQL 저장·동시 잠금·운영 스키마 적용은 확인하지 않았다. 전체 SecurityFilterChain 및 JWT 서명 검증은 이 테스트의 범위가 아니다.
 - DB 테스트: MOA_TEST_DB_URL/USER/PASSWORD와 MOA_PAYOUT_TEST_DB_ENABLED=true 설정. 카탈로그 moa_payout_test_*만 허용하고 연결 전용 TEMPORARY TABLE에서 상태·처리 기록·중복·소속·rollback/commit을 검증한다. 자격 증명을 저장하거나 출력하지 않는다.
 - 주의: 실제 DB 컬럼 적용과 JDK 17 환경 재검증 대기. 개발자 검토·수정: 검토 대기.
+
+## 2026-11-05 계금 요청 심사 5단계 — 명세·최종 검증
+
+- AI작성: API 경로와 saving_group_id·유형별 요청 ID 계약, 승인·거절 자격 및 상태 전이, 오류 코드, 실제 지급 미수행, 친목계 컬럼 선행 적용, Postman 확인 절차와 테스트 재현 방법을 문서화했다.
+- 변경: docs/saving-groups-api.md, docs/ai-usage-log.md.
+- 커밋: 49df98a DTO·Mapper, 4a25215 Service·계주 검증, 79e8163 API·사유 검증, e8c70e2 인증·트랜잭션 테스트. 최종 문서 커밋명: docs: 계모임 계금 심사 API와 단계별 검증 결과 정리.
+- 검증: 신규 내부 테스트 68건 통과. 최종 공지·가입 거절 포함 회귀 검증 373건 통과, 실패 0, MySQL 테스트 클래스 1개 건너뜀. git diff --check 통과. JDK 21 임시 Gradle init과 savingGroup 테스트 소스 컴파일 범위 제한을 사용했다.
+- 남은 TODO: DB 담당자의 expenses 심사 기록 3개 컬럼 적용 확인, 실제 MySQL 저장·동시 잠금 및 JDK 17 검증, 전체 저장소 기존 import 오류 해결 후 전체 테스트, 요청 생성·조회 브랜치 통합 및 계주 전용 영수증 열람·프론트 연결. Postman·브라우저·실제 JWT 서명 검증은 실행하지 않았다.
+- 개발자 검토·수정: 검토 대기. 요청 문서의 제안 9개 컬럼을 확정·적용된 DB로 간주하지 않았다. DB 변경·금융 호출·실제 자금 이동·다른 작업 되돌리기·기준 브랜치 병합·원격 push 없음.
