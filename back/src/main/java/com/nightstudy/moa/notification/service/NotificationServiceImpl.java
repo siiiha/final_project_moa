@@ -10,6 +10,8 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
@@ -47,12 +49,7 @@ public class NotificationServiceImpl implements NotificationService {
         NotificationResponse response =
                 NotificationResponse.from(saved);
 
-        sseEmitters.send(
-                receiverId,
-                "notification",
-                saved.getNotificationId(),
-                response
-        );
+        sendSseAfterCommit(receiverId, saved.getNotificationId(), response);
     }
 
     // AI작성: DB 조회 결과에서 회원 번호를 제외한 응답 객체 목록을 생성합니다.
@@ -103,5 +100,33 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public int deleteAllRead(Long receiverId) {
         return notificationMapper.deleteAllRead(receiverId);
+    }
+
+    // AI작성: DB 트랜잭션이 롤백되면 실시간 알림도 전송되지 않도록 커밋 완료 후 SSE를 보냅니다.
+    private void sendSseAfterCommit(
+            Long receiverId,
+            Long notificationId,
+            NotificationResponse response
+    ) {
+        Runnable sendTask = () -> sseEmitters.send(
+                receiverId,
+                "notification",
+                notificationId,
+                response
+        );
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            sendTask.run();
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        sendTask.run();
+                    }
+                }
+        );
     }
 }
