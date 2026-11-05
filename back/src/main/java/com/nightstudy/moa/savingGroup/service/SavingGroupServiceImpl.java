@@ -588,11 +588,23 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                     "승인 후 시작 전인 계모임만 삭제할 수 있습니다.");
         }
 
+        // AI작성: 삭제 후에는 모임 조회가 불가능하므로 상태 변경 전에 승인 회원 수신자를 확보한다.
+        List<Long> notificationReceiverIds = savingGroupMapper
+                .selectApprovedSavingGroupMemberIds(target.getGroupId()).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .toList();
         int affectedRows = savingGroupMapper.softDeleteSavingGroup(target.getGroupId());
         if (affectedRows != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_FAILED",
                     "계모임 상태가 변경되어 삭제할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 삭제된 상세 화면으로 이동시키지 않고 계주를 제외한 기존 승인 회원에게 결과만 알린다.
+        notificationReceiverIds.forEach(receiverId -> notificationService.send(
+                receiverId,
+                NotificationType.SAVING_GROUP_DELETED,
+                "참여 중인 계모임이 삭제되었습니다.",
+                null
+        ));
     }
 
     @Override
