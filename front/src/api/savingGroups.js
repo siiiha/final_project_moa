@@ -297,6 +297,40 @@ export async function approveSavingGroupCreationApplication(approvalId) {
 }
 
 // AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
+// AI작성: 내부 거래내역의 공개 필드만 선택하고 실패 시 Mock으로 대체하지 않는다.
+export async function getSavingGroupTransactions(groupId, { page = 1, sort = 'LATEST', transactionType,
+  minAmount, maxAmount, signal } = {}) {
+  const pathId = savingGroupPathId(groupId);
+  const failure = (detail, status) => Object.assign(new Error(detail?.message || '거래내역을 불러오지 못했습니다.'), {
+    name: 'SavingGroupTransactionsError', code: detail?.code || 'SAVING_GROUP_TRANSACTIONS_READ_FAILED', status,
+  });
+  try {
+    const params = { page, sort };
+    if (transactionType) params.transactionType = transactionType;
+    if (minAmount !== '' && minAmount != null) params.minAmount = minAmount;
+    if (maxAmount !== '' && maxAmount != null) params.maxAmount = maxAmount;
+    const response = await client.get('/saving-groups/' + pathId + '/account/transactions', { params, signal });
+    if (response.data?.success !== true) throw failure(response.data?.error, response.status);
+    const { data, meta } = response.data;
+    if (!Array.isArray(data) || data.length > 10 || !meta
+      || !Number.isInteger(meta.page) || meta.page < 1 || meta.size !== 10
+      || !Number.isInteger(meta.total) || meta.total < 0
+      || meta.totalPages !== Math.ceil(meta.total / 10)
+      || data.some(row => !row || typeof row.transactedAt !== 'string' || !Number.isFinite(Date.parse(row.transactedAt))
+        || !['DEPOSIT', 'WITHDRAWAL'].includes(row.transactionType)
+        || typeof row.amount !== 'number' || !Number.isFinite(row.amount) || row.amount < 0
+        || (row.balanceAfter !== null && (typeof row.balanceAfter !== 'number' || !Number.isFinite(row.balanceAfter))))) {
+      throw failure({ code: 'INVALID_RESPONSE', message: '거래내역 응답을 확인할 수 없습니다.' }, response.status);
+    }
+    return { items: data.map(({ transactedAt, transactionType: type, amount, balanceAfter }) => ({
+      transactedAt, transactionType: type, amount, balanceAfter,
+    })), meta: { page: meta.page, size: meta.size, total: meta.total, totalPages: meta.totalPages } };
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupTransactionsError') throw error;
+    throw failure(error.response?.data?.error, error.response?.status);
+  }
+}
+
 export async function getSavingGroupAccount(groupId, { signal } = {}) {
   const pathId = savingGroupPathId(groupId);
   const failure = (detail, status) => Object.assign(new Error(detail?.message || '계좌 정보를 불러오지 못했습니다.'), {
