@@ -1,469 +1,154 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
-import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
+import { getSavingGroupAccount, getSavingGroupTransactions } from '../../api/savingGroups.js';
 
-const Panel = styled.section`
+// AI작성: 거래내역은 큰 글씨·명확한 입력 단위와 모바일 목록으로 제공한다.
+const Panel = styled.section
+`
   margin-top: 22px;
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    align-items: stretch;
-    flex-direction: column;
-  }
-`;
-
-const Title = styled.h2`
   color: ${({ theme }) => theme.colors.text};
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.9px;
+  h2 { font-size: 24px; margin-bottom: 12px; }
+  p { font-size: 16px; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { padding: 16px 10px; text-align: left; border-bottom: 1px solid ${({ theme }) => theme.colors.border}; font-size: 16px; }
+  th { background: ${({ theme }) => theme.colors.background}; }
+  @media (max-width: 720px) { table { display: none; } }
 `;
-
-const Description = styled.p`
-  margin-top: 8px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
-`;
-
-const DownloadButton = styled(Button)`
-  min-height: 36px;
-  padding: 7px 12px;
-  font-size: 12px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    width: 100%;
-  }
-`;
-
-const Summary = styled.div`
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const SummaryCard = styled.section`
-  min-height: 76px;
-  padding: 14px;
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  box-shadow: ${({ theme }) => theme.shadow.card};
-`;
-
-const SummaryLabel = styled.p`
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 11px;
-`;
-
-const SummaryValue = styled.strong`
-  margin-top: 7px;
-  display: block;
-  color: ${({ theme }) => theme.colors.primary};
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.7px;
-`;
-
-const FilterForm = styled.form`
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) minmax(120px, 1fr) auto;
-  gap: 10px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const Field = styled.label`
-  display: grid;
-  gap: 7px;
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
-  font-weight: 700;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  height: 40px;
-  padding: 0 11px;
-  color: ${({ theme }) => theme.colors.text};
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-
-  &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
-    outline: 0;
-    box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  height: 40px;
-  padding: 0 11px;
-  color: ${({ theme }) => theme.colors.text};
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-
-  &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
-    outline: 0;
-    box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
-  }
-`;
-
-const SearchButton = styled(Button)`
-  min-height: 40px;
-  padding: 8px 17px;
-  align-self: end;
-  font-size: 13px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    grid-column: 1 / -1;
-  }
-`;
-
-const ListCard = styled.section`
-  margin-top: 14px;
-  padding: 18px;
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+const FilterForm = styled.form
+`
+  display: flex; align-items: end; gap: 16px; flex-wrap: wrap;
+  margin-top: 20px; padding: 20px;
+  background: ${({ theme }) => theme.colors.background};
   border-radius: ${({ theme }) => theme.radius.md};
-  box-shadow: ${({ theme }) => theme.shadow.card};
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 14px;
-  }
+  label { display: grid; gap: 8px; font-size: 16px; flex: 1 1 150px; }
+  input, select { width: 100%; min-height: 48px; padding: 10px; font-size: 16px;
+    color: ${({ theme }) => theme.colors.text}; background: ${({ theme }) => theme.colors.white};
+    border: 1px solid ${({ theme }) => theme.colors.border}; border-radius: 8px; }
+  button { min-height: 48px; font-size: 16px; }
 `;
-
-const ListTitle = styled.h3`
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 15px;
-  font-weight: 800;
-`;
-
-const TableWrap = styled.div`
-  margin-top: 14px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: none;
-  }
-`;
-
-const Table = styled.table`
-  width: 100%;
-  overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-collapse: separate;
-  border-spacing: 0;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  table-layout: fixed;
-
-  th,
-  td {
-    padding: 10px 8px;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-    text-align: center;
-    vertical-align: middle;
-  }
-
-  th {
-    background: ${({ theme }) => theme.colors.background};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  td:nth-child(1),
-  td:nth-child(3) {
-    text-align: left;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: 0;
-  }
-`;
-
-const TypeBadge = styled(Badge)`
-  min-height: 22px;
-  padding: 3px 7px;
-  color: ${({ $type, theme }) => ($type === '출금' ? theme.colors.danger : theme.colors.primary)};
-  background: ${({ $type, theme }) => ($type === '출금' ? theme.colors.dangerSoft : theme.colors.primarySoft)};
-  font-size: 10px;
-`;
-
-const Amount = styled.strong`
-  color: ${({ $type, theme }) => ($type === '출금' ? theme.colors.danger : theme.colors.primary)};
-  font-size: 12px;
-`;
-
-const MobileList = styled.div`
-  margin-top: 14px;
+const MobileList = styled.div
+`
   display: none;
-  gap: 10px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    display: grid;
-  }
+  @media (max-width: 720px) { display: grid; gap: 14px; margin-top: 20px; }
+  article { padding: 18px; border: 1px solid ${({ theme }) => theme.colors.border}; border-radius: 12px; }
+  dl { display: grid; grid-template-columns: 80px 1fr; gap: 12px; margin: 0; font-size: 16px; }
+  dd { margin: 0; overflow-wrap: anywhere; }
+`;
+const Pagination = styled.nav
+`
+  display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 24px;
+  button { min-width: 44px; min-height: 44px; font-size: 16px; }
 `;
 
-const MobileItem = styled.article`
-  padding: 14px;
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.sm};
-`;
+const INITIAL_FILTERS = { sort: 'LATEST', transactionType: '', minAmount: '', maxAmount: '' };
+// AI작성: 금액 부호는 유형으로 표시하고 저장되지 않은 거래 후 잔액은 추정하지 않는다.
+const money = value => value === null ? '확인 불가' : value.toLocaleString('ko-KR') + '원';
+const typeLabel = row => row.transactionType === 'DEPOSIT' ? '입금' : '출금';
+const amountLabel = row => (row.transactionType === 'DEPOSIT' ? '+' : '-') + money(row.amount);
+const dateLabel = row => row.transactedAt.replace('T', ' ').slice(0, 19);
 
-const MobileTop = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-`;
-
-const MobileDescription = styled.strong`
-  margin-top: 10px;
-  display: block;
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
-`;
-
-const MobileInfo = styled.dl`
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 7px 10px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 11px;
-
-  dt {
-    color: ${({ theme }) => theme.colors.muted};
-    font-weight: 700;
-  }
-`;
-
-const Empty = styled.p`
-  padding: 42px 16px;
-  color: ${({ theme }) => theme.colors.muted};
-  text-align: center;
-  font-size: 13px;
-`;
-
-const Pagination = styled.nav`
-  margin-top: 18px;
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-`;
-
-const PageButton = styled(Button)`
-  min-width: 30px;
-`;
-
-const Notice = styled.p`
-  margin-top: 14px;
-  padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
-`;
-
-const PAGE_SIZE = 10;
-
-const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
-
-function SavingGroupTransactionHistoryPanel() {
-  const [draftFilters, setDraftFilters] = useState({ startDate: '2026-09-01', endDate: '2026-10-03', type: '전체' });
-  const [appliedFilters, setAppliedFilters] = useState(draftFilters);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isDownloadPreparing, setIsDownloadPreparing] = useState(false);
-
-  const filteredTransactions = useMemo(() => savingGroupTransactions.filter((transaction) => {
-    const matchesStartDate = !appliedFilters.startDate || transaction.date >= appliedFilters.startDate;
-    const matchesEndDate = !appliedFilters.endDate || transaction.date <= appliedFilters.endDate;
-    const matchesType = appliedFilters.type === '전체' || transaction.type === appliedFilters.type;
-    return matchesStartDate && matchesEndDate && matchesType;
-  }), [appliedFilters]);
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
-  const visibleTransactions = filteredTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  const handleSearch = (event) => {
-    event.preventDefault();
-    // TODO: Spring Boot 서버에 공용 통장 거래 내역 조회 조건을 전달합니다.
-    setAppliedFilters(draftFilters);
-    setCurrentPage(1);
-  };
-
-  const handleDownload = () => {
-    // TODO: Spring Boot 서버에서 조회 조건에 맞는 거래 내역 파일을 내려받습니다.
-    setIsDownloadPreparing(true);
-  };
-
-  const handlePageChange = (page) => {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-  };
-
-  return (
-    <Panel>
-      <Header>
-        <div>
-          <Title>공용 통장 거래내역</Title>
-          <Description>모임 자금의 입출금 내역입니다. 잔액과 변동 내역을 확인할 수 있습니다.</Description>
-        </div>
-        <DownloadButton type="button" $variant="secondary" onClick={handleDownload}>내역 다운로드</DownloadButton>
-      </Header>
-
-      <Summary>
-        <SummaryCard>
-          <SummaryLabel>통장 잔액</SummaryLabel>
-          <SummaryValue>4,820,000원</SummaryValue>
-        </SummaryCard>
-        <SummaryCard>
-          <SummaryLabel>조회 입금</SummaryLabel>
-          <SummaryValue>30,000원</SummaryValue>
-        </SummaryCard>
-        <SummaryCard>
-          <SummaryLabel>조회 출금</SummaryLabel>
-          <SummaryValue>280,000원</SummaryValue>
-        </SummaryCard>
-      </Summary>
-
-      <FilterForm onSubmit={handleSearch}>
-        <Field>
-          시작일
-          <Input
-            type="date"
-            value={draftFilters.startDate}
-            onChange={(event) => setDraftFilters((current) => ({ ...current, startDate: event.target.value }))}
-          />
-        </Field>
-        <Field>
-          종료일
-          <Input
-            type="date"
-            value={draftFilters.endDate}
-            onChange={(event) => setDraftFilters((current) => ({ ...current, endDate: event.target.value }))}
-          />
-        </Field>
-        <Field>
-          구분
-          <Select value={draftFilters.type} onChange={(event) => setDraftFilters((current) => ({ ...current, type: event.target.value }))}>
-            <option value="전체">전체</option>
-            <option value="입금">입금</option>
-            <option value="출금">출금</option>
-          </Select>
-        </Field>
-        <SearchButton type="submit">조회</SearchButton>
-      </FilterForm>
-
-      <ListCard>
-        <ListTitle>입출금 목록</ListTitle>
-        {visibleTransactions.length ? (
-          <>
-            <TableWrap>
-              <Table>
-                <colgroup>
-                  <col width="22%" />
-                  <col width="14%" />
-                  <col width="26%" />
-                  <col width="18%" />
-                  <col width="20%" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">일시</th>
-                    <th scope="col">구분</th>
-                    <th scope="col">내용</th>
-                    <th scope="col">금액</th>
-                    <th scope="col">잔액</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleTransactions.map((transaction) => (
-                    <tr key={transaction.id}>
-                      <td>{`${transaction.date.slice(5).replace('-', '.')} ${transaction.time}`}</td>
-                      <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
-                      <td>{transaction.description}</td>
-                      <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
-                      <td>{`${transaction.balance.toLocaleString()}원`}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </TableWrap>
-
-            <MobileList>
-              {visibleTransactions.map((transaction) => (
-                <MobileItem key={transaction.id}>
-                  <MobileTop>
-                    <TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge>
-                    <Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount>
-                  </MobileTop>
-                  <MobileDescription>{transaction.description}</MobileDescription>
-                  <MobileInfo>
-                    <dt>일시</dt>
-                    <dd>{`${transaction.date} ${transaction.time}`}</dd>
-                    <dt>잔액</dt>
-                    <dd>{`${transaction.balance.toLocaleString()}원`}</dd>
-                  </MobileInfo>
-                </MobileItem>
-              ))}
-            </MobileList>
-          </>
-        ) : (
-          <Empty>조회 조건에 맞는 거래 내역이 없습니다.</Empty>
-        )}
-
-        {totalPages > 1 && (
-          <Pagination aria-label="거래 내역 페이지 이동">
-            <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)}>
-              이전
-            </PageButton>
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-              <PageButton
-                key={page}
-                type="button"
-                $variant={page === currentPage ? 'primary' : 'secondary'}
-                $size="small"
-                aria-current={page === currentPage ? 'page' : undefined}
-                onClick={() => handlePageChange(page)}
-              >
-                {page}
-              </PageButton>
-            ))}
-            <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === totalPages} onClick={() => handlePageChange(currentPage + 1)}>
-              다음
-            </PageButton>
-          </Pagination>
-        )}
-        {isDownloadPreparing && <Notice role="status">거래 내역 다운로드를 준비할 예정입니다.</Notice>}
-      </ListCard>
-    </Panel>
-  );
+// AI작성: 상태별 화면을 분리해 로딩·권한 오류에서 이전 거래가 노출되지 않도록 한다.
+export function SavingGroupTransactionHistoryView({ state, draftFilters, onFilterChange, onSearch, onPageChange,
+  onRetry, validationMessage }) {
+  const successful = state.status === 'success';
+  const items = successful ? state.items : [];
+  const meta = successful ? state.meta : null;
+  const firstPage = meta ? Math.max(1, Math.min(meta.page - 2, meta.totalPages - 4)) : 1;
+  const pages = meta ? Array.from({ length: Math.min(5, meta.totalPages) }, (_, index) => firstPage + index) : [];
+  return <Panel aria-label="공용 통장 거래내역" aria-busy={state.status === 'loading'}>
+    <h2>공용 통장 거래내역</h2>
+    <p>서비스 내부에 기록된 거래입니다. 은행의 실시간 거래내역과 다를 수 있습니다.</p>
+    {successful && <p>현재 내부 장부 잔액: {state.account ? money(state.account.balance) : '확인 불가'}</p>}
+    {successful && state.balanceError && <p role="alert">현재 잔액을 불러오지 못했습니다.
+      <Button type="button" onClick={onRetry}>다시 조회</Button></p>}
+    <FilterForm onSubmit={onSearch}>
+      <label>정렬
+        <select value={draftFilters.sort} onChange={event => onFilterChange('sort', event.target.value)}>
+          <option value="LATEST">최신순</option><option value="OLDEST">과거순</option>
+        </select>
+      </label>
+      <label>입출금 구분
+        <select value={draftFilters.transactionType} onChange={event => onFilterChange('transactionType', event.target.value)}>
+          <option value="">전체</option><option value="DEPOSIT">입금</option><option value="WITHDRAWAL">출금</option>
+        </select>
+      </label>
+      <label>최소 금액 (원)
+        <input type="number" min="0" max="9999999999999.99" step="0.01" inputMode="decimal" placeholder="예: 10000"
+          value={draftFilters.minAmount} onChange={event => onFilterChange('minAmount', event.target.value)} />
+      </label>
+      <label>최대 금액 (원)
+        <input type="number" min="0" max="9999999999999.99" step="0.01" inputMode="decimal" placeholder="예: 40000"
+          value={draftFilters.maxAmount} onChange={event => onFilterChange('maxAmount', event.target.value)} />
+      </label>
+      <Button type="submit">조회</Button>
+    </FilterForm>
+    <p>최소·최대 금액을 포함해 조회합니다. 금액을 비우면 해당 범위를 제한하지 않습니다.</p>
+    {validationMessage && <p role="alert">{validationMessage}</p>}
+    {state.status === 'loading' ? <p role="status">거래내역을 불러오는 중입니다.</p>
+      : state.status === 'error' ? <div role="alert"><p>{state.message}</p>
+        <Button type="button" onClick={onRetry}>거래내역 다시 조회</Button></div>
+      : items.length === 0 ? <p role="status">조회 조건에 맞는 거래내역이 없습니다.</p>
+      : <>
+        <p>총 {meta.total.toLocaleString('ko-KR')}건 · {meta.page}페이지</p>
+        <table><caption>공용 계좌 입출금 목록</caption><thead><tr>
+          <th scope="col">거래일시</th><th scope="col">거래 유형</th><th scope="col">금액</th><th scope="col">거래 후 잔액</th>
+        </tr></thead><tbody>{items.map((row, index) => <tr key={index}>
+          <td>{dateLabel(row)}</td><td>{typeLabel(row)}</td><td>{amountLabel(row)}</td><td>{money(row.balanceAfter)}</td>
+        </tr>)}</tbody></table>
+        <MobileList>{items.map((row, index) => <article key={index}><dl>
+          <dt>거래일시</dt><dd>{dateLabel(row)}</dd><dt>거래 유형</dt><dd>{typeLabel(row)}</dd>
+          <dt>금액</dt><dd>{amountLabel(row)}</dd><dt>거래 후 잔액</dt><dd>{money(row.balanceAfter)}</dd>
+        </dl></article>)}</MobileList>
+      </>}
+    {meta?.totalPages > 1 && <Pagination aria-label="거래내역 페이지 이동">
+      <Button type="button" disabled={meta.page <= 1} onClick={() => onPageChange(meta.page - 1)}>이전</Button>
+      {pages.map(page => <Button key={page} type="button" $variant={page === meta.page ? 'primary' : 'secondary'}
+        aria-current={page === meta.page ? 'page' : undefined} onClick={() => onPageChange(page)}>{page}</Button>)}
+      <Button type="button" disabled={meta.page >= meta.totalPages} onClick={() => onPageChange(meta.page + 1)}>다음</Button>
+    </Pagination>}
+  </Panel>;
 }
 
-export default SavingGroupTransactionHistoryPanel;
+// AI작성: 조건·모임 변경 시 이전 요청을 취소하고 동일 요청의 응답만 화면에 반영한다.
+export default function SavingGroupTransactionHistoryPanel({ groupId }) {
+  const [draftFilters, setDraftFilters] = useState(INITIAL_FILTERS);
+  const [query, setQuery] = useState({ filters: INITIAL_FILTERS, page: 1, revision: 0 });
+  const [state, setState] = useState({ status: 'loading' });
+  const [validationMessage, setValidationMessage] = useState('');
+  const requestKey = JSON.stringify([groupId, query]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const options = { ...query.filters, page: query.page, signal: controller.signal };
+    Promise.allSettled([getSavingGroupTransactions(groupId, options), getSavingGroupAccount(groupId, { signal: controller.signal })])
+      .then(([transactions, account]) => {
+        if (controller.signal.aborted) return;
+        if (transactions.status === 'rejected') {
+          const error = transactions.reason;
+          const message = error.status === 401 ? '로그인 후 거래내역을 확인해 주세요.'
+            : error.status === 403 ? '현재 승인된 모임원만 거래내역을 확인할 수 있습니다.'
+              : error.status === 404 ? '계모임 또는 공용 계좌를 찾을 수 없습니다.' : error.message;
+          setState({ key: requestKey, status: 'error', message });
+        } else {
+          setState({ key: requestKey, status: 'success', ...transactions.value,
+            account: account.status === 'fulfilled' && account.value.issued ? account.value : null,
+            balanceError: account.status === 'rejected' });
+        }
+      });
+    return () => controller.abort();
+  }, [groupId, query, requestKey]);
+  const onSearch = event => {
+    event.preventDefault();
+    if (draftFilters.minAmount !== '' && draftFilters.maxAmount !== ''
+      && Number(draftFilters.minAmount) > Number(draftFilters.maxAmount)) {
+      setValidationMessage('최소 금액은 최대 금액보다 클 수 없습니다.'); return;
+    }
+    setValidationMessage('');
+    setQuery(current => ({ filters: { ...draftFilters }, page: 1, revision: current.revision + 1 }));
+  };
+  return <SavingGroupTransactionHistoryView state={state.key === requestKey ? state : { status: 'loading' }}
+    draftFilters={draftFilters} validationMessage={validationMessage} onSearch={onSearch}
+    onFilterChange={(name, value) => setDraftFilters(current => ({ ...current, [name]: value }))}
+    onPageChange={page => setQuery(current => ({ ...current, page }))}
+    onRetry={() => setQuery(current => ({ ...current, revision: current.revision + 1 }))} />;
+}

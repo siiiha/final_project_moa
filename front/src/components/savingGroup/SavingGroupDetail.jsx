@@ -403,7 +403,9 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'dues' ? (
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel />
+        /* AI작성: 공통 모임 번호와 권한 변화에 맞춰 거래 조회 상태를 초기화한다. */
+        <SavingGroupTransactionHistoryPanel groupId={group.groupId}
+          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])} />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel groupId={group.groupId} />
