@@ -94,7 +94,7 @@ const SummaryValue = styled.strong`
 const FilterForm = styled.form`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) minmax(120px, 1fr) minmax(140px, 1fr) auto;
+  grid-template-columns: repeat(5, minmax(120px, 1fr)) auto;
   gap: 10px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -332,7 +332,9 @@ const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).to
 function SavingGroupTransactionHistoryPanel({ myRole }) {
   // AI작성: 실제 통장 거래 API 전까지 분류 수정 결과는 화면 상태에서만 확인한다.
   const [transactions, setTransactions] = useState(savingGroupTransactions);
-  const [draftFilters, setDraftFilters] = useState({ startDate: '2026-09-01', endDate: '2026-10-03', type: '전체', purposeType: '전체' });
+  const [draftFilters, setDraftFilters] = useState({
+    startDate: '2026-09-01', endDate: '2026-10-03', type: '전체', purposeType: '전체', category: '전체',
+  });
   const [appliedFilters, setAppliedFilters] = useState(draftFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [isDownloadPreparing, setIsDownloadPreparing] = useState(false);
@@ -347,7 +349,8 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
     const matchesEndDate = !appliedFilters.endDate || transaction.date <= appliedFilters.endDate;
     const matchesType = appliedFilters.type === '전체' || transaction.type === appliedFilters.type;
     const matchesPurposeType = appliedFilters.purposeType === '전체' || transaction.purposeType === appliedFilters.purposeType;
-    return matchesStartDate && matchesEndDate && matchesType && matchesPurposeType;
+    const matchesCategory = appliedFilters.category === '전체' || transaction.category === appliedFilters.category;
+    return matchesStartDate && matchesEndDate && matchesType && matchesPurposeType && matchesCategory;
   }), [appliedFilters, transactions]);
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
   const visibleTransactions = filteredTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -456,6 +459,15 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
             <option value="회비">회비</option>
             <option value="일반 지출">일반 지출</option>
             <option value="계금 지급">계금 지급</option>
+          </Select>
+        </Field>
+        <Field>
+          분류 항목
+          <Select value={draftFilters.category} onChange={(event) => setDraftFilters((current) => ({ ...current, category: event.target.value }))}>
+            <option value="전체">전체</option>
+            <option value="회비">회비</option>
+            <option value="계금 지급">계금 지급</option>
+            {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
           </Select>
         </Field>
         <SearchButton type="submit">조회</SearchButton>
