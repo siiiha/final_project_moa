@@ -212,7 +212,6 @@ const Table = styled.table`
     font-weight: 700;
   }
 
-  td:nth-child(1),
   td:nth-child(3) {
     text-align: left;
   }
