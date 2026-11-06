@@ -852,6 +852,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 availability.code(), availability.message());
         // AI작성: 고정 공지는 페이지·일반 정렬과 관계없이 별도로 반환하고 PageMeta 집계에는 포함하지 않는다.
         detail.setPinnedNotices(savingGroupMapper.selectSavingGroupPinnedNotices(groupId));
+        // AI작성: 실제 상세 응답에도 유형을 포함해 순번계 전용 추천 버튼을 노출한다.
+        detail.setGroupType(row.getGroupType());
         return new SavingGroupDetailPageResponse(detail, pageMeta);
     }
 

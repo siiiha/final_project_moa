@@ -773,6 +773,8 @@
     <!-- AI작성: URL ID는 saving_group_id가 아닌 groups.group_id다. -->
     <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
         SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,
+        <!-- AI작성: 순번 추천 버튼이 실제 상세 응답의 유형으로 표시되도록 조회한다. -->
+        sg.saving_group_type AS group_type,
         r.region_name, g.max_members, sg.dues_amount, sg.dues_day, sg.status
         <include refid="listFrom"/>
         WHERE g.group_id = #{groupId}

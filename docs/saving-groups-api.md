@@ -2257,3 +2257,11 @@ Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트�
 - Java 17로 실행했고 기존 전체 테스트 소스의 삭제/이동 클래스 참조 오류를 피하도록 build 아래 임시 init script에서 관련 테스트 소스만 선택했다. 프로젝트 빌드 설정·의존성은 변경하지 않았다.
 - 프론트: 추천 API·계원 API·기존 savingGroups API·계원 목록 SSR·추천 패널 SSR 총 64건 통과. npm run build 통과. 변경 파일 oxlint 오류 없음. 기존 Detail의 미사용 선언 2건과 번들 크기 경고는 유지한다.
 - 무변경 검증은 조회 Mapper 호출만 발생함·원본 회원 목록 불변·추천 SQL이 SELECT임을 자동 확인한 수준이다. 실제 MySQL 호출 전후 테이블 비교, 브라우저 클릭·계정 전환·모바일 검증은 미실시다. 위 수동 절차로 확인이 필요하다.
+
+### 2026-11-06 순번 추천 버튼 미노출 수정
+
+<!-- AI작성: 사용자 제보로 상세 응답의 groupType 누락을 확인했다. -->
+
+추천 패널의 표시 조건은 groupType을 사용했으나 실제 GET /api/saving-groups/{groupId}의 상세 조회·응답에 해당 필드가 없어 버튼이 숨겨졌다. 상세 SELECT에 saving_group_type AS group_type을 추가하고 SavingGroupRow → Service → SavingGroupDetailResponse에 groupType을 전달했다. 기존 생성자는 유지한다. 프론트는 기존 상세 응답을 그대로 보존하므로 화면의 권한·유형 제한을 완화하지 않았다.
+
+실제 JWT 필터·상세 Service·Controller 응답에 순번계/친목계 유형이 포함되는 회귀 테스트와 상세 화면 전체 SSR의 버튼 노출/비노출 테스트를 추가했다. 백엔드 재시작 후 승인 OWNER로 순번계 상세의 계원 관리에서 순번 추천 버튼을 확인한다. Network의 상세 응답 data.groupType이 순번계인지 확인하면 된다.

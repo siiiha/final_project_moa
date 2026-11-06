@@ -1256,3 +1256,9 @@
 - 무변경 검증: Service·인증 연결 테스트에서 읽기 Mapper 호출 외 추가 호출이 없음을 검증하고, Mapper 테스트에서 추천 전용 SQL이 SELECT임을 확인했다. 원본 회원 목록도 그대로임을 검증했다. 실제 MySQL 조회 전후 전체 테이블 비교는 미실시이며 DB 불변성의 실환경 검증으로 주장하지 않는다.
 - 문서: docs/saving-groups-api.md의 '순번계 모의 순번 추천 조회' 절에 API·확정된 랜덤/금액 정책·권한·화면 흐름·단계별 작업 파일/커밋·Postman 및 브라우저 수동 검증을 정리했다.
 - 남은 확인: 실제 JWT/DB를 사용한 브라우저 클릭·닫기·계정 전환·모바일 검증과 MySQL 전후 비교. 추천안 저장·비교·실제 적용은 이번 범위 밖 후속 기능이다. 미확정 추천 규칙 TODO는 없으며 개발자 코드 검토는 대기다. 원격 push·실제 DB·금융 서비스 변경 없음.
+
+## 2026-11-06 순번 추천 버튼 미노출 수정
+- 원인: 패널 단독 SSR 테스트만으로 확인하면서 실제 상세 API에 groupType이 없는 연결 누락을 놓쳤다.
+- AI작성: SavingGroupRow·SavingGroupDetailResponse·SavingGroupServiceImpl·SavingGroupMapper.xml의 상세 유형 전달을 수정했다. Mapper 테스트, 실제 상세 Service→Controller 응답 및 상세 화면 전체 SSR 회귀를 추가했다. API 명세·AI 기록 갱신. 기존 권한·유형 제한은 유지한다.
+- 검증: 이번 기능 백엔드 39건 통과(기존 전체 테스트 컴파일 오류로 관련 소스만 분리). 프론트 추천 API·상세 SSR 검증 결과는 완료 시 기록한다. 실제 DB·브라우저는 미실시. 백엔드 재시작 필요. 개발자 코드 검토 대기.
+- 최종 검증: 프론트 추천 API·패널 및 실제 상세 화면 SSR 4건 통과. 상세 렌더링 테스트에 실제 호출부와 동일한 noticePagination을 제공해 재검증했다. git diff --check 통과.
