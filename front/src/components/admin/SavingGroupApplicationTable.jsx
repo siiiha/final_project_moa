@@ -47,7 +47,8 @@ const Table = styled.table`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 11px;
     font-weight: 700;
-    text-align: left;
+    /* AI작성: 계모임 심사 목록의 열 제목을 한 기준으로 중앙 정렬한다. */
+    text-align: center;
   }
 
   td {
@@ -55,6 +56,8 @@ const Table = styled.table`
     color: ${({ theme }) => theme.colors.secondaryText};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 11px;
+    /* AI작성: 계모임 심사 목록의 각 표시값을 열 제목과 같은 기준으로 중앙 정렬한다. */
+    text-align: center;
     vertical-align: middle;
   }
 
@@ -78,7 +81,12 @@ const Table = styled.table`
   }
   th:nth-child(7) {
     width: 14%;
-    text-align: right;
+  }
+
+  /* AI작성: 희망 지역은 길이가 달라 비교하기 쉽도록 제목과 값을 왼쪽 정렬한다. */
+  th:nth-child(4),
+  td:nth-child(4) {
+    text-align: left;
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
