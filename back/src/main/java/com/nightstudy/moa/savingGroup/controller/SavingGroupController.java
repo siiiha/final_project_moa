@@ -40,6 +40,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: JWT 속성만 전달하며 매 요청 새 제안이므로 브라우저·중간 캐시에 저장하지 않는다.
+    @GetMapping("/{savingGroupId}/turn-orders/recommendations")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderRecommendationResponse>> turnOrderRecommendations(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        return ApiResponse.ok(savingGroupService.getTurnOrderRecommendations(savingGroupId, memberId));
+    }
     // AI작성: JWT 회원과 검증된 조건만 전달하며 권한·페이징 처리는 Service에 위임한다.
     @GetMapping("/{groupId}/account/transactions")
     public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionResponse>> transactions(

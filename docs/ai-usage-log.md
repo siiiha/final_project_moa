@@ -1235,3 +1235,7 @@
 - 사용자 확정: 매 조회 랜덤 배치, 기본 회비×인원+floor(회비×1%)×(순번-1), 계원 관리 버튼으로 패널 열기. 저장·적용 없음.
 - AI작성: Service 인터페이스·구현체, 응답 DTO, 권한·유형·상태·금액·전체 회원 및 무변경 호출 검증 테스트 추가. 읽기 전용 반복 읽기 트랜잭션으로 일관된 모의 계산을 수행한다.
 - 개발자 검토: 승인 정책 반영, 코드 검토 대기. 실제 DB 실행 미실시.
+
+## 2026-11-06 순번 추천 3단계
+- AI작성: 기존 두 saving-groups 경로에 GET /{savingGroupId}/turn-orders/recommendations를 추가했다. JWT memberId 속성만 전달하고 공통 ApiResponse·예외 처리를 재사용한다. Cache-Control: no-store 적용.
+- 2단계 검증: Service 22건·Mapper 1건 통과. 3단계는 Controller 계약 테스트를 추가한다. 개발자 검토 대기.
