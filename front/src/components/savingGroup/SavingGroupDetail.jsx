@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
-import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination, toSavingGroupNoticeSearch } from '../../api/savingGroups.js';
+import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 // AI작성: 기존 react-icons 패키지의 테두리·채움 핀으로 일반·고정 상태를 구분한다.
 import { BsPinAngle, BsPinAngleFill } from 'react-icons/bs';
@@ -401,7 +401,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'dues' ? (
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel />
+        <SavingGroupTransactionHistoryPanel myRole={group.myRole} />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel groupId={group.groupId} />

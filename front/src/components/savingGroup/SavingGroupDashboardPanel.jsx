@@ -1,9 +1,7 @@
-import { FiArrowRight } from 'react-icons/fi';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import styled from 'styled-components';
-import Button from '../common/Button';
 import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
-import { savingGroupDashboardSummary, savingGroupMonthlyCashFlow } from '../../mocks/savingGroupDashboard';
+import { savingGroupDashboardSummary } from '../../mocks/savingGroupDashboard';
 
 const Panel = styled.section`
   margin-top: 22px;
@@ -33,7 +31,7 @@ const Description = styled.p`
 const Summary = styled.div`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -115,19 +113,6 @@ const CardTitle = styled.h3`
   letter-spacing: -0.65px;
 `;
 
-const ViewAllButton = styled(Button)`
-  min-height: 28px;
-  padding: 4px 0;
-  color: ${({ theme }) => theme.colors.primary};
-  border-color: transparent;
-  font-size: 11px;
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.primaryDark};
-    background: transparent;
-  }
-`;
-
 const ChartBox = styled.div`
   height: 234px;
   margin-top: 14px;
@@ -147,61 +132,6 @@ const ChartBox = styled.div`
   }
 `;
 
-const RecentTable = styled.table`
-  width: 100%;
-  margin-top: 14px;
-  overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-collapse: separate;
-  border-spacing: 0;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  table-layout: fixed;
-
-  th,
-  td {
-    padding: 9px 7px;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 11px;
-    text-align: left;
-    vertical-align: middle;
-  }
-
-  th {
-    background: ${({ theme }) => theme.colors.background};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 10px;
-    font-weight: 700;
-  }
-
-  td:nth-child(3),
-  td:nth-child(4) {
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: 0;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    th,
-    td {
-      padding: 9px 5px;
-      font-size: 10px;
-    }
-
-    th {
-      font-size: 9px;
-    }
-  }
-`;
-
-const Amount = styled.strong`
-  color: ${({ $type, theme }) => ($type === '출금' ? theme.colors.danger : theme.colors.primary)};
-  font-size: inherit;
-`;
-
 const Note = styled.p`
   margin-top: 14px;
   color: ${({ theme }) => theme.colors.muted};
@@ -209,15 +139,88 @@ const Note = styled.p`
   line-height: 1.6;
 `;
 
-const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
+const EmptyChart = styled.p`
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 12px;
+  text-align: center;
+`;
 
-function SavingGroupDashboardPanel({ onViewTransactions }) {
-  // TODO: Spring Boot 서버의 계모임 대시보드 API로 요약·추이·최근 거래 mock 데이터를 대체합니다.
-  const recentTransactions = savingGroupTransactions.slice(0, 3);
+const formatBalance = (balance) => `${balance.toLocaleString()}원`;
+const formatCurrency = (amount) => `${amount.toLocaleString()}원`;
+const PIE_COLORS = ['#176b5b', '#4f8c80', '#8db8ae', '#c7ddd7', '#f0bd6a', '#dc896f', '#9eaab0', '#bdcbd0'];
 
-  const handleViewTransactions = () => {
-    onViewTransactions();
-  };
+function SavingGroupDashboardPanel() {
+  // AI작성: 목록 정렬에 의존하지 않고 가장 최근 거래의 잔액만 대시보드 현재 잔액으로 사용한다.
+  const latestTransaction = savingGroupTransactions.reduce((latest, transaction) => (
+    !latest || `${transaction.date} ${transaction.time}` > `${latest.date} ${latest.time}` ? transaction : latest
+  ), null);
+  // AI작성: Mock은 과거 기간 데이터이므로 가장 최근 거래가 속한 월을 현재 조회 기준으로 사용한다.
+  const referenceMonth = latestTransaction?.date.slice(0, 7);
+  const monthlyDues = savingGroupTransactions
+    .filter((transaction) => (
+      referenceMonth != null
+      && transaction.date.startsWith(referenceMonth)
+      && transaction.type === '입금'
+      && transaction.purposeType === '회비'
+    ))
+    .reduce((total, transaction) => total + transaction.amount, 0);
+  // AI작성: 계금 지급과 아직 확인하지 않은 출금은 모임 운영 지출 통계에서 제외한다.
+  const monthlyExpense = savingGroupTransactions
+    .filter((transaction) => (
+      referenceMonth != null
+      && transaction.date.startsWith(referenceMonth)
+      && transaction.purposeType === '일반 지출'
+      && transaction.category !== '확인 필요'
+    ))
+    .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
+  const reviewRequiredCount = savingGroupTransactions.filter((transaction) => (
+    transaction.purposeType === '일반 지출' && transaction.category === '확인 필요'
+  )).length;
+  // AI작성: 계금 지급은 자금 흐름으로만 별도 표시하며 일반 지출 합계·차트에는 넣지 않는다.
+  const payoutTotal = savingGroupTransactions
+    .filter((transaction) => transaction.purposeType === '계금 지급')
+    .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
+  // AI작성: 차트 단위가 만 원이므로 회비 입금과 확정 일반 지출을 월별로 합산해 변환한다.
+  const monthlyCashFlow = [...new Set(savingGroupTransactions.map((transaction) => transaction.date.slice(0, 7)))]
+    .sort()
+    .slice(-6)
+    .map((month) => {
+      const monthlyTransactions = savingGroupTransactions.filter((transaction) => transaction.date.startsWith(month));
+      const income = monthlyTransactions
+        .filter((transaction) => transaction.type === '입금' && transaction.purposeType === '회비')
+        .reduce((total, transaction) => total + transaction.amount, 0);
+      const expense = monthlyTransactions
+        .filter((transaction) => transaction.purposeType === '일반 지출' && transaction.category !== '확인 필요')
+        .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
+      return { month: `${Number(month.slice(5))}월`, income: income / 10000, expense: expense / 10000 };
+    });
+  // AI작성: 같은 월의 확정 일반 지출만 항목별로 묶어, 계금 지급과 확인 필요 건을 파이 차트에서 제외한다.
+  const expenseCategoryData = Object.entries(savingGroupTransactions
+    .filter((transaction) => (
+      referenceMonth != null
+      && transaction.date.startsWith(referenceMonth)
+      && transaction.purposeType === '일반 지출'
+      && transaction.category !== '확인 필요'
+    ))
+    .reduce((categories, transaction) => ({
+      ...categories,
+      [transaction.category]: (categories[transaction.category] || 0) + Math.abs(transaction.amount),
+    }), {}))
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((first, second) => second.amount - first.amount);
+  const dashboardSummary = [
+    ...savingGroupDashboardSummary.map((item) => (
+    item.id === 'balance'
+      ? { ...item, value: latestTransaction ? formatBalance(latestTransaction.balance) : '잔액 확인 필요' }
+      : item.id === 'income' ? { ...item, value: formatCurrency(monthlyDues) }
+        : item.id === 'expense' ? { ...item, value: formatCurrency(monthlyExpense) } : item
+    )),
+    { id: 'reviewRequired', label: '확인 필요 출금', value: `${reviewRequiredCount}건` },
+    { id: 'payout', label: '계금 지급', value: formatCurrency(payoutTotal) },
+  ];
 
   return (
     <Panel>
@@ -229,7 +232,7 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
       </Heading>
 
       <Summary>
-        {savingGroupDashboardSummary.map((item) => (
+        {dashboardSummary.map((item) => (
           <SummaryCard key={item.id}>
             <SummaryLabel>{item.label}</SummaryLabel>
             <SummaryValue>{item.value}</SummaryValue>
@@ -244,7 +247,7 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
           </CardHeader>
           <ChartBox aria-label="월별 수입·지출 막대 차트">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={savingGroupMonthlyCashFlow} margin={{ top: 14, right: 4, bottom: 0, left: -20 }} barGap={5}>
+              <BarChart data={monthlyCashFlow} margin={{ top: 14, right: 4, bottom: 0, left: -20 }} barGap={5}>
                 <CartesianGrid vertical={false} stroke="#e3e8e6" strokeDasharray="3 3" />
                 <XAxis dataKey="month" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}만`} />
@@ -259,37 +262,23 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>최근 거래 내역</CardTitle>
-            <ViewAllButton type="button" $variant="secondary" onClick={handleViewTransactions}>
-              전체 거래 보기 <FiArrowRight size={13} aria-hidden="true" />
-            </ViewAllButton>
+            <CardTitle>지출 항목별 비율</CardTitle>
           </CardHeader>
-          <RecentTable>
-            <colgroup>
-              <col width="26%" />
-              <col width="30%" />
-              <col width="22%" />
-              <col width="22%" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th scope="col">일시</th>
-                <th scope="col">내용</th>
-                <th scope="col">금액</th>
-                <th scope="col">잔액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTransactions.map((transaction) => (
-                <tr key={transaction.id}>
-                  <td>{`${transaction.date.slice(5).replace('-', '.')} ${transaction.time}`}</td>
-                  <td>{transaction.description}</td>
-                  <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
-                  <td>{`${transaction.balance.toLocaleString()}원`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </RecentTable>
+          <ChartBox aria-label="지출 항목별 파이 차트">
+            {expenseCategoryData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={expenseCategoryData} dataKey="amount" nameKey="category" cx="50%" cy="45%" outerRadius={72}>
+                    {expenseCategoryData.map((item, index) => (
+                      <Cell key={item.category} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => `${Number(value).toLocaleString()}원`} />
+                  <Legend iconType="circle" iconSize={7} verticalAlign="bottom" />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <EmptyChart>이번 달에 분류가 확정된 일반 지출이 없습니다.</EmptyChart>}
+          </ChartBox>
         </Card>
       </DashboardGrid>
 

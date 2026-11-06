@@ -28,6 +28,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.security:spring-security-crypto'
+    // AI작성: 카드사 HTML 형식 .xls 명세서의 표를 안전하게 읽기 위한 파서다.
+    implementation 'org.jsoup:jsoup:1.18.3'
 
     implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'

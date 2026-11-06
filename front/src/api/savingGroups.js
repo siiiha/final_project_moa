@@ -581,7 +581,7 @@ export function toSavingGroupCard(item) {
 export function getSavingGroupMenus(role) {
   const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
   if (role === 'OWNER') return [...common, 'members', 'settings', 'joinRequests'];
-  return ['MANAGER', 'MEMBER'].includes(role) ? common : ['notice'];
+  return role === 'MANAGER' || role === 'MEMBER' ? common : ['notice'];
 }
 
 // AI작성: null을 0원으로 바꾸거나 소수 금액을 반올림하지 않고 표시 직전에 포맷한다.
