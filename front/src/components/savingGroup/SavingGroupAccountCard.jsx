@@ -25,7 +25,7 @@ const Card = styled.section`
 `;
 
 // AI작성: 계좌 조회와 테스트 입금 결과를 구분하여 잔액 재조회 실패가 입금 실패로 표시되지 않게 한다.
-export default function SavingGroupAccountCard({ state, onRetry, children, depositMessage }) {
+export default function SavingGroupAccountCard({ state, onRetry, children, depositMessage, canDeposit = false, onDeposit }) {
   return <Card aria-label="모임 테스트 계좌">
     <h2>모임 계좌 · 테스트</h2>
     {depositMessage && <p role="status">{depositMessage}</p>}
@@ -37,6 +37,9 @@ export default function SavingGroupAccountCard({ state, onRetry, children, depos
             <dd>{state.data.maskedAccountNumber}</dd></div>
             <div><dt>서비스 내부 장부 잔액</dt><dd>{state.data.balance.toLocaleString('ko-KR')}원</dd></div></dl>}
     <p>테스트 계좌이며 실제 입금할 수 없습니다.<br />장부 잔액은 은행 계좌의 실제 잔액과 다릅니다.</p>
+    {/* AI작성: 현재 진행중·승인 모임원 조건은 부모가 제공하고 서버에서 최종 검증한다. */}
+    {state?.status === 'success' && state.data.issued && canDeposit &&
+      <Button type="button" onClick={onDeposit}>회비 납부</Button>}
     {state?.status === 'success' && state.data.issued && children}
   </Card>;
 }

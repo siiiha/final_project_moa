@@ -141,6 +141,8 @@ function SavingGroupDetailPage() {
   const [accountRetry, setAccountRetry] = useState(0);
   // AI작성: 성공 안내는 재조회 상태와 별도로 보존하고 모임·계정이 바뀌면 숨긴다.
   const [depositResult, setDepositResult] = useState(null);
+  // AI작성: 계좌 카드 아래에는 버튼만 두고 입력 모달 상태는 모임·계정별로 분리한다.
+  const [depositDialog, setDepositDialog] = useState(null);
   const canReadAccount = visibleGroup?.membershipStatus === 'APPROVED'
     && ['OWNER', 'MANAGER', 'MEMBER'].includes(visibleGroup?.myRole);
   useEffect(() => {
@@ -251,15 +253,9 @@ function SavingGroupDetailPage() {
               transactionRevision={accountRetry}
               accountPanel={canReadAccount ? <SavingGroupAccountCard state={currentAccount}
                 depositMessage={depositResult?.id === id && depositResult?.authVersion === authVersion ? depositResult.message : null}
-                onRetry={() => setAccountRetry((value) => value + 1)}>
-                {/* AI작성: 화면에서 현재 진행중·승인 역할·발급 계좌를 확인하고 서버에서 다시 검증한다. */}
-                {visibleGroup.status === '02' && currentAccount?.status === 'success' && currentAccount.data.issued
-                  ? <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={visibleGroup.groupId}
-                    account={currentAccount.data} onCompleted={data => {
-                      setDepositResult({ id, authVersion, message: data.message });
-                      setAccountRetry(value => value + 1);
-                    }} /> : null}
-              </SavingGroupAccountCard> : null}
+                canDeposit={visibleGroup.status === '02'}
+                onDeposit={() => setDepositDialog({ id, authVersion, groupId: visibleGroup.groupId, account: currentAccount.data })}
+                onRetry={() => setAccountRetry((value) => value + 1)} /> : null}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               onMenuChange={(value) => setMenu({ id, value })}
               onJoinRequest={handleJoinRequest}
@@ -276,6 +272,14 @@ function SavingGroupDetailPage() {
               onBack={() => navigate('/saving-groups')} />
           )}
       </Content>
+      {depositDialog?.id === id && depositDialog?.authVersion === authVersion && canReadAccount && visibleGroup?.status === '02' && (
+        <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={depositDialog.groupId} account={depositDialog.account}
+          onClose={() => setDepositDialog(null)} onCompleted={data => {
+            setDepositDialog(null);
+            setDepositResult({ id, authVersion, message: data.message });
+            setAccountRetry(value => value + 1);
+          }} />
+      )}
       {/* AI작성: 최대 두 개 제한은 공통 모달로 안내하며 확인·닫기 후 기존 고정을 해제할 수 있다. */}
       {currentPin?.phase === 'limit' && (
         <ConfirmModal title="고정 공지 개수 제한"

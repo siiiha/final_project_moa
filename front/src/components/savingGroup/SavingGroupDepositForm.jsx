@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import ConfirmModal from '../common/ConfirmModal';
@@ -6,8 +6,10 @@ import { requestSavingGroupDeposit, confirmSavingGroupDeposit } from '../../api/
 
 // AI작성: 모임·계정별 부모 key로 폼을 분리하고 계좌 원문·확인값을 영구 저장하지 않는다.
 const FormArea = styled.section`
-  margin-top: 24px; padding-top: 20px;
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
+  width: min(100%, 540px); max-height: calc(100dvh - 48px); overflow-y: auto;
+  padding: 28px; border-radius: 16px; background: ${({ theme }) => theme.colors.white};
+  color: ${({ theme }) => theme.colors.text};
+  p { font-size: 18px; line-height: 1.7; }
   label { display: grid; gap: 10px; margin: 16px 0; font-size: 18px; }
   input, select { width: 100%; min-height: 48px; padding: 12px; font-size: 18px;
     color: ${({ theme }) => theme.colors.text}; background: ${({ theme }) => theme.colors.white};
@@ -16,12 +18,20 @@ const FormArea = styled.section`
   [role='dialog'] p { font-size: 18px; }
   [role='dialog'] button[aria-label] { min-width: 44px; }
 `;
+// AI작성: 기존 컴포넌트만으로 입력폼을 모달로 감싸며 추가 라이브러리는 사용하지 않는다.
+const Overlay = styled.div`
+  position: fixed; inset: 0; z-index: 30; padding: 24px 16px;
+  display: grid; place-items: center; background: rgba(26, 41, 36, 0.38);
+`;
+const Actions = styled.div`display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 20px;`;
 
 // AI작성: 상태별 실제 출력은 순수 View로 분리해 기존 SSR 테스트 방식으로 검증한다.
 export function SavingGroupDepositView({ account, amount, busy, pending, uncertain, message, error,
-  onAmountChange, onSubmit, onConfirm, onCancel }) {
-  return <FormArea aria-label="테스트 입금" aria-busy={busy}>
-    <h3>테스트 입금</h3>
+  onAmountChange, onSubmit, onConfirm, onCancel, onClose, dialogRef, onDialogKeyDown }) {
+  const titleId = useId();
+  return <Overlay><FormArea role="dialog" aria-modal="true" aria-labelledby={titleId} aria-busy={busy}
+    tabIndex={-1} ref={dialogRef} onKeyDown={onDialogKeyDown}>
+    <h2 id={titleId}>회비 납부</h2>
     <p>실제 돈은 이동하지 않습니다. 서비스 내부 거래내역과 장부 잔액만 변경됩니다.</p>
     <form onSubmit={onSubmit}>
       <label>입금받을 모임 공용 계좌
@@ -34,9 +44,12 @@ export function SavingGroupDepositView({ account, amount, busy, pending, uncerta
           value={amount ? Number(amount).toLocaleString('ko-KR') : ''}
           disabled={busy || uncertain || Boolean(pending)} onChange={event => onAmountChange(event.target.value)} />
       </label>
-      <Button type="submit" disabled={busy || Boolean(pending)}>
-        {busy ? '처리중입니다' : uncertain ? '같은 입금 요청 결과 다시 확인' : '테스트 입금 등록'}
-      </Button>
+      <Actions>
+        <Button type="button" $variant="secondary" disabled={busy || uncertain} onClick={onClose}>취소</Button>
+        <Button type="submit" disabled={busy || Boolean(pending)}>
+          {busy ? '처리중입니다' : uncertain ? '같은 입금 요청 결과 다시 확인' : '입금'}
+        </Button>
+      </Actions>
     </form>
     {message && <p role="status">{message}</p>}
     {error && <p role="alert">{error}</p>}
@@ -48,10 +61,10 @@ export function SavingGroupDepositView({ account, amount, busy, pending, uncerta
       <p>확인 유효시간은 안내 발급 후 5분입니다. 실제 돈은 이동하지 않습니다.</p>
       {error && <p role="alert">{error}</p>}
     </ConfirmModal>}
-  </FormArea>;
+  </FormArea></Overlay>;
 }
 
-export default function SavingGroupDepositForm({ groupId, account, onCompleted }) {
+export default function SavingGroupDepositForm({ groupId, account, onCompleted, onClose }) {
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null);
@@ -61,7 +74,27 @@ export default function SavingGroupDepositForm({ groupId, account, onCompleted }
   const attempt = useRef(null);
   const lock = useRef(false);
   const alive = useRef(true);
+  const dialog = useRef(null);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  // AI작성: 키보드 초점을 모달 안에 유지하고 종료 시 납부 버튼으로 복원한다.
+  useEffect(() => {
+    const previous = document.activeElement;
+    dialog.current?.querySelector('input')?.focus();
+    return () => { if (previous?.isConnected) previous.focus(); };
+  }, []);
+  const close = () => { if (!lock.current && !uncertain) onClose?.(); };
+  const keyDown = event => {
+    if (event.key === 'Escape') { event.preventDefault(); close(); }
+    if (event.key !== 'Tab') return;
+    const focusable = [...dialog.current.querySelectorAll('input:not(:disabled), select:not(:disabled), button:not(:disabled)')];
+    const first = focusable[0], last = focusable.at(-1);
+    if (!first) { event.preventDefault(); dialog.current.focus(); }
+    else if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) {
+      event.preventDefault(); first.focus();
+    }
+  };
 
   const changeAmount = value => {
     if (lock.current || uncertain || pending) return;
@@ -103,6 +136,7 @@ export default function SavingGroupDepositForm({ groupId, account, onCompleted }
     }
   };
   return <SavingGroupDepositView account={account} amount={amount} busy={busy} pending={pending}
+    onClose={close} dialogRef={dialog} onDialogKeyDown={keyDown}
     uncertain={uncertain} message={message} error={error} onAmountChange={changeAmount}
     onSubmit={event => { event.preventDefault(); run(false); }} onConfirm={() => run(true)}
     onCancel={() => { if (lock.current || uncertain) return; setPending(null); attempt.current = null; setError(''); }} />;

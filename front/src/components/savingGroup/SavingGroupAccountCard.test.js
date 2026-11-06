@@ -32,5 +32,10 @@ test('계좌 카드는 정상·미발급·오류·로딩을 구분해 렌더링�
     assert.doesNotMatch(render({ status: 'success', data: { issued: false } }, { children: child }), /테스트 입금 등록/);
     assert.doesNotMatch(render({ status: 'error', message: '잔액 조회 실패' }, { children: child }), /테스트 입금 등록/);
     assert.match(render({ status: 'error', message: '잔액 조회 실패' }, { depositMessage: '테스트 입금이 등록되었습니다.' }), /테스트 입금이 등록되었습니다/);
+    // AI작성: 발급·조회 성공·입금 권한이 모두 있는 경우에만 회비 납부 버튼을 제공한다.
+    const issued = { status: 'success', data: { issued: true, bankCode: '20', maskedAccountNumber: '********0000', balance: 0 } };
+    assert.match(render(issued, { canDeposit: true, onDeposit() {} }), />회비 납부</);
+    assert.doesNotMatch(render(issued, { canDeposit: false }), />회비 납부</);
+    assert.doesNotMatch(render({ status: 'success', data: { issued: false } }, { canDeposit: true }), />회비 납부</);
   } finally { await vite.close(); }
 });
