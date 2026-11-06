@@ -9,6 +9,12 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 건수와 목록은 동일한 계좌·유형·금액 조건을 사용한다.
+    int selectSavingGroupTransactionCount(@Param("accountId") Long accountId,
+            @Param("condition") SavingGroupTransactionSearchCondition condition);
+    List<SavingGroupTransactionResponse> selectSavingGroupTransactions(@Param("accountId") Long accountId,
+            @Param("condition") SavingGroupTransactionSearchCondition condition, @Param("offset") int offset);
+
     // AI작성: 모임 잠금 후 현재 읽기로 승인된 회계 목록을 확인해 동시 지정 시 최대 한 명을 보장한다.
     List<Long> selectSavingGroupManagerIdsForUpdate(@Param("groupId") Long groupId);
     int updateSavingGroupMemberRole(@Param("groupId") Long groupId, @Param("crewMemberId") Long crewMemberId,

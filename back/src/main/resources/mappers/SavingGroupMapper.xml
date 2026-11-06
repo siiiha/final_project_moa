@@ -2,6 +2,27 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 조건은 집계·목록에서 공유하고 정렬은 허용한 SQL 분기만 사용한다. -->
+    <sql id="savingGroupTransactionFilter">
+        WHERE account_id = #{accountId}
+        <if test="condition.transactionType != null">AND transaction_type = #{condition.transactionType}</if>
+        <if test="condition.minAmount != null">AND amount &gt;= #{condition.minAmount}</if>
+        <if test="condition.maxAmount != null">AND amount &lt;= #{condition.maxAmount}</if>
+    </sql>
+    <select id="selectSavingGroupTransactionCount" resultType="int">
+        SELECT COUNT(*) FROM group_transaction
+        <include refid="savingGroupTransactionFilter"/>
+    </select>
+    <select id="selectSavingGroupTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionResponse">
+        SELECT transacted_at, transaction_type, amount, balance_after FROM group_transaction
+        <include refid="savingGroupTransactionFilter"/>
+        <choose>
+            <when test='condition.sort == "OLDEST"'>ORDER BY transacted_at ASC, transaction_id ASC</when>
+            <otherwise>ORDER BY transacted_at DESC, transaction_id DESC</otherwise>
+        </choose>
+        LIMIT 10 OFFSET #{offset}
+    </select>
+
     <!-- AI작성: 집계 스냅샷 대신 잠금 현재 읽기를 사용하며 기존 승인 회계만 센다. -->
     <select id="selectSavingGroupManagerIdsForUpdate" resultType="long">
         SELECT member_id FROM group_member
