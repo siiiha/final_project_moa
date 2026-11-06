@@ -251,6 +251,12 @@ const MobileDescription = styled.strong`
   font-size: 12px;
 `;
 
+const Category = styled.span`
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 11px;
+  font-weight: 700;
+`;
+
 const MobileInfo = styled.dl`
   margin-top: 10px;
   display: grid;
@@ -332,7 +338,7 @@ function SavingGroupTransactionHistoryPanel() {
       <Header>
         <div>
           <Title>공용 통장 거래내역</Title>
-          <Description>모임 자금의 입출금 내역입니다. 잔액과 변동 내역을 확인할 수 있습니다.</Description>
+          <Description>모임 자금의 입출금 내역입니다. 출금은 가맹점명과 지출 항목을 함께 확인합니다.</Description>
         </div>
         <DownloadButton type="button" $variant="secondary" onClick={handleDownload}>내역 다운로드</DownloadButton>
       </Header>
@@ -387,17 +393,19 @@ function SavingGroupTransactionHistoryPanel() {
             <TableWrap>
               <Table>
                 <colgroup>
-                  <col width="22%" />
-                  <col width="14%" />
-                  <col width="26%" />
                   <col width="18%" />
-                  <col width="20%" />
+                  <col width="12%" />
+                  <col width="24%" />
+                  <col width="14%" />
+                  <col width="16%" />
+                  <col width="16%" />
                 </colgroup>
                 <thead>
                   <tr>
                     <th scope="col">일시</th>
                     <th scope="col">구분</th>
-                    <th scope="col">내용</th>
+                    <th scope="col">거래처·가맹점명</th>
+                    <th scope="col">분류 항목</th>
                     <th scope="col">금액</th>
                     <th scope="col">잔액</th>
                   </tr>
@@ -407,7 +415,9 @@ function SavingGroupTransactionHistoryPanel() {
                     <tr key={transaction.id}>
                       <td>{`${transaction.date.slice(5).replace('-', '.')} ${transaction.time}`}</td>
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
-                      <td>{transaction.description}</td>
+                      {/* AI작성: 통장 적요와 별도로 가맹점명·입금자를 표시해 분류 기준을 분명히 한다. */}
+                      <td>{transaction.merchantName}</td>
+                      <td><Category>{transaction.category}</Category></td>
                       <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
                       <td>{`${transaction.balance.toLocaleString()}원`}</td>
                     </tr>
@@ -423,10 +433,12 @@ function SavingGroupTransactionHistoryPanel() {
                     <TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge>
                     <Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount>
                   </MobileTop>
-                  <MobileDescription>{transaction.description}</MobileDescription>
+                  <MobileDescription>{transaction.merchantName}</MobileDescription>
                   <MobileInfo>
                     <dt>일시</dt>
                     <dd>{`${transaction.date} ${transaction.time}`}</dd>
+                    <dt>분류 항목</dt>
+                    <dd><Category>{transaction.category}</Category></dd>
                     <dt>잔액</dt>
                     <dd>{`${transaction.balance.toLocaleString()}원`}</dd>
                   </MobileInfo>
