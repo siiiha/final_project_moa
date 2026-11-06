@@ -13,6 +13,10 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 승인된 모든 모임원에게 내부 거래내역만 제공한다.
+    com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionListResponse getSavingGroupTransactions(
+            Long groupId, Long memberId, com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionSearchCondition condition);
+
     // AI작성: 승인 모임원에게만 계좌 마스킹 정보와 내부 장부 잔액을 제공한다.
     com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId);
     // AI작성: 승인 계주만 기존 계원의 MEMBER·MANAGER 역할을 변경하며 회계는 최대 한 명이다.
