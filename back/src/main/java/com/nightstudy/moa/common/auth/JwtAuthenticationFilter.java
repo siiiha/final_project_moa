@@ -66,13 +66,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        // AI작성: 개인정보 없이 사진 요청의 구간별 소요 시간만 기록합니다.
-        boolean measurePhotoRequest = request.getRequestURI().startsWith(
-                request.getContextPath() + "/api/members/me/profile-image"
-        );
-        long authStarted = System.nanoTime();
-        long blacklistFinished = authStarted;
-        long sessionFinished = authStarted;
+
         try {
             if (!authorization.startsWith("Bearer ")) {
                 throw new IllegalArgumentException("잘못된 인증 헤더");
@@ -95,14 +89,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throw new IllegalArgumentException("잘못된 토큰 정보");
             }
 
-            // AI작성: 기존 로그아웃 토큰 차단 기록을 재사용한다.
+            // 기존 로그아웃 토큰 차단 기록을 재사용
             if (revokedTokenMapper.countByTokenId(tokenId) > 0) {
                 throw new IllegalArgumentException("로그아웃한 토큰");
             }
 
-            blacklistFinished = System.nanoTime();
-
-            // AI작성: 회원 상태와 세션을 함께 검사해 탈퇴·정지 회원 및 폐기·만료된 세션을 차단한다.
+            // 회원 상태와 세션을 함께 검사해 탈퇴·정지 회원 및 폐기·만료된 세션을 차단
             if (!authSessionService.isAccessAllowed(
                     memberId,
                     systemRole,
@@ -112,7 +104,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             )) {
                 throw new IllegalArgumentException("유효하지 않은 로그인 세션");
             }
-            sessionFinished = System.nanoTime();
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
@@ -163,29 +154,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // AI작성: 사진 요청의 인증 이후 처리 시간을 측정합니다.
-        long processingStarted = System.nanoTime();
-        try {
-            filterChain.
-
-                    doFilter(request, response);
-        } finally {
-            if (measurePhotoRequest) {
-                logger.
-
-                        info(
-                                "PROFILE_IMAGE_TIMING method=" + request.getMethod()
-                                        + " jwtAndBlacklistMs="
-                                        + (blacklistFinished - authStarted) / 1_000_000
-                                        + " sessionMs="
-                                        + (sessionFinished - blacklistFinished) / 1_000_000
-                                        + " afterAuthMs="
-                                        + (System.
-
-                                        nanoTime() - processingStarted) / 1_000_000
-                        );
-            }
-        }
+        filterChain.doFilter(request, response);
     }
 
     private void writeUnauthorized(
