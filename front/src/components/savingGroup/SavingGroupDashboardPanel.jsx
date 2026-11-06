@@ -33,7 +33,7 @@ const Description = styled.p`
 const Summary = styled.div`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -239,12 +239,18 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
       && transaction.category !== '확인 필요'
     ))
     .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
-  const dashboardSummary = savingGroupDashboardSummary.map((item) => (
+  const reviewRequiredCount = savingGroupTransactions.filter((transaction) => (
+    transaction.purposeType === '일반 지출' && transaction.category === '확인 필요'
+  )).length;
+  const dashboardSummary = [
+    ...savingGroupDashboardSummary.map((item) => (
     item.id === 'balance'
       ? { ...item, value: latestTransaction ? formatBalance(latestTransaction.balance) : '잔액 확인 필요' }
       : item.id === 'income' ? { ...item, value: formatCurrency(monthlyDues) }
         : item.id === 'expense' ? { ...item, value: formatCurrency(monthlyExpense) } : item
-  ));
+    )),
+    { id: 'reviewRequired', label: '확인 필요 출금', value: `${reviewRequiredCount}건` },
+  ];
 
   const handleViewTransactions = () => {
     onViewTransactions();
