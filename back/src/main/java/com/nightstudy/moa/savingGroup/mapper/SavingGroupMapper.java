@@ -9,6 +9,18 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 모임 잠금 후 현재 읽기로 재전송·최초 5분 기준·확인 소비를 직렬화한다.
+    Long selectDepositAccountForUpdate(@Param("groupId") Long groupId);
+    LocalDateTime selectDepositNow();
+    SavingGroupDepositRow selectDepositRequestForUpdate(@Param("memberId") Long memberId,
+            @Param("requestKey") String requestKey);
+    SavingGroupDepositRow selectDepositAnchorForUpdate(@Param("accountId") Long accountId,
+            @Param("memberId") Long memberId, @Param("amount") java.math.BigDecimal amount,
+            @Param("since") LocalDateTime since);
+    int insertDepositTransaction(SavingGroupDepositRow row);
+    int insertDepositRequest(SavingGroupDepositRow row);
+    int refreshDepositConfirmation(SavingGroupDepositRow row);
+    int completeDepositRequest(SavingGroupDepositRow row);
     // AI작성: 건수와 목록은 동일한 계좌·유형·금액 조건을 사용한다.
     int selectSavingGroupTransactionCount(@Param("accountId") Long accountId,
             @Param("condition") SavingGroupTransactionSearchCondition condition);

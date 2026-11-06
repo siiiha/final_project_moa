@@ -12,8 +12,8 @@ test('계좌 카드는 정상·미발급·오류·로딩을 구분해 렌더링�
     const { ThemeProvider } = await vite.ssrLoadModule('styled-components');
     const { default: Card } = await vite.ssrLoadModule('/src/components/savingGroup/SavingGroupAccountCard.jsx');
     const { default: theme } = await vite.ssrLoadModule('/src/styles/theme.js');
-    const render = state => renderToStaticMarkup(React.createElement(ThemeProvider, { theme },
-      React.createElement(Card, { state, onRetry() {} })));
+    const render = (state, props = {}) => renderToStaticMarkup(React.createElement(ThemeProvider, { theme },
+      React.createElement(Card, { state, onRetry() {}, ...props })));
     const normal = render({ status: 'success', data: { issued: true, bankCode: '20',
       maskedAccountNumber: '********0000', balance: 1234, testAccount: true } });
     assert.match(normal, /우리은행/);
@@ -26,5 +26,11 @@ test('계좌 카드는 정상·미발급·오류·로딩을 구분해 렌더링�
     const error = render({ status: 'error', message: '테스트 조회 실패' });
     assert.match(error, /role="alert"/); assert.match(error, /계좌 정보 다시 조회/);
     assert.match(render(null), /계좌 정보를 불러오는 중입니다/);
+    // AI작성: 입금 화면은 발급된 조회 성공 계좌에서만 제공하고 성공 안내는 재조회 오류에도 보존한다.
+    const child = React.createElement('button', null, '테스트 입금 등록');
+    assert.match(render({ status: 'success', data: { issued: true, bankCode: '20', maskedAccountNumber: '********0000', balance: 0 } }, { children: child }), /테스트 입금 등록/);
+    assert.doesNotMatch(render({ status: 'success', data: { issued: false } }, { children: child }), /테스트 입금 등록/);
+    assert.doesNotMatch(render({ status: 'error', message: '잔액 조회 실패' }, { children: child }), /테스트 입금 등록/);
+    assert.match(render({ status: 'error', message: '잔액 조회 실패' }, { depositMessage: '테스트 입금이 등록되었습니다.' }), /테스트 입금이 등록되었습니다/);
   } finally { await vite.close(); }
 });

@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import SavingGroupAccountCard from '../components/savingGroup/SavingGroupAccountCard';
+import SavingGroupDepositForm from '../components/savingGroup/SavingGroupDepositForm';
 import { getSavingGroupAccount } from '../api/savingGroups.js';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -138,6 +139,8 @@ function SavingGroupDetailPage() {
   // AI작성: 회원 전용 계좌 조회는 공개 상세와 분리하고 계정·모임·재시도별 이전 응답을 숨긴다.
   const [accountResult, setAccountResult] = useState(null);
   const [accountRetry, setAccountRetry] = useState(0);
+  // AI작성: 성공 안내는 재조회 상태와 별도로 보존하고 모임·계정이 바뀌면 숨긴다.
+  const [depositResult, setDepositResult] = useState(null);
   const canReadAccount = visibleGroup?.membershipStatus === 'APPROVED'
     && ['OWNER', 'MANAGER', 'MEMBER'].includes(visibleGroup?.myRole);
   useEffect(() => {
@@ -245,8 +248,18 @@ function SavingGroupDetailPage() {
             </EmptyCard>
           ) : (
             <SavingGroupDetail key={`${id}-${authVersion}`} group={visibleGroup}
+              transactionRevision={accountRetry}
               accountPanel={canReadAccount ? <SavingGroupAccountCard state={currentAccount}
-                onRetry={() => setAccountRetry((value) => value + 1)} /> : null}
+                depositMessage={depositResult?.id === id && depositResult?.authVersion === authVersion ? depositResult.message : null}
+                onRetry={() => setAccountRetry((value) => value + 1)}>
+                {/* AI작성: 화면에서 현재 진행중·승인 역할·발급 계좌를 확인하고 서버에서 다시 검증한다. */}
+                {visibleGroup.status === '02' && currentAccount?.status === 'success' && currentAccount.data.issued
+                  ? <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={visibleGroup.groupId}
+                    account={currentAccount.data} onCompleted={data => {
+                      setDepositResult({ id, authVersion, message: data.message });
+                      setAccountRetry(value => value + 1);
+                    }} /> : null}
+              </SavingGroupAccountCard> : null}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               onMenuChange={(value) => setMenu({ id, value })}
               onJoinRequest={handleJoinRequest}

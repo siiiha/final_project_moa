@@ -1,5 +1,58 @@
 import client from './client.js';
 
+// AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.
+export async function requestSavingGroupDeposit(groupId, { amount, requestKey }, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  if (!Number.isSafeInteger(amount) || amount < 1 || amount > 9999999999999) {
+    throw new Error('금액은 1원 이상의 원 단위 정수로 입력해주세요.');
+  }
+  validateDepositKey(requestKey);
+  const result = await savingGroupMemberResponse(
+    () => client.post(`/saving-groups/${id}/account/deposits`, { amount, requestKey }, { signal }),
+    '입금 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'
+  );
+  return toDepositResponse(result.data);
+}
+
+// AI작성: 확인값은 메모리에서만 전달하며 재시도는 동일한 요청·확인값을 사용한다.
+export async function confirmSavingGroupDeposit(groupId, { requestKey, confirmationToken }, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  validateDepositKey(requestKey);
+  if (typeof confirmationToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(confirmationToken)) {
+    throw new Error('입금 확인 정보를 다시 확인해주세요.');
+  }
+  const result = await savingGroupMemberResponse(
+    () => client.post(`/saving-groups/${id}/account/deposits/confirm`, { requestKey, confirmationToken }, { signal }),
+    '입금 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'
+  );
+  const data = toDepositResponse(result.data);
+  if (data.status !== 'COMPLETED') throw new Error('입금 완료 결과를 확인하지 못했습니다.');
+  return data;
+}
+
+function validateDepositKey(key) {
+  if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{16,64}$/.test(key)) throw new Error('입금 요청 정보를 확인해주세요.');
+}
+
+function toDepositResponse(data) {
+  // AI작성: 허용 필드만 반환하여 계좌번호·내부 식별자 등의 부가 필드를 화면으로 전달하지 않는다.
+  if (!data || !Number.isSafeInteger(data.amount) || data.amount < 1 || data.amount > 9999999999999
+    || !['COMPLETED', 'PENDING_CONFIRMATION'].includes(data.status)
+    || (data.status === 'COMPLETED' && (typeof data.balance !== 'number' || !Number.isFinite(data.balance)))
+    || (data.status === 'PENDING_CONFIRMATION' && (typeof data.confirmationToken !== 'string'
+      || !/^[A-Za-z0-9_-]{43}$/.test(data.confirmationToken)
+      || typeof data.confirmationExpiresAt !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(data.confirmationExpiresAt)))) {
+    const error = new Error('입금 응답을 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.');
+    error.code = 'INVALID_RESPONSE'; throw error;
+  }
+  return { status: data.status, amount: data.amount,
+    balance: data.status === 'COMPLETED' ? data.balance : null,
+    confirmationToken: data.status === 'PENDING_CONFIRMATION' ? data.confirmationToken : null,
+    confirmationExpiresAt: data.status === 'PENDING_CONFIRMATION' ? data.confirmationExpiresAt : null,
+    message: typeof data.message === 'string' ? data.message : '테스트 입금 처리 결과를 확인해주세요.' };
+}
+
 // AI작성: 계원 관리 요청은 공통 JWT client를 사용하고 서버 코드·상태·취소를 보존한다.
 async function savingGroupMemberResponse(send, fallbackMessage) {
   try {

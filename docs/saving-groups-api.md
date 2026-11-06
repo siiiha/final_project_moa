@@ -2061,3 +2061,112 @@ Postman/브라우저 후속 확인:
 - 확대 회귀 컴파일에서는 기존 생성자 불일치가 있는 SavingGroupPayoutDecisionSecurityTest, SavingGroupMemberMySqlIntegrationTest, SavingGroupPayoutDecisionTransactionTest 3개 파일을 제외했다.
 - 실제 MySQL 전용 테스트는 DB 활성화·접속 정보를 사용하지 않아 건너뛰었다. 실제 DB 연결 및 브라우저 클릭 검증은 후속 확인 대상이다.
 - 구현 범위에 미확정 필드·추가 금융 연동 TODO는 없다. 적요·증빙·상태 등 신규 공개 항목과 금융 연동은 별도 정책 확정 작업이다.
+
+## 계모임 공용 계좌 테스트 입금 (2026-11-06)
+
+AI작성: 실제 돈 이동·입금 확인·금융 API·발급·웹훅 없이 내부 원장만 변경한다. 상세 설계·DB 담당자 적용 전제·단계별 변경 파일·실제 커밋은 [테스트 입금 작업 기록](saving-group-deposit-design.md)을 참고한다. 신규 보조 테이블은 담당자 적용 대기이며 이번 코드 작업에서 schema.sql과 실제 DB는 변경하지 않았다.
+
+### 경로와 인증
+
+- POST /api/saving-groups/{savingGroupId}/account/deposits
+- POST /api/saving-groups/{savingGroupId}/account/deposits/confirm
+- 기존 /saving-groups 별칭도 지원한다.
+- 경로 ID는 기존 계좌 API와 같은 공통 groupId다. saving_group_id가 아니다.
+- JWT 필터의 memberId 속성을 사용한다. 입력 회원 ID·역할·계좌번호는 신뢰하거나 사용하지 않는다.
+- APPROVED인 현재 OWNER/MANAGER/MEMBER, 미삭제 회원, 삭제되지 않은 진행중 상태 02 계모임, 존재하는 공용 계좌가 필요하다.
+
+### 최초·반복 입금 요청
+
+```json
+{
+  "amount": 1000,
+  "requestKey": "mock-request-key-0001"
+}
+```
+
+- amount: 필수 JSON 숫자, 1원 이상·원 단위 정수·최대 13자리. DECIMAL 저장 범위 검증이며 별도 업무상 한도는 아니다.
+- requestKey: 필수, 영문·숫자·밑줄·하이픈 16~64자. 프론트는 crypto.randomUUID()로 생성한다. 인증용 비밀정보가 아니며 같은 시도의 재전송에서는 동일한 키를 사용한다.
+- 서버가 대상 모임의 계좌를 결정한다. 전체 계좌번호·은행 키·계좌 ID·처리자 ID·입금 유형·회비 회차·메모 입력은 받지 않는다.
+- 기존 회비·순번계 납부 상태·알림을 변경하지 않는다.
+
+일반 완료 응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "status": "COMPLETED",
+    "amount": 1000,
+    "balance": 1000,
+    "confirmationToken": null,
+    "confirmationExpiresAt": null,
+    "message": "테스트 입금이 등록되었습니다. 실제 돈은 이동하지 않습니다."
+  }
+}
+```
+
+응답 예시는 핵심 필드만 표시했다. 공통 ApiResponse의 다른 필드 직렬화는 기존 설정을 따른다.
+
+### 중복 확인 필요 응답
+
+같은 회원·공용 계좌·금액의 첫 일반 성공 입금부터 5분 미만이면 HTTP 200의 성공 봉투 안에 PENDING_CONFIRMATION을 반환한다. 거래는 생성하지 않고 잔액도 변경하지 않는다.
+
+| data 필드 | 타입·설명 |
+|---|---|
+| status | PENDING_CONFIRMATION |
+| amount | 요청 금액 숫자 |
+| balance | null. 확인 대기 응답에서 잔액 갱신하지 않음 |
+| confirmationToken | URL-safe 43자 임의 일회용 확인값. 로그·영구 저장 금지 |
+| confirmationExpiresAt | LocalDateTime ISO 문자열. DB 기준 발급 후 5분이며 시간대 오프셋은 포함하지 않음 |
+| message | 최근 5분 이내 동일 계좌·동일 금액 입금 이력과 추가 등록 확인 안내 |
+
+확인값은 DB에 해시만 저장한다. 같은 대기 요청을 재전송하면 새 확인값과 기한을 발급하여 이전 확인값은 무효화한다. 보조 테이블의 상태는 은행 입금 상태가 아니라 내부 요청 처리 상태다.
+
+### 추가 입금 확인 요청
+
+본문은 동일 requestKey와 대기 응답에서 받은 confirmationToken이다. 확인값은 테스트용 고정 문자열이 아니라 실제 직전 응답 값을 사용한다.
+
+- 서버가 본인·현재 권한·모임 상태·대상 계좌·요청·확인 해시·만료를 재검증한다.
+- 유효한 확인이면 원장 거래 1건을 생성하고 대기 요청을 COMPLETED로 변경한다. 완료 응답은 일반 완료와 같다.
+- 확인 기한에 도달하면 만료다. 만료 시 같은 requestKey로 최초 경로에 다시 요청하여 안내를 재발급할 수 있다.
+- 완료된 동일 키 재전송은 거래를 추가하지 않고 기존 완료 결과와 현재 내부 잔액을 반환한다. 다른 금액·계좌로 같은 키를 재사용하면 409다.
+- 추가 확인 입금은 최초 5분 기준을 연장하지 않는다. 정확히 5분 이후의 새 요청 키는 새 일반 입금이 된다.
+- 취소는 클라이언트 화면을 닫는 동작이며 서버 원장 변경은 없다. 별도 취소 API·즉시 확인값 실효는 구현하지 않았다.
+
+### 잔액과 저장
+
+기존 group_transaction에 DEPOSIT, 금액, DB 시각 기반 거래일시, 테스트 입금 적요를 저장한다. 요청자는 보조 테이블 member_id로 연결한다. 기존 원장의 입금·출금 합산으로 잔액을 조회하며 balance_after·source_provider·source_transaction_id는 이번 기능에서 생성하지 않는다. 원장에 없는 증빙·은행 상태를 만들어 저장하지 않는다.
+
+모임→회원 관계→계좌→요청 순서로 잠그고 원장 생성·보조 기록·확인 소비를 같은 트랜잭션으로 처리한다. 기존 방식의 Mock 지연 300~800ms는 잠금 전에 적용한다. 외부 금융 Service·SDK는 의존하지 않는다.
+
+### 오류
+
+| HTTP | 대표 코드 | 상황 |
+|---|---|---|
+| 400 | 기존 Validation 오류 / BAD_REQUEST / DEPOSIT_INVALID_INPUT | 잘못된 경로·금액·요청 키·확인값 형식 |
+| 401 | 기존 필터 LOGIN_REQUIRED / Service UNAUTHORIZED | 미인증 |
+| 403 | SAVING_GROUP_ACCOUNT_FORBIDDEN | 현재 승인된 역할·회원 조건 불충족 |
+| 403 | DEPOSIT_CONFIRMATION_INVALID | 일치하지 않는 확인값 |
+| 404 | NOT_FOUND | 삭제되었거나 없는 계모임 |
+| 404 | DEPOSIT_ACCOUNT_NOT_FOUND | 공용 계좌 없음 |
+| 404 | DEPOSIT_REQUEST_NOT_FOUND | 본인의 대상 계좌 확인 요청 없음 |
+| 409 | DEPOSIT_INACTIVE | 진행중이 아님 |
+| 409 | DEPOSIT_REQUEST_CONFLICT | 동일 요청 키에 다른 계좌·금액 |
+| 409 | DEPOSIT_CONFIRMATION_EXPIRED | 확인 만료 |
+| 409 | DEPOSIT_SAVE_CONFLICT | 조건부 저장 영향 행 수 불일치 |
+| 500 | DEPOSIT_SAVE_FAILED | 원장 생성 키 확인 실패 |
+| 503 | DEPOSIT_INTERRUPTED | Mock 지연 중 작업 중단 |
+
+DB 테이블 미적용·기타 DB 장애는 기존 공통 예외 처리 대상이며 성공으로 대체하지 않는다. 네트워크·서버 장애로 결과를 확신할 수 없으면 새 키를 만들지 않고 같은 키로 결과를 확인한다. 현재 화면을 닫으면 메모리 요청 정보는 사라지므로 다시 입금하기 전에 거래내역부터 확인한다.
+
+### Postman·브라우저 검증
+
+1. DB 담당자의 테이블 적용과 기존 계좌 준비를 확인한다. 실제 자금 이동은 하지 않는다.
+2. 테스트 진행중 모임의 OWNER/MANAGER/MEMBER JWT로 각자의 요청 키를 사용하여 최초 요청 성공·원장·입금자 연결·잔액 증가를 확인한다.
+3. 같은 회원·금액의 새 키로 5분 이내 요청하면 PENDING_CONFIRMATION만 생성되는지 확인한다.
+4. 확인값을 직전 응답에서 복사해 confirm을 호출하고 거래 1건 추가, 같은 확인 재전송에서 추가 없음, 확인 해시 소비를 확인한다.
+5. 만료·위조 확인, 다른 회원·모임, 비회원·LEFT·PENDING·EXPELLED·REJECTED, 잘못된 금액·없는 계좌·비진행 모임을 확인한다.
+6. 첫 성공부터 정확히 5분 경계, 추가 확인으로 시간 연장 안 됨, 동시 요청과 저장 실패 롤백을 전용 DB에서 확인한다.
+7. 브라우저에서 마스킹·입력 잠금·확인 취소·실패 재시도·잔액 및 거래내역 갱신·계정 전환·모바일·키보드를 확인한다.
+
+실행 결과: 신규 입금 테스트 24건 통과·전용 MySQL 1건 건너뜀. 기존 계좌·거래내역 포함 관련 백엔드 총 67건 통과·MySQL 2건 건너뜀. 프론트 API·계모임 SSR 회귀 145건 통과, 프로덕션 빌드 통과. 실제 DB·브라우저 클릭 검증은 미실시다. 전체 테스트 컴파일은 기존 무관한 패키지 참조·생성자 불일치 문제로 불가하여 임시 Gradle 소스 범위로 관련 테스트를 분리했다.

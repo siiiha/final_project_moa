@@ -302,7 +302,7 @@ const ActionButton = styled(Button)`
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh,
   noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry,
-  noticePinState, onNoticePinChange, accountPanel }) {
+  noticePinState, onNoticePinChange, accountPanel, transactionRevision = 0 }) {
   // AI작성: 일반 공지 네 개의 페이지 번호만 계산하며 기존 계모임 전체 목록 계산과 분리한다.
   const noticePages = getSavingGroupNoticePagination(noticePagination.page, noticePagination.totalPages);
   const pinnedNotices = group.pinnedNotices ?? [];
@@ -405,7 +405,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'transactionHistory' ? (
         /* AI작성: 공통 모임 번호와 권한 변화에 맞춰 거래 조회 상태를 초기화한다. */
         <SavingGroupTransactionHistoryPanel groupId={group.groupId}
-          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])} />
+          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus, transactionRevision])} />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel groupId={group.groupId} />
