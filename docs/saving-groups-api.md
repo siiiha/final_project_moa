@@ -2170,3 +2170,90 @@ DB 테이블 미적용·기타 DB 장애는 기존 공통 예외 처리 대상�
 7. 브라우저에서 마스킹·입력 잠금·확인 취소·실패 재시도·잔액 및 거래내역 갱신·계정 전환·모바일·키보드를 확인한다.
 
 실행 결과: 신규 입금 테스트 24건 통과·전용 MySQL 1건 건너뜀. 기존 계좌·거래내역 포함 관련 백엔드 총 67건 통과·MySQL 2건 건너뜀. 프론트 API·계모임 SSR 회귀 145건 통과, 프로덕션 빌드 통과. 실제 DB·브라우저 클릭 검증은 미실시다. 전체 테스트 컴파일은 기존 무관한 패키지 참조·생성자 불일치 문제로 불가하여 임시 Gradle 소스 범위로 관련 테스트를 분리했다.
+
+## 순번계 모의 순번 추천 조회 (2026-11-06)
+
+<!-- AI작성: 사용자 확정 정책·구현·단계별 커밋과 검증 방법을 기록한다. -->
+
+### API와 권한
+
+`GET /api/saving-groups/{savingGroupId}/turn-orders/recommendations`
+
+기존 `/saving-groups/{savingGroupId}/turn-orders/recommendations` 별칭도 제공한다. 경로 ID는 saving_group.saving_group_id이며 공통 groups.group_id가 아니다. 추가 요청 파라미터·본문은 없다. 기존 JWT 인증의 memberId 속성만 사용하며 쿼리의 memberId는 인증에 사용하지 않는다.
+
+삭제되지 않은 순번계에서 모집중(01)·진행중(02)일 때 해당 모임의 APPROVED OWNER만 조회한다. MANAGER·MEMBER·비회원·PENDING·REJECTED·LEFT·EXPELLED·삭제 회원은 차단한다. 이번 사용자 확정에 따라 관계의 OWNER 역할을 기준으로 하며 별도 개설자 ID 일치 조건은 추가하지 않았다.
+
+### 추천과 금액 정책
+
+- 해당 계모임의 현재 승인된 OWNER·MANAGER·MEMBER 전체를 매 호출 무작위 배치한다. 검색어·계원 목록 페이지에 영향을 받지 않는다.
+- 기존 순번 유무·과거 지급 여부와 관계없이 현재 승인 회원 전원을 모의 배치한다. 가입일·나이·주소·납부·금융 이력을 추천 기준으로 사용하지 않는다.
+- 1부터 현재 대상 인원 수까지 회원당 하나의 순번을 제안한다. 재조회 시 우연히 같은 결과가 나올 수 있다.
+- 기본 회비 B, 승인된 미삭제 회원 수 N, 추천 순번 k일 때 예상 지급 금액은 `B × N + floor(B × 0.01) × (k - 1)`이다.
+- 인원·기본 회비 유지, 앞 순번 전원 지급을 가정한다. 이는 확정 회차의 payout_amount나 실제 지급 약속이 아니다. 모집중에도 현재 값으로 계산하며 인원·회비 변경 시 재조회해야 한다.
+- BigDecimal로 원 단위 계산한다. 기본 회비 미설정·0 이하·소수 회비 또는 예상 금액 13자리 초과는 409다. 대상 없음은 성공 빈 배열로 반환한다.
+- 순번·회원·회차·회비·지급 상태·추천 이력을 저장하거나 변경하지 않는다. 읽기 전용 REPEATABLE_READ 트랜잭션에서 일관된 조회 결과로 계산하며 SELECT만 사용한다. DB·마이그레이션·의존성 변경 없음.
+
+### 응답 예시
+
+Cache-Control: no-store를 적용한다. 기존 공통 ApiResponse를 사용하며 페이지 메타는 없다.
+
+```json
+{
+  "success": true,
+  "data": [
+    { "memberId": "30", "nickname": "테스트계주", "recommendedTurnOrder": 1, "expectedPayoutAmount": 30000 },
+    { "memberId": "50", "nickname": "테스트계원가", "recommendedTurnOrder": 2, "expectedPayoutAmount": 30100 },
+    { "memberId": "60", "nickname": "테스트계원나", "recommendedTurnOrder": 3, "expectedPayoutAmount": 30200 }
+  ]
+}
+```
+
+응답은 회원 식별자 문자열·닉네임·추천 순번·예상 지급 금액만 제공한다. 예시는 기본 회비 10,000원·3명 기준이다. 예상 금액은 JSON 숫자이고 화면에서 천 단위 콤마와 원을 표시한다.
+
+| HTTP | 코드 | 조건 |
+|---|---|---|
+| 400 | BAD_REQUEST | 잘못된 계모임 ID |
+| 401 | UNAUTHORIZED 또는 기존 JWT 오류 코드 | 미인증·무효 세션·토큰 |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 현재 승인된 미삭제 OWNER가 아님 |
+| 404 | SAVING_GROUP_NOT_FOUND | 계모임 없음·삭제 |
+| 409 | SAVING_GROUP_TYPE_INVALID | 순번계가 아님 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중이 아님 |
+| 409 | SAVING_GROUP_DUES_INVALID | 회비 또는 예상 금액 범위 오류 |
+
+### 화면 흐름
+
+계모임 상세 → 계원 관리 → 순번 추천 버튼 → 패널의 추천받기 → 결과 확인 → 다시 추천받기.
+
+추천 버튼은 APPROVED OWNER·순번계·모집중/진행중에만 표시한다. 별도 탭은 없다. 추천 결과가 실제 순번에 저장·적용되지 않는다는 안내와 예상 금액 가정을 표시한다. 첫 진입은 자동 조회하지 않는다. 처리 중 중복 클릭을 차단하고 새 요청 시작 시 이전 결과를 지운다. 오류·빈 결과를 구분하며 이전 성공 결과를 실패 후 표시하지 않는다. 닫기·화면 이동·모임·로그인 변경 시 요청을 취소하고 결과를 폐기한다. 계원 관리 변경 후 재조회 시 추천 패널 결과도 초기화한다. 계원 역할·추방 처리 중에는 추천 실행을 막는다.
+
+### 단계별 작업과 커밋
+
+Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트는 `back/src/test/java/com/nightstudy/moa/savingGroup/` 기준이다. 각 단계에 `docs/ai-usage-log.md`를 포함한다.
+
+| 단계 | 변경 파일 | 작업 내용 | 커밋 |
+|---|---|---|---|
+| 1 | dto/SavingGroupTurnOrderContextRow.java, dto/SavingGroupTurnOrderMemberRow.java, mapper/SavingGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml, 테스트 service/SavingGroupTurnOrderMapperTest.java | 모임·전체 승인 회원 조회 | 7314889 — feat: 순번계 순번 추천 조회 DTO와 Mapper 추가 |
+| 2 | dto/SavingGroupTurnOrderRecommendationResponse.java, service/SavingGroupService.java, service/SavingGroupServiceImpl.java, 테스트 service/SavingGroupTurnOrderServiceTest.java | 권한·유형·상태·무작위 제안·예상액 | 3b15aac — feat: 순번계 모의 순번 추천 서비스와 권한 검증 추가 |
+| 3 | controller/SavingGroupController.java, 테스트 controller/SavingGroupTurnOrderControllerTest.java | GET·인증 속성·공통 응답·캐시 금지 | 15e3201 — feat: 순번계 순번 추천 조회 API 추가 |
+| 4 | front/src/api/savingGroups.js, front/src/api/savingGroupTurnOrder.test.js | 인증 client·응답 검증·오류·취소 | 2168ecc — feat: 순번계 순번 추천 프론트 API 추가 |
+| 5 | front/src/components/savingGroup/SavingGroupMembersPanel.jsx, SavingGroupDetail.jsx, SavingGroupTurnOrderRecommendationPanel.jsx, SavingGroupTurnOrderRecommendationPanel.test.js(이상 동일 디렉터리), front/src/api/savingGroupTurnOrder.test.js | 계원 관리 버튼·추천 패널·상태·큰 글씨·금액·API 연결 | e4850e9 — feat: 순번계 모의 순번 추천 화면과 API 연동 구현 |
+| 6 | 테스트 controller/SavingGroupTurnOrderSecurityTest.java, service/SavingGroupTurnOrderTransactionTest.java, docs/saving-groups-api.md, docs/ai-usage-log.md | JWT 필터·읽기 전용 트랜잭션 검증·명세·수동 검증 | test: 순번계 순번 추천 화면 연동 검증 및 API 문서화 |
+
+### 수동 검증 절차
+
+1. 테스트 DB에 모집중·진행중 순번계, 승인 OWNER·MANAGER·MEMBER와 대기·탈퇴·추방 회원을 준비한다. 실명·실제 금융정보는 사용하지 않는다.
+2. OWNER로 상세 → 계원 관리 → 순번 추천을 열고 추천받기를 클릭한다. Network에서 위 GET 한 건과 회원 전체의 순번·닉네임·예상 금액을 확인한다.
+3. 예를 들어 기본 회비 10,000원·승인 회원 3명이면 순번별 예상 금액이 30,000원·30,100원·30,200원인지 확인한다. 재추천은 같은 결과가 나올 수도 있다.
+4. 검색·페이지와 무관하게 OWNER 포함 전체 대상이 반환되는지 확인한다. 대기·탈퇴·추방·삭제 회원은 없어야 한다.
+5. Postman에서 MANAGER·MEMBER·비회원·탈퇴·대기 계정은 403, 로그아웃은 401, 친목계는 409, 없는 모임은 404인지 확인한다. 종료·정지 상태도 409다.
+6. 호출 전후 group_member의 sequence_number·회원 상태, meeting_round, payout_request의 상태·transaction_id·completed_at 및 fee_payment를 비교한다. 변경 없어야 한다. 저장·적용 POST/PATCH가 없어야 한다.
+7. 느린 네트워크에서 중복 클릭·닫기·모임/계정 전환, 오류·빈 결과를 확인한다. 실패 후 이전 결과가 노출되지 않아야 한다. 모바일·키보드·금액 가독성을 확인한다.
+
+추천안 저장·비교·실제 적용은 후속 기능이며 이번에 테이블·API·버튼을 추가하지 않았다.
+
+### 실행한 검증과 제한
+
+- 백엔드: Mapper 1건, Service 22건, Controller 9건, JWT 필터 연결 3건, Spring 읽기 전용 트랜잭션 2건으로 총 37건 통과.
+- Java 17로 실행했고 기존 전체 테스트 소스의 삭제/이동 클래스 참조 오류를 피하도록 build 아래 임시 init script에서 관련 테스트 소스만 선택했다. 프로젝트 빌드 설정·의존성은 변경하지 않았다.
+- 프론트: 추천 API·계원 API·기존 savingGroups API·계원 목록 SSR·추천 패널 SSR 총 64건 통과. npm run build 통과. 변경 파일 oxlint 오류 없음. 기존 Detail의 미사용 선언 2건과 번들 크기 경고는 유지한다.
+- 무변경 검증은 조회 Mapper 호출만 발생함·원본 회원 목록 불변·추천 SQL이 SELECT임을 자동 확인한 수준이다. 실제 MySQL 호출 전후 테이블 비교, 브라우저 클릭·계정 전환·모바일 검증은 미실시다. 위 수동 절차로 확인이 필요하다.

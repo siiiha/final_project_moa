@@ -1248,3 +1248,11 @@
 - AI작성: 계원 관리에 승인 OWNER·순번계·모집중/진행중 전용 순번 추천 버튼과 패널을 연결했다. 추천·재추천, 가정 설명, 금액 형식, 로딩·실패·빈 상태, 중복 요청 차단, 닫힘·모임·계정 변경 시 취소·초기화를 적용했다. 별도 탭·저장·적용 없음.
 - 파일: SavingGroupMembersPanel.jsx, SavingGroupDetail.jsx, 신규 SavingGroupTurnOrderRecommendationPanel.jsx·표시 테스트. API 테스트의 의도된 비안전 정수 리터럴 경고도 정리했다.
 - 검증: 4단계 API·계원 회귀 12건 통과. 5단계 패널 SSR·계원 목록 SSR·추천 API 5건 통과, npm run build 통과. 변경 파일 oxlint 오류 없음(기존 Detail 미사용 선언 2건 유지). 브라우저 클릭 검증 미실시. 개발자 코드 검토 대기.
+
+## 2026-11-06 순번 추천 6단계 및 최종 검증
+- AI작성: 실제 JWT 필터→Controller→Service 인증 연결 테스트 3건, 실제 Spring 트랜잭션 프록시·JDBC 매니저의 읽기 전용·REPEATABLE_READ·성공 commit/실패 rollback 테스트 2건을 추가했다. Mapper/DB·토큰 파싱·세션 판정은 대역을 사용했다.
+- 검증: Java 17 + 임시 build/turn-order-test.init.gradle로 이번 기능의 백엔드 37건 통과. 기존 전체 테스트는 삭제/이동된 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient 참조 오류가 있어 별도 설정으로 관련 테스트 소스만 컴파일했다. 프로젝트 설정은 변경하지 않았다.
+- 검증: node --test --test-concurrency=1로 추천 API·계원 API·savingGroups API·계원 SSR·추천 패널 SSR 64건 통과. npm run build 통과, 변경 파일 oxlint 오류 없음(기존 Detail 미사용 선언 2건 유지). git diff --check 통과.
+- 무변경 검증: Service·인증 연결 테스트에서 읽기 Mapper 호출 외 추가 호출이 없음을 검증하고, Mapper 테스트에서 추천 전용 SQL이 SELECT임을 확인했다. 원본 회원 목록도 그대로임을 검증했다. 실제 MySQL 조회 전후 전체 테이블 비교는 미실시이며 DB 불변성의 실환경 검증으로 주장하지 않는다.
+- 문서: docs/saving-groups-api.md의 '순번계 모의 순번 추천 조회' 절에 API·확정된 랜덤/금액 정책·권한·화면 흐름·단계별 작업 파일/커밋·Postman 및 브라우저 수동 검증을 정리했다.
+- 남은 확인: 실제 JWT/DB를 사용한 브라우저 클릭·닫기·계정 전환·모바일 검증과 MySQL 전후 비교. 추천안 저장·비교·실제 적용은 이번 범위 밖 후속 기능이다. 미확정 추천 규칙 TODO는 없으며 개발자 코드 검토는 대기다. 원격 push·실제 DB·금융 서비스 변경 없음.
