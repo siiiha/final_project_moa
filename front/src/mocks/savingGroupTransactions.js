@@ -13,4 +13,5 @@ export const savingGroupTransactions = [
   { id: 11, date: '2026-09-06', time: '13:08', type: '출금', purposeType: '일반 지출', description: '다이소 체크카드', merchantName: '다이소', category: '물품비', amount: -42000, balance: 5070500 },
   { id: 12, date: '2026-09-03', time: '10:02', type: '입금', purposeType: '회비', description: '문지아 회비', merchantName: '문지아', category: '회비', amount: 30000, balance: 5112500 },
   { id: 13, date: '2026-09-01', time: '15:30', type: '출금', purposeType: '계금 지급', description: '최민호 계금 지급', merchantName: '최민호', category: '계금 지급', amount: -360000, balance: 5082500 },
+  { id: 14, date: '2026-08-29', time: '13:42', type: '출금', purposeType: '일반 지출', description: '네이버페이 체크카드', merchantName: '네이버페이', category: '확인 필요', amount: -38500, balance: 5118500 },
 ];

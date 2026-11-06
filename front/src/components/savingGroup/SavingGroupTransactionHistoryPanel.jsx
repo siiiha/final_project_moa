@@ -267,6 +267,10 @@ const Category = styled.span`
   font-weight: 700;
 `;
 
+const PayoutCategory = styled(Category)`
+  color: ${({ theme }) => theme.colors.secondaryText};
+`;
+
 const MobileInfo = styled.dl`
   margin-top: 10px;
   display: grid;
@@ -352,7 +356,9 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
 
   const handleCategoryChange = (transactionId, category) => {
     setTransactions((current) => current.map((transaction) => (
-      transaction.id === transactionId ? { ...transaction, category } : transaction
+      transaction.id === transactionId && transaction.purposeType === '일반 지출'
+        ? { ...transaction, category }
+        : transaction
     )));
     setHasCategoryChanges(true);
     setCategoryMessage('');
@@ -460,7 +466,7 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                       {/* AI작성: 통장 적요와 별도로 가맹점명·입금자를 표시해 분류 기준을 분명히 한다. */}
                       <td>{transaction.merchantName}</td>
                       <td>
-                        {transaction.type === '출금' && canEditCategory ? (
+                        {transaction.purposeType === '일반 지출' && canEditCategory ? (
                           <Select
                             aria-label={`${transaction.merchantName} 지출 항목`}
                             value={transaction.category}
@@ -468,7 +474,9 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                           >
                             {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                           </Select>
-                        ) : <Category>{transaction.category}</Category>}
+                        ) : transaction.purposeType === '계금 지급'
+                          ? <PayoutCategory>계금 지급</PayoutCategory>
+                          : <Category>{transaction.category}</Category>}
                       </td>
                       <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
                       <td>{`${transaction.balance.toLocaleString()}원`}</td>
@@ -491,7 +499,7 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                     <dd>{`${transaction.date} ${transaction.time}`}</dd>
                     <dt>분류 항목</dt>
                     <dd>
-                      {transaction.type === '출금' && canEditCategory ? (
+                      {transaction.purposeType === '일반 지출' && canEditCategory ? (
                         <Select
                           aria-label={`${transaction.merchantName} 지출 항목`}
                           value={transaction.category}
@@ -499,7 +507,9 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                         >
                           {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                         </Select>
-                      ) : <Category>{transaction.category}</Category>}
+                      ) : transaction.purposeType === '계금 지급'
+                        ? <PayoutCategory>계금 지급</PayoutCategory>
+                        : <Category>{transaction.category}</Category>}
                     </dd>
                     <dt>잔액</dt>
                     <dd>{`${transaction.balance.toLocaleString()}원`}</dd>
@@ -536,6 +546,7 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
         )}
         {categoryMessage && <Notice role="status">{categoryMessage}</Notice>}
         {isDownloadPreparing && <Notice role="status">거래 내역 다운로드를 준비할 예정입니다.</Notice>}
+        <Notice>계금 지급은 계원에게 돌려주는 금액으로, 일반 지출 분류·통계·학습 대상에 포함하지 않습니다.</Notice>
       </ListCard>
     </Panel>
   );
