@@ -23,9 +23,12 @@ class SavingGroupTransactionControllerTest {
     void responseHasOnlyApprovedFieldsAndJwtIdentity(String path) throws Exception {
         var row = new SavingGroupTransactionResponse(); row.setTransactedAt(LocalDateTime.of(2026,11,6,12,0));
         row.setTransactionType("DEPOSIT"); row.setAmount(new BigDecimal("10000"));
+        row.setDepositRequesterName("김**");
         when(service.getSavingGroupTransactions(eq(2L),eq(1L),any())).thenReturn(new SavingGroupTransactionListResponse(List.of(row),PageMeta.of(1,10,1)));
         mvc.perform(get(path).requestAttr("memberId",1L).param("memberId","999"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].amount").value(10000))
+            .andExpect(jsonPath("$.data[0].depositRequesterName").value("김**"))
+            .andExpect(jsonPath("$.data[0].memberId").doesNotExist())
             .andExpect(jsonPath("$.data[0].balanceAfter").isEmpty()).andExpect(jsonPath("$.meta.size").value(10))
             .andExpect(jsonPath("$.data[0].accountNumber").doesNotExist())
             .andExpect(jsonPath("$.data[0].transactionId").doesNotExist())

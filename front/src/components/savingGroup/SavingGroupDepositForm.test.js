@@ -39,6 +39,12 @@ test('입금 화면은 원문 없이 테스트 안내와 중복 확인·불확�
     assert.match(initialUnknown, /<input[^>]*disabled/);
     assert.match(initialUnknown, /role="dialog"/);
     assert.match(initialUnknown, /입금 결과 확인 필요/);
+    // AI작성: 확정 실패는 입력을 유지하고, 결과 불명확 상태와 제목·재시도 문구를 구분한다.
+    const failed = render({ error: '진행중인 계모임에서만 입금할 수 있습니다.' });
+    assert.match(failed, /입금 처리 실패/); assert.match(failed, /1,000/);
+    assert.match(failed, />취소</); assert.doesNotMatch(failed, /입금 결과 확인 필요/);
+    assert.doesNotMatch(failed, /<input[^>]*disabled/);
+    assert.equal((completeDialogCount(render({ pending }))), 1);
     const { SavingGroupDepositResultModal: Result } = await vite.ssrLoadModule('/src/components/savingGroup/SavingGroupDepositForm.jsx');
     const complete = renderToStaticMarkup(React.createElement(ThemeProvider, { theme }, React.createElement(Result, {
       result: { amount: 15000, balance: 20000, message: '테스트 입금이 등록되었습니다.' }, onClose() {},
@@ -47,3 +53,6 @@ test('입금 화면은 원문 없이 테스트 안내와 중복 확인·불확�
     assert.match(complete, /실제 돈은 이동하지 않았습니다/); assert.match(complete, />확인</);
   } finally { await vite.close(); }
 });
+
+// AI작성: 중복 확인에서도 중첩 대화창이 생성되지 않는지 확인한다.
+function completeDialogCount(html) { return (html.match(/role="dialog"/g) || []).length; }

@@ -133,4 +133,24 @@ class SavingGroupDepositServiceTest {
         assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositRequest(any());
     }
+    // AI작성: 빈 원장에서는 최초 입금액 자체를 스냅샷으로 저장한다.
+    @Test void firstTransactionStartsFromZeroBalance() {
+        when(mapper.selectSavingGroupBalance(10L)).thenReturn(null, new BigDecimal("1000"));
+        service.deposit(10L, 20L, request());
+        verify(mapper).insertDepositTransaction(argThat(row -> row.getBalanceAfter().compareTo(new BigDecimal("1000")) == 0));
+    }
+    @Test void balanceStorageOverflowIsRejectedBeforeWritingTransaction() {
+        when(mapper.selectSavingGroupBalance(10L)).thenReturn(new BigDecimal("9999999999999.99"));
+        assertThatThrownBy(() -> service.deposit(10L, 20L, request()))
+                .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getCode()).isEqualTo("DEPOSIT_BALANCE_OVERFLOW"));
+        verify(mapper, never()).insertDepositTransaction(any());
+        verify(mapper, never()).insertDepositRequest(any());
+    }
+    @Test void completedInitialRequestReplayDoesNotRecalculateOrInsertSnapshot() {
+        var row = pending(); row.setStatus("COMPLETED"); row.setTransactionId(40L);
+        when(mapper.selectDepositRequestForUpdate(20L, key)).thenReturn(row);
+        assertThat(service.deposit(10L, 20L, request()).status()).isEqualTo("COMPLETED");
+        verify(mapper, never()).insertDepositTransaction(any());
+        verify(mapper, never()).insertDepositRequest(any());
+    }
 }
