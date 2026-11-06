@@ -1239,3 +1239,7 @@
 ## 2026-11-06 순번 추천 3단계
 - AI작성: 기존 두 saving-groups 경로에 GET /{savingGroupId}/turn-orders/recommendations를 추가했다. JWT memberId 속성만 전달하고 공통 ApiResponse·예외 처리를 재사용한다. Cache-Control: no-store 적용.
 - 2단계 검증: Service 22건·Mapper 1건 통과. 3단계는 Controller 계약 테스트를 추가한다. 개발자 검토 대기.
+
+## 2026-11-06 순번 추천 4단계
+- AI작성: 공통 인증 client 기반 추천 GET 함수를 추가했다. 큰 회원 ID 문자열, 허용 필드만 반환, 회원·순번 중복·누락·금액 검증, 오류·취소 보존을 적용했다.
+- 검증: 3단계까지 백엔드 32건 통과. 프론트 API 전용·계원 API 회귀 테스트 실행. 개발자 코드 검토 대기.

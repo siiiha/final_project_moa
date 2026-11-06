@@ -1,5 +1,33 @@
 import client from './client.js';
 
+// AI작성: 전체 모의 추천 결과만 조회하며 저장·적용 API는 호출하지 않는다.
+export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const result = await savingGroupMemberResponse(
+    () => client.get(`/saving-groups/${id}/turn-orders/recommendations`, { signal }),
+    '순번 추천을 불러오지 못했습니다. 다시 시도해주세요.'
+  );
+  const rows = result.data;
+  const ids = new Set();
+  const orders = new Set();
+  const invalid = () => { const error = new Error('순번 추천 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+    error.code = 'INVALID_RESPONSE'; return error; };
+  if (!Array.isArray(rows)) throw invalid();
+  const items = rows.map((row) => {
+    let memberId;
+    try { memberId = savingGroupPathId(row?.memberId); } catch { throw invalid(); }
+    if (ids.has(memberId) || !Number.isSafeInteger(row.recommendedTurnOrder)
+      || row.recommendedTurnOrder < 1 || row.recommendedTurnOrder > rows.length
+      || orders.has(row.recommendedTurnOrder) || typeof row.nickname !== 'string' || !row.nickname.trim()
+      || !Number.isSafeInteger(row.expectedPayoutAmount) || row.expectedPayoutAmount < 1
+      || row.expectedPayoutAmount > 9999999999999) throw invalid();
+    ids.add(memberId); orders.add(row.recommendedTurnOrder);
+    return { memberId, nickname: row.nickname, recommendedTurnOrder: row.recommendedTurnOrder,
+      expectedPayoutAmount: row.expectedPayoutAmount };
+  });
+  return items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+}
+
 // AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.
 export async function requestSavingGroupDeposit(groupId, { amount, requestKey }, { signal } = {}) {
   const id = savingGroupPathId(groupId);
