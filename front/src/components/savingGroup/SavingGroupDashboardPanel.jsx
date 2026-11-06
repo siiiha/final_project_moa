@@ -242,6 +242,10 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
   const reviewRequiredCount = savingGroupTransactions.filter((transaction) => (
     transaction.purposeType === '일반 지출' && transaction.category === '확인 필요'
   )).length;
+  // AI작성: 계금 지급은 자금 흐름으로만 별도 표시하며 일반 지출 합계·차트에는 넣지 않는다.
+  const payoutTotal = savingGroupTransactions
+    .filter((transaction) => transaction.purposeType === '계금 지급')
+    .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
   // AI작성: 차트 단위가 만 원이므로 회비 입금과 확정 일반 지출을 월별로 합산해 변환한다.
   const monthlyCashFlow = [...new Set(savingGroupTransactions.map((transaction) => transaction.date.slice(0, 7)))]
     .sort()
@@ -263,6 +267,7 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
         : item.id === 'expense' ? { ...item, value: formatCurrency(monthlyExpense) } : item
     )),
     { id: 'reviewRequired', label: '확인 필요 출금', value: `${reviewRequiredCount}건` },
+    { id: 'payout', label: '계금 지급', value: formatCurrency(payoutTotal) },
   ];
 
   const handleViewTransactions = () => {
