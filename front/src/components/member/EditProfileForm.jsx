@@ -342,8 +342,11 @@ function EditProfileForm() {
       newPassword !== '' || confirmNewPassword !== '';
 
     if (passwordChangeRequested) {
-      if (!newPassword.trim() || newPassword.length < 8) {
-        setErrorMessage('새 비밀번호는 8자 이상 입력해주세요.');
+      // AI작성: 서버와 동일하게 영문·숫자·특수문자 조합을 검사합니다.
+      if (!/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,}$/.test(newPassword)) {
+        setErrorMessage(
+          '새 비밀번호는 8자 이상으로 영문, 숫자, 특수문자를 각각 하나 이상 포함해주세요.'
+        );
         return;
       }
 
@@ -582,7 +585,7 @@ function EditProfileForm() {
         <PasswordInput
           id="edit-new-password"
           label="새 비밀번호"
-          placeholder="변경할 경우 8자 이상 입력"
+          placeholder="8자 이상, 영문·숫자·특수문자 포함"
           autoComplete="new-password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
