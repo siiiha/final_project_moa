@@ -500,7 +500,7 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                 <tbody>
                   {visibleTransactions.map((transaction) => (
                     <tr key={transaction.id}>
-                      <td>{`${transaction.date.slice(5).replace('-', '.')} ${transaction.time}`}</td>
+                      <td>{`${transaction.date.replaceAll('-', '.')} ${transaction.time}`}</td>
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
                       {/* AI작성: 통장 적요와 별도로 가맹점명·입금자를 표시해 분류 기준을 분명히 한다. */}
                       <td>{transaction.merchantName}</td>
