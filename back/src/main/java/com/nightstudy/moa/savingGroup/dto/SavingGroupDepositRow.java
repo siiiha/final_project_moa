@@ -12,6 +12,8 @@ public class SavingGroupDepositRow {
     private Long accountId;
     private Long memberId;
     private BigDecimal amount;
+    // AI작성: 이번 거래 직후의 내부 장부 잔액을 기존 원장에 함께 저장한다.
+    private BigDecimal balanceAfter;
     private String requestKey;
     private String status;
     private Long windowAnchorRequestId;

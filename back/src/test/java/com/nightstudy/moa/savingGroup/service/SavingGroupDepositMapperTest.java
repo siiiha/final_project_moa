@@ -23,6 +23,6 @@ class SavingGroupDepositMapperTest {
         var update = config.getMappedStatement(prefix + "completeDepositRequest").getBoundSql(Map.of()).getSql();
         assertThat(update).contains("member_id = ?", "account_id = ?", "status = 'PENDING_CONFIRMATION'", "confirmation_token_hash = NULL");
         var insert = config.getMappedStatement(prefix + "insertDepositTransaction").getBoundSql(Map.of()).getSql();
-        assertThat(insert).contains("'DEPOSIT'", "'테스트 입금'").doesNotContain("account_number", "source_transaction_id");
+        assertThat(insert).contains("'DEPOSIT'", "'테스트 입금'", "balance_after").doesNotContain("account_number", "source_transaction_id");
     }
 }

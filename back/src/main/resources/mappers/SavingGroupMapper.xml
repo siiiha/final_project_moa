@@ -1228,8 +1228,8 @@
         ORDER BY completed_at DESC, deposit_request_id DESC LIMIT 1 FOR UPDATE
     </select>
     <insert id="insertDepositTransaction" useGeneratedKeys="true" keyProperty="transactionId" keyColumn="transaction_id">
-        INSERT INTO group_transaction (account_id, transaction_type, amount, transacted_at, description)
-        VALUES (#{accountId}, 'DEPOSIT', #{amount}, #{completedAt}, '테스트 입금')
+        INSERT INTO group_transaction (account_id, transaction_type, amount, balance_after, transacted_at, description)
+        VALUES (#{accountId}, 'DEPOSIT', #{amount}, #{balanceAfter}, #{completedAt}, '테스트 입금')
     </insert>
     <insert id="insertDepositRequest" useGeneratedKeys="true" keyProperty="depositRequestId" keyColumn="deposit_request_id">
         INSERT INTO saving_group_mock_deposit_request

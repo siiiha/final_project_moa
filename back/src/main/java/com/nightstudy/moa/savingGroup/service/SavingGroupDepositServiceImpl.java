@@ -63,7 +63,7 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
             row.setWindowAnchorRequestId(anchor.getDepositRequestId());
             return pending(row, now, true);
         }
-        saveTransaction(row, now);
+        saveTransaction(groupId, row, now);
         row.setStatus("COMPLETED");
         requireOne(mapper.insertDepositRequest(row));
         return completed(groupId, row);
@@ -88,7 +88,7 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
                 hash(request.confirmationToken()).getBytes(StandardCharsets.US_ASCII),
                 row.getConfirmationTokenHash().getBytes(StandardCharsets.US_ASCII)))
             throw error(HttpStatus.FORBIDDEN, "DEPOSIT_CONFIRMATION_INVALID", "유효하지 않은 입금 확인 정보입니다.");
-        saveTransaction(row, now);
+        saveTransaction(groupId, row, now);
         requireOne(mapper.completeDepositRequest(row));
         return completed(groupId, row);
     }
@@ -121,7 +121,13 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
         return new SavingGroupDepositResponse("PENDING_CONFIRMATION", row.getAmount(), null, token,
                 row.getConfirmationExpiresAt(), "최근 5분 이내 동일한 계좌로 동일한 금액을 보낸 적이 있습니다. 테스트 입금을 한 번 더 등록하시겠습니까?");
     }
-    private void saveTransaction(SavingGroupDepositRow row, LocalDateTime now) {
+    private void saveTransaction(Long groupId, SavingGroupDepositRow row, LocalDateTime now) {
+        // AI작성: 기존 모임·계좌 잠금 안에서 원장 합산 잔액에 이번 입금액을 더한다.
+        BigDecimal before = mapper.selectSavingGroupBalance(groupId);
+        BigDecimal after = (before == null ? BigDecimal.ZERO : before).add(row.getAmount());
+        if (after.abs().compareTo(new BigDecimal("9999999999999.99")) > 0)
+            throw error(HttpStatus.CONFLICT, "DEPOSIT_BALANCE_OVERFLOW", "거래 후 잔액의 저장 가능 범위를 초과합니다.");
+        row.setBalanceAfter(after);
         row.setCompletedAt(now);
         requireOne(mapper.insertDepositTransaction(row));
         if (row.getTransactionId() == null) throw error(HttpStatus.INTERNAL_SERVER_ERROR, "DEPOSIT_SAVE_FAILED", "테스트 입금 저장에 실패했습니다.");

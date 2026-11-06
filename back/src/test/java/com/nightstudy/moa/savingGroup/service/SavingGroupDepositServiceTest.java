@@ -34,7 +34,7 @@ class SavingGroupDepositServiceTest {
         when(mapper.insertDepositRequest(any())).thenReturn(1);
         when(mapper.refreshDepositConfirmation(any())).thenReturn(1);
         when(mapper.completeDepositRequest(any())).thenReturn(1);
-        when(mapper.selectSavingGroupBalance(10L)).thenReturn(new BigDecimal("11000"));
+        when(mapper.selectSavingGroupBalance(10L)).thenReturn(new BigDecimal("10000"), new BigDecimal("11000"));
     }
     void relation(String status, String role) {
         var r = new SavingGroupMembershipRelationRow(); r.setMembershipStatus(status); r.setMemberRole(role);
@@ -52,7 +52,8 @@ class SavingGroupDepositServiceTest {
         var result = service.deposit(10L, 20L, request());
         assertThat(result.status()).isEqualTo("COMPLETED"); assertThat(result.balance()).isEqualByComparingTo("11000");
         verify(mapper).insertDepositTransaction(argThat(r -> r.getMemberId().equals(20L)
-                && r.getAmount().compareTo(new BigDecimal("1000")) == 0 && r.getCompletedAt().equals(now)));
+                && r.getAmount().compareTo(new BigDecimal("1000")) == 0 && r.getCompletedAt().equals(now)
+                && r.getBalanceAfter().compareTo(new BigDecimal("11000")) == 0));
         verify(mapper).insertDepositRequest(argThat(r -> "COMPLETED".equals(r.getStatus()) && r.getTransactionId().equals(40L)));
     }
     @ParameterizedTest @ValueSource(strings = {"LEFT", "PENDING", "EXPELLED", "REJECTED"})
