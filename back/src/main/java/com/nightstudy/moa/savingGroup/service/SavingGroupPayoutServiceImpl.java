@@ -58,7 +58,9 @@ public class SavingGroupPayoutServiceImpl implements SavingGroupPayoutService {
         int number = Math.toIntExact(ChronoUnit.MONTHS.between(YearMonth.from(group.getStartDate()), YearMonth.from(today)) + 1);
         var round = mapper.selectPayoutRoundForUpdate(groupId, number);
         if (round == null) throw error(HttpStatus.CONFLICT, "PAYOUT_ROUND_MISSING", "현재 회차가 준비되지 않았습니다.");
-        if (!Integer.valueOf(number).equals(mapper.selectPayoutSequence(groupId, memberId)))
+        // AI작성: 현재 적용월의 예약과 운영 기간 내 지급 완료 여부를 함께 확인한다.
+        if (!Integer.valueOf(number).equals(SavingGroupTurnOrderServiceImpl.resolveSequence(mapper, groupId, memberId,
+                mapper.selectPayoutSequence(groupId, memberId), number)))
             throw error(HttpStatus.FORBIDDEN, "PAYOUT_NOT_YOUR_TURN", "현재 본인 순번인 회원만 요청할 수 있습니다.");
         validateSnapshot(round);
         if (mapper.existsBlockingRoundPayout(round.getRoundId())) throw error(HttpStatus.CONFLICT, "PAYOUT_DUPLICATE", "이미 요청되었거나 지급 완료된 회차입니다.");

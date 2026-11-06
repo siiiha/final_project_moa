@@ -104,8 +104,12 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
     static Integer resolveSequence(SavingGroupMapper mapper, Long groupId, Long memberId, Integer legacy, int round) {
         if (mapper.existsCompletedTurnOrderPayout(groupId, memberId)) throw conflict("이미 지급 완료된 회원은 다시 지급받을 수 없습니다.");
         Long savingId = mapper.selectTurnOrderSavingGroupId(groupId);
-        if (savingId == null) return legacy;
-        var plan = mapper.selectTurnOrderPlan(savingId, YearMonth.now(ZoneId.of("Asia/Seoul")).atDay(1));
+        if (savingId == null || savingId <= 0) return legacy;
+        var group = mapper.selectTurnOrderGroupForUpdate(savingId);
+        if (group == null || group.getStartDate() == null) throw conflict("계모임 시작일을 확인해주세요.");
+        // AI작성: 지난 회차의 심사에는 그 회차 당시 적용월을 사용하여 미래 예약이 과거 요청을 바꾸지 않게 한다.
+        var month = YearMonth.from(group.getStartDate()).plusMonths(round - 1L).atDay(1);
+        var plan = mapper.selectTurnOrderPlan(savingId, month);
         if (plan == null) return legacy;
         var members = mapper.selectTurnOrderAssignmentMembers(groupId);
         var eligible = members.stream().filter(m -> !m.isPaid()).map(SavingGroupTurnOrderAssignmentRow::getMemberId).collect(Collectors.toSet());
@@ -114,6 +118,9 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
         var currentIds = members.stream().map(SavingGroupTurnOrderAssignmentRow::getMemberId).collect(Collectors.toSet());
         if (!unpaid.equals(eligible) || rows.stream().anyMatch(r -> !currentIds.contains(r.getMemberId()) && r.getSequenceNumber() >= round))
             throw conflict("모임원이 변경되어 순번 재지정이 필요합니다.");
+        if (rows.stream().anyMatch(r -> r.getSequenceNumber() >= round && members.stream()
+                .anyMatch(m -> m.getMemberId().equals(r.getMemberId()) && m.isPaid())))
+            throw conflict("예약 이후 지급 상태가 변경되어 순번 재지정이 필요합니다.");
         // AI작성: 미지급 과거 회차는 자동 이월하지 않는다. 기존 요청 처리 정책을 별도로 확인한다.
         return rows.stream().filter(r -> r.getMemberId().equals(memberId.toString())).map(SavingGroupTurnOrderAssignmentRow::getSequenceNumber).findFirst().orElse(null);
     }

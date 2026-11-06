@@ -235,7 +235,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_REQUESTER_INELIGIBLE", "현재 요청자의 회원 자격으로 처리할 수 없습니다.");
         }
         if (approve && "순번계".equals(type)) {
-            Integer sequence = savingGroupMapper.selectPayoutDecisionSequence(group.getGroupId(), request.getRequesterId());
+            // AI작성: 심사도 요청과 같은 예약 순번 기준을 사용하고 지급 완료 회원의 재승인을 차단한다.
+            Integer sequence = SavingGroupTurnOrderServiceImpl.resolveSequence(savingGroupMapper, group.getGroupId(), request.getRequesterId(),
+                    savingGroupMapper.selectPayoutDecisionSequence(group.getGroupId(), request.getRequesterId()), request.getRoundNumber());
             if (sequence == null || sequence <= 0 || !sequence.equals(request.getRoundNumber())) {
                 throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_SEQUENCE_MISMATCH", "요청자의 지급 순번과 요청 회차가 일치하지 않습니다.");
             }
