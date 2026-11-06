@@ -1,6 +1,9 @@
 import { FiChevronRight } from 'react-icons/fi';
 import styled from 'styled-components';
-import { NOTIFICATION_TYPE_LABELS } from '../../constants/notification';
+import {
+  hasNavigableNotificationTarget,
+  NOTIFICATION_TYPE_LABELS,
+} from '../../constants/notification';
 import formatNotificationDate from '../../utils/formatNotificationDate';
 import Button from '../common/Button';
 
@@ -207,7 +210,7 @@ function NotificationList({
                     </DateText>
                   </span>
                 </ReadButton>
-                {notification.targetUrl?.startsWith('/') && (
+                {hasNavigableNotificationTarget(notification) && (
                   <MoveButton
                     type="button"
                     onClick={() => onNotificationClick(notification)}

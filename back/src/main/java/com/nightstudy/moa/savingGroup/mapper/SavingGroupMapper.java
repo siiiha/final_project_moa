@@ -19,6 +19,8 @@ public interface SavingGroupMapper {
             @Param("groupId") Long groupId, @Param("keywordPattern") String keywordPattern, @Param("offset") int offset);
     // AI작성: 모임 잠금으로 같은 모임의 중복 검사와 저장을 직렬화한다. DB 컬럼 적용 후 사용한다.
     SavingGroupPayoutTargetRow selectPayoutTargetForUpdate(@Param("groupId") Long groupId);
+    // AI작성: 지급 요청을 실제 심사할 수 있는 승인 계주의 회원 번호만 조회한다.
+    List<Long> selectSavingGroupPayoutReviewerIds(@Param("groupId") Long groupId);
     Integer selectPayoutSequence(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
     SavingGroupPayoutRoundRow selectPayoutRoundForUpdate(@Param("groupId") Long groupId,
             @Param("roundNumber") int roundNumber);
@@ -112,6 +114,8 @@ public interface SavingGroupMapper {
             @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
     // AI작성: Service에서 모임 상태와 작성 권한을 검증한 공지를 저장하고 영향 행 수를 반환한다.
     int insertSavingGroupNotice(SavingGroupNoticeCreateRow notice);
+    // AI작성: 공지 등록 알림 대상인 승인 계주·운영진·계원의 회원 번호를 중복 없이 조회한다.
+    List<Long> selectApprovedSavingGroupMemberIds(@Param("groupId") Long groupId);
     List<String> selectApprovedMemberRoles(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 
     // AI작성: 신청 ID·모임 ID·PENDING 조건이 일치하는 기존 행만 승인하고 영향 행 수를 반환한다.

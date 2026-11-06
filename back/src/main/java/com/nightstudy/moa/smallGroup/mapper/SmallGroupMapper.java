@@ -116,6 +116,9 @@ public interface SmallGroupMapper {
     // AI작성: 소모임 참여 인원은 승인된 OWNER와 MEMBER만 중복 없이 집계한다.
     long selectApprovedSmallGroupMemberCount(@Param("groupId") Long groupId);
 
+    // AI작성: 새 투표 알림을 보낼 승인 OWNER·MEMBER의 회원 번호를 중복 없이 조회한다.
+    List<Long> selectApprovedSmallGroupMemberIds(@Param("groupId") Long groupId);
+
     // AI작성: 가입 신청 중 회원 계정·본인 인증·시스템 권한 변경과 경합하지 않도록 회원 행을 잠가 조회한다.
     SmallGroupJoinMemberRow selectSmallGroupJoinMemberForUpdate(@Param("memberId") Long memberId);
 

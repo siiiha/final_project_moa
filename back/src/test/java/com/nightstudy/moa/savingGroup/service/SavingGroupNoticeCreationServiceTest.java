@@ -6,8 +6,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,6 +29,7 @@ class SavingGroupNoticeCreationServiceTest {
     private static final long GROUP_ID = 20L;
     private static final long MEMBER_ID = 30L;
     @Mock private SavingGroupMapper mapper;
+    @Mock private NotificationService notificationService;
     @InjectMocks private SavingGroupServiceImpl service;
 
     @ParameterizedTest
@@ -44,6 +48,22 @@ class SavingGroupNoticeCreationServiceTest {
         assertThat(saved.getValue().getWriterId()).isEqualTo(MEMBER_ID);
         assertThat(saved.getValue().getTitle()).isEqualTo("공지 제목");
         assertThat(saved.getValue().getContent()).isEqualTo("공지 내용");
+    }
+
+    @Test
+    void notifiesApprovedMembersExceptWriterAfterNoticeIsSaved() {
+        target("01");
+        relation("OWNER", "APPROVED");
+        when(mapper.insertSavingGroupNotice(any())).thenReturn(1);
+        when(mapper.selectApprovedSavingGroupMemberIds(GROUP_ID)).thenReturn(List.of(MEMBER_ID, 31L, 32L));
+
+        write();
+
+        verify(notificationService, never()).send(eq(MEMBER_ID), any(), any(), any());
+        verify(notificationService).send(31L, NotificationType.NOTICE_CREATED,
+                "계모임에 새 공지가 등록되었습니다.", "/saving-groups/10");
+        verify(notificationService).send(32L, NotificationType.NOTICE_CREATED,
+                "계모임에 새 공지가 등록되었습니다.", "/saving-groups/10");
     }
 
     @ParameterizedTest

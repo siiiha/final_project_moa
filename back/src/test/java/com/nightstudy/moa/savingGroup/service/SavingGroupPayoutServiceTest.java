@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
@@ -21,6 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class SavingGroupPayoutServiceTest {
     SavingGroupMapper mapper;
     SavingGroupReceiptStorage storage;
+    NotificationService notificationService;
     SavingGroupPayoutServiceImpl service;
     SavingGroupPayoutTargetRow group;
     SavingGroupMembershipRelationRow member;
@@ -29,7 +32,8 @@ class SavingGroupPayoutServiceTest {
     MockMultipartFile file = new MockMultipartFile("receipt", "receipt.png", "image/png", new byte[]{1});
     @BeforeEach void setup() {
         mapper = mock(SavingGroupMapper.class); storage = mock(SavingGroupReceiptStorage.class);
-        service = new SavingGroupPayoutServiceImpl(mapper, storage);
+        notificationService = mock(NotificationService.class);
+        service = new SavingGroupPayoutServiceImpl(mapper, storage, notificationService);
         group = new SavingGroupPayoutTargetRow(); group.setGroupId(1L); group.setGroupType("순번계"); group.setStatus("02");
         group.setStartDate(LocalDate.now(ZoneId.of("Asia/Seoul")).withDayOfMonth(1));
         when(mapper.selectPayoutTargetForUpdate(1L)).thenReturn(group);
@@ -55,6 +59,13 @@ class SavingGroupPayoutServiceTest {
         var order = inOrder(mapper); order.verify(mapper).selectPayoutTargetForUpdate(1L);
         order.verify(mapper).selectSavingGroupMembershipForUpdate(1L, 2L);
         verifyNoInteractions(storage);
+    }
+    @Test void newRequestNotifiesApprovedOwnerExceptRequester() {
+        when(mapper.selectSavingGroupPayoutReviewerIds(1L)).thenReturn(java.util.List.of(2L, 3L));
+        service.createPayout(1L, 2L, request, null);
+        verify(notificationService, never()).send(eq(2L), any(), any(), any());
+        verify(notificationService).send(3L, NotificationType.SAVING_GROUP_PAYOUT_REQUESTED,
+                "새로운 계금·지출 요청이 등록되었습니다.", "/saving-groups/1");
     }
     @Test void wrongTurn() { when(mapper.selectPayoutSequence(1L, 2L)).thenReturn(2); fails("PAYOUT_NOT_YOUR_TURN"); }
     @Test void startMonthDeterminesCurrentRoundAcrossYearBoundary() {

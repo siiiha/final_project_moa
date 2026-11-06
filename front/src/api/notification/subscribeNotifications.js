@@ -25,6 +25,7 @@ const SSE_RETRY_DELAY_MS = 3_000;
  */
 export function subscribeNotifications(onNotification, onError) {
   const controller = new AbortController();
+  let lastEventId = null;
 
   const start = () => {
     // 이미 화면을 벗어났거나 로그아웃했다면 다시 연결하지 않습니다.
@@ -42,6 +43,7 @@ export function subscribeNotifications(onNotification, onError) {
         Accept: 'text/event-stream',
         Authorization: `Bearer ${token}`,
         'X-Moa-Request': '1',
+        ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),
       },
 
       // refresh token 쿠키를 사용할 수 있도록 쿠키를 함께 전송합니다.
@@ -94,6 +96,9 @@ export function subscribeNotifications(onNotification, onError) {
         // notification 이외의 이벤트와 ping 주석은 무시합니다.
         if (event.event !== 'notification') return;
         if (!event.data) return;
+
+        // AI작성: 토큰 갱신으로 새 SSE 요청을 만들 때 누락 알림 복구 기준으로 사용합니다.
+        if (event.id) lastEventId = event.id;
 
         try {
           const notification = JSON.parse(event.data);

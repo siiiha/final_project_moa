@@ -10,6 +10,8 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationSearchCo
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.member.dto.region.MemberRegionDto;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,10 +28,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
 
     private final SavingGroupMapper savingGroupMapper;
     private final FileStorageService fileStorageService;
+    private final NotificationService notificationService;
 
-    public SavingGroupCreationServiceImpl(SavingGroupMapper savingGroupMapper, FileStorageService fileStorageService) {
+    public SavingGroupCreationServiceImpl(SavingGroupMapper savingGroupMapper, FileStorageService fileStorageService,
+            NotificationService notificationService) {
         this.savingGroupMapper = savingGroupMapper;
         this.fileStorageService = fileStorageService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -136,6 +141,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 승인할 수 없는 신청입니다.");
         }
+        // AI작성: 개설 심사의 모든 상태 변경이 성공한 뒤 신청자에게 승인 결과와 공개 상세 경로를 알린다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_CREATION_APPROVED,
+                "계모임 개설 신청이 승인되었습니다.",
+                "/saving-groups/" + application.getSavingGroupId()
+        );
     }
 
     @Override
@@ -149,6 +161,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             if (savingGroupMapper.rejectSavingGroupDeletionApplication(approvalId, normalizedRejectReason) != 1) {
                 throw applicationProcessFailed();
             }
+            // AI작성: 삭제 신청이 반려된 뒤 신청자인 계주에게 유지된 계모임의 상세 경로와 결과를 알린다.
+            notificationService.send(
+                    application.getApplicantMemberId(),
+                    NotificationType.SAVING_GROUP_DELETION_REJECTED,
+                    "계모임 삭제 신청이 반려되었습니다.",
+                    "/saving-groups/" + application.getSavingGroupId()
+            );
             return;
         }
         if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, normalizedRejectReason) != 1
@@ -156,6 +175,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 반려할 수 없는 신청입니다.");
         }
+        // AI작성: 개설 심사와 대기 계주 관계가 모두 반려된 뒤 신청자에게 결과를 알리며 비공개 모임 링크는 제공하지 않는다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_CREATION_REJECTED,
+                "계모임 개설 신청이 반려되었습니다.",
+                null
+        );
     }
 
     // AI작성: 승인 시점에 상태·공동자금·출금을 다시 확인해 신청 이후 변경으로 인한 잘못된 삭제를 막는다.
@@ -178,6 +204,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                 || savingGroupMapper.softDeleteSavingGroup(groupId) != 1) {
             throw applicationProcessFailed();
         }
+        // AI작성: 삭제 심사 승인과 소프트 삭제가 모두 성공한 뒤 신청자인 계주에게 결과만 알린다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_DELETION_APPROVED,
+                "계모임 삭제 신청이 승인되었습니다.",
+                null
+        );
     }
 
     private ApiException applicationProcessFailed() {

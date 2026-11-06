@@ -255,6 +255,15 @@
           AND member_role IN ('OWNER', 'MEMBER')
     </select>
 
+    <!-- AI작성: 투표 생성 알림 대상인 승인 OWNER·MEMBER의 회원 번호만 중복 없이 조회한다. -->
+    <select id="selectApprovedSmallGroupMemberIds" resultType="long">
+        SELECT DISTINCT member_id
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND membership_status = 'APPROVED'
+          AND member_role IN ('OWNER', 'MEMBER')
+    </select>
+
     <!-- AI작성: 가입 신청 중 회원 계정·본인 인증·시스템 권한 변경과 경합하지 않도록 회원 행을 잠가 조회한다. -->
     <!-- AI작성: 상세 화면의 본인 신청 자격은 읽기 전용으로 조회한다. -->
     <select id="selectSmallGroupJoinMember"

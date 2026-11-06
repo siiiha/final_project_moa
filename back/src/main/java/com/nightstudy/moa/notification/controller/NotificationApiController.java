@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,10 +35,11 @@ public class NotificationApiController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
     public SseEmitter subscribe(
-            @AuthenticationPrincipal Long memberId
+            @AuthenticationPrincipal Long memberId,
+            @RequestHeader(name = "Last-Event-ID", required = false) Long lastEventId
             //Spring Security가 인증한 현재 로그인 사용자 정보를 Controller 매개변수에 넣어주는 어노테이션
     ) {
-        return notificationService.subscribe(memberId);
+        return notificationService.subscribe(memberId, lastEventId);
     }
 
     // AI작성: 마지막으로 받은 알림 번호가 있으면 그 이전 알림을 조회합니다.

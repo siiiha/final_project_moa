@@ -2,6 +2,8 @@ package com.nightstudy.moa.smallGroup;
 
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupJoinApprovalTargetRow;
@@ -149,6 +151,15 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (smallGroupMapper.insertSmallGroupNotice(row) != 1 || row.getNoticeId() == null) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_NOTICE_WRITE_FAILED", "공지 등록에 실패했습니다.");
         }
+        // AI작성: 저장 성공 후 작성자를 제외한 승인 회원에게 생성된 공지 상세 화면 알림을 발송한다.
+        smallGroupMapper.selectApprovedSmallGroupMemberIds(target.getGroupId()).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .forEach(receiverId -> notificationService.send(
+                        receiverId,
+                        NotificationType.NOTICE_CREATED,
+                        "소모임에 새 공지가 등록되었습니다.",
+                        "/small-groups/" + smallGroupId + "/notices/" + row.getNoticeId()
+                ));
     }
 
     // AI작성: 소모임 ID와 groups ID를 구분하며 개설자·승인 OWNER를 동시에 확인한다.
@@ -187,14 +198,19 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SmallGroupMapper smallGroupMapper;
+    private final NotificationService notificationService;
 
     // AI작성: 승인과 거절이 공유하는 잠금 검증 결과를 묶어 처리별 후속 검증을 분리한다.
     private record SmallGroupJoinDecisionTarget(
             SmallGroupJoinApprovalTargetRow request, SmallGroupJoinTargetRow target) {
     }
 
-    public SmallGroupServiceImpl(SmallGroupMapper smallGroupMapper) {
+    public SmallGroupServiceImpl(
+            SmallGroupMapper smallGroupMapper,
+            NotificationService notificationService
+    ) {
         this.smallGroupMapper = smallGroupMapper;
+        this.notificationService = notificationService;
     }
 
     // AI작성: 목록 페이지와 무관하게 본인의 기존 후기 ID를 조회해 버튼 표시 여부를 판단한다.
@@ -659,7 +675,15 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                     "투표 보기 저장에 실패했습니다.");
         }
 
-        // TODO: 알림 기능 담당 구현 후, 승인된 소모임 회원에게 투표 생성 알림을 발송한다.
+        // AI작성: 투표 생성자 본인을 제외한 승인 소모임 회원에게 새 투표 알림을 보낸다.
+        smallGroupMapper.selectApprovedSmallGroupMemberIds(target.getGroupId()).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .forEach(receiverId -> notificationService.send(
+                        receiverId,
+                        NotificationType.VOTE_CREATED,
+                        "새로운 투표가 등록되었습니다.",
+                        "/small-groups/" + smallGroupId + "/votes/" + command.getSmallGroupVoteId()
+                ));
         // TODO: 투표 종료 기능 담당 구현 후, 마감·생성자 종료 시 종료 알림을 발송한다.
         return new SmallGroupVoteCreateResponse(command.getSmallGroupVoteId());
     }
@@ -795,6 +819,13 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
                     "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 소모임 가입 승인이 완료된 후 신청 회원에게 처리 결과 알림을 보낸다.
+        notificationService.send(
+                request.getMemberId(),
+                NotificationType.SMALL_GROUP_JOIN_APPROVED,
+                "소모임 가입 신청이 승인되었습니다.",
+                "/small-groups/" + smallGroupId
+        );
     }
 
     // AI작성: 거절은 승인과 달리 정원·회원 관계를 변경하지 않고 대기 신청 상태만 REJECTED로 전환한다.
@@ -810,6 +841,13 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_REJECTION_FAILED",
                     "가입 신청 상태가 변경되어 거절할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 소모임 가입 거절이 완료된 후 신청 회원에게 처리 결과 알림을 보낸다.
+        notificationService.send(
+                request.getMemberId(),
+                NotificationType.SMALL_GROUP_JOIN_REJECTED,
+                "소모임 가입 신청이 거절되었습니다.",
+                null
+        );
     }
 
     // AI작성: 신청 회원 → 소모임 → 신청 행 순서로 잠가 승인·거절의 공통 권한·소속·대기 상태를 재검증한다.
@@ -1024,6 +1062,14 @@ public class SmallGroupServiceImpl implements SmallGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_DUPLICATED",
                     "이미 가입 신청한 소모임입니다.");
         }
+
+        // AI작성: 소모임 가입 신청 저장이 완료된 후 개설자에게 새로운 신청 접수 알림을 보낸다.
+        notificationService.send(
+                target.getCreatorMemberId(),
+                NotificationType.SMALL_GROUP_JOIN_REQUEST,
+                "새로운 소모임 가입 신청이 접수되었습니다.",
+                "/small-groups/" + smallGroupId
+        );
     }
 
     // AI작성: 개설자 외에도 OWNER·MANAGER 관계는 상태와 무관하게 자기 소모임 신청을 허용하지 않는다.
