@@ -230,10 +230,20 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
       && transaction.purposeType === '회비'
     ))
     .reduce((total, transaction) => total + transaction.amount, 0);
+  // AI작성: 계금 지급과 아직 확인하지 않은 출금은 모임 운영 지출 통계에서 제외한다.
+  const monthlyExpense = savingGroupTransactions
+    .filter((transaction) => (
+      referenceMonth != null
+      && transaction.date.startsWith(referenceMonth)
+      && transaction.purposeType === '일반 지출'
+      && transaction.category !== '확인 필요'
+    ))
+    .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
   const dashboardSummary = savingGroupDashboardSummary.map((item) => (
     item.id === 'balance'
       ? { ...item, value: latestTransaction ? formatBalance(latestTransaction.balance) : '잔액 확인 필요' }
-      : item.id === 'income' ? { ...item, value: formatCurrency(monthlyDues) } : item
+      : item.id === 'income' ? { ...item, value: formatCurrency(monthlyDues) }
+        : item.id === 'expense' ? { ...item, value: formatCurrency(monthlyExpense) } : item
   ));
 
   const handleViewTransactions = () => {
