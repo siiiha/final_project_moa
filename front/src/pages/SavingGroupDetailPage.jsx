@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import SavingGroupAccountCard from '../components/savingGroup/SavingGroupAccountCard';
-import SavingGroupDepositForm from '../components/savingGroup/SavingGroupDepositForm';
+import SavingGroupDepositForm, { SavingGroupDepositResultModal } from '../components/savingGroup/SavingGroupDepositForm';
 import { getSavingGroupAccount } from '../api/savingGroups.js';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -276,9 +276,12 @@ function SavingGroupDetailPage() {
         <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={depositDialog.groupId} account={depositDialog.account}
           onClose={() => setDepositDialog(null)} onCompleted={data => {
             setDepositDialog(null);
-            setDepositResult({ id, authVersion, message: data.message });
+            setDepositResult({ id, authVersion, ...data });
             setAccountRetry(value => value + 1);
           }} />
+      )}
+      {depositResult?.id === id && depositResult?.authVersion === authVersion && (
+        <SavingGroupDepositResultModal result={depositResult} onClose={() => setDepositResult(null)} />
       )}
       {/* AI작성: 최대 두 개 제한은 공통 모달로 안내하며 확인·닫기 후 기존 고정을 해제할 수 있다. */}
       {currentPin?.phase === 'limit' && (
