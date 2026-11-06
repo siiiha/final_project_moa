@@ -1,5 +1,38 @@
 import client from './client.js';
 
+// AI작성: 현재 순번과 다음 달 예약안을 같은 인증 client로 조회·저장한다.
+function toTurnOrderAssignment(data) {
+  if (!data || !/^\d{4}-\d{2}-01$/.test(data.effectiveMonth) || !Number.isSafeInteger(data.startRoundNumber)
+    || data.startRoundNumber < 1 || typeof data.scheduled !== 'boolean' || typeof data.needsReassignment !== 'boolean'
+    || !Array.isArray(data.members)) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
+  const ids = new Set();
+  const members = data.members.map((row) => {
+    const memberId = savingGroupPathId(row.memberId);
+    if (ids.has(memberId) || typeof row.nickname !== 'string' || !['OWNER', 'MANAGER', 'MEMBER'].includes(row.role)
+      || typeof row.paid !== 'boolean' || [row.currentSequenceNumber, row.plannedSequenceNumber].some(
+        value => value != null && (!Number.isSafeInteger(value) || value < 1))) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
+    ids.add(memberId);
+    return { memberId, nickname: row.nickname, role: row.role, paid: row.paid,
+      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null };
+  });
+  return { effectiveMonth: data.effectiveMonth, startRoundNumber: data.startRoundNumber,
+    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members };
+}
+
+export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
+  const result = await savingGroupMemberResponse(
+    () => client.get(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, { signal }),
+    '순번을 불러오지 못했습니다.');
+  return toTurnOrderAssignment(result.data);
+}
+
+export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal } = {}) {
+  const result = await savingGroupMemberResponse(
+    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, { turnOrders }, { signal }),
+    '순번 저장 결과를 확인하지 못했습니다. 다시 조회해주세요.');
+  return toTurnOrderAssignment(result.data);
+}
+
 // AI작성: 전체 모의 추천 결과만 조회하며 저장·적용 API는 호출하지 않는다.
 export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { signal } = {}) {
   const id = savingGroupPathId(savingGroupId);
