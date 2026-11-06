@@ -2,6 +2,62 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: savingGroupId를 내부 groupId로 해석하고 기존 회원·지급 처리와 모임 잠금을 공유한다. -->
+    <select id="selectTurnOrderGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">
+        SELECT sg.saving_group_id, sg.group_id, sg.saving_group_type AS group_type,
+               sg.status, sg.start_date, sg.end_date
+        FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="selectTurnOrderAssignmentMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderAssignmentRow">
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname, gm.member_role AS role, gm.sequence_number,
+            EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                   WHERE mr.group_id = gm.group_id AND pr.requester_id = gm.member_id AND pr.status = 'COMPLETED') AS paid
+        FROM group_member gm JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
+          AND gm.member_role IN ('OWNER', 'MANAGER', 'MEMBER') ORDER BY gm.crew_member_id FOR UPDATE
+    </select>
+    <!-- AI작성: 해당 월까지의 최신 예약을 사용하고 예약 전체가 미래 회차 배정을 보존한다. -->
+    <select id="selectTurnOrderPlan" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">
+        SELECT * FROM saving_group_turn_order_plan
+        WHERE saving_group_id = #{savingGroupId} AND effective_month &lt;= #{month}
+        ORDER BY effective_month DESC LIMIT 1 FOR UPDATE
+    </select>
+    <select id="selectTurnOrderPlanMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderAssignmentRow">
+        SELECT CAST(member_id AS CHAR) AS member_id, round_number AS sequence_number
+        FROM saving_group_turn_order_plan_member WHERE turn_order_plan_id = #{planId}
+        ORDER BY round_number FOR UPDATE
+    </select>
+    <insert id="insertTurnOrderPlan" useGeneratedKeys="true" keyProperty="turnOrderPlanId">
+        INSERT INTO saving_group_turn_order_plan (saving_group_id, effective_month, start_round_number, assigned_by)
+        VALUES (#{savingGroupId}, #{effectiveMonth}, #{startRoundNumber}, #{assignedBy})
+        ON DUPLICATE KEY UPDATE turn_order_plan_id = LAST_INSERT_ID(turn_order_plan_id),
+          start_round_number = VALUES(start_round_number), assigned_by = VALUES(assigned_by), assigned_at = CURRENT_TIMESTAMP
+    </insert>
+    <delete id="deleteTurnOrderPlanMembers">
+        DELETE FROM saving_group_turn_order_plan_member WHERE turn_order_plan_id = #{planId}
+    </delete>
+    <insert id="insertTurnOrderPlanMember">
+        INSERT INTO saving_group_turn_order_plan_member (turn_order_plan_id, member_id, round_number)
+        VALUES (#{planId}, #{memberId}, #{roundNumber})
+    </insert>
+    <update id="updateTurnOrderSequence">
+        UPDATE group_member SET sequence_number = #{roundNumber}
+        WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'
+    </update>
+    <!-- AI작성: 운영 기간당 중복 수령과 예약 변경으로 기존 요청의 대상이 바뀌는 상황을 차단한다. -->
+    <select id="selectTurnOrderSavingGroupId" resultType="long">
+        SELECT saving_group_id FROM saving_group WHERE group_id = #{groupId}
+    </select>
+    <select id="existsCompletedTurnOrderPayout" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+            WHERE mr.group_id = #{groupId} AND pr.requester_id = #{memberId} AND pr.status = 'COMPLETED')
+    </select>
+    <select id="existsUpcomingTurnOrderPayout" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+            WHERE mr.group_id = #{groupId} AND mr.round_number &gt;= #{startRound}
+              AND pr.status IN ('PENDING', 'APPROVED', 'COMPLETED'))
+    </select>
     <!-- AI작성: 공개 계모임 ID로 내부 모임 ID를 해석하며 삭제 모임은 제외한다. -->
     <select id="selectTurnOrderRecommendationContext" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderContextRow">
         SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, sg.dues_amount

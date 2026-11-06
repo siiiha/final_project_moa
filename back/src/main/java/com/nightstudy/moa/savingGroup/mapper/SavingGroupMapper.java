@@ -9,6 +9,21 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 공통 모임 잠금 아래 예약 목록을 통째로 저장하며 실제 회차·지급 원장은 변경하지 않는다.
+    SavingGroupTurnOrderPlanRow selectTurnOrderGroupForUpdate(@Param("savingGroupId") Long savingGroupId);
+    List<SavingGroupTurnOrderAssignmentRow> selectTurnOrderAssignmentMembers(@Param("groupId") Long groupId);
+    SavingGroupTurnOrderPlanRow selectTurnOrderPlan(@Param("savingGroupId") Long savingGroupId,
+            @Param("month") java.time.LocalDate month);
+    List<SavingGroupTurnOrderAssignmentRow> selectTurnOrderPlanMembers(@Param("planId") Long planId);
+    int insertTurnOrderPlan(SavingGroupTurnOrderPlanRow plan);
+    int deleteTurnOrderPlanMembers(@Param("planId") Long planId);
+    int insertTurnOrderPlanMember(@Param("planId") Long planId, @Param("memberId") Long memberId,
+            @Param("roundNumber") int roundNumber);
+    int updateTurnOrderSequence(@Param("groupId") Long groupId, @Param("memberId") Long memberId,
+            @Param("roundNumber") int roundNumber);
+    Long selectTurnOrderSavingGroupId(@Param("groupId") Long groupId);
+    boolean existsCompletedTurnOrderPayout(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    boolean existsUpcomingTurnOrderPayout(@Param("groupId") Long groupId, @Param("startRound") int startRound);
     // AI작성: 추천에는 현재 승인된 모든 역할을 포함하며 저장 SQL은 추가하지 않는다.
     SavingGroupTurnOrderContextRow selectTurnOrderRecommendationContext(@Param("savingGroupId") Long savingGroupId);
     List<SavingGroupTurnOrderMemberRow> selectTurnOrderRecommendationMembers(@Param("groupId") Long groupId);
