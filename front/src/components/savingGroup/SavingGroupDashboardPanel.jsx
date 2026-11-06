@@ -212,7 +212,7 @@ const Note = styled.p`
 const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
 
 function SavingGroupDashboardPanel({ onViewTransactions }) {
-  // TODO: Spring Boot 서버의 계모임 대시보드 API로 요약·추이·최근 거래 mock 데이터를 대체합니다.
+  // AI작성: 최근 거래는 거래 내역 화면과 같은 공용 통장 거래 Mock을 기준으로 표시한다.
   const recentTransactions = savingGroupTransactions.slice(0, 3);
 
   const handleViewTransactions = () => {
@@ -274,7 +274,7 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
             <thead>
               <tr>
                 <th scope="col">일시</th>
-                <th scope="col">내용</th>
+                <th scope="col">거래처·가맹점명</th>
                 <th scope="col">금액</th>
                 <th scope="col">잔액</th>
               </tr>
@@ -282,8 +282,8 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
             <tbody>
               {recentTransactions.map((transaction) => (
                 <tr key={transaction.id}>
-                  <td>{`${transaction.date.slice(5).replace('-', '.')} ${transaction.time}`}</td>
-                  <td>{transaction.description}</td>
+                  <td>{`${transaction.date.replaceAll('-', '.')} ${transaction.time}`}</td>
+                  <td>{transaction.merchantName}</td>
                   <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
                   <td>{`${transaction.balance.toLocaleString()}원`}</td>
                 </tr>
