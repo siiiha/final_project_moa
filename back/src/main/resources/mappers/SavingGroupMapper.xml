@@ -18,21 +18,29 @@
     </select>
     <!-- AI작성: 조건은 집계·목록에서 공유하고 정렬은 허용한 SQL 분기만 사용한다. -->
     <sql id="savingGroupTransactionFilter">
-        WHERE account_id = #{accountId}
-        <if test="condition.transactionType != null">AND transaction_type = #{condition.transactionType}</if>
-        <if test="condition.minAmount != null">AND amount &gt;= #{condition.minAmount}</if>
-        <if test="condition.maxAmount != null">AND amount &lt;= #{condition.maxAmount}</if>
+        WHERE gt.account_id = #{accountId}
+        <if test="condition.transactionType != null">AND gt.transaction_type = #{condition.transactionType}</if>
+        <if test="condition.minAmount != null">AND gt.amount &gt;= #{condition.minAmount}</if>
+        <if test="condition.maxAmount != null">AND gt.amount &lt;= #{condition.maxAmount}</if>
     </sql>
     <select id="selectSavingGroupTransactionCount" resultType="int">
-        SELECT COUNT(*) FROM group_transaction
+        SELECT COUNT(*) FROM group_transaction gt
         <include refid="savingGroupTransactionFilter"/>
     </select>
     <select id="selectSavingGroupTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionResponse">
-        SELECT transacted_at, transaction_type, amount, balance_after FROM group_transaction
+        <!-- AI작성: 연결 없는 기존 거래도 유지하고 완료된 본 계좌 입금 요청자만 기존 방식으로 마스킹한다. -->
+        SELECT gt.transacted_at, gt.transaction_type, gt.amount, gt.balance_after,
+          CASE WHEN gt.transaction_type = 'DEPOSIT' AND m.name IS NOT NULL AND CHAR_LENGTH(m.name) &gt; 0
+            THEN CONCAT(LEFT(m.name, 1), REPEAT('*', GREATEST(CHAR_LENGTH(m.name) - 1, 1)))
+            ELSE NULL END AS deposit_requester_name
+        FROM group_transaction gt
+        LEFT JOIN saving_group_mock_deposit_request dr
+          ON dr.transaction_id = gt.transaction_id AND dr.account_id = gt.account_id AND dr.status = 'COMPLETED'
+        LEFT JOIN members m ON m.member_id = dr.member_id AND m.deleted_at IS NULL
         <include refid="savingGroupTransactionFilter"/>
         <choose>
-            <when test='condition.sort == "OLDEST"'>ORDER BY transacted_at ASC, transaction_id ASC</when>
-            <otherwise>ORDER BY transacted_at DESC, transaction_id DESC</otherwise>
+            <when test='condition.sort == "OLDEST"'>ORDER BY gt.transacted_at ASC, gt.transaction_id ASC</when>
+            <otherwise>ORDER BY gt.transacted_at DESC, gt.transaction_id DESC</otherwise>
         </choose>
         LIMIT 10 OFFSET #{offset}
     </select>

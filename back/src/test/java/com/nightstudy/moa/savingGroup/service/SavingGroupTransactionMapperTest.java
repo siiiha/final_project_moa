@@ -29,7 +29,9 @@ class SavingGroupTransactionMapperTest {
         }
         String sql = config.getMappedStatement(prefix+"selectSavingGroupTransactions").getBoundSql(params).getSql();
         String direction = sort.equals("LATEST") ? "DESC" : "ASC";
-        assertThat(sql).contains("transacted_at "+direction+", transaction_id "+direction, "LIMIT 10 OFFSET ?");
+        assertThat(sql).contains("gt.transacted_at "+direction+", gt.transaction_id "+direction, "LIMIT 10 OFFSET ?",
+                "LEFT JOIN saving_group_mock_deposit_request", "LEFT JOIN members", "deposit_requester_name", "REPEAT('*'",
+                "dr.status = 'COMPLETED'", "m.deleted_at IS NULL");
         condition.setTransactionType(null); condition.setMinAmount(null); condition.setMaxAmount(null);
         assertThat(config.getMappedStatement(prefix+"selectSavingGroupTransactionCount").getBoundSql(params).getSql())
             .doesNotContain("transaction_type =", "amount >=", "amount <=");

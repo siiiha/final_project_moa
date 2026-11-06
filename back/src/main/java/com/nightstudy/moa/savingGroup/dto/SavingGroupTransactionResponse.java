@@ -10,4 +10,6 @@ public class SavingGroupTransactionResponse {
     private String transactionType;
     private BigDecimal amount;
     private BigDecimal balanceAfter;
+    // AI작성: 실제 은행 예금주가 아닌 현재 회원 정보의 마스킹된 테스트 입금 요청자다.
+    private String depositRequesterName;
 }

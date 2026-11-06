@@ -35,6 +35,11 @@ class SavingGroupTransactionMySqlIntegrationTest {
             // AI작성: 연결 범위 임시 테이블만 사용하므로 실제 거래나 스키마를 변경하지 않는다.
             try (var statement = connection.createStatement()) {
                 statement.execute("CREATE TEMPORARY TABLE group_transaction (transaction_id BIGINT PRIMARY KEY, account_id BIGINT, transaction_type VARCHAR(20), amount DECIMAL(15,2), balance_after DECIMAL(15,2), transacted_at DATETIME)");
+                // AI작성: 원장 거래와 1:1인 완료 요청 연결로 마스킹·회원 없음·기존 거래 보존을 검증한다.
+                statement.execute("CREATE TEMPORARY TABLE members (member_id BIGINT PRIMARY KEY, name VARCHAR(50), deleted_at DATETIME NULL)");
+                statement.execute("CREATE TEMPORARY TABLE saving_group_mock_deposit_request (transaction_id BIGINT UNIQUE, account_id BIGINT, member_id BIGINT, status VARCHAR(30))");
+                statement.execute("INSERT INTO members VALUES (20,'테스트회원',NULL),(21,'삭제회원',NOW())");
+                statement.execute("INSERT INTO saving_group_mock_deposit_request VALUES (12,3,20,'COMPLETED'),(11,3,21,'COMPLETED'),(10,3,99,'COMPLETED')");
                 for (int i=1; i<=12; i++) {
                     int amount = i==1 ? 10000 : i==12 ? 40000 : 10000+i;
                     String date = i==1 ? "2026-11-05 10:00:00" : "2026-11-06 10:00:00";
@@ -61,6 +66,10 @@ class SavingGroupTransactionMySqlIntegrationTest {
                 assertThat(first.get(0).getAmount()).isEqualByComparingTo("40000");
                 assertThat(second.get(1).getAmount()).isEqualByComparingTo("10000");
                 assertThat(first.get(0).getBalanceAfter()).isNull();
+                assertThat(first.get(0).getDepositRequesterName()).isEqualTo("테****");
+                assertThat(first.get(1).getDepositRequesterName()).isNull();
+                assertThat(first.get(2).getDepositRequesterName()).isNull();
+                assertThat(second.get(1).getDepositRequesterName()).isNull();
                 assertThat(mapper.selectSavingGroupTransactions(3L,c,20)).isEmpty();
                 c.setSort("OLDEST");
                 var oldest = mapper.selectSavingGroupTransactions(3L,c,0);
