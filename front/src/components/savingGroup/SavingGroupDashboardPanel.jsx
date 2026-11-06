@@ -299,7 +299,7 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
           </CardHeader>
           <ChartBox aria-label="월별 수입·지출 막대 차트">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={savingGroupMonthlyCashFlow} margin={{ top: 14, right: 4, bottom: 0, left: -20 }} barGap={5}>
+              <BarChart data={monthlyCashFlow} margin={{ top: 14, right: 4, bottom: 0, left: -20 }} barGap={5}>
                 <CartesianGrid vertical={false} stroke="#e3e8e6" strokeDasharray="3 3" />
                 <XAxis dataKey="month" tickLine={false} axisLine={false} />
                 <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}만`} />
