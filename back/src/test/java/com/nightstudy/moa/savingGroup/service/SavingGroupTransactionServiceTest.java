@@ -51,6 +51,14 @@ class SavingGroupTransactionServiceTest {
         fails(HttpStatus.FORBIDDEN, () -> service.getSavingGroupTransactions(2L,1L,condition));
         verifyNoInteractions(accounts);
     }
+    // AI작성: 승인 상태라도 정의되지 않은 역할이나 누락된 역할은 허용하지 않는다.
+    @ParameterizedTest @org.junit.jupiter.params.provider.NullAndEmptySource
+    @ValueSource(strings={"ADMIN", "ACCOUNTANT"})
+    void deniesUnknownRoles(String role) {
+        member(role,"APPROVED");
+        fails(HttpStatus.FORBIDDEN, () -> service.getSavingGroupTransactions(2L,1L,condition));
+        verifyNoInteractions(accounts);
+    }
     @Test void unauthenticatedAndMissingTargets() {
         fails(HttpStatus.UNAUTHORIZED, () -> service.getSavingGroupTransactions(2L,null,condition));
         verifyNoInteractions(mapper,accounts);
