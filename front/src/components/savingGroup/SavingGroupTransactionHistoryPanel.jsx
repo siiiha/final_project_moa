@@ -92,12 +92,15 @@ export function SavingGroupTransactionHistoryView({ state, draftFilters, onFilte
       : <>
         <p>총 {meta.total.toLocaleString('ko-KR')}건 · {meta.page}페이지</p>
         <table><caption>공용 계좌 입출금 목록</caption><thead><tr>
-          <th scope="col">거래일시</th><th scope="col">거래 유형</th><th scope="col">금액</th><th scope="col">거래 후 잔액</th>
+          <th scope="col">거래일시</th><th scope="col">거래 유형</th><th scope="col">입금 요청자</th><th scope="col">금액</th><th scope="col">거래 후 잔액</th>
         </tr></thead><tbody>{items.map((row, index) => <tr key={index}>
-          <td>{dateLabel(row)}</td><td>{typeLabel(row)}</td><td>{amountLabel(row)}</td><td>{money(row.balanceAfter)}</td>
+          <td>{dateLabel(row)}</td><td>{typeLabel(row)}</td>
+          <td>{row.transactionType === 'DEPOSIT' ? row.depositRequesterName || '—' : '—'}</td>
+          <td>{amountLabel(row)}</td><td>{money(row.balanceAfter)}</td>
         </tr>)}</tbody></table>
         <MobileList>{items.map((row, index) => <article key={index}><dl>
           <dt>거래일시</dt><dd>{dateLabel(row)}</dd><dt>거래 유형</dt><dd>{typeLabel(row)}</dd>
+          <dt>입금 요청자</dt><dd>{row.transactionType === 'DEPOSIT' ? row.depositRequesterName || '—' : '—'}</dd>
           <dt>금액</dt><dd>{amountLabel(row)}</dd><dt>거래 후 잔액</dt><dd>{money(row.balanceAfter)}</dd>
         </dl></article>)}</MobileList>
       </>}

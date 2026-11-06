@@ -20,9 +20,10 @@ test('거래내역 화면의 상태·금액·필터·페이지를 렌더링한�
     assert.match(error, /role="alert"/); assert.match(error, /거래내역 다시 조회/); assert.doesNotMatch(error, /<tbody>/);
     const success = { status: 'success', items: [
       { transactedAt: '2026-11-06T10:00:00', transactionType: 'WITHDRAWAL', amount: 10000, balanceAfter: null },
-      { transactedAt: '2026-11-05T09:00:00', transactionType: 'DEPOSIT', amount: 40000, balanceAfter: 50000 },
+      { transactedAt: '2026-11-05T09:00:00', transactionType: 'DEPOSIT', amount: 40000, balanceAfter: 50000, depositRequesterName: '김**' },
     ], meta: { page: 2, size: 10, total: 61, totalPages: 7 }, account: { balance: 50000 } };
     const html = render(success);
+    assert.match(html, /입금 요청자/); assert.match(html, /김\*\*/); assert.match(html, /—/);
     assert.ok(html.includes('-10,000원')); assert.ok(html.includes('+40,000원')); assert.match(html, /확인 불가/);
     assert.ok(html.includes('현재 내부 장부 잔액: 50,000원')); assert.match(html, /aria-current="page"/);
     assert.ok(html.includes('최소 금액 (원)')); assert.ok(html.includes('최대 금액 (원)'));

@@ -400,11 +400,15 @@ export async function getSavingGroupTransactions(groupId, { page = 1, sort = 'LA
       || data.some(row => !row || typeof row.transactedAt !== 'string' || !Number.isFinite(Date.parse(row.transactedAt))
         || !['DEPOSIT', 'WITHDRAWAL'].includes(row.transactionType)
         || typeof row.amount !== 'number' || !Number.isFinite(row.amount) || row.amount < 0
-        || (row.balanceAfter !== null && (typeof row.balanceAfter !== 'number' || !Number.isFinite(row.balanceAfter))))) {
+        || (row.balanceAfter !== null && (typeof row.balanceAfter !== 'number' || !Number.isFinite(row.balanceAfter)))
+        || (row.depositRequesterName != null && (typeof row.depositRequesterName !== 'string'
+          || !/^[^*]\*+$/.test(row.depositRequesterName))))) {
       throw failure({ code: 'INVALID_RESPONSE', message: '거래내역 응답을 확인할 수 없습니다.' }, response.status);
     }
-    return { items: data.map(({ transactedAt, transactionType: type, amount, balanceAfter }) => ({
+    // AI작성: 입금 요청자는 서버의 마스킹된 이름만 허용하고 출금에는 표시하지 않는다.
+    return { items: data.map(({ transactedAt, transactionType: type, amount, balanceAfter, depositRequesterName }) => ({
       transactedAt, transactionType: type, amount, balanceAfter,
+      depositRequesterName: type === 'DEPOSIT' ? depositRequesterName ?? null : null,
     })), meta: { page: meta.page, size: meta.size, total: meta.total, totalPages: meta.totalPages } };
   } catch (error) {
     if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupTransactionsError') throw error;
