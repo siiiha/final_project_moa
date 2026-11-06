@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -478,9 +478,23 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [gender, setGender] = useState('');
   const genderDialogRef = useRef(null);
+  const signupCardRef = useRef(null);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [agreements, setAgreements] = useState({});
   const [signupStep, setSignupStep] = useState('terms');
+  // AI작성: 다음 단계가 표시되면 새 입력 카드의 시작 위치로 이동합니다.
+  useEffect(() => {
+    if (signupStep === 'terms') return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      signupCardRef.current?.scrollIntoView({
+        behavior: 'auto',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [signupStep]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   // AI작성: 비밀번호 입력을 마친 뒤 오류를 표시하고, 수정하면 즉시 갱신합니다.
@@ -907,6 +921,34 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       setIsSubmitting(false);
     }
   };
+  // AI작성: 지역 데이터나 선택값이 바뀔 때만 목록을 다시 계산합니다.
+  const provinceOptions = useMemo(
+    () => [...new Set(memberRegionOptions.map((region) => region.provinceName))],
+    [memberRegionOptions],
+  );
+
+  const districtOptions = useMemo(
+    () => memberRegionOptions.filter(
+      (region) => region.provinceName === provinceName && !region.townName,
+    ),
+    [memberRegionOptions, provinceName],
+  );
+
+  const townOptions = useMemo(() => {
+    // AI작성: 선택한 시·군·구를 한 번만 찾아 반복 검색을 줄입니다.
+    const district = memberRegionOptions.find(
+      (region) => region.regionId === Number(districtRegionId),
+    );
+
+    if (!district) return [];
+
+    return memberRegionOptions.filter(
+      (region) =>
+        region.townName &&
+        region.provinceName === district.provinceName &&
+        region.districtName === district.districtName,
+    );
+  }, [memberRegionOptions, districtRegionId]);
 
   const steps = [
     'name', 'birthDate', 'gender', 'phone',
@@ -1333,12 +1375,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }}
               >
                 <option value="">시·도 선택</option>
-                {[...new Set(memberRegionOptions.map((region) => region.provinceName))]
-                  .map((province) => (
-                    <option key={province} value={province}>
-                      {province}
-                    </option>
-                  ))}
+                {provinceOptions.map((province) => (
+                  <option key={province} value={province}>
+                    {province}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1367,17 +1408,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }}
               >
                 <option value="">시·군·구 선택</option>
-                {memberRegionOptions
-                  .filter(
-                    (region) =>
-                      region.provinceName === provinceName &&
-                      !region.townName,
-                  )
-                  .map((region) => (
-                    <option key={region.regionId} value={region.regionId}>
-                      {region.districtName || '세종특별자치시 전체'}
-                    </option>
-                  ))}
+                {districtOptions.map((region) => (
+                  <option key={region.regionId} value={region.regionId}>
+                    {region.districtName || '세종특별자치시 전체'}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1403,25 +1438,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }}
               >
                 <option value="">읍·면·동 선택</option>
-                {memberRegionOptions
-                  .filter((region) => {
-                    const district = memberRegionOptions.find(
-                      (item) =>
-                        item.regionId === Number(districtRegionId),
-                    );
-
-                    return (
-                      district &&
-                      region.townName &&
-                      region.provinceName === district.provinceName &&
-                      region.districtName === district.districtName
-                    );
-                  })
-                  .map((region) => (
-                    <option key={region.regionId} value={region.regionId}>
-                      {region.townName}
-                    </option>
-                  ))}
+                {townOptions.map((region) => (
+                  <option key={region.regionId} value={region.regionId}>
+                    {region.townName}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -1571,7 +1592,10 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
         )}
 
         {stepIndex >= 0 && (
-          <SignupInputCard aria-labelledby="signup-current-title">
+          <SignupInputCard
+            ref={signupCardRef}
+            aria-labelledby="signup-current-title"
+          >
             <h2 id="signup-current-title">{titles[signupStep]}</h2>
             {steps.slice(0, stepIndex + 1).reverse().map((step) => (
               <SignupFieldGroup key={step}>{fields[step]}</SignupFieldGroup>
