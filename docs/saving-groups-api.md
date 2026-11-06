@@ -2312,3 +2312,21 @@ DECIMAL(15,2) 저장 범위를 벗어나면 HTTP 409 DEPOSIT_BALANCE_OVERFLOW이
 Postman에서는 기존 입금/확인 요청 후 거래내역 GET으로 새 balanceAfter와 마스킹된 depositRequesterName을 확인한다. 다른 회원·출금·연결 없는 거래·정확히 5분 경계·확인 재전송·경쟁 요청도 전용 DB에서 확인한다. 브라우저에서는 회비 납부 → 입력 → 입금 → 완료 모달 → 잔액/목록 갱신 및 중복 취소·실패·결과 불명확·모바일·키보드를 확인한다.
 
 단계별 모든 파일·실제 커밋과 후속 검증은 [테스트 입금 설계·작업 기록](saving-group-deposit-design.md)의 최신 수정 이력을 따른다.
+
+## 순번계 순번 지정·재지정 및 다음 달 예약 적용 (2026-11-06)
+
+AI작성: 사용자 승인 A안에 따라 GET/PUT /api/saving-groups/{savingGroupId}/turn-orders를 추가했다. /saving-groups 별칭도 지원한다. savingGroupId는 saving_group.saving_group_id다.
+
+- 현재 승인된 OWNER만 조회·지정한다. OWNER를 포함한 미지급 승인 회원 전원에게 남은 실제 회차를 중복 없이 배정한다.
+- 지급 완료 회원은 재배정에서 제외하고 같은 운영 기간 중 재수령 요청·승인을 차단한다.
+- 모집중은 즉시 저장, 진행중은 다음 달 예약 저장이며 같은 적용월 예약 전체를 교체한다.
+- PUT 본문은 {"turnOrders":[{"memberId":"30","sequenceNumber":3},{"memberId":"40","sequenceNumber":4}]} 형식이다. 다음 달이 3회차이고 미지급 회원이 2명인 예시다.
+- 응답은 기존 ApiResponse 안에 effectiveMonth, startRoundNumber, scheduled, needsReassignment, members를 반환한다. members는 memberId·nickname·role·paid·currentSequenceNumber·plannedSequenceNumber다. 회원 ID는 문자열이며 nullable 순번은 누락될 수 있다.
+- 기존 JWT memberId만 사용하며 요청 본문·쿼리로 요청자 신원을 받지 않는다. GET은 no-store다.
+- 기존 미래 지급 요청과 충돌하거나 예약 이후 대상·지급 상태가 달라지면 자동 취소·자동 재배정하지 않는다.
+- 지급 요청과 승인에는 해당 회차의 적용월 순번을 사용한다. 회차 생성·지급 상태 변경·실제 금융 호출은 하지 않는다.
+- DB 담당자가 A안 테이블 2개를 적용해야 한다. 이번 작업에서 schema.sql·마이그레이션·실제 DB를 변경하지 않았다.
+
+최종 백엔드 관련 224건 중 221건 통과·MySQL 3건 건너뜀, 프론트 관련 6건 통과. 실제 DB·브라우저 상호작용은 미실시다. 전체 계모임 검사에는 별도 삭제 신청 테스트 2건 실패가 있어 전체 통과로 간주하지 않는다.
+
+전체 요청·응답·오류·DB 계약·단계별 파일/커밋·실행 명령·수동 검증·남은 TODO는 [순번 지정 설계와 작업 기록](saving-group-turn-order-design.md)을 따른다.
