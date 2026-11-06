@@ -186,6 +186,7 @@ function SavingGroupDashboardPanel() {
   // AI작성: 차트 단위가 만 원이므로 회비 입금과 확정 일반 지출을 월별로 합산해 변환한다.
   const monthlyCashFlow = [...new Set(savingGroupTransactions.map((transaction) => transaction.date.slice(0, 7)))]
     .sort()
+    .slice(-6)
     .map((month) => {
       const monthlyTransactions = savingGroupTransactions.filter((transaction) => transaction.date.startsWith(month));
       const income = monthlyTransactions
