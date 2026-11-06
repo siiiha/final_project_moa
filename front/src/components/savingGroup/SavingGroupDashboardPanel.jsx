@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import styled from 'styled-components';
 import Button from '../common/Button';
 import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
-import { savingGroupDashboardSummary, savingGroupMonthlyCashFlow } from '../../mocks/savingGroupDashboard';
+import { savingGroupDashboardSummary } from '../../mocks/savingGroupDashboard';
 
 const Panel = styled.section`
   margin-top: 22px;
@@ -242,6 +242,19 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
   const reviewRequiredCount = savingGroupTransactions.filter((transaction) => (
     transaction.purposeType === '일반 지출' && transaction.category === '확인 필요'
   )).length;
+  // AI작성: 차트 단위가 만 원이므로 회비 입금과 확정 일반 지출을 월별로 합산해 변환한다.
+  const monthlyCashFlow = [...new Set(savingGroupTransactions.map((transaction) => transaction.date.slice(0, 7)))]
+    .sort()
+    .map((month) => {
+      const monthlyTransactions = savingGroupTransactions.filter((transaction) => transaction.date.startsWith(month));
+      const income = monthlyTransactions
+        .filter((transaction) => transaction.type === '입금' && transaction.purposeType === '회비')
+        .reduce((total, transaction) => total + transaction.amount, 0);
+      const expense = monthlyTransactions
+        .filter((transaction) => transaction.purposeType === '일반 지출' && transaction.category !== '확인 필요')
+        .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
+      return { month: `${Number(month.slice(5))}월`, income: income / 10000, expense: expense / 10000 };
+    });
   const dashboardSummary = [
     ...savingGroupDashboardSummary.map((item) => (
     item.id === 'balance'
