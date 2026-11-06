@@ -36,6 +36,8 @@ class SavingGroupCreationServiceImplTest {
 
     @Mock
     private FileStorageService fileStorageService;
+    // AI작성: 기존 승인 회귀 테스트에서는 외부 계좌 경계를 대역으로 둔다.
+    @Mock private VirtualAccountApprovalService virtualAccountApprovalService;
 
     @InjectMocks
     private SavingGroupCreationServiceImpl savingGroupCreationService;
@@ -123,6 +125,10 @@ class SavingGroupCreationServiceImplTest {
         savingGroupCreationService.approveCreationApplication(1L, 20L);
 
         verify(savingGroupMapper).approveSavingGroupCreationOwnerMembership(100L, 20L);
+        // AI작성: 계좌 발급·저장이 기존 승인 갱신보다 먼저 완료되어야 한다.
+        var order = org.mockito.Mockito.inOrder(virtualAccountApprovalService, savingGroupMapper);
+        order.verify(virtualAccountApprovalService).issueAndSave(1L, 100L);
+        order.verify(savingGroupMapper).approveSavingGroupCreationApplication(1L);
     }
 
     @Test
@@ -135,6 +141,22 @@ class SavingGroupCreationServiceImplTest {
         savingGroupCreationService.rejectCreationApplication(1L, "사유");
 
         verify(savingGroupMapper).rejectSavingGroupCreationOwnerMembership(100L);
+    }
+
+    // AI작성: 계좌 발급 오류·없는 신청·처리 완료 신청은 기존 승인 갱신 전에 차단한다.
+    @Test void accountFailureNeverApprovesApplication() {
+        when(savingGroupMapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(pendingApplication(100L));
+        org.mockito.Mockito.doThrow(new ApiException(org.springframework.http.HttpStatus.BAD_GATEWAY,
+                "ACCOUNT_ISSUE_UNKNOWN", "확인 필요")).when(virtualAccountApprovalService).issueAndSave(1L, 100L);
+        assertThat(catchThrowableOfType(() -> savingGroupCreationService.approveCreationApplication(1L, 20L), ApiException.class)
+                .getCode()).isEqualTo("ACCOUNT_ISSUE_UNKNOWN");
+        verify(savingGroupMapper, never()).approveSavingGroupCreationApplication(any());
+    }
+
+    @Test void missingApplicationNeverIssuesAccount() {
+        assertThat(catchThrowableOfType(() -> savingGroupCreationService.approveCreationApplication(999L, 20L), ApiException.class)
+                .getCode()).isEqualTo("SAVING_GROUP_APPLICATION_NOT_FOUND");
+        org.mockito.Mockito.verifyNoInteractions(virtualAccountApprovalService);
     }
 
     @Test

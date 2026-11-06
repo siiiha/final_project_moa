@@ -1,6 +1,21 @@
 <!-- AI작성: 사용자 승인 경로에 작업·검증 기록을 작성한다. -->
 # AI 사용 기록
 
+<!-- AI작성: 사용자 요청에 따라 테스트 가상계좌 2~10단계 작업을 마지막 단계에 일괄 기록한다. -->
+## 2026-11-04 — 계모임 관리자 승인 시 테스트 가상계좌 발급·저장 및 회원 조회
+
+- 목적·승인: 사용자가 확정한 일반 테스트 계좌 발급 → 암호화 저장 → 기존 승인 순서를 별도 `feature/issue-savinggroup-account` 워크트리에서 구현했다. 단계별 커밋과 마지막 일괄 문서화, DB 담당자의 별도 DDL 적용을 요청받았다. 실제 DB 변경·토스 호출·기준 브랜치 병합·원격 push는 하지 않았다.
+- AI 제안·작성: 기존 승인·권한·트랜잭션·MyBatis·RestClient를 재사용했다. 계좌 DTO·Mapper/XML, 발급 이력과 별도 트랜잭션, AES-256-GCM, 테스트 전용 클라이언트와 명시적 Mock, 승인 모임원 마스킹 조회 API, React 요청·카드·중복 클릭 방지를 작성했다. 불확실 결과는 자동 재발급·반려를 차단한다. 초기 장부 잔액은 0원이며 거래를 만들지 않는다.
+- 2~8단계 커밋: `110017d`, `0fc9401`, `5fa4e08`, `6497103`, `e37bc64`, `2ca4552`, `897f710`. 단계별 파일·커밋명은 `docs/saving-groups-api.md`의 테스트 계좌 절에 정리했다.
+- 9단계 추가·수정 파일: TossVirtualAccountIssueServiceImpl.java, TossVirtualAccountIssueServiceImplTest.java, SavingGroupAccountSecurityIntegrationTest.java, SavingGroupAccountApprovalMySqlIntegrationTest.java, SavingGroupAccountApprovalTransactionTest.java, VirtualAccountEnvironmentBindingTest.java, SavingGroupAccountCard.test.js. 정확한 저장소 경로는 API 문서에 기재했다.
+- 9단계 내용·커밋: 실제 보안 필터와 Spring 트랜잭션 프록시·JDBC 대역, 발급 이력 보존·중복 발급 차단, 선택형 MySQL 테스트, 환경 변수 바인딩, 카드 SSR을 보강했다. 공식 세 자리 은행 응답을 두 자리 코드로 정규화하며 잘못된 응답을 차단했다. `cd7abe0` — `test: 계모임 가상계좌 승인 저장 조회 통합 검증`.
+- 검증 중 수정: 트랜잭션 테스트의 기존 Mockito Answer를 다시 호출하던 실패 주입을 doReturn으로 수정했다. 환경 변수 테스트는 Boot가 실제 환경으로 인식하는 `systemEnvironment` 소스 이름을 사용했다. 이는 실제 환경 변수 값이나 전역 설정을 변경한 것이 아니다.
+- 최종 검증: 발견한 Java 17 경로를 실행 인자로만 지정했다. 계모임 315개 중 304개 통과·MySQL 필요 11개 건너뜀·기존 실패 2개 명시적 제외. 프론트 API·카드 SSR 51개 통과, 빌드·변경 형식 검사·변경 파일 lint 오류 없음. 기존 번들 크기 경고와 상세 컴포넌트 미사용 변수 경고 2개 유지. 빌드·의존성·schema.sql은 변경하지 않았다.
+- 기존 실패 분리: 기준 커밋 `7fc9468` 소스와 기존 삭제 신청 테스트만 임시 폴더에 내보내 같은 실패 2개를 재현했다. 테스트가 승인된 OWNER 관계를 준비하지 않아 권한 단계에서 실패한다. 관련 없는 삭제 로직·기존 테스트는 수정하지 않았고 전체 저장소 테스트 통과로 보고하지 않는다.
+- 검증 한계: DB는 비활성화해 실제 SQL·잠금·영속성·MySQL 동시성은 미검증이다. 작성한 MySQL 테스트도 신청 승인 Mapper는 대역이다. 이전 브라우저 도구의 Windows URL 판별 문제로 이번에는 브라우저를 재시도하지 않았고 카드 SSR은 실제 클릭·모바일·계정 전환 E2E를 대체하지 않는다. 실제 테스트 발급도 미실행이다.
+- 10단계 변경 파일·내용: `docs/saving-groups-api.md`, `docs/ai-usage-log.md`에 API 계약·DB 전달안·암호화·환경 변수·실패 정책·검증과 제외 내역·수동 확인 절차·단계별 파일과 커밋을 일괄 정리했다.
+- 개발자 검토·수정: 사용자가 설계와 작업 범위를 승인했다. 작성 코드의 개발자 상세 검토, 담당자 DB 적용 확인, 상점 은행·예금주·환경 변수 주입과 수동 검증은 대기 중이다. 키 교체·불확실 이력 복구·입출금·거래·웹훅은 후속 작업이다.
+
 <!-- AI작성: 첨부 화면 기준 소모임 생성 제목 정렬을 기록한다. -->
 ## 2026-11-03 — 소모임 생성 제목과 카드 정렬
 

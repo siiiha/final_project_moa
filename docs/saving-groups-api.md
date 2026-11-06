@@ -1171,6 +1171,276 @@ Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서
 - 수동 검증: 본인 공지 수정→삭제→목록 제외, 고정 공지 삭제 후 고정 수 복원, 타 작성자 403, 재삭제·재수정 404, 삭제 후 DB deleted_at 저장, 확인 취소·통신 실패·삭제 완료 후 목록 재조회 실패 안내를 확인한다.
 - TODO: 첨부파일·댓글·알림·삭제 이력은 기존 삭제 연계가 없어 추가하지 않았다.
 
+<!-- AI작성: 2026-11-04 사용자 승인에 따라 테스트 계좌 연동 2~10단계의 계약·검증을 마지막에 일괄 기록한다. -->
+## 관리자 개설 승인과 테스트 가상계좌 발급·저장
+
+### 범위와 선행 조건
+
+- 작업 브랜치: `feature/issue-savinggroup-account`, 기준 커밋: `7fc94685f07543f736a13604f26631b4a52647c6`.
+- 기존 관리자 개설 승인 API에 발급 → 암호화 저장 → 기존 승인을 연결한다. 폐기 예정 브랜치는 병합하거나 cherry-pick하지 않았다.
+- 사용자에게 테스트 상점·키 관리·보안 정책·팀 승인이 확정됐음을 확인했다. 실제 은행·상점 예금주와 키 값은 아직 주입하지 않았다.
+- 일반 테스트 가상계좌를 사용한다. 은행의 영구 공동계좌를 제공하는 기능이 아니다. 테스트 계좌의 번호는 내부 DB에 남아도 실제 입금 가능한 계좌를 의미하지 않는다.
+- 테스트 환경 계좌는 `X` 접두사가 붙으며 직접 입금할 수 없다. [토스 공식 테스트 환경 안내](https://docs.tosspayments.com/guides/v2/get-started/environment)
+- DB 적용은 담당자가 수행한다. 이 작업에서 실제 DB·`schema.sql`·빌드 설정·패키지 의존성은 변경하지 않았다. 새 이력 테이블은 개설 반려에서도 조회하므로 서비스 배포 전에 DB 변경 반영이 필요하다.
+- DB 입금·출금·거래 생성·납부 처리·입금 웹훅·운영 API는 범위 밖이다. 내부 장부 잔액은 기존 거래 합산을 사용하고 거래가 없으면 0원이다.
+
+### 관리자 승인 계약
+
+```http
+PATCH /api/admin/saving-group-applications/{approvalId}/approve
+```
+
+- 기존 관리자 JWT 인증·`ADMIN` 권한·양수 경로 검증을 유지한다. 요청 본문은 없다.
+- `approvalId`는 심사 번호다. `groupId` 및 `savingGroupId`와 혼동하지 않는다.
+- 성공은 기존 `ApiResponse<Void>`의 HTTP 200 / `success: true`이며 계좌번호를 포함하지 않는다.
+- 신청 존재·PENDING 검사와 잠금을 먼저 수행한다. 이미 처리된 신청은 기존 409, 없는 신청은 기존 404를 유지한다.
+- 신청 시 이미 생성된 계모임과 OWNER/PENDING 관계를 재사용한다. 승인 중 계모임을 다시 생성하지 않는다.
+- 삭제 승인에는 발급을 연결하지 않는다. Controller에서 외부 통신하거나 기존 승인 API를 HTTP로 재호출하지 않는다.
+
+처리 순서:
+
+1. 관리자 인증·권한 → 신청 잠금·PENDING 검사.
+2. 토스 테스트 설정과 암호화 설정을 검사한다. 부족하면 외부 호출과 발급 이력 생성 전에 중단한다.
+3. 별도 `REQUIRES_NEW` 트랜잭션에서 기존 계좌·이력을 확인하고 `REQUESTED` 이력을 커밋한다.
+4. 토스 테스트 발급 요청 후 응답을 검증한다.
+5. 기존 승인 트랜잭션에서 암호화 계좌 저장과 이력 `COMPLETED` 변경을 수행한다.
+6. 같은 트랜잭션에서 기존 신청 승인 → 계모임 상태 `01` → 개설자 계주 가입 승인을 수행하고 커밋한다.
+7. 5~6단계가 롤백되면 계좌와 승인 변경을 함께 되돌린다. 롤백 완료 통지에서 별도 트랜잭션으로 실패 이력을 보존한다.
+
+외부 발급은 DB 롤백으로 취소되지 않는다. 커밋 실패나 외부 결과 불확실 상태에서도 자동 재발급·자동 취소를 하지 않는다. 실패 이력 갱신까지 실패하면 `REQUESTED`가 남아 추가 발급을 계속 차단한다. 별도 이력 트랜잭션 때문에 승인 요청당 외부 요청 중에는 승인용 연결과 이력용 연결이 필요하다.
+
+| 이력 상태 | 의미 | 승인 재요청 | 개설 반려 |
+|---|---|---|---|
+| `REQUESTED` | 처리 중 또는 중단 여부 확인 필요 | 차단 | 차단 |
+| `COMPLETED` | 계좌 저장·기존 승인까지 커밋 완료 | 차단 | 기존 신청 상태 검사에서 차단 |
+| `FAILED` | 외부 인증·권한 거절로 발급되지 않았음이 확실 | 자동 재시도 없음 | 기존 PENDING 정책에 따라 가능 |
+| `UNKNOWN` | 타임아웃·응답 이상·외부 발급 후 DB 실패 등 | 차단 | 차단 |
+
+이력 한 행은 한 신청·한 모임을 대표한다. 재시도 이력을 여러 행으로 쌓는 구조가 아니며, 관리자가 DB 상태를 강제로 바꾸거나 행을 지워 재발급하는 절차는 제공하지 않는다. 수동 확인 후 복구·재시도 정책은 후속 설계 대상이다.
+
+### 외부 요청과 응답 검증
+
+고정된 HTTPS 주소의 `POST /v1/virtual-accounts`에 서버 전용 테스트 키를 Basic 인증으로 전달한다. 연결 제한 5초, 읽기 제한 10초이며 클라이언트 자체 재시도는 없다. 운영 키 접두사는 설정 검사에서 거절한다. [토스 공식 발급 API](https://docs.tosspayments.com/reference)
+
+| 요청값 | 적용 기준 |
+|---|---|
+| `amount` | 1000. 내부 장부 잔액으로 적립하지 않음 |
+| `orderId` | `moa_` + 무작위 UUID, 발급 이력에 저장 |
+| `orderName` | `모아 계모임 테스트 계좌 발급` |
+| `customerName` | 실제 회원 이름 대신 `모아테스트` |
+| `bank` | 상점에서 확인한 두 자리 은행 코드를 환경 변수로 지정 |
+| `validHours` | 168시간 |
+| `accountKey` | 일반형이므로 전송하지 않음 |
+
+구매자명은 은행에 표시되는 예금주와 동일하다고 가정하지 않는다. `account_holder_name`에는 별도로 확인한 상점 예금주 설정을 저장한다. 연락처·회원 실명·이메일은 전송하지 않는다.
+
+응답의 주문번호·통화 KRW·금액 1000·입금대기 상태·일반 계좌 유형·은행·미만료·입금 기한·테스트 번호 형식을 검사한다. 같은 은행의 세 자리 응답은 공식 표에 따라 두 자리로 정규화한다. KB국민은행은 `004 → 06`이므로 단순히 앞의 0을 제거하지 않는다. [토스 공식 기관 코드](https://docs.tosspayments.com/codes/org-codes)
+
+| HTTP | 오류 코드 | 의미 |
+|---|---|---|
+| 503 | `TOSS_TEST_NOT_CONFIGURED` | 비활성 또는 테스트 키·은행·예금주 미설정 |
+| 503 | `ACCOUNT_ENCRYPTION_NOT_CONFIGURED` | 키 식별자 또는 암호화 키 설정 이상 |
+| 409 | `ACCOUNT_ISSUE_REVIEW_REQUIRED` | 기존 이력·계좌가 있어 확인 필요 |
+| 502 | `ACCOUNT_ISSUE_REJECTED` | 외부 401·403 거절. 이력은 FAILED |
+| 502 | `ACCOUNT_ISSUE_UNKNOWN` | 외부 오류·타임아웃·통신 결과 불확실 |
+| 502 | `ACCOUNT_RESPONSE_INVALID` | 발급 응답 검증 실패. 이력은 UNKNOWN |
+| 500 | `ACCOUNT_STORAGE_FAILED` | 저장 결과 또는 완료 갱신 실패 |
+| 500 | `ACCOUNT_DATA_INVALID` | 암호문·복호화·계좌 데이터 이상 |
+
+외부 오류 본문·계좌 원문·인증 헤더를 예외에 넣거나 로그로 출력하지 않는다. 발급 실패 응답과 DB 이력의 안전한 내부 코드는 구분하며 이력에는 외부 원문을 저장하지 않는다.
+
+### 암호화 및 환경 변수
+
+서버의 `@ConfigurationProperties`로 직접 바인딩하므로 별도 YAML 수정은 필요하지 않다. 아래 이름은 `VirtualAccountEnvironmentBindingTest`에서 검증했다. 하이픈이 제거된 `VIRTUALACCOUNT`, `SECRETKEY`, `BANKCODE`, `ACCOUNTHOLDERNAME`, `KEYID` 표기를 사용한다.
+
+| 환경 변수 | 값·기본값 |
+|---|---|
+| `MOA_TOSS_VIRTUALACCOUNT_ENABLED` | 기본 false. DB·상점 설정 확인 후 true |
+| `MOA_TOSS_VIRTUALACCOUNT_SECRETKEY` | 테스트 상점의 서버 시크릿. 허용 접두사 `test_sk_`. 실제 값은 외부 보안 설정에만 저장 |
+| `MOA_TOSS_VIRTUALACCOUNT_BANKCODE` | 상점에서 발급 가능한 두 자리 은행 코드. 아직 확정하지 않음 |
+| `MOA_TOSS_VIRTUALACCOUNT_ACCOUNTHOLDERNAME` | 상점에서 확인한 예금주 표시 기준. 아직 확정하지 않음 |
+| `MOA_ACCOUNT_ENCRYPTION_KEYID` | 영문·숫자·`_`·`-`, 1~24자의 키 식별자 |
+| `MOA_ACCOUNT_ENCRYPTION_KEY` | 암호학적 난수 32바이트를 Base64로 인코딩한 AES-256 키 |
+
+키 값은 채팅·문서·테스트·커밋에 넣지 않는다. 서버 재시작 후에도 같은 키를 안전하게 보관해야 한다. 현재 코드는 단일 활성 키만 지원한다. 키 식별자가 포함돼 있어도 과거 키 조회·자동 키 교체 기능이 구현된 것은 아니므로 기존 계좌가 있는 상태에서 키를 임의 교체하지 않는다.
+
+계좌번호는 매번 새 12바이트 IV와 128비트 GCM 인증 태그를 사용하며 `moa-account:{groupId}`를 인증 데이터에 연결한다. 저장 형식은 `v1:<keyId>:<IV Base64>:<암호문과 태그 Base64>`이다. 키 자체는 DB에 저장하지 않는다. 다른 모임으로 암호문을 복사하거나 암호문을 변조하면 복호화가 실패한다.
+
+Mock 발급 구현은 테스트에서 명시적으로 생성할 때만 사용한다. Spring 빈이 아니며 설정 누락·외부 실패를 Mock 성공으로 대체하지 않는다.
+
+### DB 담당자 적용 대상
+
+실제 DDL 실행과 기존 데이터 전환은 DB 담당자 작업이다. 아래는 실행하지 않은 전달용 변경안이며 `schema.sql`에 자동 반영하지 않았다.
+
+- 기존 `group_account.account_number VARCHAR(255) NOT NULL` 유지. 기존 평문이 있다면 별도 전환 계획 필요.
+- `group_account.group_id`에 `uq_group_account_group` UNIQUE 추가. 중복 계좌와 다른 모임 도메인의 사용 정책을 먼저 확인한다.
+- `saving_group_account_issue` 신규 생성. 이력 테이블에는 계좌번호를 중복 저장하지 않는다.
+- 기존 `group_transaction` 구조와 거래 합산 SQL 유지. 잔액 컬럼·가상 입금 거래 추가 없음.
+
+| 신규 테이블 컬럼 | 타입 | NULL | 기본값·제약 |
+|---|---|---|---|
+| `issue_id` | BIGINT | 불가 | AUTO_INCREMENT, PK |
+| `approval_id` | BIGINT | 불가 | 기본값 없음, UNIQUE |
+| `group_id` | BIGINT | 불가 | 기본값 없음, UNIQUE |
+| `order_id` | VARCHAR(64) | 불가 | 기본값 없음, ASCII / ascii_bin, UNIQUE |
+| `status` | ENUM(REQUESTED, COMPLETED, FAILED, UNKNOWN) | 불가 | 기본값 없음 |
+| `account_id` | BIGINT | 허용 | NULL, UNIQUE |
+| `error_code` | VARCHAR(100) | 허용 | NULL |
+| `created_at` | DATETIME | 불가 | CURRENT_TIMESTAMP |
+| `updated_at` | DATETIME | 불가 | CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP |
+
+이력 테이블의 외래키는 현재 설계에서 추가하지 않는다. 잠긴 신청을 별도 이력 트랜잭션이 외래키로 참조하면 잠금 대기가 생길 수 있기 때문이다. 소속 일치는 Service에서 검증하며 이력의 UNIQUE 제약으로 중복을 차단한다. CASCADE 삭제도 추가하지 않는다. 실제 잠금과 담당자의 최종 스키마는 별도 확인이 필요하다.
+
+```sql
+-- AI작성: DB 담당자 검토용이며 이 작업에서는 실행하지 않았다.
+SELECT group_id, COUNT(*) AS account_count
+FROM group_account GROUP BY group_id HAVING COUNT(*) > 1;
+
+-- 중복이 없고 동일 제약이 없는 경우에만 담당자가 적용한다.
+ALTER TABLE group_account
+    ADD CONSTRAINT uq_group_account_group UNIQUE (group_id);
+
+CREATE TABLE saving_group_account_issue (
+    issue_id BIGINT NOT NULL AUTO_INCREMENT,
+    approval_id BIGINT NOT NULL,
+    group_id BIGINT NOT NULL,
+    order_id VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    status ENUM('REQUESTED','COMPLETED','FAILED','UNKNOWN') NOT NULL,
+    account_id BIGINT NULL DEFAULT NULL,
+    error_code VARCHAR(100) NULL DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (issue_id),
+    UNIQUE KEY uq_account_issue_approval (approval_id),
+    UNIQUE KEY uq_account_issue_group (group_id),
+    UNIQUE KEY uq_account_issue_order (order_id),
+    UNIQUE KEY uq_account_issue_account (account_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### 승인 모임원 계좌 조회와 React 화면
+
+```http
+GET /api/saving-groups/{groupId}/account
+```
+
+- `groupId`는 공통 모임 번호다. 기존 Controller 규칙에 따라 `/saving-groups/{groupId}/account` 별칭도 제공한다.
+- 로그인한 해당 모임의 APPROVED OWNER·MANAGER·MEMBER만 조회한다. JWT의 회원 번호만 사용하고 요청의 memberId는 신뢰하지 않는다.
+- 기존 상세 조회가 허용하는 상태 01·02 및 미삭제 모임을 따른다. 미조회 모임은 404, 비로그인은 401, 승인 모임원이 아니면 `403 SAVING_GROUP_ACCOUNT_FORBIDDEN`이다.
+- 성공 data: `issued`, `bankCode`, `maskedAccountNumber`, `balance`, `testAccount`.
+- 미발급은 `issued: false`, 계좌 필드 null, 잔액 0으로 반환한다. 오류를 미발급 성공으로 바꾸지 않는다.
+- 원문 계좌·예금주·발급 주문번호는 응답하지 않는다. 계좌번호는 끝 네 자리 외 마스킹하고 금액은 원 단위로 표시한다.
+- React는 상세의 승인 회원 영역에서 독립된 계좌 카드를 조회한다. 로딩·오류·재조회·미발급·정상을 구분하고 모임·계정 변경 시 이전 응답을 숨긴다.
+- 테스트 계좌이며 실제 입금할 수 없다는 안내와 서비스 내부 장부 잔액임을 표시한다. 기존 Mock 대시보드의 금액과 합치지 않는다.
+- 관리자 승인 요청은 본문 없이 기존 함수를 사용한다. 해당 요청만 대기 시간을 30초로 지정하고 연속 클릭을 ref로 차단한다. 불확실한 응답을 자동 재전송하지 않는다.
+
+### 검증 결과와 한계
+
+2026-11-04 최종 검증:
+
+- Java 17 설치 경로를 Gradle 실행 인자로 지정했다. 프로젝트 빌드 설정은 변경하지 않았다. 앞선 Java 21 보조 검증 이후 Java 17로 재검증했다.
+- 계모임 테스트 315개 중 304개 통과, 실제 MySQL이 필요한 11개 건너뜀. 별도로 기존 삭제 신청 실패 메서드 2개를 명시적으로 제외했다. 전체 저장소 테스트 통과를 의미하지 않는다.
+- 제외한 `SavingGroupDeletionApplicationServiceTest.ownerCanRequestDeletion`, `duplicatePendingRequestIsRejected`는 기준 커밋 `7fc9468`을 임시 폴더에 내보낸 테스트에서도 동일하게 실패했다. 기존 테스트가 APPROVED OWNER 관계 조회를 준비하지 않아 권한 단계에서 실패하며 해당 테스트·삭제 로직은 수정하지 않았다.
+- 기존 다른 도메인의 오래된 import 때문에 전체 테스트 소스 컴파일이 막혀 임시 init script로 test 소스를 savingGroup 범위로 제한했다.
+- 실제 보안 필터에서 비로그인 차단·일반 회원의 관리자 승인 차단·관리자 식별자 전달·비모임원 조회 차단을 확인했다. JWT 파싱·세션 조회는 대역이며 실제 로그인 E2E는 아니다.
+- 실제 Spring 트랜잭션 프록시와 JDBC 연결 대역으로 이력의 별도 커밋, 계좌 저장 후 승인 실패 시 rollback 호출, rollback 이후 별도 실패 기록, 저장 실패·기록 실패 뒤 재발급 차단을 검증했다. 이는 실제 DB의 SQL·잠금·영속성 검증은 아니다.
+- 선택형 MySQL 테스트 4개를 작성했지만 실행하지 않았다. 이 테스트도 토스와 신청 승인 Mapper는 대역이며 계좌·이력 Mapper의 실제 저장·롤백·예약 UNIQUE 경쟁만 검증한다. 신청·계주 변경 SQL과 실제 승인 잠금 경합은 추가 수동 검증 대상이다.
+- 환경 변수 6개의 실제 바인딩, 토스 응답의 주문·은행·금액·통화·유형·만료·테스트 번호·기한 이상, 타임아웃과 오류 원문 비노출을 확인했다.
+- 프론트 API·카드 SSR 테스트 51개 통과. 실제 컴포넌트의 정상·미발급·오류·로딩 출력을 확인했다. 실제 브라우저·모바일 레이아웃·버튼 클릭·계정 전환 E2E 검증은 아니다.
+- `npm run build` 통과. 변경 파일 lint 오류 없음. 기존 번들 크기 경고와 ImagePlaceholder·Schedule 미사용 경고 2개 유지.
+- 이전 브라우저 자동화가 Windows URL 확인 문제로 중단되어 이번에는 재시도하지 않았다. 실제 DB 변경·토스 호출·기준 브랜치 병합·원격 push는 하지 않았다.
+
+검증 재현 시 다른 도메인 테스트를 수정하지 않고 다음 임시 설정을 사용한다. 기존 실패 2개가 제외된다는 사실을 결과 보고에 반드시 남긴다.
+
+```powershell
+# AI작성: back 폴더에서 실행. 실제 DB 테스트는 비활성화한다.
+$accountVerifyInit = Join-Path $env:TEMP 'moa-account-final-scope.gradle'
+@'
+allprojects {
+    afterEvaluate {
+        if (plugins.hasPlugin('java')) {
+            sourceSets.test.java.setIncludes(['**/savingGroup/**'])
+            tasks.named('test') {
+                filter {
+                    excludeTestsMatching '*.SavingGroupDeletionApplicationServiceTest.ownerCanRequestDeletion'
+                    excludeTestsMatching '*.SavingGroupDeletionApplicationServiceTest.duplicatePendingRequestIsRejected'
+                }
+            }
+        }
+    }
+}
+'@ | Set-Content -LiteralPath $accountVerifyInit -Encoding utf8
+$env:MOA_TEST_DB_ENABLED = 'false'
+.\gradlew.bat '-Dorg.gradle.java.installations.paths=C:/dev/jdk-17.0.12_windows-x64_bin/jdk-17.0.12' --init-script $accountVerifyInit test --tests 'com.nightstudy.moa.savingGroup.*'
+```
+
+다른 PC에서는 Java 17 경로를 수정한다. 프론트에서는 다음을 실행한다.
+
+```powershell
+# AI작성: front 폴더에서 실행. 실제 API를 호출하지 않는다.
+node --test src/api/savingGroups.test.js src/api/savingGroupAccount.test.js src/components/savingGroup/SavingGroupAccountCard.test.js
+npm run build
+```
+
+선택형 MySQL 테스트는 별도 명시적 요청 후 `MOA_TEST_DB_ENABLED=true`, `MOA_TEST_DB_URL`, `MOA_TEST_DB_USER`, `MOA_TEST_DB_PASSWORD`로 실행한다. 기존 방식과 같이 이름이 `moa_join_test_*`이고 테이블·뷰가 없는 전용 DB만 허용한다. 이 테스트는 테스트용 계좌·이력 테이블을 생성·정리하므로 공용·운영 DB를 지정하지 않는다. 이번 작업에서는 강제로 비활성화했다.
+
+### DB 반영 후 사용자가 수행할 수동 확인
+
+1. DB 담당자가 이력 테이블·UNIQUE 제약과 기존 계좌 암호문 저장 공간을 반영했는지 확인한다. 기존 평문·중복 계좌가 있으면 담당자와 먼저 처리한다.
+2. 테스트 상점에서 허용된 은행과 예금주를 확인하고 위 환경 변수 6개를 서버 실행 환경에 설정한다. 활성화 전까지 기본 false를 유지한다. 키는 출력·공유하지 않고 서버를 재시작한다.
+3. 테스트 회원으로 개설 신청 후 관리자 심사 상세에서 해당 신청 번호를 확인한다. 팀의 승인된 수동 테스트 절차에서 관리자 승인 버튼 또는 기존 PATCH를 한 번 호출한다.
+4. 아래 상태 쿼리와 토스 개발자센터의 해당 상점 테스트 결제내역을 대조한다. 계좌 원문을 조회·복사하지 않는다. 정상은 신청 APPROVED, 모임 01, 계주 APPROVED, 이력 COMPLETED, 계좌 저장됨이다.
+5. 승인 모임원으로 상세 화면의 은행·마스킹 계좌·0원·테스트 안내를 확인한다. 비회원·가입 대기·탈퇴 회원은 API에서 403, 비로그인은 401인지 확인한다.
+6. 같은 신청 재승인으로 계좌가 늘어나지 않는지 확인한다. UNKNOWN 또는 오래 남은 REQUESTED는 승인 버튼을 반복하거나 DB 상태를 강제로 바꾸지 말고 해당 주문의 외부 처리 결과부터 확인한다.
+7. 작은 화면·오류 재조회·로그아웃·모임과 계정 전환 시 이전 계좌가 숨겨지는지 브라우저에서 확인한다. 실제 입금·출금·개발자센터 입금 이벤트는 실행하지 않는다.
+
+```sql
+-- AI작성: 1을 확인할 심사 번호로 바꾼다. 계좌 원문·암호문·예금주를 출력하지 않는다.
+SET @approval_id = 1;
+SELECT ma.approval_id, ma.group_id, ma.status AS approval_status,
+       sg.status AS group_status, gm.membership_status AS owner_status,
+       i.status AS issue_status, i.error_code,
+       CASE WHEN ga.account_id IS NULL THEN '없음' ELSE '저장됨' END AS account_saved,
+       CASE WHEN ga.account_number LIKE 'v1:%' THEN '암호문 형식'
+            WHEN ga.account_id IS NULL THEN '없음' ELSE '확인 필요' END AS storage_format
+FROM meeting_approval ma
+JOIN `groups` g ON g.group_id = ma.group_id
+JOIN saving_group sg ON sg.group_id = ma.group_id
+LEFT JOIN group_member gm ON gm.group_id = ma.group_id
+    AND gm.member_id = g.member_id AND gm.member_role = 'OWNER'
+LEFT JOIN saving_group_account_issue i ON i.approval_id = ma.approval_id
+LEFT JOIN group_account ga ON ga.group_id = ma.group_id
+WHERE ma.approval_id = @approval_id;
+```
+
+`암호문 형식`은 문자열 형식 확인일 뿐 복호화 성공을 증명하지 않는다. 회원 계좌 조회가 정상적으로 마스킹 결과를 반환하는지도 확인한다. 위 쿼리는 이 작업에서 실행하지 않았다.
+
+### 단계별 변경과 커밋
+
+| 단계 | 주요 작업 파일·내용 | 커밋 |
+|---|---|---|
+| 2 | 발급 요청·결과·이력·암호문 DTO, VirtualAccountStorageMapper/XML, Mapper 테스트 | `110017d` feat: 계모임 가상계좌 저장 구조와 발급 이력 Mapper 구현 |
+| 3 | AccountEncryptionProperties, AccountNumberCipher, 발급·저장 Service/Impl, 별도 Mock, 테스트 | `0fc9401` feat: 계모임 계좌 암호화 저장과 Mock 발급 구현 |
+| 4 | TossVirtualAccountProperties, TossVirtualAccountResponse, 테스트 클라이언트와 HTTP Mock 테스트 | `5fa4e08` feat: 토스 테스트 가상계좌 발급 클라이언트 구현 |
+| 5 | SavingGroupCreationServiceImpl, 발급 승인·상태 Service/Impl, 승인 순서·실패 테스트 | `6497103` feat: 관리자 계모임 승인에 가상계좌 발급 저장 연결 |
+| 6 | SavingGroupAccountResponse, 기존 SavingGroupService/Impl·Controller, 조회 테스트·기존 동시성 테스트 생성자 | `e37bc64` feat: 승인 모임원 전용 계모임 계좌 조회 API 구현 |
+| 7 | savingGroups.js, savingGroupAccount.test.js: 조회·오류·승인 대기 시간 | `2ca4552` feat: 계모임 계좌 조회 요청 API와 승인 오류 처리 연결 |
+| 8 | SavingGroupAccountCard.jsx, SavingGroupDetail.jsx, SavingGroupDetailPage.jsx, 관리자 상세 페이지 | `897f710` feat: 계모임 테스트 계좌와 내부 장부 잔액 화면 구현 |
+| 9 | 아래 7개 파일: 보안·트랜잭션·환경 변수·MySQL 선택형·SSR 및 은행 코드 보완 | `cd7abe0` test: 계모임 가상계좌 승인 저장 조회 통합 검증 |
+| 10 | 이 API 문서와 docs/ai-usage-log.md에 정책·검증·수동 절차 일괄 기록 | docs: 계모임 테스트 가상계좌 연동 및 회원 조회 정책 정리 |
+
+9단계 변경 파일:
+
+- `back/src/main/java/com/nightstudy/moa/savingGroup/service/TossVirtualAccountIssueServiceImpl.java`
+- `back/src/test/java/com/nightstudy/moa/savingGroup/service/TossVirtualAccountIssueServiceImplTest.java`
+- `back/src/test/java/com/nightstudy/moa/savingGroup/controller/SavingGroupAccountSecurityIntegrationTest.java`
+- `back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupAccountApprovalMySqlIntegrationTest.java`
+- `back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupAccountApprovalTransactionTest.java`
+- `back/src/test/java/com/nightstudy/moa/savingGroup/service/VirtualAccountEnvironmentBindingTest.java`
+- `front/src/components/savingGroup/SavingGroupAccountCard.test.js`
+
+남은 작업은 담당자의 DB 적용, 상점 은행·예금주 확인과 환경 변수 주입, 실제 MySQL·브라우저·승인된 수동 테스트 발급 검증, 불확실 이력의 복구 정책, 향후 키 교체 정책이다. 입금·출금·거래 생성·웹훅은 별도 요청으로 진행한다.
+
 <!-- AI작성: 2026-11-05 사용자 확정 정책에 따른 계원 목록·역할 관리 계약 및 검증 기록. -->
 ## 계주 전용 계원 목록 및 역할 관리 (2026-11-05)
 
