@@ -57,6 +57,8 @@ const Table = styled.table`
     color: ${({ theme }) => theme.colors.secondaryText};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 11px;
+    /* AI작성: PC 회원 목록에서 각 열의 표시값도 제목과 같은 기준으로 중앙 정렬한다. */
+    text-align: center;
     vertical-align: middle;
   }
 
@@ -67,7 +69,7 @@ const Table = styled.table`
     width: 20%;
   }
   th:nth-child(3) {
-    width: 13%;
+    width: 16%;
   }
   th:nth-child(4) {
     width: 12%;
@@ -76,7 +78,7 @@ const Table = styled.table`
     width: 11%;
   }
   th:nth-child(6) {
-    width: 16%;
+    width: 13%;
   }
   th:nth-child(7) {
     width: 8%;
@@ -165,6 +167,7 @@ const Status = styled.span`
 const RestrictionList = styled.div`
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
 `;
 
