@@ -211,6 +211,7 @@ const Note = styled.p`
 
 const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
 const formatBalance = (balance) => `${balance.toLocaleString()}원`;
+const formatCurrency = (amount) => `${amount.toLocaleString()}원`;
 
 function SavingGroupDashboardPanel({ onViewTransactions }) {
   // AI작성: 최근 거래는 거래 내역 화면과 같은 공용 통장 거래 Mock을 기준으로 표시한다.
@@ -219,10 +220,20 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
   const latestTransaction = savingGroupTransactions.reduce((latest, transaction) => (
     !latest || `${transaction.date} ${transaction.time}` > `${latest.date} ${latest.time}` ? transaction : latest
   ), null);
+  // AI작성: Mock은 과거 기간 데이터이므로 가장 최근 거래가 속한 월을 현재 조회 기준으로 사용한다.
+  const referenceMonth = latestTransaction?.date.slice(0, 7);
+  const monthlyDues = savingGroupTransactions
+    .filter((transaction) => (
+      referenceMonth != null
+      && transaction.date.startsWith(referenceMonth)
+      && transaction.type === '입금'
+      && transaction.purposeType === '회비'
+    ))
+    .reduce((total, transaction) => total + transaction.amount, 0);
   const dashboardSummary = savingGroupDashboardSummary.map((item) => (
     item.id === 'balance'
       ? { ...item, value: latestTransaction ? formatBalance(latestTransaction.balance) : '잔액 확인 필요' }
-      : item
+      : item.id === 'income' ? { ...item, value: formatCurrency(monthlyDues) } : item
   ));
 
   const handleViewTransactions = () => {
