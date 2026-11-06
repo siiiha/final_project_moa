@@ -402,7 +402,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'dues' ? (
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel />
+        <SavingGroupTransactionHistoryPanel myRole={group.myRole} />
       ) : currentMenu === 'cardExpenseClassification' ? (
         <CardExpenseClassificationPanel groupId={group.groupId} />
       ) : currentMenu === 'payoutRequest' ? (

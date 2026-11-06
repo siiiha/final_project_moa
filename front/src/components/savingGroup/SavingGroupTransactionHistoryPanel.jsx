@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
+import { expenseCategories } from '../../mocks/cardExpenseClassification';
 import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
 
 const Panel = styled.section`
@@ -40,6 +41,15 @@ const DownloadButton = styled(Button)`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     width: 100%;
+  }
+`;
+
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: grid;
   }
 `;
 
@@ -299,21 +309,28 @@ const Notice = styled.p`
 `;
 
 const PAGE_SIZE = 10;
+const MOCK_SAVE_DELAY = 400;
 
 const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
 
-function SavingGroupTransactionHistoryPanel() {
+function SavingGroupTransactionHistoryPanel({ myRole }) {
+  // AI작성: 실제 통장 거래 API 전까지 분류 수정 결과는 화면 상태에서만 확인한다.
+  const [transactions, setTransactions] = useState(savingGroupTransactions);
   const [draftFilters, setDraftFilters] = useState({ startDate: '2026-09-01', endDate: '2026-10-03', type: '전체' });
   const [appliedFilters, setAppliedFilters] = useState(draftFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [isDownloadPreparing, setIsDownloadPreparing] = useState(false);
+  const [hasCategoryChanges, setHasCategoryChanges] = useState(false);
+  const [isCategorySaving, setIsCategorySaving] = useState(false);
+  const [categoryMessage, setCategoryMessage] = useState('');
+  const canEditCategory = myRole === 'OWNER' || myRole === 'MANAGER';
 
-  const filteredTransactions = useMemo(() => savingGroupTransactions.filter((transaction) => {
+  const filteredTransactions = useMemo(() => transactions.filter((transaction) => {
     const matchesStartDate = !appliedFilters.startDate || transaction.date >= appliedFilters.startDate;
     const matchesEndDate = !appliedFilters.endDate || transaction.date <= appliedFilters.endDate;
     const matchesType = appliedFilters.type === '전체' || transaction.type === appliedFilters.type;
     return matchesStartDate && matchesEndDate && matchesType;
-  }), [appliedFilters]);
+  }), [appliedFilters, transactions]);
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
   const visibleTransactions = filteredTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
@@ -333,6 +350,24 @@ function SavingGroupTransactionHistoryPanel() {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
   };
 
+  const handleCategoryChange = (transactionId, category) => {
+    setTransactions((current) => current.map((transaction) => (
+      transaction.id === transactionId ? { ...transaction, category } : transaction
+    )));
+    setHasCategoryChanges(true);
+    setCategoryMessage('');
+  };
+
+  const handleCategorySave = async () => {
+    if (!hasCategoryChanges || isCategorySaving) return;
+    setIsCategorySaving(true);
+    // AI작성: 실제 API 연결 전에도 저장 중 상태를 보여주기 위해 Mock 응답 시간을 둔다.
+    await new Promise((resolve) => window.setTimeout(resolve, MOCK_SAVE_DELAY));
+    setHasCategoryChanges(false);
+    setCategoryMessage('변경한 출금 분류를 저장했습니다.');
+    setIsCategorySaving(false);
+  };
+
   return (
     <Panel>
       <Header>
@@ -340,7 +375,14 @@ function SavingGroupTransactionHistoryPanel() {
           <Title>공용 통장 거래내역</Title>
           <Description>모임 자금의 입출금 내역입니다. 출금은 가맹점명과 지출 항목을 함께 확인합니다.</Description>
         </div>
-        <DownloadButton type="button" $variant="secondary" onClick={handleDownload}>내역 다운로드</DownloadButton>
+        <HeaderActions>
+          {canEditCategory && (
+            <DownloadButton type="button" disabled={!hasCategoryChanges || isCategorySaving} onClick={handleCategorySave}>
+              {isCategorySaving ? '저장 중...' : '분류 저장'}
+            </DownloadButton>
+          )}
+          <DownloadButton type="button" $variant="secondary" onClick={handleDownload}>내역 다운로드</DownloadButton>
+        </HeaderActions>
       </Header>
 
       <Summary>
@@ -417,7 +459,17 @@ function SavingGroupTransactionHistoryPanel() {
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
                       {/* AI작성: 통장 적요와 별도로 가맹점명·입금자를 표시해 분류 기준을 분명히 한다. */}
                       <td>{transaction.merchantName}</td>
-                      <td><Category>{transaction.category}</Category></td>
+                      <td>
+                        {transaction.type === '출금' && canEditCategory ? (
+                          <Select
+                            aria-label={`${transaction.merchantName} 지출 항목`}
+                            value={transaction.category}
+                            onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
+                          >
+                            {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                          </Select>
+                        ) : <Category>{transaction.category}</Category>}
+                      </td>
                       <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
                       <td>{`${transaction.balance.toLocaleString()}원`}</td>
                     </tr>
@@ -438,7 +490,17 @@ function SavingGroupTransactionHistoryPanel() {
                     <dt>일시</dt>
                     <dd>{`${transaction.date} ${transaction.time}`}</dd>
                     <dt>분류 항목</dt>
-                    <dd><Category>{transaction.category}</Category></dd>
+                    <dd>
+                      {transaction.type === '출금' && canEditCategory ? (
+                        <Select
+                          aria-label={`${transaction.merchantName} 지출 항목`}
+                          value={transaction.category}
+                          onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
+                        >
+                          {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                        </Select>
+                      ) : <Category>{transaction.category}</Category>}
+                    </dd>
                     <dt>잔액</dt>
                     <dd>{`${transaction.balance.toLocaleString()}원`}</dd>
                   </MobileInfo>
@@ -472,6 +534,7 @@ function SavingGroupTransactionHistoryPanel() {
             </PageButton>
           </Pagination>
         )}
+        {categoryMessage && <Notice role="status">{categoryMessage}</Notice>}
         {isDownloadPreparing && <Notice role="status">거래 내역 다운로드를 준비할 예정입니다.</Notice>}
       </ListCard>
     </Panel>
