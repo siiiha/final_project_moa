@@ -30,7 +30,8 @@ const CardTop = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: ${({ theme }) => theme.colors.secondaryText};
+  /* AI작성: 관리가 필요한 회원 통계는 위험 색상으로 빠르게 식별하게 한다. */
+  color: ${({ $tone, theme }) => ($tone === 'danger' ? theme.colors.danger : theme.colors.secondaryText)};
   /* AI작성: 회원 현황 항목명을 더 뚜렷하게 보여 주도록 크기를 키운다. */
   font-size: 15px;
   font-weight: 700;
@@ -52,7 +53,7 @@ const IconBox = styled.span`
 
 const Value = styled.strong`
   margin-top: 0;
-  color: ${({ theme }) => theme.colors.text};
+  color: ${({ $tone, theme }) => ($tone === 'danger' ? theme.colors.danger : theme.colors.text)};
   /* AI작성: 핵심 집계 수치를 빠르게 확인할 수 있도록 강조한다. */
   font-size: 29px;
   letter-spacing: -1px;
@@ -66,14 +67,14 @@ function AdminDashboard({ stats }) {
 
         return (
           <SummaryCard key={stat.id}>
-            <CardTop>
+            <CardTop $tone={stat.tone}>
               {stat.label}
               <IconBox $tone={stat.tone}>
                 <Icon size={15} aria-hidden="true" />
               </IconBox>
             </CardTop>
             <div>
-              <Value>{stat.value}</Value>
+              <Value $tone={stat.tone}>{stat.value}</Value>
             </div>
           </SummaryCard>
         );
