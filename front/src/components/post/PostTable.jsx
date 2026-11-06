@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
+import PostCategoryBadge from './PostCategoryBadge';
 
 const Card = styled.section`
   margin-top: 12px;
@@ -72,29 +73,6 @@ const Table = styled.table`
   }
 `;
 
-// AI작성: 게시판 카테고리를 부드러운 파스텔 색상으로 구분해 목록에서 빠르게 식별하도록 한다.
-function getCategoryTone(category, theme) {
-  if (category === '자유게시판') return { color: theme.colors.primary, background: theme.colors.primarySoft };
-  if (category?.includes('질문')) return { color: '#b4234d', background: '#fff0f5' };
-  if (category?.includes('동네')) return { color: '#9a5b08', background: '#fff4dd' };
-  if (category?.includes('거래') || category?.includes('나눔')) {
-    return { color: '#2457a6', background: '#edf4ff' };
-  }
-  return { color: theme.colors.secondaryText, background: theme.colors.background };
-}
-
-const Category = styled.span`
-  display: inline-flex;
-  max-width: 100%;
-  padding: 4px 7px;
-  color: ${({ $category, theme }) => getCategoryTone($category, theme).color};
-  background: ${({ $category, theme }) => getCategoryTone($category, theme).background};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-`;
-
 const PostTitle = styled.button`
   width: 100%;
   overflow: hidden;
@@ -157,7 +135,7 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
                 {posts.map((post) => (
                   <tr key={post.id}>
                     <td>
-                      <Category $category={post.category}>{post.category}</Category>
+                      <PostCategoryBadge category={post.category} size="list" />
                     </td>
                     <td>
                       <PostTitle type="button" onClick={() => onPostClick(post.id)}>

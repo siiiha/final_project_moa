@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
+import PostCategoryBadge from '../post/PostCategoryBadge';
 
 const Card = styled.section`
   margin-top: 24px;
@@ -122,17 +123,6 @@ const Table = styled.table`
   }
 `;
 
-const Category = styled.span`
-  display: inline-flex;
-  padding: 4px 8px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-`;
-
 const PostTitle = styled.strong`
   overflow: hidden;
   display: block;
@@ -210,7 +200,7 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                 {posts.map((post) => (
                   <tr key={post.id}>
                     <td data-label="분류">
-                      <Category>{post.category}</Category>
+                      <PostCategoryBadge category={post.category} />
                     </td>
                     <td data-label="제목">
                       <PostTitle>{post.title}</PostTitle>
