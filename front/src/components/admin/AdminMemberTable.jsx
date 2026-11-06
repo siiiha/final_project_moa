@@ -87,9 +87,9 @@ const Table = styled.table`
     width: 9%;
   }
 
-  /* AI작성: 길이가 가변적인 회원 식별 정보는 왼쪽 정렬해 빠르게 비교할 수 있게 한다. */
-  th:nth-child(-n + 3),
-  td:nth-child(-n + 3) {
+  /* AI작성: 길이가 가변적인 이메일·활동 지역 값은 왼쪽 정렬해 빠르게 비교할 수 있게 한다. */
+  td:nth-child(2),
+  td:nth-child(3) {
     text-align: left;
   }
 
