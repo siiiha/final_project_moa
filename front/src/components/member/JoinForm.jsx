@@ -30,6 +30,15 @@ const FieldList = styled.div`
   display: grid;
   gap: 12px;
 `;
+// AI작성: 이메일 오류 안내를 회원가입 화면에서 명확하게 표시합니다.
+const EmailFeedback = styled.p`
+  && {
+    margin: 4px 0 0;
+    color: ${({ theme }) => theme.colors.danger};
+    font-size: 13px;
+    line-height: 1.5;
+  }
+`;
 
 // AI작성: 오류 안내 공간을 확보해 입력 중 화면이 움직이지 않도록 합니다.
 const PasswordFeedback = styled.p`
@@ -620,9 +629,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
         '인증번호를 발송했습니다. 3분 안에 입력해주세요.',
       );
     } catch (error) {
+      // AI작성: 이미 가입된 이메일에는 로그인 방법을 안내합니다.
+      const errorCode = error.response?.data?.error?.code;
+
       setEmailError(
-        error.response?.data?.error?.message ??
-        '인증번호 발송에 실패했습니다.',
+        errorCode === 'EMAIL_ALREADY_EXISTS'
+          ? '이미 가입된 이메일이에요. 로그인하거나 다른 이메일을 입력해 주세요.'
+          : error.response?.data?.error?.message ??
+          '인증번호를 보내지 못했어요. 잠시 후 다시 시도해 주세요.',
       );
     } finally {
       setIsEmailBusy(false);
@@ -1186,7 +1200,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                   <p role="status">인증번호가 만료됐습니다. 인증번호를 다시 받아 주세요.</p>
                 )
               )}
-              {emailError && <p role="alert">{emailError}</p>}
+              {/* AI작성: 이메일 중복 및 인증 오류를 빨간색으로 안내합니다. */}
+              {emailError && <EmailFeedback role="alert">{emailError}</EmailFeedback>}
             </FieldList>
           </>
         ) : (
