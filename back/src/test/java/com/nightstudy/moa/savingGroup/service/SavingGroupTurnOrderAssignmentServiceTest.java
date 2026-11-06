@@ -89,4 +89,16 @@ class SavingGroupTurnOrderAssignmentServiceTest {
         group.setStatus("01"); when(mapper.updateTurnOrderSequence(20L,40L,2)).thenReturn(0);
         assertThatThrownBy(() -> service.update(10L,30L,request(30,1,40,2))).isInstanceOf(ApiException.class);
     }
+    @Test void repeatedIdenticalAssignmentDoesNotDependOnChangedRowsSetting() {
+        var owner=member("30",false); owner.setSequenceNumber(1);
+        var member=member("40",false); member.setSequenceNumber(2);
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(List.of(owner,member));
+        service.update(10L,30L,request(30,1,40,2));
+        verify(mapper,never()).updateTurnOrderSequence(anyLong(),anyLong(),anyInt());
+    }
+    @Test void existingFuturePayoutBlocksReassignmentWithoutCancellingRequest() {
+        group.setStatus("02"); when(mapper.existsUpcomingTurnOrderPayout(20L,3)).thenReturn(true);
+        assertThatThrownBy(() -> service.update(10L,30L,request(30,3,40,4))).isInstanceOf(ApiException.class);
+        verify(mapper,never()).insertTurnOrderPlan(any());
+    }
 }

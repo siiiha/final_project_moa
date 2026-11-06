@@ -48,12 +48,11 @@ const SearchButton = styled(Button)`
 `;
 
 // AI작성: 입력 중 검색어와 적용한 검색어를 분리하고 현재 모임·검색·페이지의 서버 결과만 표시한다.
-function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipStatus, status, groupType }) {
+function SavingGroupMembersPanelContent({ savingGroupId, groupId, myRole, membershipStatus, status, groupType }) {
   // AI작성: 서버 검증과 별도로 승인 계주·순번계·운영 상태에서만 추천 진입점을 노출한다.
   const [recommendationOpen, setRecommendationOpen] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [assignmentBusy, setAssignmentBusy] = useState(false);
-  const authVersion = useAuthStore(state => state.authVersion);
   const canRecommend = groupType === '순번계' && myRole === 'OWNER'
     && membershipStatus === 'APPROVED' && ['01', '02'].includes(status);
   const [keyword, setKeyword] = useState('');
@@ -84,10 +83,6 @@ function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipSta
     return () => { active.current = false; };
   }, []);
 
-  // AI작성: 로그인 사용자가 바뀌면 이전 사용자의 입력·저장 상태를 폐기한다.
-  useEffect(() => {
-    setAssignmentOpen(false); setAssignmentBusy(false); submitting.current = false;
-  }, [authVersion, savingGroupId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,7 +169,7 @@ function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipSta
       {canRecommend && <div>
         <Button type="button" aria-expanded={assignmentOpen} disabled={assignmentBusy || pendingId !== null || expellingId !== null}
           onClick={() => setAssignmentOpen(value => !value)}>{assignmentOpen ? '순번 지정 닫기' : '순번 지정'}</Button>
-        {assignmentOpen && <SavingGroupTurnOrderAssignmentPanel key={JSON.stringify([savingGroupId, refresh, authVersion])}
+        {assignmentOpen && <SavingGroupTurnOrderAssignmentPanel key={JSON.stringify([savingGroupId, refresh])}
           savingGroupId={savingGroupId} disabled={pendingId !== null || expellingId !== null}
           onBusyChange={busy => { submitting.current = busy; setAssignmentBusy(busy); }} />}
       </div>}
@@ -231,4 +226,8 @@ function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipSta
   );
 }
 
-export default SavingGroupMembersPanel;
+// AI작성: 인증·모임이 바뀌면 이전 요청을 취소하고 편집·저장 상태 전체를 새로 생성한다.
+export default function SavingGroupMembersPanel(props) {
+  const authVersion = useAuthStore(state => state.authVersion);
+  return <SavingGroupMembersPanelContent key={JSON.stringify([props.savingGroupId, authVersion])} {...props} />;
+}

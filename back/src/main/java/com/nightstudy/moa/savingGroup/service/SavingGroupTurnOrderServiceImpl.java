@@ -66,8 +66,13 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
                 && YearMonth.from(effectiveMonth(group)).plusMonths(eligible.size() - 1L).isAfter(YearMonth.from(group.getEndDate())))
             throw conflict("남은 운영 기간보다 배정할 회원이 많습니다. 운영 기간을 확인해주세요.");
         if ("01".equals(group.getStatus())) {
-            for (var entry : request.turnOrders()) if (mapper.updateTurnOrderSequence(group.getGroupId(), entry.memberId(), entry.sequenceNumber()) != 1)
-                throw conflict("회원 상태가 변경되어 전체 순번을 저장하지 못했습니다.");
+            for (var entry : request.turnOrders()) {
+                // AI작성: 같은 값 재저장은 SQL 변경 행 수 설정에 관계없이 성공하는 멱등 요청으로 처리한다.
+                boolean unchanged = members.stream().anyMatch(m -> m.getMemberId().equals(entry.memberId().toString())
+                        && Objects.equals(m.getSequenceNumber(), entry.sequenceNumber()));
+                if (!unchanged && mapper.updateTurnOrderSequence(group.getGroupId(), entry.memberId(), entry.sequenceNumber()) != 1)
+                    throw conflict("회원 상태가 변경되어 전체 순번을 저장하지 못했습니다.");
+            }
         } else {
             var plan = new SavingGroupTurnOrderPlanRow(); plan.setSavingGroupId(id);
             plan.setEffectiveMonth(effectiveMonth(group)); plan.setStartRoundNumber(start); plan.setAssignedBy(user);

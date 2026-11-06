@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import { getSavingGroupTurnOrders, updateSavingGroupTurnOrders } from '../../api/savingGroups';
@@ -46,29 +46,29 @@ export function TurnOrderAssignmentView({ data, drafts = {}, loading, saving, er
 }
 
 export default function SavingGroupTurnOrderAssignmentPanel({ savingGroupId, disabled, onBusyChange }) {
-  const [data, setData] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
   const [drafts, setDrafts] = useState({});
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
+  // AI작성: 현재 조회 키에 맞는 결과만 표시해 이전 응답이 새 화면에 남지 않도록 한다.
+  const loading = snapshot?.key !== revision;
+  const data = loading ? null : snapshot.data;
   const controller = useRef(null);
   const submitting = useRef(false);
-  const apply = result => {
-    setData(result);
+  const apply = useCallback(result => {
+    setSnapshot({ key: revision, data: result });
     setDrafts(Object.fromEntries(result.members.filter(member => !member.paid).map(member => [member.memberId,
       result.scheduled ? member.plannedSequenceNumber ?? '' : member.currentSequenceNumber ?? ''])));
-  };
+  }, [revision]);
   useEffect(() => {
     const request = new AbortController(); controller.current = request;
-    setLoading(true); setData(null); setError(''); setNotice('');
     getSavingGroupTurnOrders(savingGroupId, { signal: request.signal }).then(result => {
       if (!request.signal.aborted) apply(result);
-    }).catch(failure => { if (!request.signal.aborted) setError(failure.message); })
-      .finally(() => { if (!request.signal.aborted) setLoading(false); });
+    }).catch(failure => { if (!request.signal.aborted) { setError(failure.message); setSnapshot({ key: revision, data: null }); } });
     return () => request.abort();
-  }, [savingGroupId, revision]);
+  }, [savingGroupId, revision, apply]);
   const save = async () => {
     if (submitting.current || disabled || !data) return;
     if (!window.confirm(data.scheduled ? `${data.effectiveMonth.slice(0,7)}부터 적용할 순번을 저장할까요?` : '지정한 순번을 지금 적용할까요?')) return;
@@ -83,5 +83,5 @@ export default function SavingGroupTurnOrderAssignmentPanel({ savingGroupId, dis
   };
   return <TurnOrderAssignmentView data={data} drafts={drafts} loading={loading} saving={saving} error={error} notice={notice}
     disabled={disabled} onChange={(id, value) => setDrafts(current => ({ ...current, [id]: value }))} onSave={save}
-    onReload={() => setRevision(value => value + 1)} />;
+    onReload={() => { setError(''); setNotice(''); setRevision(value => value + 1); }} />;
 }
