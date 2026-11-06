@@ -34,6 +34,10 @@ public class MemberSignupRequest {
     private String emailVerificationToken;
 
     @NotBlank(message = "비밀번호를 입력해주세요.")
+    @Pattern(
+            regexp = "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\\[-`{-~])[!-~]{8,20}$",
+            message = "비밀번호는 8자 이상으로 영문, 숫자, 특수문자를 각각  포함해 8~20자로 설정해 주세요."
+    )
     private String password;
 
     @NotBlank(message = "이름을 입력해주세요.")

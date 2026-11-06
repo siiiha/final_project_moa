@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -29,6 +29,26 @@ const Form = styled.form`
 const FieldList = styled.div`
   display: grid;
   gap: 12px;
+`;
+// AI작성: 이메일 오류 안내를 회원가입 화면에서 명확하게 표시합니다.
+const EmailFeedback = styled.p`
+  && {
+    margin: 4px 0 0;
+    color: ${({ theme }) => theme.colors.danger};
+    font-size: 13px;
+    line-height: 1.5;
+  }
+`;
+
+// AI작성: 오류 안내 공간을 확보해 입력 중 화면이 움직이지 않도록 합니다.
+const PasswordFeedback = styled.p`
+  && {
+    min-height: 20px;
+    margin: 8px 0 0;
+    color: ${({ theme }) => theme.colors.danger};
+    font-size: 13px;
+    line-height: 1.5;
+  }
 `;
 
 // AI작성: 활동 지역 선택창을 기존 회원가입 입력창의 디자인과 통일한다.
@@ -458,11 +478,34 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [gender, setGender] = useState('');
   const genderDialogRef = useRef(null);
+  const signupCardRef = useRef(null);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [agreements, setAgreements] = useState({});
   const [signupStep, setSignupStep] = useState('terms');
+  // AI작성: 다음 단계가 표시되면 새 입력 카드의 시작 위치로 이동합니다.
+  useEffect(() => {
+    if (signupStep === 'terms') return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      signupCardRef.current?.scrollIntoView({
+        behavior: 'auto',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [signupStep]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // AI작성: 비밀번호 입력을 마친 뒤 오류를 표시하고, 수정하면 즉시 갱신합니다.
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
+  const [hasPasswordSubmitAttempt, setHasPasswordSubmitAttempt] = useState(false);
+  const passwordError =
+    password.length < 8 || password.length > 20
+      ? '비밀번호는 8~20자로 입력해 주세요.'
+      : !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(password)
+        ? '영문, 숫자, 특수문자를 각각 하나 이상 포함해 주세요.'
+        : '';
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
@@ -600,9 +643,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
         '인증번호를 발송했습니다. 3분 안에 입력해주세요.',
       );
     } catch (error) {
+      // AI작성: 이미 가입된 이메일에는 로그인 방법을 안내합니다.
+      const errorCode = error.response?.data?.error?.code;
+
       setEmailError(
-        error.response?.data?.error?.message ??
-        '인증번호 발송에 실패했습니다.',
+        errorCode === 'EMAIL_ALREADY_EXISTS'
+          ? '이미 가입된 이메일이에요. 로그인하거나 다른 이메일을 입력해 주세요.'
+          : error.response?.data?.error?.message ??
+          '인증번호를 보내지 못했어요. 잠시 후 다시 시도해 주세요.',
       );
     } finally {
       setIsEmailBusy(false);
@@ -702,13 +750,13 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       return;
     }
 
-    // AI작성: 일반 가입에서만 비밀번호 길이를 검사한다.
     if (
       !isSocialSignup &&
-      (password.length < 8 ||
-        new TextEncoder().encode(password).length > 72)
+      !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(password)
     ) {
-      setSignupError('비밀번호는 8자 이상, UTF-8 기준 72바이트 이내로 입력해주세요.');
+      setSignupError(
+        '영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요.'
+      );
       return;
     }
 
@@ -873,6 +921,34 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       setIsSubmitting(false);
     }
   };
+  // AI작성: 지역 데이터나 선택값이 바뀔 때만 목록을 다시 계산합니다.
+  const provinceOptions = useMemo(
+    () => [...new Set(memberRegionOptions.map((region) => region.provinceName))],
+    [memberRegionOptions],
+  );
+
+  const districtOptions = useMemo(
+    () => memberRegionOptions.filter(
+      (region) => region.provinceName === provinceName && !region.townName,
+    ),
+    [memberRegionOptions, provinceName],
+  );
+
+  const townOptions = useMemo(() => {
+    // AI작성: 선택한 시·군·구를 한 번만 찾아 반복 검색을 줄입니다.
+    const district = memberRegionOptions.find(
+      (region) => region.regionId === Number(districtRegionId),
+    );
+
+    if (!district) return [];
+
+    return memberRegionOptions.filter(
+      (region) =>
+        region.townName &&
+        region.provinceName === district.provinceName &&
+        region.districtName === district.districtName,
+    );
+  }, [memberRegionOptions, districtRegionId]);
 
   const steps = [
     'name', 'birthDate', 'gender', 'phone',
@@ -918,8 +994,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       message = '이메일 인증을 완료해 주세요.';
     }
     if (!message && !isSocialSignup && includes('password')) {
-      if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
-        message = '비밀번호 길이를 확인해 주세요.';
+      // AI작성: 다음 단계로 이동하기 전에 비밀번호 조합과 길이를 검사합니다.
+      if (
+        !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(password)
+      ) {
+        message = '영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요.';
       } else if (password !== confirmPassword) {
         message = '비밀번호와 비밀번호 확인이 일치하지 않습니다.';
       }
@@ -935,7 +1014,25 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     return message;
   };
 
+  // AI작성: 비밀번호 오류는 해당 입력칸 아래에 표시하고 중복 안내를 방지합니다.
+  const validatePasswordFields = () => {
+    const passwordStepIndex = steps.indexOf('password');
+    if (isSocialSignup || stepIndex < passwordStepIndex) return true;
+
+    setIsPasswordTouched(true);
+    setHasPasswordSubmitAttempt(true);
+
+    if (passwordError || password !== confirmPassword) {
+      setSignupError('');
+      return false;
+    }
+
+    return true;
+  };
+
   const advanceSignup = () => {
+    if (!validatePasswordFields()) return;
+
     const message = getStepError();
     setSignupError(message);
     if (!message) setSignupStep(steps[stepIndex + 1]);
@@ -944,12 +1041,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const submitSignup = (event) => {
     event.preventDefault();
     if (signupStep !== 'details') return;
+    if (!validatePasswordFields()) return;
 
     const message = getStepError();
     if (message) {
       setSignupError(message);
       return;
     }
+
     return handleSubmit(event);
   };
 
@@ -1143,7 +1242,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                   <p role="status">인증번호가 만료됐습니다. 인증번호를 다시 받아 주세요.</p>
                 )
               )}
-              {emailError && <p role="alert">{emailError}</p>}
+              {/* AI작성: 이메일 중복 및 인증 오류를 빨간색으로 안내합니다. */}
+              {emailError && <EmailFeedback role="alert">{emailError}</EmailFeedback>}
             </FieldList>
           </>
         ) : (
@@ -1160,10 +1260,13 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
           <PasswordInput
             id="join-password"
             label="비밀번호"
-            placeholder="8자 이상 입력"
+            placeholder="8~20자, 영문·숫자·특수문자 포함"
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            onBlur={() => setIsPasswordTouched(true)}
+            aria-invalid={isPasswordTouched && Boolean(passwordError)}
+            aria-describedby="join-password-policy"
             minLength={8}
             required
             inline
@@ -1171,6 +1274,10 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             isVisible={isPasswordVisible}
             onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
           />
+          {/* AI작성: 입력칸을 벗어난 뒤 조건에 맞지 않으면 안내합니다. */}
+          <PasswordFeedback id="join-password-policy" role="status">
+            {isPasswordTouched ? passwordError : ''}
+          </PasswordFeedback>
 
           <PasswordInput
             id="join-password-confirm"
@@ -1179,6 +1286,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
+            aria-invalid={(confirmPassword !== '' || hasPasswordSubmitAttempt) && password !== confirmPassword}
+            aria-describedby="join-password-feedback"
             required
             inline
             compact
@@ -1189,7 +1298,13 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
           />
         </FieldList>
 
-        {signupStep === 'password' && (<p>비밀번호는 8자 이상으로 설정해 주세요. 영문, 숫자, 특수문자를 각각 하나 이상 포함해야 합니다.</p>)}
+        {/* AI작성: 이전 단계에서도 비밀번호 확인값의 불일치를 즉시 안내합니다. */}
+        <PasswordFeedback id="join-password-feedback" role="status">
+          {(confirmPassword !== '' || hasPasswordSubmitAttempt) && password !== confirmPassword
+            ? '비밀번호가 일치하지 않아요. 다시 확인해 주세요.'
+            : ''}
+        </PasswordFeedback>
+
       </>
     ),
     nickname: (
@@ -1260,12 +1375,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }}
               >
                 <option value="">시·도 선택</option>
-                {[...new Set(memberRegionOptions.map((region) => region.provinceName))]
-                  .map((province) => (
-                    <option key={province} value={province}>
-                      {province}
-                    </option>
-                  ))}
+                {provinceOptions.map((province) => (
+                  <option key={province} value={province}>
+                    {province}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1294,17 +1408,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }}
               >
                 <option value="">시·군·구 선택</option>
-                {memberRegionOptions
-                  .filter(
-                    (region) =>
-                      region.provinceName === provinceName &&
-                      !region.townName,
-                  )
-                  .map((region) => (
-                    <option key={region.regionId} value={region.regionId}>
-                      {region.districtName || '세종특별자치시 전체'}
-                    </option>
-                  ))}
+                {districtOptions.map((region) => (
+                  <option key={region.regionId} value={region.regionId}>
+                    {region.districtName || '세종특별자치시 전체'}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -1330,25 +1438,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }}
               >
                 <option value="">읍·면·동 선택</option>
-                {memberRegionOptions
-                  .filter((region) => {
-                    const district = memberRegionOptions.find(
-                      (item) =>
-                        item.regionId === Number(districtRegionId),
-                    );
-
-                    return (
-                      district &&
-                      region.townName &&
-                      region.provinceName === district.provinceName &&
-                      region.districtName === district.districtName
-                    );
-                  })
-                  .map((region) => (
-                    <option key={region.regionId} value={region.regionId}>
-                      {region.townName}
-                    </option>
-                  ))}
+                {townOptions.map((region) => (
+                  <option key={region.regionId} value={region.regionId}>
+                    {region.townName}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -1498,7 +1592,10 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
         )}
 
         {stepIndex >= 0 && (
-          <SignupInputCard aria-labelledby="signup-current-title">
+          <SignupInputCard
+            ref={signupCardRef}
+            aria-labelledby="signup-current-title"
+          >
             <h2 id="signup-current-title">{titles[signupStep]}</h2>
             {steps.slice(0, stepIndex + 1).reverse().map((step) => (
               <SignupFieldGroup key={step}>{fields[step]}</SignupFieldGroup>
