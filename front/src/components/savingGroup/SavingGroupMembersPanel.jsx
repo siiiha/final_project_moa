@@ -6,6 +6,9 @@ import { expelSavingGroupMember, getSavingGroupMembers, updateSavingGroupMemberR
 import SavingGroupMemberList from './SavingGroupMemberList';
 // AI작성: 추천 패널은 계원 관리 내부에서만 열며 별도 탭·저장·적용 동작은 추가하지 않는다.
 import SavingGroupTurnOrderRecommendationPanel from './SavingGroupTurnOrderRecommendationPanel';
+// AI작성: 추천과 직접 지정을 별도 패널로 제공하고 인증 변경 시 입력을 폐기한다.
+import SavingGroupTurnOrderAssignmentPanel from './SavingGroupTurnOrderAssignmentPanel';
+import useAuthStore from '../../store/authStore';
 
 const Panel = styled.section`
   display: grid;
@@ -48,6 +51,9 @@ const SearchButton = styled(Button)`
 function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipStatus, status, groupType }) {
   // AI작성: 서버 검증과 별도로 승인 계주·순번계·운영 상태에서만 추천 진입점을 노출한다.
   const [recommendationOpen, setRecommendationOpen] = useState(false);
+  const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [assignmentBusy, setAssignmentBusy] = useState(false);
+  const authVersion = useAuthStore(state => state.authVersion);
   const canRecommend = groupType === '순번계' && myRole === 'OWNER'
     && membershipStatus === 'APPROVED' && ['01', '02'].includes(status);
   const [keyword, setKeyword] = useState('');
@@ -71,12 +77,17 @@ function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipSta
   const members = currentResult?.items || [];
   const totalPages = currentResult?.meta?.totalPages || 0;
   const error = currentResult?.error || '';
-  const blocked = loading || Boolean(error) || pendingId !== null || expellingId !== null;
+  const blocked = loading || Boolean(error) || pendingId !== null || expellingId !== null || assignmentBusy;
 
   useEffect(() => {
     active.current = true;
     return () => { active.current = false; };
   }, []);
+
+  // AI작성: 로그인 사용자가 바뀌면 이전 사용자의 입력·저장 상태를 폐기한다.
+  useEffect(() => {
+    setAssignmentOpen(false); setAssignmentBusy(false); submitting.current = false;
+  }, [authVersion, savingGroupId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -159,6 +170,14 @@ function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipSta
         <p>승인된 계원의 이름 또는 이메일로 검색할 수 있습니다. 회계는 한 명만 지정할 수 있습니다.</p>
         <p>회계를 교체하려면 기존 회계를 계원으로 변경한 뒤 새 회계를 지정해주세요.</p>
       </Intro>
+      {/* AI작성: 저장 중 회원 변경을 함께 막고 회원 목록 갱신 시 지정 입력도 새로 조회한다. */}
+      {canRecommend && <div>
+        <Button type="button" aria-expanded={assignmentOpen} disabled={assignmentBusy || pendingId !== null || expellingId !== null}
+          onClick={() => setAssignmentOpen(value => !value)}>{assignmentOpen ? '순번 지정 닫기' : '순번 지정'}</Button>
+        {assignmentOpen && <SavingGroupTurnOrderAssignmentPanel key={JSON.stringify([savingGroupId, refresh, authVersion])}
+          savingGroupId={savingGroupId} disabled={pendingId !== null || expellingId !== null}
+          onBusyChange={busy => { submitting.current = busy; setAssignmentBusy(busy); }} />}
+      </div>}
       {/* AI작성: 검색·페이지와 무관하게 전체 승인 모임원을 추천하며 실제 계원 변경 후 결과를 초기화한다. */}
       {canRecommend && <div>
         <Button type="button" aria-expanded={recommendationOpen}
