@@ -1192,4 +1192,48 @@
         AND member_role = 'OWNER'
         AND membership_status = 'PENDING'
     </update>
+    <!-- AI작성: 실제 금융·발급 Mapper를 호출하지 않고 내부 계좌 ID만 잠근다. -->
+    <select id="selectDepositAccountForUpdate" resultType="long">
+        SELECT account_id FROM group_account WHERE group_id = #{groupId} FOR UPDATE
+    </select>
+    <select id="selectDepositNow" resultType="java.time.LocalDateTime">
+        SELECT CURRENT_TIMESTAMP(6)
+    </select>
+    <select id="selectDepositRequestForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupDepositRow">
+        SELECT * FROM saving_group_mock_deposit_request
+        WHERE member_id = #{memberId} AND request_key = #{requestKey} FOR UPDATE
+    </select>
+    <!-- AI작성: 추가 확인 입금이 최초 성공 기준 시각을 연장하지 않도록 일반 완료 행만 찾는다. -->
+    <select id="selectDepositAnchorForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupDepositRow">
+        SELECT * FROM saving_group_mock_deposit_request
+        WHERE account_id = #{accountId} AND member_id = #{memberId} AND amount = #{amount}
+          AND status = 'COMPLETED' AND window_anchor_request_id IS NULL
+          AND completed_at &gt; #{since}
+        ORDER BY completed_at DESC, deposit_request_id DESC LIMIT 1 FOR UPDATE
+    </select>
+    <insert id="insertDepositTransaction" useGeneratedKeys="true" keyProperty="transactionId" keyColumn="transaction_id">
+        INSERT INTO group_transaction (account_id, transaction_type, amount, transacted_at, description)
+        VALUES (#{accountId}, 'DEPOSIT', #{amount}, #{completedAt}, '테스트 입금')
+    </insert>
+    <insert id="insertDepositRequest" useGeneratedKeys="true" keyProperty="depositRequestId" keyColumn="deposit_request_id">
+        INSERT INTO saving_group_mock_deposit_request
+          (account_id, member_id, amount, request_key, status, window_anchor_request_id,
+           confirmation_token_hash, confirmation_expires_at, transaction_id, requested_at, completed_at)
+        VALUES (#{accountId}, #{memberId}, #{amount}, #{requestKey}, #{status}, #{windowAnchorRequestId},
+           #{confirmationTokenHash}, #{confirmationExpiresAt}, #{transactionId}, #{requestedAt}, #{completedAt})
+    </insert>
+    <!-- AI작성: 응답 유실 후 같은 요청 키로 재조회하면 새 확인값을 발급하고 기존 확인값은 무효화한다. -->
+    <update id="refreshDepositConfirmation">
+        UPDATE saving_group_mock_deposit_request
+        SET confirmation_token_hash = #{confirmationTokenHash}, confirmation_expires_at = #{confirmationExpiresAt}
+        WHERE deposit_request_id = #{depositRequestId} AND member_id = #{memberId}
+          AND account_id = #{accountId} AND status = 'PENDING_CONFIRMATION'
+    </update>
+    <update id="completeDepositRequest">
+        UPDATE saving_group_mock_deposit_request
+        SET status = 'COMPLETED', transaction_id = #{transactionId}, completed_at = #{completedAt},
+            confirmation_token_hash = NULL
+        WHERE deposit_request_id = #{depositRequestId} AND member_id = #{memberId}
+          AND account_id = #{accountId} AND status = 'PENDING_CONFIRMATION'
+    </update>
 </mapper>
