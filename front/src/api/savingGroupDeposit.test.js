@@ -52,3 +52,25 @@ test('잘못된 입력은 통신하지 않고 오류 응답은 보존한다', as
     await assert.rejects(() => requestSavingGroupDeposit(10, { amount: 1000, requestKey: key }), e => e === canceled);
   } finally { client.post = original; }
 });
+
+// AI작성: 응답 유실 이후 같은 키·금액으로 재조회할 수 있고 확인 실패의 서버 코드를 잃지 않는다.
+test('통신 결과 불명확 시 같은 요청을 재전송하고 만료 오류를 구분한다', async () => {
+  const original = client.post;
+  const sent = [];
+  try {
+    client.post = async (url, body) => {
+      sent.push({ url, body });
+      if (sent.length === 1) throw new Error('응답 유실');
+      return { data: { success: true, data: { status: 'COMPLETED', amount: 1000, balance: 1000 } } };
+    };
+    const request = { amount: 1000, requestKey: key };
+    await assert.rejects(() => requestSavingGroupDeposit(10, request));
+    assert.equal((await requestSavingGroupDeposit(10, request)).status, 'COMPLETED');
+    assert.deepEqual(sent[0], sent[1]);
+    client.post = async () => { throw { response: { status: 409, data: { error: {
+      code: 'DEPOSIT_CONFIRMATION_EXPIRED', message: '확인 시간이 지났습니다.',
+    } } } }; };
+    await assert.rejects(() => confirmSavingGroupDeposit(10, { requestKey: key, confirmationToken: token }),
+      e => e.status === 409 && e.code === 'DEPOSIT_CONFIRMATION_EXPIRED');
+  } finally { client.post = original; }
+});

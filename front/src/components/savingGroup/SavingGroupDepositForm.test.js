@@ -25,5 +25,17 @@ test('입금 화면은 원문 없이 테스트 안내와 중복 확인·불확�
     assert.match(unknown, /같은 확인 요청 결과 다시 확인/); assert.match(unknown, /응답 유실/);
     assert.doesNotMatch(unknown, />취소</);
     assert.match(render({ message: '테스트 입금이 등록되었습니다.' }), /role="status"/);
+    // AI작성: 확인 대기 중 본문 변경·재제출을 막고 처리중에는 확인·취소 버튼도 함께 잠근다.
+    const waiting = render({ pending });
+    assert.match(waiting, /<select[^>]*disabled/);
+    assert.match(waiting, /<input[^>]*disabled/);
+    assert.match(waiting, /<button[^>]*disabled[^>]*>테스트 입금 등록/);
+    const sending = render({ pending, busy: true });
+    assert.match(sending, /<button[^>]*disabled[^>]*>한 번 더 등록/);
+    assert.match(sending, /<button[^>]*disabled[^>]*>취소/);
+    const initialUnknown = render({ uncertain: true, error: '결과 확인 필요' });
+    assert.match(initialUnknown, /같은 입금 요청 결과 다시 확인/);
+    assert.match(initialUnknown, /<input[^>]*disabled/);
+    assert.doesNotMatch(initialUnknown, /role="dialog"/);
   } finally { await vite.close(); }
 });
