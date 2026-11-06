@@ -238,6 +238,14 @@ const ErrorNotice = styled.p`
   line-height: 1.5;
 `;
 
+// AI작성: 비밀번호 오류를 기존 서비스의 빨간색으로 안내합니다.
+const PasswordFeedback = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 13px;
+  line-height: 1.5;
+`;
+
 function EditProfileForm() {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
@@ -251,6 +259,20 @@ function EditProfileForm() {
   const [errorMessage, setErrorMessage] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  // AI작성: 비밀번호를 변경할 때만 입력 조건과 확인값을 검사합니다.
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
+  const [isPasswordConfirmTouched, setIsPasswordConfirmTouched] = useState(false);
+
+  const passwordChangeRequested =
+    newPassword !== '' || confirmNewPassword !== '';
+
+  const passwordError = !passwordChangeRequested
+    ? ''
+    : newPassword.length < 8 || newPassword.length > 20
+      ? '비밀번호는 8~20자로 입력해 주세요.'
+      : !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(newPassword)
+        ? '영문, 숫자, 특수문자를 각각 하나 이상 포함해 주세요.'
+        : '';
   const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
     useState(false);
@@ -337,28 +359,16 @@ function EditProfileForm() {
       return;
     }
 
-    // AI작성: 비밀번호 변경을 입력한 경우 길이와 확인값을 검사합니다.
-    const passwordChangeRequested =
-      newPassword !== '' || confirmNewPassword !== '';
+    // AI작성: 수정 요청 시 입력칸 아래에 오류를 표시합니다.
+    setIsPasswordTouched(true);
+    setIsPasswordConfirmTouched(true);
 
-    if (passwordChangeRequested) {
-      // AI작성: 서버와 동일하게 영문·숫자·특수문자 조합을 검사합니다.
-      if (!/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,}$/.test(newPassword)) {
-        setErrorMessage(
-          '새 비밀번호는 8자 이상으로 영문, 숫자, 특수문자를 각각 하나 이상 포함해주세요.'
-        );
-        return;
-      }
-
-      if (new TextEncoder().encode(newPassword).length > 72) {
-        setErrorMessage('비밀번호가 너무 깁니다. 더 짧게 입력해주세요.');
-        return;
-      }
-
-      if (newPassword !== confirmNewPassword) {
-        setErrorMessage('새 비밀번호와 확인 입력값이 일치하지 않습니다.');
-        return;
-      }
+    if (
+      passwordChangeRequested &&
+      (passwordError || newPassword !== confirmNewPassword)
+    ) {
+      setErrorMessage('');
+      return;
     }
 
     setIsSaving(true);
@@ -585,11 +595,14 @@ function EditProfileForm() {
         <PasswordInput
           id="edit-new-password"
           label="새 비밀번호"
-          placeholder="8자 이상, 영문·숫자·특수문자 포함"
+          placeholder="8~20자, 영문·숫자·특수문자 포함"
           autoComplete="new-password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
           minLength={8}
+          onBlur={() => setIsPasswordTouched(true)}
+          aria-invalid={isPasswordTouched && Boolean(passwordError)}
+          aria-describedby="edit-password-feedback"
           disabled={isSaving}
           inline
           compact
@@ -598,6 +611,9 @@ function EditProfileForm() {
             setIsNewPasswordVisible((value) => !value)
           }
         />
+        <PasswordFeedback id="edit-password-feedback" role="status">
+          {isPasswordTouched ? passwordError : ''}
+        </PasswordFeedback>
 
         <PasswordInput
           id="edit-new-password-confirm"
@@ -608,6 +624,8 @@ function EditProfileForm() {
           onChange={(event) =>
             setConfirmNewPassword(event.target.value)
           }
+          onBlur={() => setIsPasswordConfirmTouched(true)}
+          aria-describedby="edit-password-confirm-feedback"
           disabled={isSaving}
           inline
           compact
@@ -616,6 +634,13 @@ function EditProfileForm() {
             setIsConfirmPasswordVisible((value) => !value)
           }
         />
+        <PasswordFeedback id="edit-password-confirm-feedback" role="status">
+          {(confirmNewPassword !== '' || isPasswordConfirmTouched) &&
+            passwordChangeRequested &&
+            newPassword !== confirmNewPassword
+            ? '새 비밀번호가 일치하지 않아요. 다시 확인해 주세요.'
+            : ''}
+        </PasswordFeedback>
 
         <Divider />
 
