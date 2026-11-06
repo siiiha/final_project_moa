@@ -48,7 +48,8 @@ const Table = styled.table`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 11px;
     font-weight: 700;
-    text-align: left;
+    /* AI작성: 회원 관리 표의 모든 열 제목을 일관되게 중앙 정렬한다. */
+    text-align: center;
   }
 
   td {
@@ -82,7 +83,6 @@ const Table = styled.table`
   }
   th:nth-child(8) {
     width: 9%;
-    text-align: right;
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
