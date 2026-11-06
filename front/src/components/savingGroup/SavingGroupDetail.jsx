@@ -1,5 +1,6 @@
 import { useId } from 'react';
-import { formatSavingGroupAmount, getSavingGroupMenus } from '../../api/savingGroups.js';
+import { Link } from 'react-router-dom';
+import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 // AI작성: 기존 react-icons 패키지의 테두리·채움 핀으로 일반·고정 상태를 구분한다.
 import { BsPinAngle, BsPinAngleFill } from 'react-icons/bs';
