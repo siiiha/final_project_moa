@@ -212,10 +212,6 @@ const Table = styled.table`
     font-weight: 700;
   }
 
-  td:nth-child(3) {
-    text-align: left;
-  }
-
   tbody tr:last-child td {
     border-bottom: 0;
   }
@@ -265,9 +261,17 @@ const MobileDescription = styled.strong`
 `;
 
 const Category = styled.span`
+  display: inline-block;
+  text-align: center;
   color: ${({ theme }) => theme.colors.text};
   font-size: 11px;
   font-weight: 700;
+`;
+
+const CategorySelect = styled(Select)`
+  width: auto;
+  min-width: 94px;
+  text-align: center;
 `;
 
 const PayoutCategory = styled(Category)`
@@ -505,14 +509,14 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                       <td>{transaction.merchantName}</td>
                       <td>
                         {transaction.purposeType === '일반 지출' && canEditCategory ? (
-                          <Select
+                          <CategorySelect
                             aria-label={`${transaction.merchantName} 지출 항목`}
                             $needsReview={transaction.category === '확인 필요'}
                             value={transaction.category}
                             onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
                           >
                             {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                          </Select>
+                          </CategorySelect>
                         ) : transaction.purposeType === '계금 지급'
                           ? <PayoutCategory>계금 지급</PayoutCategory>
                           : transaction.category === '확인 필요'
@@ -541,14 +545,14 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                     <dt>분류 항목</dt>
                     <dd>
                       {transaction.purposeType === '일반 지출' && canEditCategory ? (
-                        <Select
+                        <CategorySelect
                           aria-label={`${transaction.merchantName} 지출 항목`}
                           $needsReview={transaction.category === '확인 필요'}
                           value={transaction.category}
                           onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
                         >
                           {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                        </Select>
+                        </CategorySelect>
                       ) : transaction.purposeType === '계금 지급'
                         ? <PayoutCategory>계금 지급</PayoutCategory>
                         : transaction.category === '확인 필요'
