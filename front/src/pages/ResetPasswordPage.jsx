@@ -22,6 +22,16 @@ function ResetPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  // AI작성: 입력을 마친 뒤 오류를 표시하고 수정하면 즉시 갱신합니다.
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
+  const [isConfirmTouched, setIsConfirmTouched] = useState(false);
+
+  const passwordError =
+    newPassword.length < 8 || newPassword.length > 20
+      ? '비밀번호는 8~20자로 입력해 주세요.'
+      : !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(newPassword)
+        ? '영문, 숫자, 특수문자를 각각 하나 이상 포함해 주세요.'
+        : '';
 
   const busyRef = useRef(false);
   const clearToken = useAuthStore((state) => state.clearToken);
@@ -43,17 +53,11 @@ function ResetPasswordPage() {
 
     setErrorMessage('');
 
-    if (
-      newPassword.trim().length === 0 ||
-      newPassword.length < 8 ||
-      newPassword.length > 20
-    ) {
-      setErrorMessage('새 비밀번호는 8~20자로 입력해주세요.');
-      return;
-    }
+    // AI작성: 변경 요청 시 입력칸 아래의 오류 안내를 활성화합니다.
+    setIsPasswordTouched(true);
+    setIsConfirmTouched(true);
 
-    if (newPassword !== confirmPassword) {
-      setErrorMessage('새 비밀번호와 비밀번호 확인이 일치하지 않습니다.');
+    if (passwordError || newPassword !== confirmPassword) {
       return;
     }
 
@@ -81,7 +85,7 @@ function ResetPasswordPage() {
     } catch (error) {
       setErrorMessage(
         error.response?.data?.error?.message ??
-          '비밀번호를 변경하지 못했습니다. 다시 시도해주세요.',
+        '비밀번호를 변경하지 못했습니다. 다시 시도해주세요.',
       );
     } finally {
       busyRef.current = false;
@@ -99,6 +103,8 @@ function ResetPasswordPage() {
     setPasswordVisible(false);
     setConfirmVisible(false);
     setErrorMessage('');
+    setIsPasswordTouched(false);
+    setIsConfirmTouched(false);
   };
 
   return (
@@ -120,15 +126,16 @@ function ResetPasswordPage() {
               5분 안에 새 비밀번호를 설정해주세요.
             </Description>
 
-            <Form onSubmit={handleSubmit}>
+            <Form onSubmit={handleSubmit} noValidate>
               <PasswordInput
                 id="reset-new-password"
                 label="새 비밀번호"
-                placeholder="8~20자로 입력해주세요"
+                placeholder="8~20자, 영문·숫자·특수문자 포함"
                 autoComplete="new-password"
-                minLength={8}
-                maxLength={20}
                 required
+                onBlur={() => setIsPasswordTouched(true)}
+                aria-invalid={isPasswordTouched && Boolean(passwordError)}
+                aria-describedby="reset-password-feedback"
                 value={newPassword}
                 onChange={(event) =>
                   setNewPassword(event.target.value)
@@ -140,14 +147,21 @@ function ResetPasswordPage() {
                 disabled={isSubmitting}
               />
 
+              {isPasswordTouched && passwordError && (
+                <Message $error id="reset-password-feedback" role="status">
+                  {passwordError}
+                </Message>
+              )}
+
               <PasswordInput
                 id="reset-confirm-password"
                 label="새 비밀번호 확인"
                 placeholder="새 비밀번호를 다시 입력해주세요"
                 autoComplete="new-password"
-                minLength={8}
-                maxLength={20}
                 required
+                onBlur={() => setIsConfirmTouched(true)}
+                aria-invalid={(confirmPassword !== '' || isConfirmTouched) && newPassword !== confirmPassword}
+                aria-describedby="reset-confirm-feedback"
                 value={confirmPassword}
                 onChange={(event) =>
                   setConfirmPassword(event.target.value)
@@ -158,6 +172,13 @@ function ResetPasswordPage() {
                 }
                 disabled={isSubmitting}
               />
+
+              {(confirmPassword !== '' || isConfirmTouched) &&
+                newPassword !== confirmPassword && (
+                  <Message $error id="reset-confirm-feedback" role="status">
+                    새 비밀번호가 일치하지 않아요. 다시 확인해 주세요.
+                  </Message>
+                )}
 
               {errorMessage && (
                 <Message $error role="alert">

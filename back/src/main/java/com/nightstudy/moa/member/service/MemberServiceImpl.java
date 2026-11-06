@@ -880,16 +880,23 @@ public class MemberServiceImpl implements MemberService {
     public void resetPassword(PasswordResetRequest request) {
         String newPassword = request.getNewPassword();
 
+        // AI작성: 회원가입과 동일하게 영문·숫자·특수문자를 포함한 8~20자를 검사합니다.
         if (newPassword == null
-                || newPassword.isBlank()
-                || newPassword.length() < 8
-                || newPassword.length() > 20
-                || !newPassword.equals(request.getNewPasswordConfirm())
-                || newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
+                || !newPassword.matches(
+                "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\\[-`{-~])[!-~]{8,20}$"
+        )) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_NEW_PASSWORD",
-                    "새 비밀번호는 8~20자로 입력하고 확인 값도 동일하게 입력해주세요."
+                    "영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요."
+            );
+        }
+
+        if (!newPassword.equals(request.getNewPasswordConfirm())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_CONFIRM_MISMATCH",
+                    "새 비밀번호가 일치하지 않아요. 다시 확인해 주세요."
             );
         }
 
