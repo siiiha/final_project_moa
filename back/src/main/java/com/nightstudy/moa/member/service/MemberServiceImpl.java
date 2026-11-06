@@ -745,12 +745,13 @@ public class MemberServiceImpl implements MemberService {
     ) {
 
         if (newPassword == null
-                || newPassword.isBlank()
-                || newPassword.length() < 8) {
+                || !newPassword.matches(
+                "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\\[-`{-~])[!-~]{8,20}$"
+                )) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_NEW_PASSWORD",
-                    "새 비밀번호는 8자 이상 입력해주세요."
+                    "영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요."
             );
         }
 

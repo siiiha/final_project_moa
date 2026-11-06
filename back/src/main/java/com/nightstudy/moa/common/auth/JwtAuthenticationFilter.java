@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 // JWT 검증과 현재 로그인 세션의 유효성을 함께 확인
+
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
@@ -88,12 +89,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throw new IllegalArgumentException("잘못된 토큰 정보");
             }
 
-            // AI작성: 기존 로그아웃 토큰 차단 기록을 재사용한다.
+            // 기존 로그아웃 토큰 차단 기록을 재사용
             if (revokedTokenMapper.countByTokenId(tokenId) > 0) {
                 throw new IllegalArgumentException("로그아웃한 토큰");
             }
 
-            // AI작성: 회원 상태와 세션을 함께 검사해 탈퇴·정지 회원 및 폐기·만료된 세션을 차단한다.
+            // 회원 상태와 세션을 함께 검사해 탈퇴·정지 회원 및 폐기·만료된 세션을 차단
             if (!authSessionService.isAccessAllowed(
                     memberId,
                     systemRole,
@@ -128,9 +129,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             request.setAttribute("tokenId", tokenId);
             request.setAttribute(
                     "expiresAtMs",
-                    claims.getExpiration().getTime()
+                    claims.getExpiration().
+
+                            getTime()
             );
-        } catch (ExpiredJwtException e) {
+        } catch (
+                ExpiredJwtException e) {
+
             // 프론트가 토큰 만료와 다른 인증 실패를 구분
             writeUnauthorized(
                     response,
@@ -138,7 +143,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     "로그인 토큰이 만료되었습니다."
             );
             return;
-        } catch (JwtException | IllegalArgumentException e) {
+        } catch (JwtException |
+                 IllegalArgumentException e) {
+
             writeUnauthorized(
                     response,
                     "INVALID_TOKEN",
