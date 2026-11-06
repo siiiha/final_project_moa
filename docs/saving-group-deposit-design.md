@@ -13,7 +13,7 @@ AI작성: 사용자 확정 정책에 따라 구현한 결과입니다. 구현 �
 - 마스킹된 공용 계좌 하나를 선택하며 계좌번호 원문·대상 계좌 ID·처리자 ID를 본문으로 받지 않습니다.
 - 금액은 필수, 1원 이상, 원 단위 정수, DECIMAL(15,2)에 저장 가능한 13자리 정수 범위입니다. 별도의 업무상 한도·고정 회비 일치 규칙은 추가하지 않았습니다.
 - 회비·순번계 납부 상태, 알림, 실제 은행 잔액은 변경하지 않습니다. 임의의 납부 종류·증빙·은행 입금 상태를 만들지 않습니다.
-- 성공 시 기존 원장 합산으로 잔액을 조회합니다. balance_after에는 기존 쓰기 정책이 없어 값을 생성하지 않습니다.
+- 성공 시 기존 원장 합산으로 잔액을 조회합니다. 아래 수정 이력부터 새 입금의 balance_after에는 잠금 안에서 계산한 거래 직후 잔액도 저장합니다. 기존 NULL 거래는 소급 변경하지 않습니다.
 
 ## 반복 입금과 확인
 
@@ -63,13 +63,13 @@ AI작성: 사용자 확정 정책에 따라 구현한 결과입니다. 구현 �
 
 ## 화면과 재시도
 
-- 진행중·승인 역할·조회 성공한 발급 계좌에서만 입금 폼을 표시합니다. 최종 판단은 서버에서 재검증합니다.
+- 진행중·승인 역할·조회 성공한 발급 계좌에서만 회비 납부 버튼을 표시하고 클릭 시 입력 모달을 엽니다. 최종 판단은 서버에서 재검증합니다.
 - 입력 금액은 천 단위 콤마와 원 단위로 안내합니다.
 - 버튼 연속 클릭은 ref 잠금과 disabled 상태로 막습니다. 확인 대기 중 금액·계좌 변경을 막습니다.
 - 통신 결과가 불확실하면 현재 화면 메모리에 요청 키·금액·확인값을 보존하고 같은 요청만 다시 확인합니다. 확인 전송 결과 불명확 상태에서는 취소로 다른 입금을 등록하도록 유도하지 않습니다.
 - 새로고침·화면 이탈 후까지 요청 키를 보존하는 영구 저장은 구현하지 않았습니다. 화면을 벗어난 뒤에는 거래내역을 먼저 확인해야 합니다.
 - 확인 만료·교체된 확인값 오류 시 같은 요청 키로 안내를 재발급할 수 있습니다.
-- 성공 후 계좌 잔액을 재조회하고 거래내역 패널의 재조회 키를 갱신합니다. 목록의 페이지·필터 상태는 패널 재생성 시 초기화됩니다.
+- 성공 후 입력 모달을 닫고 별도 완료 모달을 표시하며 계좌 잔액·거래내역 패널의 재조회 키를 갱신합니다. 목록의 페이지·필터 상태는 패널 재생성 시 초기화됩니다.
 - 입금 성공 안내는 잔액 조회 상태와 분리합니다. 재조회 실패는 기존 카드의 재조회 버튼으로 복구합니다.
 - 모임·로그인 세션 변경 시 부모 key와 응답 유효성 검사로 이전 입금 상태를 폐기합니다.
 
@@ -117,3 +117,56 @@ Java 기준 경로: back/src/main/java/com/nightstudy/moa/savingGroup/
 7. 브라우저에서 마스킹·금액·로딩·오류·잔액 재조회·모임/계정 전환·모바일·키보드를 확인합니다.
 
 전용 MySQL 통합 테스트는 기존 MOA_TEST_DB_ENABLED=true 및 MOA_TEST_DB_URL/USER/PASSWORD 설정이 필요합니다. URL은 자격증명을 포함하면 안 되며 DB 이름은 moa_join_test_로 시작하는 전용 이름이고 테이블·뷰가 없는 빈 DB여야 합니다. 테스트가 만든 고정 이름의 테이블만 finally에서 정리합니다. 실서비스 DB에는 실행하지 않습니다.
+
+## 회비 납부 모달·요청자·거래 후 잔액 수정 이력 (2026-11-06)
+
+AI작성: 사용자 승인한 7단계 수정안을 순서대로 구현하고 단계별 로컬 커밋을 남겼다. 작업 시작 시 작업 트리는 깨끗했고 기존 순번 추천 기능은 유지했다. 이 절은 앞선 초기 구현 기록 중 잔액 스냅샷·인라인 폼·공개 필드 설명을 대체한다.
+
+### 확정된 변경
+
+- 새 일반 입금과 추가 확인 입금 모두 기존 모임·계좌 잠금 안에서 원장 잔액 + 입금액을 balance_after에 저장한다. 합산 잔액의 기술적 DECIMAL(15,2) 범위를 벗어나면 DEPOSIT_BALANCE_OVERFLOW 409로 저장 전 거절한다. 별도 금융 한도 정책을 추가한 것은 아니다.
+- 과거 balance_after=NULL 거래는 보정하지 않는다. 기존 거래의 확인 불가는 남을 수 있으며 새 거래부터 스냅샷을 제공한다.
+- 거래내역은 원장을 기준으로 완료 Mock 요청·미삭제 회원을 LEFT JOIN한다. 입금 요청자 이름은 현재 members.name을 기존 SQL 규칙대로 첫 글자 + 나머지 별표로 마스킹한다. 이름 변경 시 현재 이름이 표시되며 거래 당시 이름을 보존하는 구조는 아니다.
+- 연결 없는 기존 거래·출금·삭제 회원·회원 정보 없음은 depositRequesterName=null, 화면에서는 —로 표시한다. 실제 은행 예금주나 출금 상대방 이름을 추정하지 않는다.
+- 담당자에게 전달한 보조 테이블의 UNIQUE(transaction_id)를 전제로 1:1 JOIN하여 원장 건수·기존 필터·페이징을 유지한다. 집계 SQL은 원장만 집계한다.
+- 계좌 안내 아래 회비 납부 버튼 → 모달의 마스킹 공용 계좌·금액 입력 → 입금 순서다. 모달 밖의 인라인 입금 폼은 제거했다.
+- 하나의 모달에서 입력·중복 확인·처리중·실패·결과 불확실을 전환한다. 중복 취소는 금액을 유지한 입력 단계로 돌아간다. 처리중·결과 불확실에서는 요청을 보존한다.
+- 성공 응답만 입력 모달을 닫고 독립된 완료 모달을 연다. 금액·현재 내부 잔액·실제 돈 이동 없음 안내를 표시한다. 잔액 재조회 실패가 완료 모달을 지우지 않는다.
+- 확정 실패는 입력값과 오류 안내를 유지한다. 통신 결과 불명확은 실패로 단정하지 않고 같은 요청 키로 다시 확인한다.
+- 모임·계정·권한 조건이 바뀌면 이전 모달을 숨긴다. Tab 초점을 모달 안에 유지하고 Escape는 처리 가능 상태에서 취소/닫기를 수행한다. 닫힐 때 기존 요소가 남아 있으면 초점을 복원한다.
+- 버튼명은 회비 납부이나 자유 금액 테스트 입금이며 fee_payment.is_paid·순번계 납부 상태·알림은 바꾸지 않는다.
+- 기존 balance_after와 보조 기록 연결만 사용하므로 추가 DB 구조 변경은 없다. 실제 DB·외부 금융 서비스·계좌 발급을 호출하거나 변경하지 않았다.
+
+### 단계별 변경 파일과 실제 커밋
+
+Java 경로 기준: back/src/main/java/com/nightstudy/moa/savingGroup/
+
+테스트 경로 기준: back/src/test/java/com/nightstudy/moa/savingGroup/
+
+| 단계 | 파일 | 작업 내용 | 실제 커밋 |
+|---|---|---|---|
+| 1 | Java dto/SavingGroupDepositRow.java, service/SavingGroupDepositServiceImpl.java; back/src/main/resources/mappers/SavingGroupMapper.xml; 테스트 service/SavingGroupDepositServiceTest.java, SavingGroupDepositMapperTest.java, SavingGroupDepositMySqlIntegrationTest.java | 거래 후 잔액 계산·원장 저장·스냅샷 검증 | 8a79af2 — fix: 계모임 테스트 입금 거래 후 잔액 저장 |
+| 2 | Java dto/SavingGroupTransactionResponse.java; back/src/main/resources/mappers/SavingGroupMapper.xml; 테스트 service/SavingGroupTransactionMapperTest.java, SavingGroupTransactionMySqlIntegrationTest.java | 현재 요청자 이름 LEFT JOIN·마스킹·기존 원장 유지 | 5c5ff8c — feat: 계모임 거래내역 입금 요청자 조회 추가 |
+| 3 | front/src/api/savingGroups.js, savingGroupTransactions.test.js; front/src/components/savingGroup/SavingGroupTransactionHistoryPanel.jsx, SavingGroupTransactionHistoryPanel.test.js | 요청자 응답 검증과 PC·모바일 표시 | 75e057f — feat: 계모임 거래내역 입금 요청자 표시 |
+| 4 | front/src/components/savingGroup/SavingGroupAccountCard.jsx, SavingGroupAccountCard.test.js, SavingGroupDepositForm.jsx, SavingGroupDepositForm.test.js; front/src/pages/SavingGroupDetailPage.jsx | 납부 버튼·입력 모달·키보드 초점·부모 상태 연결 | 404fd85 — feat: 계모임 회비 납부 버튼과 입금 모달 구성 |
+| 5 | front/src/components/savingGroup/SavingGroupDepositForm.jsx, SavingGroupDepositForm.test.js; front/src/pages/SavingGroupDetailPage.jsx | 단일 모달 전환·독립 완료 모달·실패 및 불확실 재시도 | 7548b68 — fix: 계모임 입금 결과 안내와 재시도 흐름 보완 |
+| 6 | 테스트 service/SavingGroupDepositServiceTest.java, controller/SavingGroupTransactionControllerTest.java; front/src/components/savingGroup/SavingGroupDepositForm.test.js | 빈 원장·범위 초과·완료 재전송·이름 응답·오류 모달 검증 | 0c1ae56 — test: 계모임 회비 납부 모달과 거래내역 통합 검증 |
+| 7 | docs/saving-group-deposit-design.md, docs/saving-groups-api.md, docs/ai-usage-log.md | 최종 설계·응답 변경·검증·파일·커밋 일괄 기록 | docs: 계모임 회비 납부 흐름과 거래내역 변경사항 정리 |
+
+### 이번 실행 결과
+
+- Java 17 경로 지정 및 기존 임시 Gradle init script로 입금·계좌·거래내역 범위 72건 중 70건 통과·MySQL 전용 2건 건너뜀·실패 0이다.
+- 기존 전체 테스트의 무관한 패키지 참조·생성자 불일치 문제는 수정하지 않고 관련 테스트 소스만 분리했다.
+- 프론트 src/api 및 components/savingGroup 범위의 Node/Vite SSR 회귀 전체 통과. 프로덕션 빌드 통과, 기존 번들 크기 경고 유지. 변경 대상 oxlint 오류 없음이다.
+- JSX 출력·API 대역·Spring 트랜잭션·MyBatis 바인딩은 검증했으나 실제 MySQL 실행·브라우저 클릭·모바일·키보드 상호작용은 미검증이다.
+- 전용 MySQL 테스트에는 동시 입금의 스냅샷 순서와 이름 마스킹·연결 없음·삭제 회원 조건을 추가했다. 활성화된 전용 DB에서 후속 실행해야 한다.
+
+### 수동 확인 순서
+
+1. 기존 보조 테이블이 적용된 테스트 환경에서 진행중 승인 모임원으로 접속한다.
+2. 계좌 안내 아래 회비 납부 버튼만 있는지 확인하고 클릭해 입력 모달을 연다.
+3. 마스킹 계좌와 금액을 확인한 후 입금을 누른다. 처리중 중복 제출·닫기가 차단되는지 확인한다.
+4. 성공 시 금액·현재 잔액을 포함한 완료 모달이 표시되고, 확인 전까지 유지되는지 확인한다.
+5. 거래내역에서 새 거래의 balance_after 및 마스킹된 입금 요청자를 확인한다. 기존 NULL 잔액은 여전히 확인 불가일 수 있다.
+6. 중복 요청·취소·추가 확인·만료·응답 유실·잔액 재조회 실패를 검증한다. 응답 유실은 같은 요청 키로 재확인한다.
+7. 모임·계정 전환, 화면 크기, Tab/Shift+Tab/Escape 초점과 닫기 동작을 확인한다. 실제 금융 서비스는 호출하지 않는다.
