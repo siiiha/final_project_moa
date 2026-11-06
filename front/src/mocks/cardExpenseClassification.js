@@ -9,5 +9,3 @@ export const cardExpenseClassificationMock = [
   { id: 7, usedAt: '2026-10-29 13:30', merchantName: '아웃도어플러스', amount: 132000, approvalStatus: '승인', suggestedCategory: '물품비', confidenceScore: 0.89, classificationStatus: '검토 대기', classificationSource: '머신러닝' },
   { id: 8, usedAt: '2026-10-28 11:00', merchantName: '해오름펜션', amount: 320000, approvalStatus: '취소', suggestedCategory: '', confidenceScore: null, classificationStatus: '처리 보류', classificationSource: '취소 건' },
 ];
-
-export const expenseCategories = ['식비', '교통비', '대관료', '물품비', '활동비', '숙박비', '수수료', '기타', '확인 필요'];

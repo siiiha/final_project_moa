@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
-import { expenseCategories } from '../../mocks/cardExpenseClassification';
+import { expenseCategories } from '../../constants/expenseCategories';
 import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
 
 const Panel = styled.section`

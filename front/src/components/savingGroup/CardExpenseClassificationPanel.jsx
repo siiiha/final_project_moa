@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
-import { cardExpenseClassificationMock, expenseCategories } from '../../mocks/cardExpenseClassification';
+import { expenseCategories } from '../../constants/expenseCategories';
+import { cardExpenseClassificationMock } from '../../mocks/cardExpenseClassification';
 import { confirmCardExpenseCategories, uploadCardExpenses } from '../../api/savingGroups';
 
 const Panel = styled.section`
