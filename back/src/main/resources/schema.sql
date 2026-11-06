@@ -747,6 +747,75 @@ CREATE TABLE IF NOT EXISTS `group_transaction` (
 (`account_id`, `source_provider`, `source_transaction_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- AI작성: 테스트 입금 요청과 중복 확인 이력을 저장합니다.
+CREATE TABLE IF NOT EXISTS `saving_group_mock_deposit_request` (
+    `deposit_request_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `account_id` BIGINT NOT NULL,
+    `member_id` BIGINT NOT NULL,
+    `amount` DECIMAL(15,2) NOT NULL,
+    `request_key` VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `status` VARCHAR(30) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `window_anchor_request_id` BIGINT NULL DEFAULT NULL,
+    `confirmation_token_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL,
+    `confirmation_expires_at` DATETIME(6) NULL DEFAULT NULL,
+    `transaction_id` BIGINT NULL DEFAULT NULL,
+    `requested_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `completed_at` DATETIME(6) NULL DEFAULT NULL,
+
+    PRIMARY KEY (`deposit_request_id`),
+    UNIQUE KEY `uq_mock_dep_member_key` (`member_id`, `request_key`),
+    UNIQUE KEY `uq_mock_dep_transaction` (`transaction_id`),
+    UNIQUE KEY `uq_mock_dep_confirm_hash` (`confirmation_token_hash`),
+    KEY `ix_mock_dep_recent`
+(`account_id`, `member_id`, `amount`, `status`, `completed_at`),
+    KEY `ix_mock_dep_anchor` (`window_anchor_request_id`),
+
+    CONSTRAINT `fk_mock_dep_account`
+        FOREIGN KEY (`account_id`)
+        REFERENCES `group_account` (`account_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT `fk_mock_dep_member`
+        FOREIGN KEY (`member_id`)
+        REFERENCES `members` (`member_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT `fk_mock_dep_transaction`
+        FOREIGN KEY (`transaction_id`)
+        REFERENCES `group_transaction` (`transaction_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT `fk_mock_dep_anchor`
+        FOREIGN KEY (`window_anchor_request_id`)
+        REFERENCES `saving_group_mock_deposit_request` (`deposit_request_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+    CONSTRAINT `chk_mock_dep_amount`
+        CHECK (`amount` >= 1 AND `amount` = FLOOR(`amount`)),
+    CONSTRAINT `chk_mock_dep_key`
+        CHECK (CHAR_LENGTH(TRIM(`request_key`)) > 0),
+    CONSTRAINT `chk_mock_dep_status`
+        CHECK (`status` IN ('PENDING_CONFIRMATION', 'COMPLETED')),
+    CONSTRAINT `chk_mock_dep_state`
+        CHECK (
+                (`status` = 'PENDING_CONFIRMATION'
+                AND `transaction_id` IS NULL
+                AND `completed_at` IS NULL
+                AND `window_anchor_request_id` IS NOT NULL
+                AND `confirmation_token_hash` IS NOT NULL
+                AND `confirmation_expires_at` IS NOT NULL)
+            OR
+                (`status` = 'COMPLETED'
+                AND `transaction_id` IS NOT NULL
+                AND `completed_at` IS NOT NULL
+                AND `confirmation_token_hash` IS NULL)
+        ),
+    CONSTRAINT `chk_mock_dep_completion_time`
+        CHECK (`completed_at` IS NULL OR `completed_at` >= `requested_at`),
+    CONSTRAINT `chk_mock_dep_expiry_time`
+        CHECK (
+              `confirmation_expires_at` IS NULL
+              OR `confirmation_expires_at` > `requested_at`
+          )
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `transaction_anomaly_analysis` (
     `transaction_id` BIGINT NOT NULL,
     `revision_no` INT NOT NULL,
