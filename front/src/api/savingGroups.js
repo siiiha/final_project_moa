@@ -580,10 +580,8 @@ export function toSavingGroupCard(item) {
 // AI작성: 회원 역할은 서버 응답만 사용하며 승인되지 않은 사용자는 공지만 표시한다.
 export function getSavingGroupMenus(role) {
   const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
-  // AI작성: 카드 지출 분류의 수정·확정은 계주와 회계 담당자만 수행한다.
-  const financialManagerMenus = [...common, 'cardExpenseClassification'];
-  if (role === 'OWNER') return [...financialManagerMenus, 'members', 'settings', 'joinRequests'];
-  return role === 'MANAGER' ? financialManagerMenus : role === 'MEMBER' ? common : ['notice'];
+  if (role === 'OWNER') return [...common, 'members', 'settings', 'joinRequests'];
+  return role === 'MANAGER' || role === 'MEMBER' ? common : ['notice'];
 }
 
 // AI작성: 카드 명세서는 서버에서만 해석하고, 프론트는 사용자 검토용 분류 결과만 받는다.

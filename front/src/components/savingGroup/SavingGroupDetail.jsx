@@ -16,7 +16,6 @@ import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
 import SavingGroupPaymentStatusPanel from './SavingGroupPaymentStatusPanel';
 import SavingGroupTransactionHistoryPanel from './SavingGroupTransactionHistoryPanel';
 import SavingGroupDashboardPanel from './SavingGroupDashboardPanel';
-import CardExpenseClassificationPanel from './CardExpenseClassificationPanel';
 import SavingGroupNoticeCreateForm from './SavingGroupNoticeCreateForm';
 
 const HeaderCard = styled.section`
@@ -403,8 +402,6 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
       ) : currentMenu === 'transactionHistory' ? (
         <SavingGroupTransactionHistoryPanel myRole={group.myRole} />
-      ) : currentMenu === 'cardExpenseClassification' ? (
-        <CardExpenseClassificationPanel groupId={group.groupId} />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel groupId={group.groupId} />

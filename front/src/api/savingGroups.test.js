@@ -336,16 +336,15 @@ test('지역 코드는 01~10 순서이며 카드는 기존 필드와 표시 형�
   assert.equal(card.district, '서울');
 });
 
-// AI작성: 카드 지출 분류는 계주·회계 담당자에게만 노출하고, 계원은 기존 공용 메뉴만 제공한다.
+// AI작성: 거래 내역에서 지출 항목을 함께 다루므로 역할별 메뉴는 공통 거래 내역만 제공한다.
 test('승인 역할별 메뉴와 미정의 역할의 권한 축소', () => {
   const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
-  const financialManagerMenus = [...common, 'cardExpenseClassification'];
   for (const role of [null, undefined, '', 'PENDING', 'REJECTED', 'LEFT', 'ADMIN']) {
     assert.deepEqual(getSavingGroupMenus(role), ['notice']);
   }
-  assert.deepEqual(getSavingGroupMenus('MANAGER'), financialManagerMenus);
+  assert.deepEqual(getSavingGroupMenus('MANAGER'), common);
   assert.deepEqual(getSavingGroupMenus('MEMBER'), common);
-  assert.deepEqual(getSavingGroupMenus('OWNER'), [...financialManagerMenus, 'members', 'settings', 'joinRequests']);
+  assert.deepEqual(getSavingGroupMenus('OWNER'), [...common, 'members', 'settings', 'joinRequests']);
 });
 
 // AI작성: 화면 표시 금액과 원본 값을 구분하고 null을 무료로 바꾸지 않는다.
