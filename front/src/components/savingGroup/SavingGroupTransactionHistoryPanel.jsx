@@ -56,8 +56,12 @@ const HeaderActions = styled.div`
 const Summary = styled.div`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     grid-template-columns: 1fr;
@@ -336,6 +340,7 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
   const [isCategorySaving, setIsCategorySaving] = useState(false);
   const [categoryMessage, setCategoryMessage] = useState('');
   const canEditCategory = myRole === 'OWNER' || myRole === 'MANAGER';
+  const reviewRequiredCount = transactions.filter((transaction) => transaction.category === '확인 필요').length;
 
   const filteredTransactions = useMemo(() => transactions.filter((transaction) => {
     const matchesStartDate = !appliedFilters.startDate || transaction.date >= appliedFilters.startDate;
@@ -411,6 +416,10 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
         <SummaryCard>
           <SummaryLabel>조회 출금</SummaryLabel>
           <SummaryValue>280,000원</SummaryValue>
+        </SummaryCard>
+        <SummaryCard>
+          <SummaryLabel>확인 필요 출금</SummaryLabel>
+          <SummaryValue>{reviewRequiredCount}건</SummaryValue>
         </SummaryCard>
       </Summary>
 
