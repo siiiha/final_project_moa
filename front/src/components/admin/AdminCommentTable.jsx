@@ -37,7 +37,8 @@ const Table = styled.table`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
     font-weight: 700;
-    text-align: left;
+    /* AI작성: 댓글 관리 표의 모든 열 제목을 중앙 정렬한다. */
+    text-align: center;
   }
 
   td {
@@ -45,6 +46,8 @@ const Table = styled.table`
     color: ${({ theme }) => theme.colors.secondaryText};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
+    /* AI작성: 댓글 내용 외의 목록 표시값을 중앙 정렬한다. */
+    text-align: center;
     vertical-align: middle;
   }
 
@@ -69,7 +72,6 @@ const Table = styled.table`
   }
   th:nth-child(6) {
     width: 13%;
-    text-align: right;
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -148,7 +150,7 @@ const DeleteButton = styled(Button)`
 
 const ActionArea = styled.div`
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
 `;
 
 const Pagination = styled.nav`

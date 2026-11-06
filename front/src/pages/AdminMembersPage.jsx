@@ -28,31 +28,42 @@ function AdminMembersPage() {
   const [dashboardStats, setDashboardStats] = useState([]);
 
   useEffect(() => {
-    getMemberRegions().then((items) => {
-      if (Array.isArray(items)) setRegions(items);
-    }).catch(() => setRegions([]));
+    // AI작성: 개발 모드 StrictMode의 첫 정리 실행에서는 지역 조회 요청 자체가 발생하지 않도록 한 틱 뒤 호출한다.
+    const requestTimer = window.setTimeout(() => {
+      getMemberRegions().then((items) => {
+        if (Array.isArray(items)) setRegions(items);
+      }).catch(() => setRegions([]));
+    }, 0);
+
+    return () => window.clearTimeout(requestTimer);
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let controller;
+    // AI작성: StrictMode의 확인용 첫 실행이 정리되면 타이머도 취소해 중복 통계 조회를 막는다.
+    const requestTimer = window.setTimeout(() => {
+      controller = new AbortController();
+      getAdminDashboardSummary({ signal: controller.signal }).then((summary) => {
+        // AI작성: API 집계값을 기존 대시보드 카드 표시 형식으로 변환한다.
+        setDashboardStats([
+          { id: 'total', label: '전체 회원', value: `${summary.totalMembers.toLocaleString()}명`, description: '탈퇴하지 않은 회원 기준', tone: 'primary' },
+          { id: 'active', label: '활성 회원', value: `${summary.activeMembers.toLocaleString()}명`, description: '현재 ACTIVE 계정 기준', tone: 'success' },
+          { id: 'new', label: '신규 가입', value: `${summary.newMembersThisMonth.toLocaleString()}명`, description: '이번 달 가입 회원', tone: 'neutral' },
+          { id: 'suspended', label: '관리 필요 회원', value: `${summary.managedMembers.toLocaleString()}명`, description: '휴면 및 제재 계정 기준', tone: 'danger' },
+        ]);
+      }).catch((error) => {
+        if (error.code !== 'ERR_CANCELED') setDashboardStats([]);
+      });
+    }, 0);
 
-    getAdminDashboardSummary({ signal: controller.signal }).then((summary) => {
-      // AI작성: API 집계값을 기존 대시보드 카드 표시 형식으로 변환한다.
-      setDashboardStats([
-        { id: 'total', label: '전체 회원', value: `${summary.totalMembers.toLocaleString()}명`, description: '탈퇴하지 않은 회원 기준', tone: 'primary' },
-        { id: 'active', label: '활성 회원', value: `${summary.activeMembers.toLocaleString()}명`, description: '현재 ACTIVE 계정 기준', tone: 'success' },
-        { id: 'new', label: '신규 가입', value: `${summary.newMembersThisMonth.toLocaleString()}명`, description: '이번 달 가입 회원', tone: 'neutral' },
-        { id: 'suspended', label: '관리 필요 회원', value: `${summary.managedMembers.toLocaleString()}명`, description: '휴면 및 제재 계정 기준', tone: 'danger' },
-      ]);
-    }).catch((error) => {
-      if (error.code !== 'ERR_CANCELED') setDashboardStats([]);
-    });
-
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(requestTimer);
+      controller?.abort();
+    };
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let controller;
     async function loadMembers() {
       setLoading(true);
       setErrorMessage('');
@@ -89,8 +100,16 @@ function AdminMembersPage() {
         if (!controller.signal.aborted) setLoading(false);
       }
     }
-    loadMembers();
-    return () => controller.abort();
+    // AI작성: StrictMode의 확인용 첫 실행이 정리되면 타이머도 취소해 중복 목록 조회를 막는다.
+    const requestTimer = window.setTimeout(() => {
+      controller = new AbortController();
+      loadMembers();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(requestTimer);
+      controller?.abort();
+    };
   }, [currentPage, district, province, restrictionScope, status, submittedQuery, town]);
 
   const handleSearch = (event) => {
