@@ -37,7 +37,8 @@ const Table = styled.table`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
     font-weight: 700;
-    text-align: left;
+    /* AI작성: 게시글 관리 표의 모든 열 제목을 중앙 정렬한다. */
+    text-align: center;
   }
 
   td {
@@ -45,6 +46,8 @@ const Table = styled.table`
     color: ${({ theme }) => theme.colors.secondaryText};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
+    /* AI작성: 제목을 제외한 게시글 목록의 표시값을 중앙 정렬한다. */
+    text-align: center;
     vertical-align: middle;
   }
 
@@ -66,7 +69,11 @@ const Table = styled.table`
   }
   th:nth-child(5) {
     width: 8%;
-    text-align: right;
+  }
+
+  /* AI작성: 긴 게시글 제목은 내용값만 왼쪽 정렬해 읽기 쉽게 표시한다. */
+  td:nth-child(2) {
+    text-align: left;
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -137,7 +144,7 @@ const PostTitle = styled.strong`
 
 const ActionArea = styled.div`
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 5px;
 `;
 
