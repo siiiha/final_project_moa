@@ -133,7 +133,7 @@ const Select = styled.select`
   padding: 0 11px;
   color: ${({ theme }) => theme.colors.text};
   background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${({ $needsReview, theme }) => ($needsReview ? theme.colors.danger : theme.colors.border)};
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 12px;
 
@@ -269,6 +269,14 @@ const Category = styled.span`
 
 const PayoutCategory = styled(Category)`
   color: ${({ theme }) => theme.colors.secondaryText};
+`;
+
+const ReviewCategory = styled(Category)`
+  display: inline-block;
+  padding: 3px 6px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
 `;
 
 const MobileInfo = styled.dl`
@@ -469,6 +477,7 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                         {transaction.purposeType === '일반 지출' && canEditCategory ? (
                           <Select
                             aria-label={`${transaction.merchantName} 지출 항목`}
+                            $needsReview={transaction.category === '확인 필요'}
                             value={transaction.category}
                             onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
                           >
@@ -476,7 +485,9 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                           </Select>
                         ) : transaction.purposeType === '계금 지급'
                           ? <PayoutCategory>계금 지급</PayoutCategory>
-                          : <Category>{transaction.category}</Category>}
+                          : transaction.category === '확인 필요'
+                            ? <ReviewCategory>확인 필요</ReviewCategory>
+                            : <Category>{transaction.category}</Category>}
                       </td>
                       <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
                       <td>{`${transaction.balance.toLocaleString()}원`}</td>
@@ -502,6 +513,7 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                       {transaction.purposeType === '일반 지출' && canEditCategory ? (
                         <Select
                           aria-label={`${transaction.merchantName} 지출 항목`}
+                          $needsReview={transaction.category === '확인 필요'}
                           value={transaction.category}
                           onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
                         >
@@ -509,7 +521,9 @@ function SavingGroupTransactionHistoryPanel({ myRole }) {
                         </Select>
                       ) : transaction.purposeType === '계금 지급'
                         ? <PayoutCategory>계금 지급</PayoutCategory>
-                        : <Category>{transaction.category}</Category>}
+                        : transaction.category === '확인 필요'
+                          ? <ReviewCategory>확인 필요</ReviewCategory>
+                          : <Category>{transaction.category}</Category>}
                     </dd>
                     <dt>잔액</dt>
                     <dd>{`${transaction.balance.toLocaleString()}원`}</dd>
