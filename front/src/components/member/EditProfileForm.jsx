@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { FiCamera } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -6,7 +6,6 @@ import Button from '../common/Button';
 import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
 import {
-  getMyProfile,
   updateMyProfile,
   memberInterestOptions,
   uploadMyProfileImage,
@@ -246,15 +245,17 @@ const PasswordFeedback = styled.p`
   line-height: 1.5;
 `;
 
-function EditProfileForm() {
+function EditProfileForm({ initialProfile }) {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const clearToken = useAuthStore((state) => state.clearToken);
   const photoInputRef = useRef(null);
-  const [profile, setProfile] = useState(null);
-  const [nickname, setNickname] = useState('');
-  const [selectedInterests, setSelectedInterests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // AI작성: 상위 화면에서 조회한 정보를 사용해 추가 조회 없이 입력칸을 채웁니다.
+  const [profile, setProfile] = useState(initialProfile);
+  const [nickname, setNickname] = useState(initialProfile?.nickname ?? '');
+  const [selectedInterests, setSelectedInterests] = useState(
+    () => (initialProfile?.interests ?? []).map((interest) => interest.interestId),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -279,59 +280,6 @@ function EditProfileForm() {
 
   // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
   const [photoStatus, setPhotoStatus] = useState('');
-
-  // 수정 화면에 현재 회원정보를 채움.
-  useEffect(() => {
-    if (!token) {
-      navigate('/member/login', { replace: true });
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadProfile() {
-      setIsLoading(true);
-      setErrorMessage('');
-      setProfile(null);
-
-      try {
-        const data = await getMyProfile(token);
-
-        if (!data) {
-          throw new Error('회원정보가 없습니다.');
-        }
-
-        if (!cancelled) {
-          setProfile(data);
-          setNickname(data.nickname ?? '');
-          setSelectedInterests(
-            (data.interests ?? []).map((interest) => interest.interestId),
-          );
-        }
-      } catch (error) {
-        if (cancelled) return;
-
-        if (error.response?.status === 401) {
-          clearToken();
-          navigate('/member/login', { replace: true });
-          return;
-        }
-
-        setErrorMessage(
-          error.response?.data?.error?.message ??
-          '회원정보를 불러오지 못했습니다.',
-        );
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    loadProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token, clearToken, navigate]);
 
   // AI작성: 기존 선택은 해제할 수 있고, 새 선택은 최대 3개로 제한한다.
   const toggleInterest = (interestId) => {
@@ -490,10 +438,6 @@ function EditProfileForm() {
     }
   };
 
-  if (isLoading) {
-    return <p role="status">회원정보를 불러오는 중입니다.</p>;
-  }
-
   if (!profile) {
     return <p role="alert">{errorMessage || '회원정보가 없습니다.'}</p>;
   }
@@ -599,7 +543,6 @@ function EditProfileForm() {
           autoComplete="new-password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
-          minLength={8}
           onBlur={() => setIsPasswordTouched(true)}
           aria-invalid={isPasswordTouched && Boolean(passwordError)}
           aria-describedby="edit-password-feedback"

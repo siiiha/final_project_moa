@@ -48,7 +48,8 @@ function EditProfilePage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-
+  const [accountProfile, setAccountProfile] = useState(null);
+  
   useEffect(() => {
     if (!token) {
       navigate('/member/login', { replace: true });
@@ -67,6 +68,8 @@ function EditProfilePage() {
           throw new Error('계정의 비밀번호 설정 여부를 확인할 수 없습니다.');
         }
 
+        // AI작성: 조회한 회원정보를 보관해 수정 폼에서 재사용합니다.
+        setAccountProfile(profile);
         setAccess(profile.hasPassword ? 'locked' : 'allowed');
       } catch (error) {
         if (cancelled) return;
@@ -118,7 +121,12 @@ function EditProfilePage() {
         <main>
           {access === 'loading' && <p role="status">계정 정보를 확인하고 있습니다.</p>}
           {access === 'error' && <p role="alert">{errorMessage}</p>}
-          {access === 'allowed' && <EditProfileForm />}
+          {access === 'allowed' && accountProfile && (
+            <EditProfileForm
+              key={token}
+              initialProfile={accountProfile}
+            />
+          )}
         </main>
       </Grid>
 

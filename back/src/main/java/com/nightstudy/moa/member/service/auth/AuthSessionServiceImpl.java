@@ -259,7 +259,6 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public boolean isAccessAllowed(
             Long memberId,
             String systemRole,
@@ -282,19 +281,39 @@ public class AuthSessionServiceImpl implements AuthSessionService {
             return false;
         }
 
+        // AI작성: 개인정보 없이 Redis 조회 시간과 캐시 상태만 측정합니다.
+        var timingLogger = org.slf4j.LoggerFactory.getLogger(
+                AuthSessionServiceImpl.class
+        );
+
+        long revokedStarted = System.nanoTime();
         AuthStateCache.CacheLookup<Boolean> revokedToken =
                 authStateCache.findRevokedToken(tokenId);
+
+        timingLogger.info(
+                "AUTH_CACHE_TIMING step=revoked elapsedMs={} status={}",
+                (System.nanoTime() - revokedStarted) / 1_000_000,
+                revokedToken.status()
+        );
 
         if (revokedToken.isHit()
                 && Boolean.TRUE.equals(revokedToken.value())) {
             return false;
         }
 
-        // AI작성: Valkey 장애가 감지되면 캐시 값을 신뢰하지 않고 MySQL 단일 인증 조회로 대체한다.
+        // AI작성: Redis 장애 시에는 기존 DB 인증 조회로 대체합니다.
         if (revokedToken.status()
                 != AuthStateCache.CacheLookup.Status.UNAVAILABLE) {
+
+            long sessionStarted = System.nanoTime();
             AuthStateCache.CacheLookup<AuthStateCache.SessionState>
                     cachedSession = authStateCache.findSession(sessionId);
+
+            timingLogger.info(
+                    "AUTH_CACHE_TIMING step=session elapsedMs={} status={}",
+                    (System.nanoTime() - sessionStarted) / 1_000_000,
+                    cachedSession.status()
+            );
 
             if (cachedSession.isHit()
                     && isCachedSessionAllowed(
