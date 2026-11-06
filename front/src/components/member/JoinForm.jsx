@@ -31,6 +31,17 @@ const FieldList = styled.div`
   gap: 12px;
 `;
 
+// AI작성: 오류 안내 공간을 확보해 입력 중 화면이 움직이지 않도록 합니다.
+const PasswordFeedback = styled.p`
+  && {
+    min-height: 20px;
+    margin: 8px 0 0;
+    color: ${({ theme }) => theme.colors.danger};
+    font-size: 13px;
+    line-height: 1.5;
+  }
+`;
+
 // AI작성: 활동 지역 선택창을 기존 회원가입 입력창의 디자인과 통일한다.
 const RegionField = styled.div`
   > p {
@@ -463,6 +474,15 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [signupStep, setSignupStep] = useState('terms');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  // AI작성: 비밀번호 입력을 마친 뒤 오류를 표시하고, 수정하면 즉시 갱신합니다.
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
+  const [hasPasswordSubmitAttempt, setHasPasswordSubmitAttempt] = useState(false);
+  const passwordError =
+    password.length < 8 || password.length > 20
+      ? '비밀번호는 8~20자로 입력해 주세요.'
+      : !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(password)
+        ? '영문, 숫자, 특수문자를 각각 하나 이상 포함해 주세요.'
+        : '';
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [phone, setPhone] = useState('');
@@ -702,13 +722,13 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       return;
     }
 
-    // AI작성: 일반 가입에서만 비밀번호 길이를 검사한다.
     if (
       !isSocialSignup &&
-      (password.length < 8 ||
-        new TextEncoder().encode(password).length > 72)
+      !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(password)
     ) {
-      setSignupError('비밀번호는 8자 이상, UTF-8 기준 72바이트 이내로 입력해주세요.');
+      setSignupError(
+        '영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요.'
+      );
       return;
     }
 
@@ -918,8 +938,11 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       message = '이메일 인증을 완료해 주세요.';
     }
     if (!message && !isSocialSignup && includes('password')) {
-      if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
-        message = '비밀번호 길이를 확인해 주세요.';
+      // AI작성: 다음 단계로 이동하기 전에 비밀번호 조합과 길이를 검사합니다.
+      if (
+        !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(password)
+      ) {
+        message = '영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요.';
       } else if (password !== confirmPassword) {
         message = '비밀번호와 비밀번호 확인이 일치하지 않습니다.';
       }
@@ -935,7 +958,25 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     return message;
   };
 
+  // AI작성: 비밀번호 오류는 해당 입력칸 아래에 표시하고 중복 안내를 방지합니다.
+  const validatePasswordFields = () => {
+    const passwordStepIndex = steps.indexOf('password');
+    if (isSocialSignup || stepIndex < passwordStepIndex) return true;
+
+    setIsPasswordTouched(true);
+    setHasPasswordSubmitAttempt(true);
+
+    if (passwordError || password !== confirmPassword) {
+      setSignupError('');
+      return false;
+    }
+
+    return true;
+  };
+
   const advanceSignup = () => {
+    if (!validatePasswordFields()) return;
+
     const message = getStepError();
     setSignupError(message);
     if (!message) setSignupStep(steps[stepIndex + 1]);
@@ -944,12 +985,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const submitSignup = (event) => {
     event.preventDefault();
     if (signupStep !== 'details') return;
+    if (!validatePasswordFields()) return;
 
     const message = getStepError();
     if (message) {
       setSignupError(message);
       return;
     }
+
     return handleSubmit(event);
   };
 
@@ -1160,10 +1203,13 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
           <PasswordInput
             id="join-password"
             label="비밀번호"
-            placeholder="8자 이상 입력"
+            placeholder="8~20자, 영문·숫자·특수문자 포함"
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            onBlur={() => setIsPasswordTouched(true)}
+            aria-invalid={isPasswordTouched && Boolean(passwordError)}
+            aria-describedby="join-password-policy"
             minLength={8}
             required
             inline
@@ -1171,6 +1217,10 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             isVisible={isPasswordVisible}
             onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
           />
+          {/* AI작성: 입력칸을 벗어난 뒤 조건에 맞지 않으면 안내합니다. */}
+          <PasswordFeedback id="join-password-policy" role="status">
+            {isPasswordTouched ? passwordError : ''}
+          </PasswordFeedback>
 
           <PasswordInput
             id="join-password-confirm"
@@ -1179,6 +1229,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
+            aria-invalid={(confirmPassword !== '' || hasPasswordSubmitAttempt) && password !== confirmPassword}
+            aria-describedby="join-password-feedback"
             required
             inline
             compact
@@ -1189,7 +1241,13 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
           />
         </FieldList>
 
-        {signupStep === 'password' && (<p>비밀번호는 8자 이상으로 설정해 주세요. 영문, 숫자, 특수문자를 각각 하나 이상 포함해야 합니다.</p>)}
+        {/* AI작성: 이전 단계에서도 비밀번호 확인값의 불일치를 즉시 안내합니다. */}
+        <PasswordFeedback id="join-password-feedback" role="status">
+          {(confirmPassword !== '' || hasPasswordSubmitAttempt) && password !== confirmPassword
+            ? '비밀번호가 일치하지 않아요. 다시 확인해 주세요.'
+            : ''}
+        </PasswordFeedback>
+
       </>
     ),
     nickname: (
