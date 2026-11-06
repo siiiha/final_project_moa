@@ -4,6 +4,8 @@ import Button from '../common/Button';
 import TextInput from '../common/TextInput';
 import { expelSavingGroupMember, getSavingGroupMembers, updateSavingGroupMemberRole } from '../../api/savingGroups';
 import SavingGroupMemberList from './SavingGroupMemberList';
+// AI작성: 추천 패널은 계원 관리 내부에서만 열며 별도 탭·저장·적용 동작은 추가하지 않는다.
+import SavingGroupTurnOrderRecommendationPanel from './SavingGroupTurnOrderRecommendationPanel';
 
 const Panel = styled.section`
   display: grid;
@@ -43,7 +45,11 @@ const SearchButton = styled(Button)`
 `;
 
 // AI작성: 입력 중 검색어와 적용한 검색어를 분리하고 현재 모임·검색·페이지의 서버 결과만 표시한다.
-function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipStatus, status }) {
+function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipStatus, status, groupType }) {
+  // AI작성: 서버 검증과 별도로 승인 계주·순번계·운영 상태에서만 추천 진입점을 노출한다.
+  const [recommendationOpen, setRecommendationOpen] = useState(false);
+  const canRecommend = groupType === '순번계' && myRole === 'OWNER'
+    && membershipStatus === 'APPROVED' && ['01', '02'].includes(status);
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -153,6 +159,17 @@ function SavingGroupMembersPanel({ savingGroupId, groupId, myRole, membershipSta
         <p>승인된 계원의 이름 또는 이메일로 검색할 수 있습니다. 회계는 한 명만 지정할 수 있습니다.</p>
         <p>회계를 교체하려면 기존 회계를 계원으로 변경한 뒤 새 회계를 지정해주세요.</p>
       </Intro>
+      {/* AI작성: 검색·페이지와 무관하게 전체 승인 모임원을 추천하며 실제 계원 변경 후 결과를 초기화한다. */}
+      {canRecommend && <div>
+        <Button type="button" aria-expanded={recommendationOpen}
+          disabled={pendingId !== null || expellingId !== null}
+          onClick={() => setRecommendationOpen((value) => !value)}>
+          {recommendationOpen ? '순번 추천 닫기' : '순번 추천'}
+        </Button>
+        {recommendationOpen && <SavingGroupTurnOrderRecommendationPanel
+          key={JSON.stringify([savingGroupId, refresh])} savingGroupId={savingGroupId}
+          disabled={pendingId !== null || expellingId !== null} />}
+      </div>}
       <SearchForm onSubmit={handleSearch}>
         <TextInput
           id="saving-group-member-search"

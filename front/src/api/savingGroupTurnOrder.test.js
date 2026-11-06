@@ -23,7 +23,7 @@ test('중복 회원·순번, 누락 순번, 잘못된 금액·닉네임·목록�
   try {
     for (const data of [null, [row, row], [{ ...row, recommendedTurnOrder: 2 }],
       [{ ...row, expectedPayoutAmount: -1 }], [{ ...row, expectedPayoutAmount: 1.5 }],
-      [{ ...row, nickname: '' }], [{ ...row, memberId: 9223372036854775807 }],
+      [{ ...row, nickname: '' }], [{ ...row, memberId: Number.MAX_SAFE_INTEGER + 1 }],
       [row, { ...row, memberId: '50' }]]) {
       client.get = async () => ({ data: { success: true, data } });
       await assert.rejects(() => getRecommendations(10), (e) => e.code === 'INVALID_RESPONSE');
