@@ -1230,3 +1230,8 @@
 - AI작성: savingGroupId를 내부 groupId로 해석하는 조회와 OWNER·MANAGER·MEMBER 전체 승인 회원 조회 DTO·Mapper 및 SQL 계약 테스트를 추가했다. 기존 순번·지급 이력에 따른 제외는 하지 않는다.
 - 예상 금액 산식과 화면 위치는 답변 대기다. 개발자 코드 검토·수정 대기. DB·외부 금융 서비스 변경 없음.
 - 검증: Java 17 애플리케이션 컴파일 통과. 전체 테스트는 기존 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient 참조 오류로 컴파일 실패. build 아래 임시 init script로 이번 Mapper 테스트만 분리해 1건 통과. 실제 DB 실행은 미실시. git diff --check 통과.
+
+## 2026-11-06 순번 추천 2단계
+- 사용자 확정: 매 조회 랜덤 배치, 기본 회비×인원+floor(회비×1%)×(순번-1), 계원 관리 버튼으로 패널 열기. 저장·적용 없음.
+- AI작성: Service 인터페이스·구현체, 응답 DTO, 권한·유형·상태·금액·전체 회원 및 무변경 호출 검증 테스트 추가. 읽기 전용 반복 읽기 트랜잭션으로 일관된 모의 계산을 수행한다.
+- 개발자 검토: 승인 정책 반영, 코드 검토 대기. 실제 DB 실행 미실시.

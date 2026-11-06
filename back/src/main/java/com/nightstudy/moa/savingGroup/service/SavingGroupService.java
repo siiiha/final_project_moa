@@ -13,6 +13,9 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 승인 계주에게 전체 승인 회원의 무작위 모의 순번을 제안하며 저장하지 않는다.
+    java.util.List<com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderRecommendationResponse>
+            getTurnOrderRecommendations(Long savingGroupId, Long memberId);
     // AI작성: 승인된 모든 모임원에게 내부 거래내역만 제공한다.
     com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionListResponse getSavingGroupTransactions(
             Long groupId, Long memberId, com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionSearchCondition condition);
