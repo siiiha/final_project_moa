@@ -1224,3 +1224,9 @@
 - 기존 제한: 전체 테스트 컴파일은 오래된 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient 참조 및 기존 생성자 불일치로 실패한다. 기존 코드·설정·의존성을 변경하지 않고 관련 테스트만 분리했다.
 - 남은 확인: 담당자의 보조 테이블 적용과 schema.sql/DB 설계서 동기화, balance_after 정책·DB 시간 기준·보존 기간 확인, 실제 MySQL 경쟁·전체 제약 검증, 브라우저 클릭·모바일·키보드 검증. 확인 취소는 화면 동작이며 서버 즉시 실효 API는 없다.
 - 문서와 커밋: docs/saving-group-deposit-design.md에 단계별 모든 변경 파일·작업 내용·커밋을 정리하고 docs/saving-groups-api.md에 API·수동 검증을 일괄 작성했다. 실제 DB·schema.sql·외부 금융 서비스는 변경하지 않았다.
+# 순번계 모의 순번 추천 — 2026-11-06 1단계
+
+- 목적·승인: 전체 승인 회원의 모의 순번 추천과 화면 연동을 단계별 구현·검증·커밋한다. 사용자에게 매 조회 무작위 배치를 명시 승인받았다. 실제 순번 확정 없이 제안만 제공한다.
+- AI작성: savingGroupId를 내부 groupId로 해석하는 조회와 OWNER·MANAGER·MEMBER 전체 승인 회원 조회 DTO·Mapper 및 SQL 계약 테스트를 추가했다. 기존 순번·지급 이력에 따른 제외는 하지 않는다.
+- 예상 금액 산식과 화면 위치는 답변 대기다. 개발자 코드 검토·수정 대기. DB·외부 금융 서비스 변경 없음.
+- 검증: Java 17 애플리케이션 컴파일 통과. 전체 테스트는 기존 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient 참조 오류로 컴파일 실패. build 아래 임시 init script로 이번 Mapper 테스트만 분리해 1건 통과. 실제 DB 실행은 미실시. git diff --check 통과.

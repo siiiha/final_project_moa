@@ -9,6 +9,9 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 추천에는 현재 승인된 모든 역할을 포함하며 저장 SQL은 추가하지 않는다.
+    SavingGroupTurnOrderContextRow selectTurnOrderRecommendationContext(@Param("savingGroupId") Long savingGroupId);
+    List<SavingGroupTurnOrderMemberRow> selectTurnOrderRecommendationMembers(@Param("groupId") Long groupId);
     // AI작성: 모임 잠금 후 현재 읽기로 재전송·최초 5분 기준·확인 소비를 직렬화한다.
     Long selectDepositAccountForUpdate(@Param("groupId") Long groupId);
     LocalDateTime selectDepositNow();

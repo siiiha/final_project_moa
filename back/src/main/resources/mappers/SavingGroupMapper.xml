@@ -2,6 +2,20 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 공개 계모임 ID로 내부 모임 ID를 해석하며 삭제 모임은 제외한다. -->
+    <select id="selectTurnOrderRecommendationContext" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderContextRow">
+        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, sg.dues_amount
+        FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL
+    </select>
+    <!-- AI작성: 조회 정렬은 추천 우선순위가 아니다. Service에서 승인된 무작위 모의 배치를 수행한다. -->
+    <select id="selectTurnOrderRecommendationMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderMemberRow">
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname
+        FROM group_member gm JOIN members m ON m.member_id = gm.member_id
+        WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
+          AND gm.member_role IN ('OWNER', 'MANAGER', 'MEMBER') AND m.deleted_at IS NULL
+        ORDER BY gm.crew_member_id
+    </select>
     <!-- AI작성: 조건은 집계·목록에서 공유하고 정렬은 허용한 SQL 분기만 사용한다. -->
     <sql id="savingGroupTransactionFilter">
         WHERE account_id = #{accountId}
