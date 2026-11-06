@@ -210,10 +210,20 @@ const Note = styled.p`
 `;
 
 const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
+const formatBalance = (balance) => `${balance.toLocaleString()}원`;
 
 function SavingGroupDashboardPanel({ onViewTransactions }) {
   // AI작성: 최근 거래는 거래 내역 화면과 같은 공용 통장 거래 Mock을 기준으로 표시한다.
   const recentTransactions = savingGroupTransactions.slice(0, 3);
+  // AI작성: 목록 정렬에 의존하지 않고 가장 최근 거래의 잔액만 대시보드 현재 잔액으로 사용한다.
+  const latestTransaction = savingGroupTransactions.reduce((latest, transaction) => (
+    !latest || `${transaction.date} ${transaction.time}` > `${latest.date} ${latest.time}` ? transaction : latest
+  ), null);
+  const dashboardSummary = savingGroupDashboardSummary.map((item) => (
+    item.id === 'balance'
+      ? { ...item, value: latestTransaction ? formatBalance(latestTransaction.balance) : '잔액 확인 필요' }
+      : item
+  ));
 
   const handleViewTransactions = () => {
     onViewTransactions();
@@ -229,7 +239,7 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
       </Heading>
 
       <Summary>
-        {savingGroupDashboardSummary.map((item) => (
+        {dashboardSummary.map((item) => (
           <SummaryCard key={item.id}>
             <SummaryLabel>{item.label}</SummaryLabel>
             <SummaryValue>{item.value}</SummaryValue>
