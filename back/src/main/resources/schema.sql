@@ -296,6 +296,55 @@ CREATE TABLE IF NOT EXISTS `saving_group` (
     ) ENGINE=InnoDB DEFAULT CHARSET=UTF8MB4
     COLLATE=utf8mb4_unicode_ci;
 
+-- 계모임의 적용월별 예약 순번 목록을 저장
+CREATE TABLE IF NOT EXISTS `saving_group_turn_order_plan` (
+    `turn_order_plan_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `saving_group_id` BIGINT NOT NULL,
+    `effective_month` DATE NOT NULL,
+    `start_round_number` INT NOT NULL,
+    `assigned_by` BIGINT NOT NULL,
+    `assigned_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`turn_order_plan_id`),
+    UNIQUE KEY `uq_turn_order_plan_group_month`
+        (`saving_group_id`, `effective_month`),
+    KEY `ix_turn_order_plan_assigned_by` (`assigned_by`),
+
+    CONSTRAINT `fk_turn_order_plan_saving_group`
+        FOREIGN KEY (`saving_group_id`)
+        REFERENCES `saving_group` (`saving_group_id`),
+    CONSTRAINT `fk_turn_order_plan_assigned_by`
+        FOREIGN KEY (`assigned_by`)
+     REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `chk_turn_order_plan_month`
+        CHECK (DAYOFMONTH(`effective_month`) = 1),
+    CONSTRAINT `chk_turn_order_plan_start`
+        CHECK (`start_round_number` >= 1)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 예약 목록별 회원의 실제 지급 회차를 저장
+CREATE TABLE IF NOT EXISTS `saving_group_turn_order_plan_member` (
+    `turn_order_plan_id` BIGINT NOT NULL,
+    `member_id` BIGINT NOT NULL,
+    `round_number` INT NOT NULL,
+
+    PRIMARY KEY (`turn_order_plan_id`, `member_id`),
+    UNIQUE KEY `uq_turn_order_plan_round`
+        (`turn_order_plan_id`, `round_number`),
+    KEY `ix_turn_order_plan_member` (`member_id`),
+
+    CONSTRAINT `fk_turn_order_plan_member_plan`
+        FOREIGN KEY (`turn_order_plan_id`)
+        REFERENCES `saving_group_turn_order_plan` (`turn_order_plan_id`),
+    CONSTRAINT `fk_turn_order_plan_member_member`
+        FOREIGN KEY (`member_id`)
+        REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `chk_turn_order_plan_member_round`
+        CHECK (`round_number` >= 1)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `restriction_history` (
     `restriction_history_id` BIGINT NOT NULL AUTO_INCREMENT,
     `member_id` BIGINT NULL,
