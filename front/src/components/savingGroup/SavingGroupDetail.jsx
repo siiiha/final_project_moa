@@ -398,8 +398,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
                 myRole={group.myRole} membershipStatus={group.membershipStatus} status={group.status} />
             : <p>모집중 또는 진행중인 계모임의 계주만 계원을 관리할 수 있습니다.</p>}
         </MembersContent>
-      ) : currentMenu === 'payment' ? (
-        <SavingGroupPaymentStatusPanel />
+      ) : currentMenu === 'payment' && group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' ? (
+        <SavingGroupPaymentStatusPanel key={group.groupId} groupId={group.groupId} />
       ) : currentMenu === 'dues' ? (
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
       ) : currentMenu === 'transactionHistory' ? (

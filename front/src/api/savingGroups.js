@@ -419,6 +419,18 @@ export async function approveSavingGroupCreationApplication(approvalId) {
   }
 }
 
+// AI작성: 선택 월과 페이지를 계주 전용 납부 현황 API에 전달한다.
+export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, signal }) {
+  const id = savingGroupPathId(groupId);
+  const { data: response } = await client.get(`/saving-groups/${id}/dues/payment-status`, {
+    params: { month, page }, signal,
+  });
+  if (response?.success !== true || !Array.isArray(response.data) || !response.meta) {
+    throw new Error('납부 현황 응답을 확인할 수 없습니다.');
+  }
+  return { items: response.data, meta: response.meta };
+}
+
 /** AI작성: 공용 계좌 장부의 공개 필드와 서버 페이지 정보만 화면에 전달한다. */
 export async function getSavingGroupTransactions(groupId, { page = 1, signal } = {}) {
   const id = savingGroupPathId(groupId);
@@ -745,8 +757,8 @@ export function toSavingGroupCard(item) {
 
 // AI작성: 회원 역할은 서버 응답만 사용하며 승인되지 않은 사용자는 공지만 표시한다.
 export function getSavingGroupMenus(role) {
-  const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
-  if (role === 'OWNER') return [...common, 'members', 'settings', 'joinRequests'];
+  const common = ['notice', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
+  if (role === 'OWNER') return [common[0], 'payment', ...common.slice(1), 'members', 'settings', 'joinRequests'];
   return role === 'MANAGER' || role === 'MEMBER' ? common : ['notice'];
 }
 
