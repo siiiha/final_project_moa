@@ -446,6 +446,18 @@ export async function createSavingGroupCalendarEvent(groupId, event) {
   }
 }
 
+// AI작성: 일정 ID를 문자열로 유지하고 모임 범위 삭제 API를 호출한다.
+export async function deleteSavingGroupCalendarEvent(groupId, scheduleId) {
+  const id = savingGroupPathId(groupId);
+  const eventId = savingGroupPathId(scheduleId);
+  try {
+    const { data: response } = await client.delete(`/saving-groups/${id}/calendar/events/${eventId}`);
+    if (response?.success !== true) throw new Error('일정 삭제 응답을 확인할 수 없습니다.');
+  } catch (error) {
+    throw toCreationApplicationError(error, '일정을 삭제하지 못했습니다.');
+  }
+}
+
 // AI작성: 선택 월과 페이지를 계주 전용 납부 현황 API에 전달한다.
 export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, signal }) {
   const id = savingGroupPathId(groupId);

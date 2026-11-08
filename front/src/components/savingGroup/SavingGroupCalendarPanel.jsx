@@ -81,6 +81,12 @@ const Event = styled.li`
   overflow-wrap: anywhere;
   time { white-space: nowrap; }
 `;
+const EventActions = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+`;
 const Form = styled.form`
   display: grid;
   gap: .65rem;
@@ -102,7 +108,7 @@ function monthDate(month, offset = 0, day = 1) {
 }
 
 // AI작성: 한국 날짜를 기준으로 월을 조회하고, 같은 응답에서 날짜별 상세를 보여 준다.
-export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEvent }) {
+export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEvent, deleteEvent }) {
   const [selected, setSelected] = useState(() => seoulDate.format(new Date()));
   const month = selected.slice(0, 7);
   const [result, setResult] = useState(null);
@@ -112,6 +118,9 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
   const [time, setTime] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState('');
+  const busy = saving || deletingId !== null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -145,6 +154,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
     setSelected(date);
     setFormOpen(false);
     setSaveError('');
+    setDeleteError('');
   }
 
   function moveMonth(offset) {
@@ -153,7 +163,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
 
   async function save(event) {
     event.preventDefault();
-    if (saving || !current?.data?.canCreate || limitReached) return;
+    if (busy || !current?.data?.canCreate || limitReached) return;
     if (!title.trim()) {
       setSaveError('일정 제목을 입력해 주세요.');
       return;
@@ -182,16 +192,36 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
     }
   }
 
+  // AI작성: 서버 삭제가 성공한 뒤 공유 배열에서 제거해 배지와 등록 가능 여부를 함께 갱신한다.
+  async function remove(item) {
+    if (busy || !current?.data?.canCreate) return;
+    if (!window.confirm(`${item.title} (${item.time.slice(0, 5)}) 일정을 삭제할까요?`)) return;
+    setDeletingId(item.id);
+    setDeleteError('');
+    try {
+      await deleteEvent(groupId, item.id);
+      setResult(previous => ({
+        ...previous,
+        data: { ...previous.data, events: previous.data.events.filter(event => event.id !== item.id) },
+      }));
+      setSaveError('');
+    } catch (error) {
+      setDeleteError(error.message || '일정을 삭제하지 못했습니다.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <Layout>
       <Card aria-label="월간 달력">
         <Toolbar>
-          <button type="button" onClick={() => moveMonth(-1)} disabled={saving || month === '1000-01'}>이전 달</button>
+          <button type="button" onClick={() => moveMonth(-1)} disabled={busy || month === '1000-01'}>이전 달</button>
           <h3>{year}년 {number}월</h3>
-          <button type="button" onClick={() => moveMonth(1)} disabled={saving || month === '9999-12'}>다음 달</button>
-          <button type="button" onClick={() => selectDate(seoulDate.format(new Date()))} disabled={saving}>오늘</button>
+          <button type="button" onClick={() => moveMonth(1)} disabled={busy || month === '9999-12'}>다음 달</button>
+          <button type="button" onClick={() => selectDate(seoulDate.format(new Date()))} disabled={busy}>오늘</button>
           {current?.data?.canCreate && (
-            <Primary type="button" onClick={() => setFormOpen(true)} disabled={saving || limitReached}>+ 일정 추가</Primary>
+            <Primary type="button" onClick={() => setFormOpen(true)} disabled={busy || limitReached}>+ 일정 추가</Primary>
           )}
         </Toolbar>
         <Grid>
@@ -203,7 +233,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
             const items = eventsByDate.get(date) ?? [];
             return (
               <Day key={date} type="button" $selected={date === selected} aria-pressed={date === selected}
-                aria-label={`${number}월 ${day}일, 일정 ${items.length}개`} disabled={saving}
+                aria-label={`${number}월 ${day}일, 일정 ${items.length}개`} disabled={busy}
                 onClick={() => selectDate(date)}>
                 <strong>{day}</strong>
                 {items.slice(0, 2).map(item => <Badge key={item.id}>{item.title}</Badge>)}
@@ -226,12 +256,13 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
             <label>시각<input type="time" value={time} onChange={event => setTime(event.target.value)} required disabled={saving} /></label>
             {saveError && <p role="alert">{saveError}</p>}
             <Toolbar>
-              <Primary type="submit" disabled={saving || !current?.data?.canCreate || limitReached}>{saving ? '저장 중' : '일정 저장'}</Primary>
+              <Primary type="submit" disabled={busy || !current?.data?.canCreate || limitReached}>{saving ? '저장 중' : '일정 저장'}</Primary>
               <button type="button" disabled={saving} onClick={() => { setFormOpen(false); setSaveError(''); }}>취소</button>
             </Toolbar>
           </Form>
         )}
         <h4>일정</h4>
+        {deleteError && <p role="alert">{deleteError}</p>}
         {!current && <p role="status">일정을 불러오는 중입니다.</p>}
         {current?.error && (
           <div role="alert"><p>{current.error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>다시 조회</button></div>
@@ -239,7 +270,17 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
         {current?.data && (selectedEvents.length === 0 ? <p>등록된 일정이 없습니다.</p> : (
           <ul>
             {selectedEvents.map(item => (
-              <Event key={item.id}><strong>{item.title}</strong><time dateTime={item.time}>{item.time.slice(0, 5)}</time></Event>
+              <Event key={item.id}>
+                <strong>{item.title}</strong>
+                <EventActions>
+                  <time dateTime={item.time}>{item.time.slice(0, 5)}</time>
+                  {current.data.canCreate && (
+                    <button type="button" disabled={busy} aria-label={`${item.title} 일정 삭제`} onClick={() => remove(item)}>
+                      {deletingId === item.id ? '삭제 중' : '삭제'}
+                    </button>
+                  )}
+                </EventActions>
+              </Event>
             ))}
           </ul>
         ))}

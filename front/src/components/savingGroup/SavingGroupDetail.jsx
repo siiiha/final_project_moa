@@ -17,7 +17,7 @@ import SavingGroupPaymentStatusPanel from './SavingGroupPaymentStatusPanel';
 import SavingGroupTransactionHistoryPanel from './SavingGroupTransactionHistoryPanel';
 import SavingGroupDashboardPanel from './SavingGroupDashboardPanel';
 import SavingGroupCalendarPanel from './SavingGroupCalendarPanel';
-import { createSavingGroupCalendarEvent, getSavingGroupCalendar } from '../../api/savingGroups.js';
+import { createSavingGroupCalendarEvent, deleteSavingGroupCalendarEvent, getSavingGroupCalendar } from '../../api/savingGroups.js';
 import SavingGroupNoticeCreateForm from './SavingGroupNoticeCreateForm';
 
 const HeaderCard = styled.section`
@@ -407,6 +407,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         <SavingGroupCalendarPanel
           key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
           groupId={group.groupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
+          deleteEvent={deleteSavingGroupCalendarEvent}
         />
       ) : currentMenu === 'dues' ? (
         /* AI작성: 모임이나 권한이 바뀌면 대시보드 조회 상태를 초기화한다. */
