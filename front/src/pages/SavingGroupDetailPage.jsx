@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
 import SavingGroupAccountCard from '../components/savingGroup/SavingGroupAccountCard';
 import SavingGroupDepositForm, { SavingGroupDepositResultModal } from '../components/savingGroup/SavingGroupDepositForm';
-import { getSavingGroupAccount } from '../api/savingGroups.js';
+import { getSavingGroupAccount, leaveSavingGroup } from '../api/savingGroups.js';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import useAuthStore from '../store/authStore';
@@ -61,6 +61,10 @@ function SavingGroupDetailPage() {
   // AI작성: 동일 렌더의 연속 클릭은 ref로 차단하고 안내는 모임·계정별로 구분한다.
   const joinLock = useRef(null);
   const joinScope = useRef(null);
+  // AI작성: 요청 잠금과 확인창 상태를 분리해 같은 렌더의 연속 요청을 막는다.
+  const leaveLock = useRef(null);
+  const [leaveDialog, setLeaveDialog] = useState(null);
+  const currentLeave = leaveDialog?.id === id && leaveDialog?.authVersion === authVersion ? leaveDialog : null;
   const [joinState, setJoinState] = useState(null);
   const currentJoin = joinState?.id === id && joinState?.authVersion === authVersion ? joinState : null;
   const isJoinSubmitting = currentJoin?.status === 'submitting';
@@ -77,6 +81,7 @@ function SavingGroupDetailPage() {
       noticeRequest.current?.abort();
       // AI작성: 다른 모임으로 갔다가 돌아와도 이전 완료·실패 안내가 다시 열리지 않게 한다.
       setJoinState(null);
+      setLeaveDialog(null);
     };
   }, [id, authVersion]);
 
@@ -136,6 +141,24 @@ function SavingGroupDetailPage() {
   const scoped = result?.id === id && result?.authVersion === authVersion ? result : null;
   const current = scoped?.retry === retry && scoped.noticePage === noticePage && scoped.noticeSort === noticeSort ? scoped : null;
   const visibleGroup = scoped?.group;
+  // AI작성: 모집 중인 계모임의 승인된 일반 계원·회계만 탈퇴할 수 있다.
+  const canLeave = visibleGroup?.status === '01' && visibleGroup.membershipStatus === 'APPROVED'
+    && ['MEMBER', 'MANAGER'].includes(visibleGroup.myRole);
+
+  const handleLeave = async () => {
+    const scope = joinScope.current;
+    if (!canLeave || !currentLeave || !scope?.active || leaveLock.current === scope) return;
+    leaveLock.current = scope;
+    setLeaveDialog({ id, authVersion, pending: true });
+    try {
+      await leaveSavingGroup(visibleGroup.savingGroupId);
+      if (scope.active) navigate('/saving-groups', { replace: true });
+    } catch (error) {
+      if (scope.active) setLeaveDialog({ id, authVersion, error: error.message });
+    } finally {
+      if (leaveLock.current === scope) leaveLock.current = null;
+    }
+  };
   // AI작성: 회원 전용 계좌 조회는 공개 상세와 분리하고 계정·모임·재시도별 이전 응답을 숨긴다.
   const [accountResult, setAccountResult] = useState(null);
   const [accountRetry, setAccountRetry] = useState(0);
@@ -268,9 +291,20 @@ function SavingGroupDetailPage() {
                 toSavingGroupNoticeSearch(1, sort, previous), { preventScrollReset: true })}
               onNoticeRetry={handleNoticeRetry}
               noticePinState={currentPin} onNoticePinChange={handleNoticePinChange}
+              onLeave={canLeave ? () => setLeaveDialog({ id, authVersion }) : undefined}
               onBack={() => navigate('/saving-groups')} />
           )}
       </Content>
+      {/* AI작성: 탈퇴를 확인한 뒤 요청하며 실패 사유는 같은 확인창에 표시한다. */}
+      {currentLeave && (
+        <ConfirmModal title="계모임에서 탈퇴하시겠어요?"
+          description="탈퇴하면 이 계모임의 회원 전용 메뉴를 이용할 수 없습니다."
+          confirmLabel={currentLeave.pending ? '탈퇴 처리 중' : '탈퇴하기'}
+          confirmVariant="danger" cancelFirst isBusy={currentLeave.pending}
+          onConfirm={handleLeave} onCancel={() => setLeaveDialog(null)}>
+          {currentLeave.error && <p role="alert">{currentLeave.error}</p>}
+        </ConfirmModal>
+      )}
       {depositDialog?.id === id && depositDialog?.authVersion === authVersion && canReadAccount && visibleGroup?.status === '02' && (
         <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={depositDialog.groupId} account={depositDialog.account}
           onClose={() => setDepositDialog(null)} onCompleted={data => {

@@ -302,7 +302,7 @@ const ActionButton = styled(Button)`
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh,
   noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry,
-  noticePinState, onNoticePinChange, accountPanel }) {
+  noticePinState, onNoticePinChange, accountPanel, onLeave }) {
   // AI작성: 일반 공지 네 개의 페이지 번호만 계산하며 기존 계모임 전체 목록 계산과 분리한다.
   const noticePages = getSavingGroupNoticePagination(noticePagination.page, noticePagination.totalPages);
   const pinnedNotices = group.pinnedNotices ?? [];
@@ -474,6 +474,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
                 <dt>상태</dt><dd>{statusLabel}</dd>
               </DetailList>
               <ActionButton type="button" $variant="secondary" onClick={onBack}>계모임 목록으로</ActionButton>
+              {/* AI작성: 상세 페이지에서 탈퇴 자격을 확인한 경우에만 버튼을 표시한다. */}
+              {onLeave && <ActionButton type="button" $variant="secondary" onClick={onLeave}>계모임 탈퇴</ActionButton>}
             </Card>
           </SideColumn>
         </Layout>

@@ -176,6 +176,15 @@ export async function updateSavingGroupMemberRole(savingGroupId, memberId, role,
   return result.data;
 }
 
+// AI작성: 자진 탈퇴에는 계모임 ID만 전달하고 기존 계원 관리 응답 처리를 재사용한다.
+export async function leaveSavingGroup(savingGroupId) {
+  const id = savingGroupPathId(savingGroupId);
+  await savingGroupMemberResponse(
+    () => client.delete(`/saving-groups/${id}/members/me`),
+    '계모임에서 탈퇴하지 못했습니다. 다시 시도해 주세요.'
+  );
+}
+
 // AI작성: 추방은 공통 groupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
 export async function expelSavingGroupMember(groupId, memberId, { signal } = {}) {
   const id = savingGroupPathId(groupId);
