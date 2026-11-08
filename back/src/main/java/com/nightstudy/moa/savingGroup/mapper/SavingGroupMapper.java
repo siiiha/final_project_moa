@@ -9,6 +9,10 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 공용 계좌에 속한 내부 장부만 조회한다.
+    int selectSavingGroupTransactionCount(@Param("accountId") Long accountId);
+    List<SavingGroupTransactionRow> selectSavingGroupTransactions(@Param("accountId") Long accountId,
+            @Param("offset") long offset, @Param("size") int size);
     // AI작성: 공통 모임 잠금 아래 예약 목록을 통째로 저장하며 실제 회차·지급 원장은 변경하지 않는다.
     SavingGroupTurnOrderPlanRow selectTurnOrderGroupForUpdate(@Param("savingGroupId") Long savingGroupId);
     List<SavingGroupTurnOrderAssignmentRow> selectTurnOrderAssignmentMembers(@Param("groupId") Long groupId);
