@@ -1375,6 +1375,13 @@
         ORDER BY event_date, schedule_id
     </select>
 
+    <!-- AI작성: 날짜 범위와 계모임 ID를 함께 제한한다. -->
+    <select id="countCalendarEvents" resultType="int">
+        SELECT COUNT(*)
+        FROM group_event
+        WHERE group_id = #{groupId} AND event_date &gt;= #{start} AND event_date &lt; #{end}
+    </select>
+
     <insert id="insertCalendarEvent" useGeneratedKeys="true" keyProperty="scheduleId" keyColumn="schedule_id">
         INSERT INTO group_event (group_id, writer_id, title, event_date)
         VALUES (#{groupId}, #{writerId}, #{title}, #{eventDate})

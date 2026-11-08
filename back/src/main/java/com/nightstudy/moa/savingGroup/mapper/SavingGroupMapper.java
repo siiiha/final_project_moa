@@ -13,6 +13,9 @@ public interface SavingGroupMapper {
     List<SavingGroupCalendarDto.EventRow> selectCalendarEvents(@Param("groupId") Long groupId,
             @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
     int insertCalendarEvent(SavingGroupCalendarDto.Insert event);
+    // AI작성: 등록 대상 모임에서 선택일에 이미 저장된 일정 수를 집계한다.
+    int countCalendarEvents(@Param("groupId") Long groupId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // AI작성: 공용 계좌에 속한 내부 장부만 조회한다.
     // AI작성: 월별 입금 집계와 회비 기준 조회에 선택 월의 범위를 전달한다.
