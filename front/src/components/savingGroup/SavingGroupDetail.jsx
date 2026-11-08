@@ -403,7 +403,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'dues' ? (
         <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel myRole={group.myRole} />
+        <SavingGroupTransactionHistoryPanel key={group.groupId} groupId={group.groupId} />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel groupId={group.groupId} />
