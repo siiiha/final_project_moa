@@ -5,6 +5,7 @@ import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionSer
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostImageDto;
 import com.nightstudy.moa.post.dto.PostCategoryDto;
 import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
