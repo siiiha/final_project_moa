@@ -357,9 +357,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     private final VirtualAccountStorageMapper accountMapper;
     private final AccountNumberCipher accountCipher;
 
-    @Override
-    @Transactional(readOnly = true)
-    public SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId) {
+    // AI작성: 계좌 조회와 거래내역 조회에 동일한 현재 모임원 권한을 적용한다.
+    private void requireSavingGroupAccountMember(Long groupId, Long memberId) {
         if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         if (groupId == null || groupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
         if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
@@ -368,6 +367,40 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 계좌 정보를 확인할 수 있습니다.");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long groupId, Long memberId, int page) {
+        requireSavingGroupAccountMember(groupId, memberId);
+        if (page < 1)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
+        var account = accountMapper.selectAccount(groupId);
+        if (account == null)
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+
+        int size = 10;
+        int total = savingGroupMapper.selectSavingGroupTransactionCount(account.getAccountId());
+        var meta = PageMeta.of(page, size, total);
+        long offset = (page - 1L) * size;
+        if (offset >= total) return new SavingGroupTransactionListResponse(List.of(), meta);
+        var items = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size)
+                .stream().map(this::toTransactionResponse).toList();
+        return new SavingGroupTransactionListResponse(items, meta);
+    }
+
+    // AI작성: 잘못된 장부 행은 원본 메모나 거래 정보를 공개하지 않고 조회 오류로 처리한다.
+    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row) {
+        if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
+                    "거래내역을 확인할 수 없습니다.");
+        return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(), row.balanceAfter());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId) {
+        requireSavingGroupAccountMember(groupId, memberId);
         var account = accountMapper.selectAccount(groupId);
         if (account == null) return new SavingGroupAccountResponse(false, null, null, BigDecimal.ZERO, true);
         BigDecimal balance = savingGroupMapper.selectSavingGroupBalance(groupId);
