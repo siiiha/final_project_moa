@@ -10,6 +10,13 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface SavingGroupMapper {
     // AI작성: 공용 계좌에 속한 내부 장부만 조회한다.
+    // AI작성: 월별 입금 집계와 회비 기준 조회에 선택 월의 범위를 전달한다.
+    int countSavingGroupPaymentStatus(@Param("groupId") Long groupId);
+    List<SavingGroupPaymentStatusRow> selectSavingGroupPaymentStatus(@Param("groupId") Long groupId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+            @Param("offset") long offset, @Param("size") int size);
+    java.math.BigDecimal selectMonthlyPaymentDues(@Param("groupId") Long groupId, @Param("end") LocalDateTime end);
+
     int selectSavingGroupTransactionCount(@Param("accountId") Long accountId);
     List<SavingGroupTransactionRow> selectSavingGroupTransactions(@Param("accountId") Long accountId,
             @Param("offset") long offset, @Param("size") int size);

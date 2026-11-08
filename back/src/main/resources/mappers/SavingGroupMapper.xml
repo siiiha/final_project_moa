@@ -2,6 +2,52 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 입금 없는 승인 계원도 포함하도록 완료 거래 집계만 LEFT JOIN한다. -->
+    <sql id="monthlyPaymentMembers">
+        FROM group_member gm
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+    </sql>
+    <sql id="monthlyPaymentMembership">
+        WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
+    </sql>
+    <select id="countSavingGroupPaymentStatus" resultType="int">
+        SELECT COUNT(*)
+        <include refid="monthlyPaymentMembers"/>
+        <include refid="monthlyPaymentMembership"/>
+    </select>
+    <select id="selectSavingGroupPaymentStatus" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusRow">
+        SELECT m.name AS member_name, COALESCE(deposits.total, 0) AS deposited_amount
+        <include refid="monthlyPaymentMembers"/>
+        LEFT JOIN (
+            SELECT dr.member_id, SUM(gt.amount) AS total
+            FROM group_account ga
+            JOIN group_transaction gt ON gt.account_id = ga.account_id
+            JOIN saving_group_mock_deposit_request dr ON dr.transaction_id = gt.transaction_id
+                AND dr.account_id = ga.account_id AND dr.status = 'COMPLETED'
+            WHERE ga.group_id = #{groupId} AND gt.transaction_type = 'DEPOSIT'
+                AND gt.transacted_at &gt;= #{start} AND gt.transacted_at &lt; #{end}
+            GROUP BY dr.member_id
+        ) deposits ON deposits.member_id = gm.member_id
+        <include refid="monthlyPaymentMembership"/>
+        ORDER BY gm.crew_member_id
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- AI작성: 첫 금액 변경 전의 원래 금액은 이력에 저장되지 않으므로 역산하지 않는다. -->
+    <select id="selectMonthlyPaymentDues" resultType="java.math.BigDecimal">
+        SELECT CASE WHEN EXISTS (
+            SELECT 1 FROM saving_group_setting_change sc
+            WHERE sc.group_id = sg.group_id AND sc.status = 'APPLIED' AND sc.dues_amount IS NOT NULL
+        ) THEN (
+            SELECT sc.dues_amount FROM saving_group_setting_change sc
+            WHERE sc.group_id = sg.group_id AND sc.status = 'APPLIED' AND sc.dues_amount IS NOT NULL
+              AND sc.effective_at &lt; #{end}
+            ORDER BY sc.effective_at DESC, sc.setting_change_id DESC LIMIT 1
+        ) ELSE sg.dues_amount END
+        FROM saving_group sg
+        WHERE sg.group_id = #{groupId} AND sg.start_date &lt; #{end}
+    </select>
+
     <!-- AI작성: 동일 시각의 거래도 페이지별 순서를 고정한다. -->
     <select id="selectSavingGroupTransactionCount" resultType="int">
         SELECT COUNT(*) FROM group_transaction WHERE account_id = #{accountId}
