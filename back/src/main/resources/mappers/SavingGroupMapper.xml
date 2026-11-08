@@ -40,7 +40,11 @@
         FROM saving_group sg
         LEFT JOIN saving_group_setting_change sc ON sc.group_id = sg.group_id
             AND sc.status = 'APPLIED' AND sc.dues_amount IS NOT NULL
-        WHERE sg.group_id = #{groupId} AND sg.start_date &lt; #{end}
+        WHERE sg.group_id = #{groupId}
+          <!-- AI작성: 시작일이 없는 모임도 현재 월은 확인된 회비 기준으로 판정한다. -->
+          AND (sg.start_date &lt; #{end}
+               OR (sg.start_date IS NULL AND CURRENT_DATE &gt;= DATE_SUB(#{end}, INTERVAL 1 MONTH)
+                   AND CURRENT_DATE &lt; #{end}))
         ORDER BY (sc.effective_at &lt; #{end}) DESC, sc.effective_at DESC, sc.setting_change_id DESC
         LIMIT 1
     </select>
