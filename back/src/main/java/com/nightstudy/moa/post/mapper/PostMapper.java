@@ -24,6 +24,12 @@ public interface PostMapper {
 
     List<PostImageDto> selectPostImages(@Param("postId") Long postId);
 
+    // AI작성: 첨부 변경은 해당 게시글에 연결된 행에만 적용합니다.
+    int deletePostImage(@Param("postId") Long postId, @Param("imageId") Long imageId);
+
+    int updatePostImageOrder(@Param("postId") Long postId, @Param("imageId") Long imageId,
+                             @Param("sortOrder") int sortOrder);
+
     int selectPostListCount(PostSearchCondition condition);
 
     int editPost(

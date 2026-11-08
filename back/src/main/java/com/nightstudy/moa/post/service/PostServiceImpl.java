@@ -13,6 +13,7 @@ import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashSet;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -231,6 +232,60 @@ public class PostServiceImpl implements PostService {
         return postId;
     }
 
+
+    // AI작성: 게시글 행을 잠그고 본문과 첨부 변경을 한 트랜잭션에서 처리합니다.
+    @Override
+    @Transactional
+    public Long editPost(Long postId, Long loginMemberId, PostEditRequest request, List<MultipartFile> images) {
+        if (postMapper.selectActivePostIdForUpdate(postId) == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "게시글을 찾을 수 없습니다.");
+        }
+        editPost(postId, loginMemberId, request);
+
+        List<Long> retainedIds = request.getRetainedImageIds();
+        if (retainedIds == null) {
+            throw invalidImageSelection();
+        }
+        validateImageCount(retainedIds.size() + images.size());
+        List<PostImageDto> existingImages = postMapper.selectPostImages(postId);
+        List<Long> existingIds = existingImages.stream().map(PostImageDto::getImageId).toList();
+        if (new HashSet<>(retainedIds).size() != retainedIds.size() || !existingIds.containsAll(retainedIds)) {
+            throw invalidImageSelection();
+        }
+
+        List<String> removedFiles = new ArrayList<>();
+        String prefix = postImagePrefix(postId);
+        for (PostImageDto image : existingImages) {
+            int sortOrder = retainedIds.indexOf(image.getImageId());
+            if (sortOrder >= 0) {
+                postMapper.updatePostImageOrder(postId, image.getImageId(), sortOrder);
+            } else {
+                postMapper.deletePostImage(postId, image.getImageId());
+                if (image.getImageUrl().startsWith(prefix)) {
+                    removedFiles.add(image.getImageUrl().substring(prefix.length()));
+                }
+            }
+        }
+        if (!images.isEmpty()) {
+            saveImages(postId, images, retainedIds.size());
+        }
+
+        // AI작성: 실패 시 기존 첨부 파일이 유지되도록 커밋 후에만 삭제합니다.
+        if (!removedFiles.isEmpty()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    removedFiles.forEach(imageStorage::delete);
+                }
+            });
+        }
+        return postId;
+    }
+
+    private ApiException invalidImageSelection() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "INVALID_POST_IMAGE_SELECTION",
+                "유지할 게시글 사진 목록을 확인해주세요.");
+    }
 
     @Override
     public void deletePost(Long postId, Long loginMemberId) {

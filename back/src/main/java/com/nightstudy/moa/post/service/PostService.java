@@ -22,6 +22,9 @@ public interface PostService {
 
     Long editPost(Long postId, Long loginMemberId, PostEditRequest request);
 
+    // AI작성: 글과 첨부 편집을 함께 저장합니다.
+    Long editPost(Long postId, Long loginMemberId, PostEditRequest request, List<MultipartFile> images);
+
     PostDto getPostDetail(Long postId, Long loginMemberId);
 
     Resource getPostImage(Long postId, String fileName);

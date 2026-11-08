@@ -101,7 +101,7 @@ public class PostController {
                 .body(image);
     }
 
-    @PutMapping("/edit/{postId}")
+    @PutMapping(value = "/edit/{postId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Long> editPost(
             @PathVariable
             @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
@@ -111,6 +111,18 @@ public class PostController {
         Long editPostId = postService.editPost(postId, loginMemberId, request);
 
         return ApiResponse.ok(editPostId);
+    }
+
+    // AI작성: 기존 첨부의 유지 목록과 새 파일을 함께 받습니다.
+    @PutMapping(value = "/edit/{postId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Long> editWithImages(
+            @PathVariable @Positive Long postId,
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestPart("post") PostEditRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
+    ) {
+        return ApiResponse.ok(postService.editPost(postId, loginMemberId, request,
+                images == null ? List.of() : images));
     }
 
     @DeleteMapping("/{postId}")
