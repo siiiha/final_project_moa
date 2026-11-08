@@ -1,7 +1,6 @@
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useEffect, useState } from 'react';
+import { getSavingGroupPaymentStatus, getSavingGroupTransactions } from '../../api/savingGroups';
 import styled from 'styled-components';
-import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
-import { savingGroupDashboardSummary } from '../../mocks/savingGroupDashboard';
 
 const Panel = styled.section`
   margin-top: 22px;
@@ -148,78 +147,61 @@ const EmptyChart = styled.p`
   text-align: center;
 `;
 
-const formatBalance = (balance) => `${balance.toLocaleString()}원`;
-const formatCurrency = (amount) => `${amount.toLocaleString()}원`;
-const PIE_COLORS = ['#176b5b', '#4f8c80', '#8db8ae', '#c7ddd7', '#f0bd6a', '#dc896f', '#9eaab0', '#bdcbd0'];
+const koreanMonth = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit',
+});
 
-function SavingGroupDashboardPanel() {
-  // AI작성: 목록 정렬에 의존하지 않고 가장 최근 거래의 잔액만 대시보드 현재 잔액으로 사용한다.
-  const latestTransaction = savingGroupTransactions.reduce((latest, transaction) => (
-    !latest || `${transaction.date} ${transaction.time}` > `${latest.date} ${latest.time}` ? transaction : latest
-  ), null);
-  // AI작성: Mock은 과거 기간 데이터이므로 가장 최근 거래가 속한 월을 현재 조회 기준으로 사용한다.
-  const referenceMonth = latestTransaction?.date.slice(0, 7);
-  const monthlyDues = savingGroupTransactions
-    .filter((transaction) => (
-      referenceMonth != null
-      && transaction.date.startsWith(referenceMonth)
-      && transaction.type === '입금'
-      && transaction.purposeType === '회비'
-    ))
-    .reduce((total, transaction) => total + transaction.amount, 0);
-  // AI작성: 계금 지급과 아직 확인하지 않은 출금은 모임 운영 지출 통계에서 제외한다.
-  const monthlyExpense = savingGroupTransactions
-    .filter((transaction) => (
-      referenceMonth != null
-      && transaction.date.startsWith(referenceMonth)
-      && transaction.purposeType === '일반 지출'
-      && transaction.category !== '확인 필요'
-    ))
-    .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
-  const reviewRequiredCount = savingGroupTransactions.filter((transaction) => (
-    transaction.purposeType === '일반 지출' && transaction.category === '확인 필요'
-  )).length;
-  // AI작성: 계금 지급은 자금 흐름으로만 별도 표시하며 일반 지출 합계·차트에는 넣지 않는다.
-  const payoutTotal = savingGroupTransactions
-    .filter((transaction) => transaction.purposeType === '계금 지급')
-    .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
-  // AI작성: 차트 단위가 만 원이므로 회비 입금과 확정 일반 지출을 월별로 합산해 변환한다.
-  const monthlyCashFlow = [...new Set(savingGroupTransactions.map((transaction) => transaction.date.slice(0, 7)))]
-    .sort()
-    .slice(-6)
-    .map((month) => {
-      const monthlyTransactions = savingGroupTransactions.filter((transaction) => transaction.date.startsWith(month));
-      const income = monthlyTransactions
-        .filter((transaction) => transaction.type === '입금' && transaction.purposeType === '회비')
-        .reduce((total, transaction) => total + transaction.amount, 0);
-      const expense = monthlyTransactions
-        .filter((transaction) => transaction.purposeType === '일반 지출' && transaction.category !== '확인 필요')
-        .reduce((total, transaction) => total + Math.abs(transaction.amount), 0);
-      return { month: `${Number(month.slice(5))}월`, income: income / 10000, expense: expense / 10000 };
-    });
-  // AI작성: 같은 월의 확정 일반 지출만 항목별로 묶어, 계금 지급과 확인 필요 건을 파이 차트에서 제외한다.
-  const expenseCategoryData = Object.entries(savingGroupTransactions
-    .filter((transaction) => (
-      referenceMonth != null
-      && transaction.date.startsWith(referenceMonth)
-      && transaction.purposeType === '일반 지출'
-      && transaction.category !== '확인 필요'
-    ))
-    .reduce((categories, transaction) => ({
-      ...categories,
-      [transaction.category]: (categories[transaction.category] || 0) + Math.abs(transaction.amount),
-    }), {}))
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((first, second) => second.amount - first.amount);
+// AI작성: 모든 페이지를 조회하며 회비 기준이 없는 계원이 있으면 합계 표시를 보류한다.
+export async function loadOutstanding(groupId, month, signal, loadPage = getSavingGroupPaymentStatus) {
+  let total = 0;
+  let unknown = false;
+  let pages = 1;
+  for (let page = 1; page <= pages; page += 1) {
+    const { items, meta } = await loadPage(groupId, { month, page, signal });
+    signal.throwIfAborted();
+    pages = meta.totalPages;
+    for (const { remainingAmount } of items) {
+      if (remainingAmount == null) unknown = true;
+      else total += remainingAmount;
+    }
+  }
+  return unknown ? null : total;
+}
+
+async function loadBalance(groupId, _month, signal) {
+  const { items } = await getSavingGroupTransactions(groupId, { signal });
+  return items.length ? items[0].balanceAfter : null;
+}
+
+// AI작성: 모임이나 월이 바뀌면 이전 요청을 취소하고 늦게 도착한 결과를 무시한다.
+function useDashboardResult(groupId, month, load) {
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    if (groupId == null) return;
+    const controller = new AbortController();
+    load(groupId, month, controller.signal).then(
+      (value) => {
+        if (!controller.signal.aborted) setResult({ groupId, month, value });
+      },
+      () => {
+        if (!controller.signal.aborted) setResult({ groupId, month, failed: true });
+      },
+    );
+    return () => controller.abort();
+  }, [groupId, month, load]);
+  return result?.groupId === groupId && result?.month === month ? result : null;
+}
+
+export function SavingGroupDashboardView({ balance, outstanding, canViewOutstanding }) {
+  const format = (value) => value == null ? '—' : value.toLocaleString('ko-KR') + '원';
+  // AI작성: 실제 0원과 미조회·오류를 구분하고 계주에게만 미납을 표시한다.
   const dashboardSummary = [
-    ...savingGroupDashboardSummary.map((item) => (
-    item.id === 'balance'
-      ? { ...item, value: latestTransaction ? formatBalance(latestTransaction.balance) : '잔액 확인 필요' }
-      : item.id === 'income' ? { ...item, value: formatCurrency(monthlyDues) }
-        : item.id === 'expense' ? { ...item, value: formatCurrency(monthlyExpense) } : item
-    )),
-    { id: 'reviewRequired', label: '확인 필요 출금', value: `${reviewRequiredCount}건` },
-    { id: 'payout', label: '계금 지급', value: formatCurrency(payoutTotal) },
+    { id: 'balance', label: '현재 잔액', value: format(balance?.value) },
+    { id: 'income', label: '이번 달 납부', value: '—' },
+    ...(canViewOutstanding ? [{ id: 'overdue', label: '미납', value: format(outstanding?.value) }] : []),
+    { id: 'expense', label: '이번 달 지출', value: '—' },
+    { id: 'reviewRequired', label: '확인 필요 출금', value: '—' },
+    { id: 'payout', label: '계금 지급', value: '—' },
   ];
 
   return (
@@ -240,44 +222,25 @@ function SavingGroupDashboardPanel() {
         ))}
       </Summary>
 
+      {/* AI작성: 잔액과 미납 조회 상태를 독립적으로 안내한다. */}
+      {!balance && <Note role="status">잔액을 불러오는 중입니다.</Note>}
+      {balance?.failed && <Note role="alert">잔액을 불러오지 못했습니다.</Note>}
+      {balance?.value === null && <Note>거래내역이 없습니다.</Note>}
+      {canViewOutstanding && !outstanding && <Note role="status">미납 합계를 불러오는 중입니다.</Note>}
+      {canViewOutstanding && outstanding?.failed && <Note role="alert">미납 합계를 불러오지 못했습니다.</Note>}
+      {canViewOutstanding && outstanding?.value === null && <Note>회비 기준 확인이 필요합니다.</Note>}
+
       <DashboardGrid>
         <Card>
-          <CardHeader>
-            <CardTitle>수입·지출 추이</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>수입·지출 추이</CardTitle></CardHeader>
           <ChartBox aria-label="월별 수입·지출 막대 차트">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyCashFlow} margin={{ top: 14, right: 4, bottom: 0, left: -20 }} barGap={5}>
-                <CartesianGrid vertical={false} stroke="#e3e8e6" strokeDasharray="3 3" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}만`} />
-                <Tooltip formatter={(value) => `${value.toLocaleString()}만 원`} />
-                <Legend iconType="circle" iconSize={7} />
-                <Bar dataKey="income" name="수입" fill="#176b5b" radius={[3, 3, 0, 0]} maxBarSize={24} />
-                <Bar dataKey="expense" name="지출" fill="#bdcbd0" radius={[3, 3, 0, 0]} maxBarSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
+            <EmptyChart>거래 분류 정보가 필요합니다.</EmptyChart>
           </ChartBox>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle>지출 항목별 비율</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>지출 항목별 비율</CardTitle></CardHeader>
           <ChartBox aria-label="지출 항목별 파이 차트">
-            {expenseCategoryData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={expenseCategoryData} dataKey="amount" nameKey="category" cx="50%" cy="45%" outerRadius={72}>
-                    {expenseCategoryData.map((item, index) => (
-                      <Cell key={item.category} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${Number(value).toLocaleString()}원`} />
-                  <Legend iconType="circle" iconSize={7} verticalAlign="bottom" />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart>이번 달에 분류가 확정된 일반 지출이 없습니다.</EmptyChart>}
+            <EmptyChart>거래 분류 정보가 필요합니다.</EmptyChart>
           </ChartBox>
         </Card>
       </DashboardGrid>
@@ -287,4 +250,10 @@ function SavingGroupDashboardPanel() {
   );
 }
 
-export default SavingGroupDashboardPanel;
+// AI작성: 한국 시간의 현재 월로 승인 계주에게만 미납을 요청한다.
+export default function SavingGroupDashboardPanel({ groupId, canViewOutstanding }) {
+  const month = koreanMonth.format(new Date());
+  const balance = useDashboardResult(groupId, null, loadBalance);
+  const outstanding = useDashboardResult(canViewOutstanding ? groupId : null, month, loadOutstanding);
+  return <SavingGroupDashboardView balance={balance} outstanding={outstanding} canViewOutstanding={canViewOutstanding} />;
+}

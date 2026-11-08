@@ -401,7 +401,12 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'payment' && group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' ? (
         <SavingGroupPaymentStatusPanel key={group.groupId} groupId={group.groupId} />
       ) : currentMenu === 'dues' ? (
-        <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
+        /* AI작성: 모임이나 권한이 바뀌면 대시보드 조회 상태를 초기화한다. */
+        <SavingGroupDashboardPanel
+          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
+          groupId={group.groupId}
+          canViewOutstanding={group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED'}
+        />
       ) : currentMenu === 'transactionHistory' ? (
         <SavingGroupTransactionHistoryPanel key={group.groupId} groupId={group.groupId} />
       ) : currentMenu === 'payoutRequest' ? (
