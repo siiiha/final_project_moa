@@ -36,4 +36,13 @@ public class SavingGroupCalendarController {
             @Valid @RequestBody CreateRequest request) {
         return ApiResponse.ok(service.create(groupId, memberId, request));
     }
+
+    // AI작성: 검증한 모임·일정 ID와 로그인 회원을 삭제 서비스에 전달한다.
+    @DeleteMapping("/events/{scheduleId}")
+    public ApiResponse<Void> delete(@PathVariable @Positive Long groupId,
+            @PathVariable @Positive Long scheduleId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        service.delete(groupId, memberId, scheduleId);
+        return ApiResponse.ok();
+    }
 }
