@@ -79,12 +79,13 @@ public class PostController {
         return ApiResponse.ok(postService.getPostCategories());
     }
 
+    // AI작성: 공개 상세는 비로그인 요청에도 회원 번호 없이 조회할 수 있습니다.
     @GetMapping("/detail/{postId}")
     public ApiResponse<PostDto> detail(
             @PathVariable
             @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
             Long postId,
-            @RequestAttribute("memberId") Long loginMemberId
+            @RequestAttribute(value = "memberId", required = false) Long loginMemberId
     ) {
         PostDto post = postService.getPostDetail(postId, loginMemberId);
         return ApiResponse.ok(post);
