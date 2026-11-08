@@ -58,6 +58,16 @@ public class SavingGroupController {
         response.setHeader("Cache-Control", "no-store");
         return ApiResponse.ok(savingGroupService.getTurnOrderRecommendations(savingGroupId, memberId));
     }
+    // AI작성: 인증 사용자와 검증된 페이지를 전달하고 거래 조회는 Service에 위임한다.
+    @GetMapping("/{savingGroupId}/account/transactions")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionResponse>> transactions(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupTransactions(savingGroupId, memberId, condition.getPage());
+        return ApiResponse.ok(result.items(), result.pageMeta());
+    }
+
     // AI작성: 계좌 원문 없이 회원 전용 정보를 반환하며 모임 소속 검증은 Service에서 수행한다.
     @GetMapping("/{groupId}/account")
     public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse> account(
