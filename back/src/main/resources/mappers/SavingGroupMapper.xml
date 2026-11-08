@@ -1367,4 +1367,16 @@
         WHERE deposit_request_id = #{depositRequestId} AND member_id = #{memberId}
           AND account_id = #{accountId} AND status = 'PENDING_CONFIRMATION'
     </update>
+    <!-- AI작성: 기존 group_event에 저장하며 동일 시각에는 일정 ID 순으로 정렬한다. -->
+    <select id="selectCalendarEvents" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCalendarDto$EventRow">
+        SELECT schedule_id AS scheduleId, title, event_date AS eventDate
+        FROM group_event
+        WHERE group_id = #{groupId} AND event_date &gt;= #{start} AND event_date &lt; #{end}
+        ORDER BY event_date, schedule_id
+    </select>
+
+    <insert id="insertCalendarEvent" useGeneratedKeys="true" keyProperty="scheduleId" keyColumn="schedule_id">
+        INSERT INTO group_event (group_id, writer_id, title, event_date)
+        VALUES (#{groupId}, #{writerId}, #{title}, #{eventDate})
+    </insert>
 </mapper>

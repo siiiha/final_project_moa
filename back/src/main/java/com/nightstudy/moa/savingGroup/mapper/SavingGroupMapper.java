@@ -9,6 +9,11 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 대상 모임과 월 범위를 함께 제한해 공유 일정을 조회한다.
+    List<SavingGroupCalendarDto.EventRow> selectCalendarEvents(@Param("groupId") Long groupId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    int insertCalendarEvent(SavingGroupCalendarDto.Insert event);
+
     // AI작성: 공용 계좌에 속한 내부 장부만 조회한다.
     // AI작성: 월별 입금 집계와 회비 기준 조회에 선택 월의 범위를 전달한다.
     int countSavingGroupPaymentStatus(@Param("groupId") Long groupId);
