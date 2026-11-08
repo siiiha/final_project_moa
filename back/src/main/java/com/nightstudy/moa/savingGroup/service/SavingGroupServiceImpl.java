@@ -357,8 +357,41 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     private final VirtualAccountStorageMapper accountMapper;
     private final AccountNumberCipher accountCipher;
 
+    // AI작성: 계주 권한 확인 후 월별 회비와 완료 입금액을 읽기 전용으로 비교한다.
+    @Override
+    @Transactional(readOnly = true)
+    public com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(
+            Long groupId, Long memberId, java.time.YearMonth month, int page) {
+        var relation = requireSavingGroupAccountMember(groupId, memberId);
+        if (!"OWNER".equals(relation.getMemberRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_PAYMENT_STATUS_FORBIDDEN",
+                    "계주만 회비 납부 현황을 확인할 수 있습니다.");
+        }
+        if (month == null || page < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "조회 월과 페이지를 확인해 주세요.");
+        }
+        int size = 10;
+        int total = savingGroupMapper.countSavingGroupPaymentStatus(groupId);
+        var meta = PageMeta.of(page, size, total);
+        long offset = (page - 1L) * size;
+        if (offset >= total) {
+            return new com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse(List.of(), meta);
+        }
+        var start = month.atDay(1).atStartOfDay();
+        var end = month.plusMonths(1).atDay(1).atStartOfDay();
+        BigDecimal dues = savingGroupMapper.selectMonthlyPaymentDues(groupId, end);
+        var items = savingGroupMapper.selectSavingGroupPaymentStatus(groupId, start, end, offset, size)
+                .stream().map(row -> {
+                    BigDecimal remaining = dues == null ? null : dues.subtract(row.depositedAmount()).max(BigDecimal.ZERO);
+                    return new com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusResponse(
+                            row.memberName(), dues, row.depositedAmount(), remaining,
+                            remaining == null ? null : remaining.signum() == 0);
+                }).toList();
+        return new com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse(items, meta);
+    }
+
     // AI작성: 계좌 조회와 거래내역 조회에 동일한 현재 모임원 권한을 적용한다.
-    private void requireSavingGroupAccountMember(Long groupId, Long memberId) {
+    private com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow requireSavingGroupAccountMember(Long groupId, Long memberId) {
         if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         if (groupId == null || groupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
         if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
@@ -367,6 +400,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 계좌 정보를 확인할 수 있습니다.");
+        return relation;
     }
 
     @Override
