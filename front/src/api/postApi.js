@@ -17,15 +17,25 @@ export async function getPostDetail(postId) {
   return response.data;
 }
 
+// AI작성: JSON 파트와 원본 파일을 하나의 multipart 요청에 담습니다.
+function postWithImages(postData, files) {
+  const form = new FormData();
+  form.append('post', new Blob([JSON.stringify(postData)], { type: 'application/json' }));
+  files.forEach((file) => form.append('images', file));
+  return form;
+}
+
 // AI작성: 게시글 작성 데이터를 Spring Boot API에 전달합니다.
-export async function createPost(postData) {
-  const response = await client.post('/community/write', postData);
+export async function createPost(postData, files = []) {
+  const payload = files.length ? postWithImages(postData, files) : postData;
+  const response = await client.post('/community/write', payload);
   return response.data;
 }
 
 // AI작성: 게시글 ID와 수정 데이터를 Spring Boot API에 전달합니다.
-export async function updatePost(postId, postData) {
-  const response = await client.put(`/community/edit/${postId}`, postData);
+export async function updatePost(postId, postData, files) {
+  const payload = files ? postWithImages(postData, files) : postData;
+  const response = await client.put(`/community/edit/${postId}`, payload);
   return response.data;
 }
 
