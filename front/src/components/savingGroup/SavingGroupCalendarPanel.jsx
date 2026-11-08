@@ -126,8 +126,13 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
   }, [groupId, loadMonth, month, retry]);
 
   const current = result?.month === month && result.retry === retry ? result : null;
-  const eventsByDate = Object.groupBy(current?.data?.events ?? [], event => event.date);
-  const selectedEvents = eventsByDate[selected] ?? [];
+  // AI작성: 달력의 배지와 선택일 목록이 같은 일정 배열을 사용한다.
+  const eventsByDate = new Map();
+  for (const event of current?.data?.events ?? []) {
+    if (!eventsByDate.has(event.date)) eventsByDate.set(event.date, []);
+    eventsByDate.get(event.date).push(event);
+  }
+  const selectedEvents = eventsByDate.get(selected) ?? [];
   const first = monthDate(month).getUTCDay();
   const days = monthDate(month, 1, 0).getUTCDate();
   const cells = Math.ceil((first + days) / 7) * 7;
@@ -190,7 +195,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
             const day = index - first + 1;
             if (day < 1 || day > days) return <div key={index} aria-hidden="true" />;
             const date = `${month}-${String(day).padStart(2, '0')}`;
-            const items = eventsByDate[date] ?? [];
+            const items = eventsByDate.get(date) ?? [];
             return (
               <Day key={date} type="button" $selected={date === selected} aria-pressed={date === selected}
                 aria-label={`${number}월 ${day}일, 일정 ${items.length}개`} disabled={saving}

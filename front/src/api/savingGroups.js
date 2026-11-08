@@ -419,6 +419,33 @@ export async function approveSavingGroupCreationApplication(approvalId) {
   }
 }
 
+// AI작성: 계모임 공유 일정은 기존 인증 클라이언트로 조회하고 등록한다.
+export async function getSavingGroupCalendar(groupId, { month, signal }) {
+  const id = savingGroupPathId(groupId);
+  try {
+    const { data: response } = await client.get(`/saving-groups/${id}/calendar`, { params: { month }, signal });
+    if (response?.success !== true || !Array.isArray(response.data?.events)) {
+      throw new Error('일정 조회 응답을 확인할 수 없습니다.');
+    }
+    return response.data;
+  } catch (error) {
+    throw toCreationApplicationError(error, '일정을 불러오지 못했습니다.');
+  }
+}
+
+export async function createSavingGroupCalendarEvent(groupId, event) {
+  const id = savingGroupPathId(groupId);
+  try {
+    const { data: response } = await client.post(`/saving-groups/${id}/calendar/events`, event);
+    if (response?.success !== true || !response.data?.id) {
+      throw new Error('일정 등록 응답을 확인할 수 없습니다.');
+    }
+    return response.data;
+  } catch (error) {
+    throw toCreationApplicationError(error, '일정을 저장하지 못했습니다.');
+  }
+}
+
 // AI작성: 선택 월과 페이지를 계주 전용 납부 현황 API에 전달한다.
 export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, signal }) {
   const id = savingGroupPathId(groupId);

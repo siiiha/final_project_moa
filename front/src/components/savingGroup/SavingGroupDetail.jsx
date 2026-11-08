@@ -16,6 +16,8 @@ import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
 import SavingGroupPaymentStatusPanel from './SavingGroupPaymentStatusPanel';
 import SavingGroupTransactionHistoryPanel from './SavingGroupTransactionHistoryPanel';
 import SavingGroupDashboardPanel from './SavingGroupDashboardPanel';
+import SavingGroupCalendarPanel from './SavingGroupCalendarPanel';
+import { createSavingGroupCalendarEvent, getSavingGroupCalendar } from '../../api/savingGroups.js';
 import SavingGroupNoticeCreateForm from './SavingGroupNoticeCreateForm';
 
 const HeaderCard = styled.section`
@@ -400,6 +402,12 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         </MembersContent>
       ) : currentMenu === 'payment' && group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' ? (
         <SavingGroupPaymentStatusPanel key={group.groupId} groupId={group.groupId} />
+      ) : currentMenu === 'calendar' ? (
+        /* AI작성: 다른 계모임이나 역할로 전환하면 이전 캘린더 조회 상태를 폐기한다. */
+        <SavingGroupCalendarPanel
+          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
+          groupId={group.groupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
+        />
       ) : currentMenu === 'dues' ? (
         /* AI작성: 모임이나 권한이 바뀌면 대시보드 조회 상태를 초기화한다. */
         <SavingGroupDashboardPanel
