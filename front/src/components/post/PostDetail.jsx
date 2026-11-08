@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 import PostCategoryBadge from './PostCategoryBadge';
@@ -34,6 +35,35 @@ const PostContent = styled.div`
     font-size: 15px;
   }
 `;
+
+// AI작성: 상세 본문 아래에 첨부를 원본 비율로 표시합니다.
+const PostImages = styled.ul`
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 12px 0;
+  list-style: none;
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 640px;
+    object-fit: contain;
+  }
+`;
+
+function PostAttachment({ imageUrl, index }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <li>
+      {failed ? (
+        <p>첨부 사진을 불러오지 못했습니다.</p>
+      ) : (
+        <img src={imageUrl} alt={`첨부 사진 ${index + 1}`} loading="lazy" onError={() => setFailed(true)} />
+      )}
+    </li>
+  );
+}
 
 const PostActions = styled.div`
   padding-top: 13px;
@@ -261,6 +291,13 @@ function PostDetail({
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>
         <PostContent>{post.content}</PostContent>
+        {post.images?.length > 0 && (
+          <PostImages aria-label="첨부 사진">
+            {post.images.map((image, index) => (
+              <PostAttachment key={image.imageId} imageUrl={image.imageUrl} index={index} />
+            ))}
+          </PostImages>
+        )}
         <PostActions>
           {Number(post.writerId) === Number(memberId) ? <>
             <Button type="button" $size="small" onClick={onEdit}>수정</Button>
