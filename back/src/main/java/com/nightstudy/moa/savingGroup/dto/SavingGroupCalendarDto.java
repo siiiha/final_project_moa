@@ -15,7 +15,8 @@ public final class SavingGroupCalendarDto {
     public record CreateRequest(@NotBlank @Size(max = 100) String title,
                                 @NotNull LocalDate date, @NotNull LocalTime time) {}
     public record EventRow(Long scheduleId, String title, LocalDateTime eventDate) {}
-    public record Event(String id, String title, LocalDate date, LocalTime time) {}
+    // AI작성: 프런트가 날짜별 분류에 쓰는 응답 형식을 문자열로 고정한다.
+    public record Event(String id, String title, String date, String time) {}
     public record Month(boolean canCreate, List<Event> events) {}
 
     // AI작성: MyBatis가 등록 직후 생성된 일정 ID를 기록한다.

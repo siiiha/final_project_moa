@@ -70,6 +70,6 @@ public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarServic
     }
 
     private Event toEvent(Long id, String title, LocalDateTime dateTime) {
-        return new Event(id.toString(), title, dateTime.toLocalDate(), dateTime.toLocalTime());
+        return new Event(id.toString(), title, dateTime.toLocalDate().toString(), dateTime.toLocalTime().toString());
     }
 }
