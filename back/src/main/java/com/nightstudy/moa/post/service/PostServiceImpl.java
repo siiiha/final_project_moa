@@ -11,7 +11,12 @@ import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.mapper.PostMapper;
+import java.util.ArrayList;
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -19,6 +24,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class PostServiceImpl implements PostService {
+    private static final int MAX_IMAGES = 3;
+    private final PostImageStorage imageStorage;
     private final PostMapper postMapper;
     private final MemberFeatureRestrictionService restrictionService;
 
@@ -26,9 +33,11 @@ public class PostServiceImpl implements PostService {
     @Autowired
     public PostServiceImpl(
             PostMapper postMapper,
-            MemberFeatureRestrictionService restrictionService
+            MemberFeatureRestrictionService restrictionService,
+            PostImageStorage imageStorage
     ) {
         this.postMapper = postMapper;
+        this.imageStorage = imageStorage;
         this.restrictionService = restrictionService;
     }
 
@@ -84,6 +93,14 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public Long writePost(Long loginMemberId, PostCreateRequest request) {
+        return writePost(loginMemberId, request, List.of());
+    }
+
+    // AI작성: 게시글과 첨부 DB 작업을 같은 트랜잭션에서 처리합니다.
+    @Override
+    @Transactional
+    public Long writePost(Long loginMemberId, PostCreateRequest request, List<MultipartFile> images) {
+        validateImageCount(images.size());
         validateContentAllowed(loginMemberId);
 
         int categoryCount =
@@ -113,7 +130,40 @@ public class PostServiceImpl implements PostService {
             );
         }
 
+        if (!images.isEmpty()) {
+            saveImages(postDto.getPostId(), images, 0);
+        }
         return postDto.getPostId();
+    }
+
+    private void validateImageCount(int count) {
+        if (count > MAX_IMAGES) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "POST_IMAGE_LIMIT_EXCEEDED",
+                    "게시글에는 사진을 최대 3장 첨부할 수 있습니다.");
+        }
+    }
+
+    private void saveImages(Long postId, List<MultipartFile> images, int sortOrder) {
+        List<String> storedFiles = new ArrayList<>();
+        // AI작성: 후속 파일 저장이나 DB 작업이 실패하면 이번 요청의 파일을 정리합니다.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    storedFiles.forEach(imageStorage::delete);
+                }
+            }
+        });
+
+        for (MultipartFile image : images) {
+            String fileName = imageStorage.store(image);
+            storedFiles.add(fileName);
+            String imageUrl = "/api/community/" + postId + "/images/" + fileName;
+            if (postMapper.insertPostImage(postId, imageUrl, sortOrder++) != 1) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "POST_IMAGE_SAVE_FAILED",
+                        "게시글 사진 저장에 실패했습니다.");
+            }
+        }
     }
 
     @Override

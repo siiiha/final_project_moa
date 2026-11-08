@@ -13,6 +13,10 @@ public interface PostMapper {
     List<PostCategoryDto> selectPostCategories();
     int insertPost(PostDto postDto);
 
+    // AI작성: 게시글 첨부 정보와 표시 순서를 저장합니다.
+    int insertPostImage(@Param("postId") Long postId, @Param("imageUrl") String imageUrl,
+                        @Param("sortOrder") int sortOrder);
+
     List<PostDto> selectPostList(PostSearchCondition condition);
 
     PostDto selectPostDetail(Long postId);

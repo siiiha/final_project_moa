@@ -53,6 +53,12 @@
         VALUES (#{writerId}, #{categoryId}, #{title}, #{content}, 0)
     </insert>
 
+    <!-- AI작성: 생성된 게시글에 첨부 정보와 표시 순서를 기록합니다. -->
+    <insert id="insertPostImage">
+        INSERT INTO post_image (post_id, image_url, sort_order)
+        VALUES (#{postId}, #{imageUrl}, #{sortOrder})
+    </insert>
+
     <select id="selectPostList" parameterType="PostSearchCondition" resultType="PostDto">
         SELECT p.post_id, p.writer_id, p.category_id, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,

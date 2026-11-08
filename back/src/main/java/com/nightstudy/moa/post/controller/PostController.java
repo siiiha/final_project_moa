@@ -9,6 +9,9 @@ import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.service.PostService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,13 +40,23 @@ public class PostController {
         this.postService = postService;
     }
 
-    @PostMapping("/write")
+    @PostMapping(value = "/write", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Long> write(
             @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody PostCreateRequest request
     ) {
         Long postId = postService.writePost(loginMemberId, request);
         return ApiResponse.ok(postId);
+    }
+
+    // AI작성: 게시글과 첨부 이미지를 함께 받습니다.
+    @PostMapping(value = "/write", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Long> writeWithImages(
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestPart("post") PostCreateRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
+    ) {
+        return ApiResponse.ok(postService.writePost(loginMemberId, request, images == null ? List.of() : images));
     }
 
     @GetMapping("/list")
