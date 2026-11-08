@@ -2233,3 +2233,46 @@ GET /api/saving-groups/{savingGroupId}/dues/payment-status?month=2026-11&page=1
 4. 브라우저에서 월 변경 시 첫 페이지로 이동하고 화면 폭을 줄이면 모바일 카드로 표시되는지 확인한다.
 
 JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건너뜀. 프론트 테스트 57개와 빌드 통과.
+
+## 계모임 월간 캘린더 (2026-11-09)
+
+<!-- AI작성: 공유 일정의 API 계약과 검증 결과를 기록한다. -->
+
+승인된 계주(OWNER), 회계(MANAGER), 계원(MEMBER)이 같은 계모임의 일정을 조회한다. 등록은 승인된 계주와 회계만 가능하다. 경로의 groupId는 공통 모임 ID다. 실제 로그인 회원은 서버 인증 속성에서 가져온다.
+
+| 동작 | 메서드와 경로 | 성공 |
+| --- | --- | --- |
+| 월간 일정 조회 | GET /api/saving-groups/{groupId}/calendar?month=2026-11 | 200 |
+| 선택일에 일정 추가 | POST /api/saving-groups/{groupId}/calendar/events | 201 |
+
+조회 응답 예시
+
+```json
+{"success":true,"data":{"canCreate":true,"events":[{"id":"42","title":"정기 모임","date":"2026-11-20","time":"19:00"}]}}
+```
+
+날짜별 상세는 월간 응답에서 선택일의 일정을 표시한다. 일정이 없는 월에는 events가 빈 배열이다. 승인된 일반 계원에게는 canCreate가 false다. 조회 응답에는 Cache-Control: no-store를 설정한다.
+
+등록 요청 및 성공 응답 예시
+
+```json
+{"title":"정기 모임","date":"2026-11-20","time":"19:00"}
+```
+
+```json
+{"success":true,"data":{"id":"42","title":"정기 모임","date":"2026-11-20","time":"19:00"}}
+```
+
+제목은 필수이며 최대 100자다. 날짜와 시각은 한국 현지 날짜와 시각으로 합쳐 저장한다. 시각은 분 단위다. 400은 잘못된 모임 번호, 월, 날짜, 시각 또는 제목, 401은 인증 누락, 403은 대상 모임 미승인·비회원 또는 계원의 등록, 404는 조회할 수 없는 모임에 해당한다. 오류는 기존 공통 error.code와 error.message로 반환한다.
+
+### DB 적용
+
+기존 back/src/main/resources/schema.sql의 group_event를 사용한다. group_id와 writer_id, title, event_date를 저장하며 location은 NULL이다. 대상 MySQL에서 기존 group_event 정의와 FK 적용 여부를 확인한다. 기존 스키마가 적용되어 있으면 별도 DDL이나 이관 작업이 없다. 조회는 group_id와 월 시작 이상·다음 월 시작 미만 범위를 함께 적용한다.
+
+### 검증 결과와 재현 절차
+
+- 백엔드 compileJava와 분리 실행한 캘린더 MockMvc 4건 통과. 계원 조회와 등록 차단, 계주·회계 등록, 날짜·시각 응답, 인증 누락, 잘못된 요청과 교차 모임 접근 차단을 확인했다. 전체 백엔드 테스트 컴파일은 기존 테스트의 누락된 타입 참조로 실패했다.
+- 프런트 npm run build 및 node --test src/api/savingGroups.test.js 50건 통과. 빌드에서 번들 크기 경고가 출력됐다.
+- 실제 MySQL 통합 테스트는 MOA_TEST_DB_ENABLED 설정이 없어 건너뛰었다. 격리된 빈 moa_join_test_* DB에 프로젝트의 기존 테스트 환경변수를 주입하면 생성 키와 저장 후 재조회, 월 경계 및 모임별 분리를 검증할 수 있다.
+- 브라우저에서는 승인 회원으로 상세의 캘린더 탭을 열어 월 이동, 오늘 복귀, 날짜 선택을 확인한다. 계주나 회계로 일정을 등록한 뒤 같은 달을 다시 열어 새로고침 전후를 비교하고, 같은 모임의 다른 승인 계정에서 공유된 일정을 확인한다.
+- Postman에서는 기존 Bearer 인증으로 두 API의 정상 응답, 잘못된 월·빈 제목의 400, 계원의 POST 403, 비회원이나 다른 모임 ID를 사용한 GET·POST 403을 확인한다. 실제 로그인 계정을 사용하는 브라우저와 Postman 검증은 미실행이다.
