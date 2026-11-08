@@ -82,6 +82,32 @@ class SavingGroupCalendarControllerTest {
         verify(mapper, never()).insertCalendarEvent(any());
     }
 
+    // AI작성: 계주·회계는 삭제할 수 있으며 삭제된 일정의 재요청은 404다.
+    @ParameterizedTest
+    @ValueSource(strings = {"OWNER", "MANAGER"})
+    void organizerDeletesOnlyMatchingEvent(String role) throws Exception {
+        membership(role);
+        when(mapper.deleteCalendarEvent(10L, 42L)).thenReturn(1, 0);
+        var path = CALENDAR + "/events/42";
+        mvc.perform(delete(path).requestAttr("memberId", 30L))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        mvc.perform(delete(path).requestAttr("memberId", 30L))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete(CALENDAR + "/events/99").requestAttr("memberId", 30L))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test void rejectsUnauthorizedAndInvalidDeletes() throws Exception {
+        membership("MEMBER");
+        var path = CALENDAR + "/events/42";
+        mvc.perform(delete(path)).andExpect(status().isUnauthorized());
+        mvc.perform(delete(path).requestAttr("memberId", 31L)).andExpect(status().isForbidden());
+        mvc.perform(delete(path).requestAttr("memberId", 30L)).andExpect(status().isForbidden());
+        mvc.perform(delete(CALENDAR + "/events/0").requestAttr("memberId", 30L))
+                .andExpect(status().isBadRequest());
+        verify(mapper, never()).deleteCalendarEvent(any(), any());
+    }
+
     @Test void rejectsInvalidInputsAndCrossGroupAccess() throws Exception {
         membership("OWNER");
         when(mapper.selectSavingGroupDetail(11L)).thenReturn(mock(SavingGroupRow.class));

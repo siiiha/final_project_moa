@@ -69,6 +69,8 @@ class SavingGroupCalendarMySqlIntegrationTest {
                 assertThat(mapper.countCalendarEvents(10L, start, start.plusDays(1))).isEqualTo(1);
                 assertThat(mapper.countCalendarEvents(11L, start, start.plusDays(1))).isEqualTo(1);
                 assertThat(mapper.countCalendarEvents(10L, start.plusDays(1), start.plusDays(2))).isZero();
+                // AI작성: 타 모임 ID로 삭제를 시도해도 일정 행은 남는다.
+                assertThat(mapper.deleteCalendarEvent(11L, event.scheduleId)).isZero();
                 assertThat(mapper.selectCalendarEvents(10L, start, end))
                         .singleElement().satisfies(row -> {
                             assertThat(row.scheduleId()).isEqualTo(event.scheduleId);
@@ -130,8 +132,25 @@ class SavingGroupCalendarMySqlIntegrationTest {
                     executor.awaitTermination(15, TimeUnit.SECONDS);
                 }
                 try (var session = factory.openSession()) {
-                    assertThat(session.getMapper(SavingGroupMapper.class)
-                            .countCalendarEvents(10L, start, start.plusDays(1))).isEqualTo(10);
+                    var mapper = session.getMapper(SavingGroupMapper.class);
+                    assertThat(mapper.countCalendarEvents(10L, start, start.plusDays(1))).isEqualTo(10);
+                    // AI작성: 실제 행을 삭제한 뒤 새 트랜잭션에서 등록 한도가 회복되는지 확인한다.
+                    Long id = mapper.selectCalendarEvents(10L, start, start.plusDays(1)).get(0).scheduleId();
+                    new SavingGroupCalendarServiceImpl(mapper).delete(10L, 31L, id);
+                    assertThat(mapper.selectCalendarEvents(10L, start, start.plusDays(1)))
+                            .noneMatch(row -> row.scheduleId().equals(id));
+                    session.commit();
+                }
+                try (var session = factory.openSession()) {
+                    var mapper = session.getMapper(SavingGroupMapper.class);
+                    assertThat(mapper.countCalendarEvents(10L, start, start.plusDays(1))).isEqualTo(9);
+                }
+                try (var session = factory.openSession()) {
+                    var mapper = session.getMapper(SavingGroupMapper.class);
+                    new SavingGroupCalendarServiceImpl(mapper).create(10L, 30L,
+                            new CreateRequest("삭제 후 등록", start.toLocalDate(), LocalTime.NOON));
+                    assertThat(mapper.countCalendarEvents(10L, start, start.plusDays(1))).isEqualTo(10);
+                    session.commit();
                 }
             } finally {
                 for (String table : createdTables) statement.execute("DROP TABLE " + table);
