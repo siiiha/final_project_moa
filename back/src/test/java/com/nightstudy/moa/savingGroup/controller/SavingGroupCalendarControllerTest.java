@@ -29,6 +29,7 @@ class SavingGroupCalendarControllerTest {
 
     private void membership(String role) {
         when(mapper.selectSavingGroupDetail(10L)).thenReturn(mock(SavingGroupRow.class));
+        when(mapper.selectSavingGroupStatusForUpdate(10L)).thenReturn("02");
         var member = new SavingGroupMembershipRelationRow();
         member.setMembershipStatus("APPROVED");
         member.setMemberRole(role);
@@ -55,6 +56,9 @@ class SavingGroupCalendarControllerTest {
     @ValueSource(strings = {"OWNER", "MANAGER"})
     void organizerCanCreate(String role) throws Exception {
         membership(role);
+        // AI작성: 9건이 저장된 날짜의 10번째 등록을 허용한다.
+        var start = LocalDateTime.of(2026, 11, 20, 0, 0);
+        when(mapper.countCalendarEvents(10L, start, start.plusDays(1))).thenReturn(9);
         when(mapper.insertCalendarEvent(any())).thenAnswer(invocation -> {
             SavingGroupCalendarDto.Insert row = invocation.getArgument(0);
             org.assertj.core.api.Assertions.assertThat(row.writerId).isEqualTo(30L);
@@ -67,9 +71,21 @@ class SavingGroupCalendarControllerTest {
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value("42"));
     }
 
+    @Test void rejectsEleventhEventWithLimitCode() throws Exception {
+        membership("OWNER");
+        var start = LocalDateTime.of(2026, 11, 20, 0, 0);
+        when(mapper.countCalendarEvents(10L, start, start.plusDays(1))).thenReturn(10);
+        mvc.perform(post(CALENDAR + "/events").requestAttr("memberId", 30L)
+                        .contentType(MediaType.APPLICATION_JSON).content(EVENT))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("SAVING_GROUP_DAILY_EVENT_LIMIT"));
+        verify(mapper, never()).insertCalendarEvent(any());
+    }
+
     @Test void rejectsInvalidInputsAndCrossGroupAccess() throws Exception {
         membership("OWNER");
         when(mapper.selectSavingGroupDetail(11L)).thenReturn(mock(SavingGroupRow.class));
+        when(mapper.selectSavingGroupStatusForUpdate(11L)).thenReturn("02");
         var other = "/api/saving-groups/11/calendar";
         mvc.perform(get(other).requestAttr("memberId", 30L).param("month", "2026-11"))
                 .andExpect(status().isForbidden());
