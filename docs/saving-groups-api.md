@@ -665,14 +665,15 @@ DELETE /saving-groups/{savingGroupId}/members/me
 - `savingGroupId`는 양수 Long이며 `saving_group.saving_group_id`다.
 - 요청 본문은 없다. 탈퇴 대상 회원 ID는 URL·쿼리·헤더·본문에서 받지 않고, 서버 인증 처리의 request attribute `memberId`(Long)로만 결정한다.
 - 인증 속성이 없거나 0 이하이면 HTTP 401 `UNAUTHORIZED`를 반환한다.
-- 현재 JWT 인터셉터가 이 브랜치에 연결되지 않았으므로 실제 HTTP 요청은 인증 속성이 없어 401을 반환한다. JWT 병합 시 두 DELETE 경로를 보호하고 `memberId`를 설정해야 한다.
+- 기존 JWT 인증 필터가 설정하는 `memberId`를 두 경로에서 동일하게 사용한다.
 
 ### 처리와 상태 전이
 
 1. `saving_group`과 삭제되지 않은 `groups` 관계를 `FOR UPDATE`로 조회한다.
 2. 계모임 상태가 기존 시작 전 상태 코드 `01(모집중)`인지 확인한다. `00`, `02(진행중)`, `03`, `04`에서는 탈퇴할 수 없다.
 3. 로그인 회원의 해당 `group_member` 관계를 잠금 조회하고 `membership_status = 'APPROVED'`인지 확인한다.
-4. 조회한 `crew_member_id`, 내부 `group_id`, `membership_status = 'APPROVED'`가 모두 일치할 때만 `membership_status`를 `LEFT`로 변경하고 `left_at`에 현재 시각을 기록한다.
+4. 승인 관계의 역할이 일반 계원(`MEMBER`) 또는 회계(`MANAGER`)인지 확인한다. 계주(`OWNER`)는 탈퇴할 수 없다.
+5. 조회한 `crew_member_id`, 내부 `group_id`, `membership_status = 'APPROVED'`가 모두 일치할 때만 `membership_status`를 `LEFT`로 변경하고 `left_at`에 현재 시각을 기록한다.
 
 기존 `group_member.membership_status`의 `LEFT` 및 `left_at` 컬럼을 재사용한다. 물리 삭제·새 DTO·DB 마이그레이션은 추가하지 않는다. 조건부 UPDATE 영향 행이 정확히 1건이 아니면 트랜잭션을 롤백한다.
 
@@ -697,6 +698,7 @@ HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
 | --- | --- | --- |
 | 400 | `BAD_REQUEST` | 계모임 ID가 없거나 0 이하, 경로 타입이 올바르지 않음 |
 | 401 | `UNAUTHORIZED` | 서버 인증 회원 ID가 없거나 0 이하 |
+| 403 | `SAVING_GROUP_LEAVE_FORBIDDEN` | 승인된 관계의 역할이 일반 계원 또는 회계가 아님 |
 | 404 | `SAVING_GROUP_NOT_FOUND` | 계모임이 없거나 삭제됨 |
 | 404 | `SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND` | 로그인 회원의 승인된 계원 관계가 없음 |
 | 409 | `SAVING_GROUP_LEAVE_UNAVAILABLE` | 상태가 모집중(`01`)이 아님 |
@@ -705,15 +707,8 @@ HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
 
 ### 테스트 및 직접 검증
 
-`SavingGroupLeaveServiceTest`는 모집중 승인 계원의 탈퇴, 계원이 아님, `00·02·03·04` 상태 차단, 조건부 UPDATE 실패 오류를 검증한다. `SavingGroupLeaveControllerTest`는 두 경로 별칭의 성공 응답, 비로그인 401, 비계원 404, 진행중 409 공통 응답을 검증한다.
-
-Java 17이 준비된 환경에서 back 폴더에서 실행한다.
-
-```powershell
-.\gradlew.bat test --tests "*SavingGroupLeave*"
-```
-
-실제 JWT와 MySQL 통합은 아직 검증하지 않았다. JWT 병합 후에는 유효 토큰의 성공 요청, 비회원·진행중 모임의 실패, `LEFT`와 `left_at` 저장값, 동시 탈퇴 시 조건부 UPDATE·롤백을 별도 테스트 DB에서 확인해야 한다.
+1. Postman에서 모집 중인 모임의 승인 일반 계원·회계 토큰으로 각각 요청해 HTTP 200과 테스트 DB의 `LEFT`, `left_at` 기록을 확인한다. 계주 403, 미인증 401, 미승인 또는 비회원 404, 진행 중인 모임 409도 확인한다.
+2. 브라우저에서 모집 중인 모임의 승인 일반 계원·회계에게만 탈퇴 버튼이 표시되는지 확인한다. 취소 시 요청이 없어야 하며, 요청 중 중복 전송을 막고, 성공하면 계모임 목록으로 이동한다. 실패하면 같은 확인창에 오류를 표시한다.
 
 <!-- AI작성: 5단계 검색 초기화·결과 건수 표시 동작만 기록한다. -->
 ## 검색 초기화와 결과 건수 표시
