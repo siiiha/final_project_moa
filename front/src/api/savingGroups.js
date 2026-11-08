@@ -419,6 +419,23 @@ export async function approveSavingGroupCreationApplication(approvalId) {
   }
 }
 
+/** AI작성: 공용 계좌 장부의 공개 필드와 서버 페이지 정보만 화면에 전달한다. */
+export async function getSavingGroupTransactions(groupId, { page = 1, signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  const { data: response } = await client.get(`/saving-groups/${id}/account/transactions`, {
+    params: { page }, signal,
+  });
+  if (response?.success !== true || !Array.isArray(response.data) || !response.meta) {
+    throw new Error('거래내역 응답을 확인할 수 없습니다.');
+  }
+  return {
+    items: response.data.map(({ transactedAt, transactionType, amount, balanceAfter }) => ({
+      transactedAt, transactionType, amount, balanceAfter,
+    })),
+    meta: response.meta,
+  };
+}
+
 // AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
 export async function getSavingGroupAccount(groupId, { signal } = {}) {
   const pathId = savingGroupPathId(groupId);
