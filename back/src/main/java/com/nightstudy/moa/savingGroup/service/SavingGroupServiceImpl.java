@@ -749,6 +749,12 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                     "승인 상태의 계원을 찾을 수 없습니다.");
         }
 
+        // AI작성: 계주 탈퇴를 막고 승인된 일반 계원과 회계만 탈퇴를 허용한다.
+        if (!"MEMBER".equals(member.getMemberRole()) && !"MANAGER".equals(member.getMemberRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_LEAVE_FORBIDDEN",
+                    "일반 계원과 회계만 계모임에서 탈퇴할 수 있습니다.");
+        }
+
         int affectedRows = savingGroupMapper.leaveApprovedSavingGroupMember(
                 member.getCrewMemberId(), target.getGroupId());
         if (affectedRows != 1) {

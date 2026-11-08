@@ -40,6 +40,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 본인 탈퇴 요청에는 서버가 인증한 회원 ID만 사용한다.
+    @DeleteMapping("/{savingGroupId}/members/me")
+    public ApiResponse<Void> leaveSavingGroup(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.leaveSavingGroup(savingGroupId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: JWT 속성만 전달하며 매 요청 새 제안이므로 브라우저·중간 캐시에 저장하지 않는다.
     @GetMapping("/{savingGroupId}/turn-orders/recommendations")
     public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderRecommendationResponse>> turnOrderRecommendations(
