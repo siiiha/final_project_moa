@@ -68,6 +68,17 @@ public class SavingGroupController {
         return ApiResponse.ok(result.items(), result.pageMeta());
     }
 
+    // AI작성: 계주 전용 조회 결과를 기존 목록 응답 형식으로 반환한다.
+    @GetMapping("/{savingGroupId}/dues/payment-status")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusResponse>> paymentStatus(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupPaymentStatus(
+                savingGroupId, memberId, java.time.YearMonth.parse(condition.getMonth()), condition.getPage());
+        return ApiResponse.ok(result.items(), result.pageMeta());
+    }
+
     // AI작성: 계좌 원문 없이 회원 전용 정보를 반환하며 모임 소속 검증은 Service에서 수행한다.
     @GetMapping("/{groupId}/account")
     public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse> account(
