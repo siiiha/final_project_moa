@@ -334,35 +334,6 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     private static final String ACTIVE_ACCOUNT_STATUS = "ACTIVE";
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
-    // AI작성: Controller 외 진입에서도 동일한 금융 조회 조건을 검증한다.
-    private static final jakarta.validation.Validator TRANSACTION_VALIDATOR =
-            jakarta.validation.Validation.buildDefaultValidatorFactory().getValidator();
-
-    @Override
-    @Transactional(readOnly = true)
-    public SavingGroupTransactionListResponse getSavingGroupTransactions(
-            Long groupId, Long memberId, SavingGroupTransactionSearchCondition condition) {
-        if (memberId == null || memberId <= 0)
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
-        if (groupId == null || groupId <= 0 || condition == null || !TRANSACTION_VALIDATOR.validate(condition).isEmpty())
-            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "거래내역 조회 조건이 올바르지 않습니다.");
-        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
-            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
-        var relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
-        // AI작성: 현재 승인된 관계와 허용 역할을 모두 만족해야 계좌·거래를 조회한다.
-        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
-                || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
-            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 거래내역을 확인할 수 있습니다.");
-        var account = accountMapper.selectAccount(groupId);
-        if (account == null)
-            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "공용 계좌가 없습니다.");
-        int total = savingGroupMapper.selectSavingGroupTransactionCount(account.getAccountId(), condition);
-        var meta = com.nightstudy.moa.common.dto.PageMeta.of(condition.getPage(), 10, total);
-        var items = meta.getOffset() >= total ? List.<SavingGroupTransactionResponse>of()
-                : savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), condition, meta.getOffset());
-        return new SavingGroupTransactionListResponse(items, meta);
-    }
-
     private final SavingGroupMapper savingGroupMapper;
     // AI작성: 공개 상세 응답과 회원 전용 계좌 응답의 데이터 경계를 분리한다.
     private final com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper accountMapper;

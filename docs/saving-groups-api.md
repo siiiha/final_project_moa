@@ -1931,137 +1931,6 @@ back 폴더에서 `gradlew.bat -I <임시-init-절대경로> test --tests '*Savi
 - 수동 확인: 서로 다른 groupId/savingGroupId를 가진 모집중 모임의 OWNER로 계원 관리 진입 → MEMBER·MANAGER 추방 버튼 확인 → 취소 시 PATCH 없음 → 재가입 불가 문구 확인 후 추방 → 해당 회원 제외 및 성공 안내 확인. 마지막 페이지 1명을 추방한 경우 이전 페이지 이동을 확인한다. 403/404/409/통신 실패 시 목록 유지·확인창 오류, 빠른 연속 클릭 시 PATCH 1건, 진행중·비OWNER의 버튼 미노출, 검색·역할 변경 회귀도 확인한다.
 
 
-## 계모임 공용 계좌 거래내역 조회 (2026-11-06)
-
-<!-- AI작성: 사용자 승인 조건에 따라 내부 거래 조회 API와 화면 계약을 정리한다. -->
-
-### 데이터·권한·경로
-
-- GET /api/saving-groups/{groupId}/account/transactions
-- 별칭: GET /saving-groups/{groupId}/account/transactions
-- groupId는 기존 공용 계좌 조회와 같은 groups.group_id이며 saving_group_id가 아니다.
-- 거래 원천은 기존 group_account와 group_transaction이다. 모임 존재·회원 관계 확인은 기존 SavingGroupMapper 조회를 재사용한다.
-- 로그인 회원의 해당 모임 관계가 APPROVED이고 역할이 OWNER, MANAGER, MEMBER 중 하나인 경우만 허용한다.
-- 비회원·다른 모임 회원·PENDING·REJECTED·LEFT·EXPELLED 및 허용하지 않은 역할은 403이다.
-- JWT에서 설정한 memberId만 사용하며 쿼리로 전달한 회원 번호는 권한 판단에 사용하지 않는다.
-- /api 경로는 기존 SecurityFilterChain 인증을 적용하고, /api 없는 별칭도 Service의 로그인 검사로 401 처리한다.
-- 실제 금융 API·발급 클라이언트·잔액 동기화·입출금·취소는 호출하지 않는다. DB 마이그레이션과 신규 패키지 없음.
-
-### 쿼리
-
-| 이름 | 기본값 | 허용값 및 정책 |
-| --- | --- | --- |
-| page | 1 | 1~214748364 정수. OFFSET 정수 범위 보호. 페이지 크기는 10 고정 |
-| sort | LATEST | LATEST / OLDEST |
-| transactionType | 생략 | 생략 시 전체, DEPOSIT / WITHDRAWAL |
-| minAmount | 생략 | 0 이상, 정수부 최대 13자리·소수부 최대 2자리 |
-| maxAmount | 생략 | 0 이상, 정수부 최대 13자리·소수부 최대 2자리 |
-
-- 금액은 입금·출금 모두 저장된 양수 amount 기준으로 비교한다. minAmount 이상, maxAmount 이하이며 경계값을 포함한다.
-- 한쪽만 지정할 수 있다. 둘 다 지정한 경우 minAmount가 maxAmount보다 크면 400이다.
-- 날짜·검색어·처리 상태·페이지 크기 선택은 지원하지 않는다.
-- LATEST는 transacted_at DESC, transaction_id DESC. OLDEST는 두 컬럼 모두 ASC이다.
-- transaction_id는 정렬에만 사용하고 응답에는 노출하지 않는다. 정렬값의 SQL 문자열 직접 치환은 없다.
-- 집계·목록 SQL은 동일한 계좌·유형·금액 조건을 공유하며 필터링 후 LIMIT 10과 OFFSET을 적용한다.
-
-예: /api/saving-groups/2/account/transactions?page=1&sort=LATEST&transactionType=WITHDRAWAL&minAmount=10000&maxAmount=40000
-
-### 응답
-
-기존 ApiResponse의 data 배열과 meta(PageMeta)를 사용한다.
-
-| 거래 항목 | 타입 | 정책 |
-| --- | --- | --- |
-| transactedAt | LocalDateTime JSON 문자열 | 저장된 거래일시 |
-| transactionType | String | DEPOSIT 또는 WITHDRAWAL |
-| amount | JSON number | 저장된 금액, 화면에서 유형별 부호와 천 단위 콤마·원 표시 |
-| balanceAfter | JSON number 또는 null | 저장된 거래 후 잔액, null은 화면에서 '확인 불가' |
-
-- 계좌번호·상대 계좌·예금주·적요·입금자 실명·거래 ID·제공사 거래 ID·증빙 원본은 응답 DTO와 거래 조회 SELECT에서 제외한다.
-- 처리 상태·처리자·증빙 여부는 기존 거래 구조에 없어 추가하지 않는다.
-- 현재 잔액은 거래 목록에 추가하지 않는다. 화면은 기존 GET /saving-groups/{groupId}/account의 balance를 별도로 사용한다.
-- 현재 잔액은 서비스 내부 장부 잔액이며 은행 실시간 잔액이 아니다. 기존 계좌 조회의 마스킹 정책은 유지한다.
-- 거래가 없거나 요청 페이지가 마지막 페이지를 넘으면 200, data=[]이다. 빈 결과의 meta.totalPages는 기존 PageMeta처럼 0이다.
-- 비로그인 401, 현재 승인 관계 아님 403(SAVING_GROUP_ACCOUNT_FORBIDDEN), 모임 없음·계좌 없음 404(NOT_FOUND).
-- 경로·조건 Validation 오류와 역전된 금액 범위는 기존 공통 예외 응답의 400으로 처리한다.
-
-### 화면 동작
-
-- SavingGroupDetail에서 공통 groupId를 전달하며 역할·관계 변경 시 거래 조회 상태를 초기화한다.
-- 조회 버튼으로 정렬·유형·금액 조건을 적용하고 1페이지부터 요청한다. 페이지 이동은 적용된 조건을 유지한다.
-- 거래 목록의 Mock import와 화면 내 배열 페이징을 제거했다. 기존 Mock 파일 자체는 변경하지 않았다.
-- 조건·페이지·모임 변경과 언마운트 시 요청을 취소하며, 이전 조건의 거래는 로딩 상태에서 숨긴다.
-- 로딩·401·403·404·일반 오류·빈 결과를 구분한다. 실패 시 Mock으로 대체하지 않으며 다시 조회 버튼을 제공한다.
-- 거래 후 잔액이 null이면 현재 잔액으로 대체하지 않는다.
-- PC 표와 모바일 목록은 동일한 네 항목을 표시하고 입력·본문은 16px 이상을 사용한다.
-- 기존 고정 조회 입금/출금 합계와 미구현 다운로드 버튼은 제거했다.
-
-### 단계별 작업 및 커밋
-
-| 단계 | 작업 파일 (기존 폴더 기준) | 커밋 |
-| --- | --- | --- |
-| 1 | back: SavingGroupTransactionSearchCondition/Response/ListResponse.java, SavingGroupMapper.java/XML, SavingGroupTransactionMapperTest.java | d9f951e feat: 계모임 거래내역 조회 DTO와 Mapper 구현 |
-| 2 | back: SavingGroupService.java, SavingGroupServiceImpl.java, SavingGroupTransactionServiceTest.java | ceb1a88 feat: 계모임 거래내역 조회 서비스와 모임원 권한 검증 추가 |
-| 3 | back: SavingGroupController.java, SavingGroupTransactionControllerTest.java, SavingGroupTransactionSecurityTest.java | 11d9c3f feat: 계모임 공용 계좌 거래내역 조회 API 추가 |
-| 4 | front/src/api/savingGroups.js, savingGroupTransactions.test.js | 9678c1d feat: 계모임 거래내역 조회 프론트 API 추가 |
-| 5 | front: SavingGroupTransactionHistoryPanel.jsx, SavingGroupDetail.jsx, SavingGroupTransactionHistoryPanel.test.js | 6f831d7 feat: 계모임 거래내역 화면 필터와 서버 페이징 연결 |
-| 6 | back: SavingGroupTransactionMySqlIntegrationTest.java, SavingGroupTransactionServiceTest.java 권한 회귀 보강, docs/saving-groups-api.md, docs/ai-usage-log.md | test: 계모임 거래내역 조회 통합 검증 및 API 문서화 |
-
-DTO·Mapper → Service → Controller → 프론트 API → 화면 → 통합 검증의 순서는 기존 계금 요청 목록 커밋 5709a5f, a93eb8c, e6e967d, 553b1cc, 8db5e11, 1c1db4b를 참고했다.
-
-### 테스트 데이터와 검증 방법
-
-- Service: Mockito의 모임·회원 관계·계좌·거래 Mapper만 사용한다. OWNER/MANAGER/MEMBER, PENDING/REJECTED/LEFT/EXPELLED, 관계 없음, 모임·계좌 없음, 페이지 및 금액 범위를 검증한다.
-- Controller: MockMvc 실제 바인딩·Validation·응답 직렬화, 기본값, 두 경로, 민감 필드 제외와 400/401/403/404를 검증한다.
-- 보안: 기존 SecurityConfig와 실제 JWT 필터를 로드하고 토큰 검증·세션·Service만 Mock 처리한다.
-- Mapper: 실제 MyBatis XML과 BoundSql로 공통 필터·파라미터 바인딩·안정 정렬·공개 SELECT 컬럼을 검증한다.
-- MySQL 전용: 기존 MOA_TEST_DB_ENABLED=true 방식으로만 활성화한다. jdbc:mysql URL과 비어 있는 moa_join_test_* DB를 강제하고 연결 범위 임시 group_transaction만 사용한다. 다른 계좌 데이터, 9,999/10,000/40,000/40,001원, 같은 시각 다건, 입금/출금, 10건+2건 페이지, NULL 잔액을 검증한다. 실제 금융 호출은 없다.
-- 프론트 API: axios client.get 대체 함수로 요청 조건·빈 목록·공개 필드 선택·오류·취소를 검증한다.
-- 화면: Vite SSR로 실제 JSX를 로드해 PC·모바일 공개 항목, 금액·NULL 잔액·로딩·오류·빈 결과·페이지 버튼을 검증한다.
-
-관련 백엔드 분리 검증은 Java 17과 임시 Gradle init script로 기존의 무관한 테스트 컴파일 오류를 우회한다. 저장소 설정 파일은 변경하지 않는다.
-
-재현 예시( back 폴더, 검증용 임시 init script 생성 후 실행 ):
-
-~~~groovy
-// AI작성: 관련 테스트만 컴파일하는 임시 Gradle init script의 내용.
-allprojects {
-    afterEvaluate {
-        if (plugins.hasPlugin('java')) {
-            sourceSets.test.java.setIncludes(['**/SavingGroupTransaction*Test.java', '**/AccountNumberCipherTest.java', '**/SavingGroupAccountServiceTest.java', '**/SavingGroupAccountControllerTest.java'])
-        }
-    }
-}
-~~~
-
-~~~powershell
-# AI작성: 경로는 각 개발 환경에 맞게 지정. 금융·실제 DB 호출 없이 실행한다.
-$env:MOA_TEST_DB_ENABLED = 'false'
-.\gradlew.bat '-Dorg.gradle.java.installations.paths=C:/dev/jdk-17.0.12_windows-x64_bin/jdk-17.0.12' --offline --init-script build/moa-transactions.gradle test --tests '*SavingGroupTransaction*Test' --tests '*SavingGroupAccountServiceTest' --tests '*SavingGroupAccountControllerTest'
-# front 폴더에서 실행
-node --test src/api/*.test.js src/components/savingGroup/*.test.js
-npm run build
-~~~
-
-Postman/브라우저 후속 확인:
-
-1. 기존 로그인 방식으로 발급받은 본인 JWT를 사용하되 토큰을 문서·코드·커밋에 기록하지 않는다.
-2. APPROVED OWNER/MANAGER/MEMBER 각각 동일 모임 거래 조회가 되는지 확인한다.
-3. 최소 10000·최대 40000 입력 시 경계 포함 거래만 나오고, 입출금·정렬을 바꾼 뒤 조회하면 1페이지로 돌아오는지 확인한다.
-4. 11건 이상 내부 테스트 거래로 다음 페이지를 확인한다. 현재 잔액과 거래 후 잔액이 구분되는지 확인한다.
-5. 비로그인·타모임·PENDING·LEFT·EXPELLED는 401/403, 없는 모임·없는 계좌는 404, 잘못된 조건은 400인지 확인한다.
-6. 모바일 폭에서 네 항목과 필터 입력이 읽히는지, 빠른 조건 변경·메뉴 이동 시 이전 응답이 표시되지 않는지 확인한다.
-
-### 실행 결과 및 남은 검증
-
-- 거래내역 신규 테스트 32건 통과·MySQL 전용 1건 건너뜀. 기존 계좌 Service·Controller 회귀 포함 총 42건 통과·1건 건너뜀.
-- 프론트 API·계모임 컴포넌트 회귀 140건 통과. 프로덕션 빌드 통과.
-- 변경 대상 정적 검사 오류 없음. SavingGroupDetail의 기존 미사용 선언 경고 2개, 기존 빌드 번들 크기 경고 유지.
-- 확대 계모임 회귀에서 기존 SavingGroupDeletionApplicationServiceTest의 ownerCanRequestDeletion, duplicatePendingRequestIsRejected 2건이 실패했다. 기존 API 문서에도 동일 실패가 기록돼 있으며 해당 기능은 변경하지 않았다.
-- 확대 회귀 컴파일에서는 기존 생성자 불일치가 있는 SavingGroupPayoutDecisionSecurityTest, SavingGroupMemberMySqlIntegrationTest, SavingGroupPayoutDecisionTransactionTest 3개 파일을 제외했다.
-- 실제 MySQL 전용 테스트는 DB 활성화·접속 정보를 사용하지 않아 건너뛰었다. 실제 DB 연결 및 브라우저 클릭 검증은 후속 확인 대상이다.
-- 구현 범위에 미확정 필드·추가 금융 연동 TODO는 없다. 적요·증빙·상태 등 신규 공개 항목과 금융 연동은 별도 정책 확정 작업이다.
-
 ## 계모임 공용 계좌 테스트 입금 (2026-11-06)
 
 AI작성: 실제 돈 이동·입금 확인·금융 API·발급·웹훅 없이 내부 원장만 변경한다. 상세 설계·DB 담당자 적용 전제·단계별 변경 파일·실제 커밋은 [테스트 입금 작업 기록](saving-group-deposit-design.md)을 참고한다. 신규 보조 테이블은 담당자 적용 대기이며 이번 코드 작업에서 schema.sql과 실제 DB는 변경하지 않았다.
@@ -2266,25 +2135,9 @@ Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트�
 
 실제 JWT 필터·상세 Service·Controller 응답에 순번계/친목계 유형이 포함되는 회귀 테스트와 상세 화면 전체 SSR의 버튼 노출/비노출 테스트를 추가했다. 백엔드 재시작 후 승인 OWNER로 순번계 상세의 계원 관리에서 순번 추천 버튼을 확인한다. Network의 상세 응답 data.groupType이 순번계인지 확인하면 된다.
 
-## 회비 납부 모달·입금 요청자·거래 후 잔액 수정 (2026-11-06)
+## 회비 납부 모달·거래 후 잔액 수정 (2026-11-06)
 
-AI작성: 사용자 승인한 후속 수정이다. 이 절은 위 초기 입금 명세 중 balance_after 미저장 및 네 가지 거래 공개 항목 설명을 대체한다. 입금/확인 경로·본문·JWT·권한·5분 정책은 유지한다. 추가 DB 컬럼·마이그레이션·금융 API 호출은 없다.
-
-### 거래내역 응답 추가 필드
-
-GET /api/saving-groups/{groupId}/account/transactions의 각 항목에 depositRequesterName을 추가한다.
-
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| transactedAt | LocalDateTime ISO 문자열 | 기존 거래일시 |
-| transactionType | DEPOSIT / WITHDRAWAL | 기존 거래 유형 |
-| amount | 숫자 | 기존 금액 |
-| balanceAfter | 숫자 또는 null | 신규 테스트 입금은 거래 직후 내부 장부 잔액 저장. 기존 NULL은 유지 |
-| depositRequesterName | 문자열 또는 null | 현재 회원 이름의 첫 글자와 나머지 별표. 실제 은행 예금주명이 아님 |
-
-예시: 테스트 회원의 마스킹 이름은 김**처럼 표시한다. 완료된 Mock 입금 기록을 transaction_id·account_id로 연결하고 미삭제 members의 현재 name을 조회한다. 출금·연결 없는 기존 거래·삭제 회원·회원 정보 없음은 null이며 화면에서는 —로 표시한다. 이름이 변경되면 현재 이름이 표시된다. 원문 이름·회원 ID·내부 계좌 ID는 응답하지 않는다.
-
-거래 목록은 원장을 기준으로 LEFT JOIN하고 요청 기록 transaction_id의 기존 UNIQUE를 사용한다. 집계는 원장만 사용하여 건수·기존 필터·10건 페이징·안정 정렬을 유지한다. 프론트는 이름이 누락된 기존 응답도 null로 처리하지만 마스킹되지 않은 이름은 INVALID_RESPONSE로 거절한다.
+AI작성: 사용자 승인한 후속 수정이다. 이 절은 위 초기 입금 명세 중 balance_after 미저장을 대체한다. 입금/확인 경로·본문·JWT·권한·5분 정책은 유지한다. 추가 DB 컬럼·마이그레이션·금융 API 호출은 없다.
 
 ### 새 입금의 거래 후 잔액
 
@@ -2309,7 +2162,7 @@ DECIMAL(15,2) 저장 범위를 벗어나면 HTTP 409 DEPOSIT_BALANCE_OVERFLOW이
 
 입금·계좌·거래내역 백엔드 72건 중 70건 통과·전용 MySQL 2건 건너뜀. 프론트 API·계모임 SSR 회귀 전체와 프로덕션 빌드 통과. 기존 대형 번들 경고 유지, 변경 프론트 oxlint 오류 없음. 실제 DB·브라우저 상호작용은 미실시다. 전체 백엔드의 기존 무관한 컴파일 오류를 피하기 위해 저장소 설정을 바꾸지 않고 임시 init script로 관련 테스트만 실행했다.
 
-Postman에서는 기존 입금/확인 요청 후 거래내역 GET으로 새 balanceAfter와 마스킹된 depositRequesterName을 확인한다. 다른 회원·출금·연결 없는 거래·정확히 5분 경계·확인 재전송·경쟁 요청도 전용 DB에서 확인한다. 브라우저에서는 회비 납부 → 입력 → 입금 → 완료 모달 → 잔액/목록 갱신 및 중복 취소·실패·결과 불명확·모바일·키보드를 확인한다.
+Postman에서는 입금·확인 요청 후 계좌 조회에서 장부 잔액을 확인한다. 다른 회원·출금·연결 없는 거래·정확히 5분 경계·확인 재전송·경쟁 요청도 전용 DB에서 확인한다. 브라우저에서는 회비 납부 → 입력 → 입금 → 완료 모달 → 잔액 갱신 및 중복 취소·실패·결과 불명확·모바일·키보드를 확인한다.
 
 단계별 모든 파일·실제 커밋과 후속 검증은 [테스트 입금 설계·작업 기록](saving-group-deposit-design.md)의 최신 수정 이력을 따른다.
 

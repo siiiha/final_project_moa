@@ -250,7 +250,6 @@ function SavingGroupDetailPage() {
             </EmptyCard>
           ) : (
             <SavingGroupDetail key={`${id}-${authVersion}`} group={visibleGroup}
-              transactionRevision={accountRetry}
               accountPanel={canReadAccount ? <SavingGroupAccountCard state={currentAccount}
                 depositMessage={depositResult?.id === id && depositResult?.authVersion === authVersion ? depositResult.message : null}
                 canDeposit={visibleGroup.status === '02'}

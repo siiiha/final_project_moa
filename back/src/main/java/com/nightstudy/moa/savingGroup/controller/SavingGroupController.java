@@ -49,16 +49,6 @@ public class SavingGroupController {
         response.setHeader("Cache-Control", "no-store");
         return ApiResponse.ok(savingGroupService.getTurnOrderRecommendations(savingGroupId, memberId));
     }
-    // AI작성: JWT 회원과 검증된 조건만 전달하며 권한·페이징 처리는 Service에 위임한다.
-    @GetMapping("/{groupId}/account/transactions")
-    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionResponse>> transactions(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
-            @RequestAttribute(name = "memberId", required = false) Long memberId,
-            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionSearchCondition condition) {
-        var result = savingGroupService.getSavingGroupTransactions(groupId, memberId, condition);
-        return ApiResponse.ok(result.getItems(), result.getPageMeta());
-    }
-
     // AI작성: 계좌 원문 없이 회원 전용 정보를 반환하며 모임 소속 검증은 Service에서 수행한다.
     @GetMapping("/{groupId}/account")
     public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse> account(
