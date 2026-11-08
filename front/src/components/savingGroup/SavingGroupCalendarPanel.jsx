@@ -89,6 +89,8 @@ const Form = styled.form`
 `;
 
 const week = ['일', '월', '화', '수', '목', '금', '토'];
+// AI작성: 서버의 선택일 등록 상한과 같은 값으로 버튼 상태를 안내한다.
+const dailyEventLimit = 10;
 const seoulDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' });
 const detailDate = new Intl.DateTimeFormat('ko-KR', {
   month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC',
@@ -133,6 +135,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
     eventsByDate.get(event.date).push(event);
   }
   const selectedEvents = eventsByDate.get(selected) ?? [];
+  const limitReached = selectedEvents.length >= dailyEventLimit;
   const first = monthDate(month).getUTCDay();
   const days = monthDate(month, 1, 0).getUTCDate();
   const cells = Math.ceil((first + days) / 7) * 7;
@@ -150,7 +153,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
 
   async function save(event) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || !current?.data?.canCreate || limitReached) return;
     if (!title.trim()) {
       setSaveError('일정 제목을 입력해 주세요.');
       return;
@@ -172,6 +175,8 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
       setTime('');
     } catch (error) {
       setSaveError(error.message || '일정을 저장하지 못했습니다.');
+      // AI작성: 다른 회원이 마지막 자리를 등록했으면 서버의 최신 월간 일정을 조회한다.
+      if (error.code === 'SAVING_GROUP_DAILY_EVENT_LIMIT') setRetry(value => value + 1);
     } finally {
       setSaving(false);
     }
@@ -186,7 +191,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
           <button type="button" onClick={() => moveMonth(1)} disabled={saving || month === '9999-12'}>다음 달</button>
           <button type="button" onClick={() => selectDate(seoulDate.format(new Date()))} disabled={saving}>오늘</button>
           {current?.data?.canCreate && (
-            <Primary type="button" onClick={() => setFormOpen(true)} disabled={saving}>+ 일정 추가</Primary>
+            <Primary type="button" onClick={() => setFormOpen(true)} disabled={saving || limitReached}>+ 일정 추가</Primary>
           )}
         </Toolbar>
         <Grid>
@@ -210,6 +215,22 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
       </Card>
       <Card aria-label="선택한 날짜의 일정">
         <DetailTitle>{detailDate.format(new Date(selected))}</DetailTitle>
+        {limitReached && current?.data?.canCreate && !saveError && (
+          <p>하루에 최대 10개까지 등록할 수 있습니다.</p>
+        )}
+        {/* AI작성: 등록 폼은 선택일 제목 아래에 열리고 목록은 그 아래에 표시한다. */}
+        {formOpen && (
+          <Form onSubmit={save}>
+            <h4>선택한 날짜에 일정 등록</h4>
+            <label>일정 제목<input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={100} required disabled={saving} /></label>
+            <label>시각<input type="time" value={time} onChange={event => setTime(event.target.value)} required disabled={saving} /></label>
+            {saveError && <p role="alert">{saveError}</p>}
+            <Toolbar>
+              <Primary type="submit" disabled={saving || !current?.data?.canCreate || limitReached}>{saving ? '저장 중' : '일정 저장'}</Primary>
+              <button type="button" disabled={saving} onClick={() => { setFormOpen(false); setSaveError(''); }}>취소</button>
+            </Toolbar>
+          </Form>
+        )}
         <h4>일정</h4>
         {!current && <p role="status">일정을 불러오는 중입니다.</p>}
         {current?.error && (
@@ -222,18 +243,6 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
             ))}
           </ul>
         ))}
-        {formOpen && current?.data?.canCreate && (
-          <Form onSubmit={save}>
-            <h4>선택한 날짜에 일정 등록</h4>
-            <label>일정 제목<input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={100} required disabled={saving} /></label>
-            <label>시각<input type="time" value={time} onChange={event => setTime(event.target.value)} required disabled={saving} /></label>
-            {saveError && <p role="alert">{saveError}</p>}
-            <Toolbar>
-              <Primary type="submit" disabled={saving}>{saving ? '저장 중' : '일정 저장'}</Primary>
-              <button type="button" disabled={saving} onClick={() => { setFormOpen(false); setSaveError(''); }}>취소</button>
-            </Toolbar>
-          </Form>
-        )}
       </Card>
     </Layout>
   );
