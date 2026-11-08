@@ -336,7 +336,7 @@ test('지역 코드는 01~10 순서이며 카드는 기존 필드와 표시 형�
   assert.equal(card.district, '서울');
 });
 
-// AI작성: 미가입·비승인은 공지만, 회계·계원은 같은 여섯 탭, 계주는 아홉 탭이다.
+// AI작성: 거래 내역에서 지출 항목을 함께 다루므로 역할별 메뉴는 공통 거래 내역만 제공한다.
 test('승인 역할별 메뉴와 미정의 역할의 권한 축소', () => {
   const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
   for (const role of [null, undefined, '', 'PENDING', 'REJECTED', 'LEFT', 'ADMIN']) {

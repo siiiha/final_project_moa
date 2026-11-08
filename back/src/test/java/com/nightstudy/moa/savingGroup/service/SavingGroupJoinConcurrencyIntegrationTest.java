@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -128,11 +129,13 @@ public class SavingGroupJoinConcurrencyIntegrationTest {
                 savingService = transactionalProxy(new SavingGroupServiceImpl(
                         template.getMapper(SavingGroupMapper.class),
                         org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper.class),
-                        new AccountNumberCipher(new com.nightstudy.moa.common.config.AccountEncryptionProperties())), SavingGroupService.class);
+                        new AccountNumberCipher(new com.nightstudy.moa.common.config.AccountEncryptionProperties()),
+                        org.mockito.Mockito.mock(NotificationService.class)), SavingGroupService.class);
                 assertThat(AopUtils.isAopProxy(savingService)).isTrue();
             } else {
                 smallService = transactionalProxy(new SmallGroupServiceImpl(
-                        template.getMapper(SmallGroupMapper.class)), SmallGroupService.class);
+                        template.getMapper(SmallGroupMapper.class),
+                        org.mockito.Mockito.mock(NotificationService.class)), SmallGroupService.class);
                 assertThat(AopUtils.isAopProxy(smallService)).isTrue();
             }
         } catch (Exception | AssertionError failure) {

@@ -10,13 +10,27 @@ export async function loginMember(email, password) {
     return response.data.data;
 }
 
-export async function getMyProfile(token) {
-    const response = await client.get('/members/me', {
+// AI작성: 같은 로그인 토큰으로 동시에 요청하면 진행 중인 조회를 함께 사용합니다.
+const profileRequests = new Map();
+
+export function getMyProfile(token) {
+    if (profileRequests.has(token)) {
+        return profileRequests.get(token);
+    }
+
+    const request = client.get('/members/me', {
         headers: {
             Authorization: `Bearer ${token}`,
         },
-    });
-    return response.data.data;
+    })
+        .then((response) => response.data.data)
+        .finally(() => {
+            // AI작성: 완료 후에는 보관하지 않아 다음 조회에서 최신 정보를 받습니다.
+            profileRequests.delete(token);
+        });
+
+    profileRequests.set(token, request);
+    return request;
 }
 
 export async function getMypageVerification({ signal } = {}) {
@@ -169,9 +183,17 @@ export async function signupMember(request) {
     return response.data.data;
 }
 
-// AI작성: 로그인 인증을 포함하여 사진 파일을 가져옵니다.
-export async function getMyProfileImage(token, imageUrl) {
-    const response = await client.get(
+// AI작성: 같은 로그인 토큰과 사진 주소의 동시 조회를 하나로 합칩니다.
+const profileImageRequests = new Map();
+
+export function getMyProfileImage(token, imageUrl) {
+    const requestKey = JSON.stringify([token, imageUrl]);
+
+    if (profileImageRequests.has(requestKey)) {
+        return profileImageRequests.get(requestKey);
+    }
+
+    const request = client.get(
         imageUrl.replace(/^\/api\//, '/'),
         {
             headers: {
@@ -179,9 +201,15 @@ export async function getMyProfileImage(token, imageUrl) {
             },
             responseType: 'blob',
         },
-    );
+    )
+        .then((response) => response.data)
+        .finally(() => {
+            // AI작성: 성공·실패 후 요청을 제거해 다음 조회와 재시도를 허용합니다.
+            profileImageRequests.delete(requestKey);
+        });
 
-    return response.data;
+    profileImageRequests.set(requestKey, request);
+    return request;
 }
 
 // AI작성: 프로필 사진을 삭제합니다.

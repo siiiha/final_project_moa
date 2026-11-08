@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.savingGroup.dto.*;
@@ -15,7 +16,7 @@ class SavingGroupAccountServiceTest {
     SavingGroupMapper mapper = mock(SavingGroupMapper.class);
     VirtualAccountStorageMapper accounts = mock(VirtualAccountStorageMapper.class);
     AccountNumberCipher cipher = AccountNumberCipherTest.cipher();
-    SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper, accounts, cipher);
+    SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper, accounts, cipher, org.mockito.Mockito.mock(NotificationService.class));
     void member(String role, String status) {
         when(mapper.selectSavingGroupDetail(2L)).thenReturn(new SavingGroupRow());
         var relation = new SavingGroupMembershipRelationRow(); relation.setMemberRole(role); relation.setMembershipStatus(status);

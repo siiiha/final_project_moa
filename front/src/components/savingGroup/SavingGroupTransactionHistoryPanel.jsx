@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
+import { expenseCategories } from '../../constants/expenseCategories';
 import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
 
 const Panel = styled.section`
@@ -43,11 +44,24 @@ const DownloadButton = styled(Button)`
   }
 `;
 
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 8px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: grid;
+  }
+`;
+
 const Summary = styled.div`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
     grid-template-columns: 1fr;
@@ -80,7 +94,7 @@ const SummaryValue = styled.strong`
 const FilterForm = styled.form`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) minmax(120px, 1fr) auto;
+  grid-template-columns: repeat(5, minmax(120px, 1fr)) auto;
   gap: 10px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -123,7 +137,7 @@ const Select = styled.select`
   padding: 0 11px;
   color: ${({ theme }) => theme.colors.text};
   background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${({ $needsReview, theme }) => ($needsReview ? theme.colors.danger : theme.colors.border)};
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 12px;
 
@@ -198,11 +212,6 @@ const Table = styled.table`
     font-weight: 700;
   }
 
-  td:nth-child(1),
-  td:nth-child(3) {
-    text-align: left;
-  }
-
   tbody tr:last-child td {
     border-bottom: 0;
   }
@@ -251,6 +260,32 @@ const MobileDescription = styled.strong`
   font-size: 12px;
 `;
 
+const Category = styled.span`
+  display: inline-block;
+  text-align: center;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 11px;
+  font-weight: 700;
+`;
+
+const CategorySelect = styled(Select)`
+  width: auto;
+  min-width: 94px;
+  text-align: center;
+`;
+
+const PayoutCategory = styled(Category)`
+  color: ${({ theme }) => theme.colors.secondaryText};
+`;
+
+const ReviewCategory = styled(Category)`
+  display: inline-block;
+  padding: 3px 6px;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
 const MobileInfo = styled.dl`
   margin-top: 10px;
   display: grid;
@@ -293,21 +328,33 @@ const Notice = styled.p`
 `;
 
 const PAGE_SIZE = 10;
+const MOCK_SAVE_DELAY = 400;
 
 const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
 
-function SavingGroupTransactionHistoryPanel() {
-  const [draftFilters, setDraftFilters] = useState({ startDate: '2026-09-01', endDate: '2026-10-03', type: '전체' });
+function SavingGroupTransactionHistoryPanel({ myRole }) {
+  // AI작성: 실제 통장 거래 API 전까지 분류 수정 결과는 화면 상태에서만 확인한다.
+  const [transactions, setTransactions] = useState(savingGroupTransactions);
+  const [draftFilters, setDraftFilters] = useState({
+    startDate: '2026-09-01', endDate: '2026-10-03', type: '전체', purposeType: '전체', category: '전체',
+  });
   const [appliedFilters, setAppliedFilters] = useState(draftFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [isDownloadPreparing, setIsDownloadPreparing] = useState(false);
+  const [hasCategoryChanges, setHasCategoryChanges] = useState(false);
+  const [isCategorySaving, setIsCategorySaving] = useState(false);
+  const [categoryMessage, setCategoryMessage] = useState('');
+  const canEditCategory = myRole === 'OWNER' || myRole === 'MANAGER';
+  const reviewRequiredCount = transactions.filter((transaction) => transaction.category === '확인 필요').length;
 
-  const filteredTransactions = useMemo(() => savingGroupTransactions.filter((transaction) => {
+  const filteredTransactions = useMemo(() => transactions.filter((transaction) => {
     const matchesStartDate = !appliedFilters.startDate || transaction.date >= appliedFilters.startDate;
     const matchesEndDate = !appliedFilters.endDate || transaction.date <= appliedFilters.endDate;
     const matchesType = appliedFilters.type === '전체' || transaction.type === appliedFilters.type;
-    return matchesStartDate && matchesEndDate && matchesType;
-  }), [appliedFilters]);
+    const matchesPurposeType = appliedFilters.purposeType === '전체' || transaction.purposeType === appliedFilters.purposeType;
+    const matchesCategory = appliedFilters.category === '전체' || transaction.category === appliedFilters.category;
+    return matchesStartDate && matchesEndDate && matchesType && matchesPurposeType && matchesCategory;
+  }), [appliedFilters, transactions]);
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
   const visibleTransactions = filteredTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
@@ -327,14 +374,41 @@ function SavingGroupTransactionHistoryPanel() {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
   };
 
+  const handleCategoryChange = (transactionId, category) => {
+    setTransactions((current) => current.map((transaction) => (
+      transaction.id === transactionId && transaction.purposeType === '일반 지출'
+        ? { ...transaction, category }
+        : transaction
+    )));
+    setHasCategoryChanges(true);
+    setCategoryMessage('');
+  };
+
+  const handleCategorySave = async () => {
+    if (!hasCategoryChanges || isCategorySaving) return;
+    setIsCategorySaving(true);
+    // AI작성: 실제 API 연결 전에도 저장 중 상태를 보여주기 위해 Mock 응답 시간을 둔다.
+    await new Promise((resolve) => window.setTimeout(resolve, MOCK_SAVE_DELAY));
+    setHasCategoryChanges(false);
+    setCategoryMessage('변경한 출금 분류를 저장했습니다.');
+    setIsCategorySaving(false);
+  };
+
   return (
     <Panel>
       <Header>
         <div>
           <Title>공용 통장 거래내역</Title>
-          <Description>모임 자금의 입출금 내역입니다. 잔액과 변동 내역을 확인할 수 있습니다.</Description>
+          <Description>모임 자금의 입출금 내역입니다. 출금은 가맹점명과 지출 항목을 함께 확인합니다.</Description>
         </div>
-        <DownloadButton type="button" $variant="secondary" onClick={handleDownload}>내역 다운로드</DownloadButton>
+        <HeaderActions>
+          {canEditCategory && (
+            <DownloadButton type="button" disabled={!hasCategoryChanges || isCategorySaving} onClick={handleCategorySave}>
+              {isCategorySaving ? '저장 중...' : '분류 저장'}
+            </DownloadButton>
+          )}
+          <DownloadButton type="button" $variant="secondary" onClick={handleDownload}>내역 다운로드</DownloadButton>
+        </HeaderActions>
       </Header>
 
       <Summary>
@@ -349,6 +423,10 @@ function SavingGroupTransactionHistoryPanel() {
         <SummaryCard>
           <SummaryLabel>조회 출금</SummaryLabel>
           <SummaryValue>280,000원</SummaryValue>
+        </SummaryCard>
+        <SummaryCard>
+          <SummaryLabel>확인 필요 출금</SummaryLabel>
+          <SummaryValue>{reviewRequiredCount}건</SummaryValue>
         </SummaryCard>
       </Summary>
 
@@ -377,6 +455,24 @@ function SavingGroupTransactionHistoryPanel() {
             <option value="출금">출금</option>
           </Select>
         </Field>
+        <Field>
+          거래 목적
+          <Select value={draftFilters.purposeType} onChange={(event) => setDraftFilters((current) => ({ ...current, purposeType: event.target.value }))}>
+            <option value="전체">전체</option>
+            <option value="회비">회비</option>
+            <option value="일반 지출">일반 지출</option>
+            <option value="계금 지급">계금 지급</option>
+          </Select>
+        </Field>
+        <Field>
+          분류 항목
+          <Select value={draftFilters.category} onChange={(event) => setDraftFilters((current) => ({ ...current, category: event.target.value }))}>
+            <option value="전체">전체</option>
+            <option value="회비">회비</option>
+            <option value="계금 지급">계금 지급</option>
+            {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+          </Select>
+        </Field>
         <SearchButton type="submit">조회</SearchButton>
       </FilterForm>
 
@@ -387,17 +483,19 @@ function SavingGroupTransactionHistoryPanel() {
             <TableWrap>
               <Table>
                 <colgroup>
-                  <col width="22%" />
-                  <col width="14%" />
-                  <col width="26%" />
                   <col width="18%" />
-                  <col width="20%" />
+                  <col width="12%" />
+                  <col width="24%" />
+                  <col width="14%" />
+                  <col width="16%" />
+                  <col width="16%" />
                 </colgroup>
                 <thead>
                   <tr>
                     <th scope="col">일시</th>
                     <th scope="col">구분</th>
-                    <th scope="col">내용</th>
+                    <th scope="col">거래처·가맹점명</th>
+                    <th scope="col">분류 항목</th>
                     <th scope="col">금액</th>
                     <th scope="col">잔액</th>
                   </tr>
@@ -405,9 +503,26 @@ function SavingGroupTransactionHistoryPanel() {
                 <tbody>
                   {visibleTransactions.map((transaction) => (
                     <tr key={transaction.id}>
-                      <td>{`${transaction.date.slice(5).replace('-', '.')} ${transaction.time}`}</td>
+                      <td>{`${transaction.date.replaceAll('-', '.')} ${transaction.time}`}</td>
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
-                      <td>{transaction.description}</td>
+                      {/* AI작성: 통장 적요와 별도로 가맹점명·입금자를 표시해 분류 기준을 분명히 한다. */}
+                      <td>{transaction.merchantName}</td>
+                      <td>
+                        {transaction.purposeType === '일반 지출' && canEditCategory ? (
+                          <CategorySelect
+                            aria-label={`${transaction.merchantName} 지출 항목`}
+                            $needsReview={transaction.category === '확인 필요'}
+                            value={transaction.category}
+                            onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
+                          >
+                            {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                          </CategorySelect>
+                        ) : transaction.purposeType === '계금 지급'
+                          ? <PayoutCategory>계금 지급</PayoutCategory>
+                          : transaction.category === '확인 필요'
+                            ? <ReviewCategory>확인 필요</ReviewCategory>
+                            : <Category>{transaction.category}</Category>}
+                      </td>
                       <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
                       <td>{`${transaction.balance.toLocaleString()}원`}</td>
                     </tr>
@@ -423,10 +538,27 @@ function SavingGroupTransactionHistoryPanel() {
                     <TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge>
                     <Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount>
                   </MobileTop>
-                  <MobileDescription>{transaction.description}</MobileDescription>
+                  <MobileDescription>{transaction.merchantName}</MobileDescription>
                   <MobileInfo>
                     <dt>일시</dt>
                     <dd>{`${transaction.date} ${transaction.time}`}</dd>
+                    <dt>분류 항목</dt>
+                    <dd>
+                      {transaction.purposeType === '일반 지출' && canEditCategory ? (
+                        <CategorySelect
+                          aria-label={`${transaction.merchantName} 지출 항목`}
+                          $needsReview={transaction.category === '확인 필요'}
+                          value={transaction.category}
+                          onChange={(event) => handleCategoryChange(transaction.id, event.target.value)}
+                        >
+                          {expenseCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                        </CategorySelect>
+                      ) : transaction.purposeType === '계금 지급'
+                        ? <PayoutCategory>계금 지급</PayoutCategory>
+                        : transaction.category === '확인 필요'
+                          ? <ReviewCategory>확인 필요</ReviewCategory>
+                          : <Category>{transaction.category}</Category>}
+                    </dd>
                     <dt>잔액</dt>
                     <dd>{`${transaction.balance.toLocaleString()}원`}</dd>
                   </MobileInfo>
@@ -460,7 +592,9 @@ function SavingGroupTransactionHistoryPanel() {
             </PageButton>
           </Pagination>
         )}
+        {categoryMessage && <Notice role="status">{categoryMessage}</Notice>}
         {isDownloadPreparing && <Notice role="status">거래 내역 다운로드를 준비할 예정입니다.</Notice>}
+        <Notice>계금 지급은 계원에게 돌려주는 금액으로, 일반 지출 분류·통계·학습 대상에 포함하지 않습니다.</Notice>
       </ListCard>
     </Panel>
   );

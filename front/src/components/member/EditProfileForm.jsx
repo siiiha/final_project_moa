@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { FiCamera } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -6,7 +6,6 @@ import Button from '../common/Button';
 import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
 import {
-  getMyProfile,
   updateMyProfile,
   memberInterestOptions,
   uploadMyProfileImage,
@@ -238,78 +237,49 @@ const ErrorNotice = styled.p`
   line-height: 1.5;
 `;
 
-function EditProfileForm() {
+// AI작성: 비밀번호 오류를 기존 서비스의 빨간색으로 안내합니다.
+const PasswordFeedback = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 13px;
+  line-height: 1.5;
+`;
+
+function EditProfileForm({ initialProfile }) {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const clearToken = useAuthStore((state) => state.clearToken);
   const photoInputRef = useRef(null);
-  const [profile, setProfile] = useState(null);
-  const [nickname, setNickname] = useState('');
-  const [selectedInterests, setSelectedInterests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // AI작성: 상위 화면에서 조회한 정보를 사용해 추가 조회 없이 입력칸을 채웁니다.
+  const [profile, setProfile] = useState(initialProfile);
+  const [nickname, setNickname] = useState(initialProfile?.nickname ?? '');
+  const [selectedInterests, setSelectedInterests] = useState(
+    () => (initialProfile?.interests ?? []).map((interest) => interest.interestId),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  // AI작성: 비밀번호를 변경할 때만 입력 조건과 확인값을 검사합니다.
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
+  const [isPasswordConfirmTouched, setIsPasswordConfirmTouched] = useState(false);
+
+  const passwordChangeRequested =
+    newPassword !== '' || confirmNewPassword !== '';
+
+  const passwordError = !passwordChangeRequested
+    ? ''
+    : newPassword.length < 8 || newPassword.length > 20
+      ? '비밀번호는 8~20자로 입력해 주세요.'
+      : !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(newPassword)
+        ? '영문, 숫자, 특수문자를 각각 하나 이상 포함해 주세요.'
+        : '';
   const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
     useState(false);
 
   // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
   const [photoStatus, setPhotoStatus] = useState('');
-
-  // 수정 화면에 현재 회원정보를 채움.
-  useEffect(() => {
-    if (!token) {
-      navigate('/member/login', { replace: true });
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadProfile() {
-      setIsLoading(true);
-      setErrorMessage('');
-      setProfile(null);
-
-      try {
-        const data = await getMyProfile(token);
-
-        if (!data) {
-          throw new Error('회원정보가 없습니다.');
-        }
-
-        if (!cancelled) {
-          setProfile(data);
-          setNickname(data.nickname ?? '');
-          setSelectedInterests(
-            (data.interests ?? []).map((interest) => interest.interestId),
-          );
-        }
-      } catch (error) {
-        if (cancelled) return;
-
-        if (error.response?.status === 401) {
-          clearToken();
-          navigate('/member/login', { replace: true });
-          return;
-        }
-
-        setErrorMessage(
-          error.response?.data?.error?.message ??
-          '회원정보를 불러오지 못했습니다.',
-        );
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    loadProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token, clearToken, navigate]);
 
   // AI작성: 기존 선택은 해제할 수 있고, 새 선택은 최대 3개로 제한한다.
   const toggleInterest = (interestId) => {
@@ -337,25 +307,16 @@ function EditProfileForm() {
       return;
     }
 
-    // AI작성: 비밀번호 변경을 입력한 경우 길이와 확인값을 검사합니다.
-    const passwordChangeRequested =
-      newPassword !== '' || confirmNewPassword !== '';
+    // AI작성: 수정 요청 시 입력칸 아래에 오류를 표시합니다.
+    setIsPasswordTouched(true);
+    setIsPasswordConfirmTouched(true);
 
-    if (passwordChangeRequested) {
-      if (!newPassword.trim() || newPassword.length < 8) {
-        setErrorMessage('새 비밀번호는 8자 이상 입력해주세요.');
-        return;
-      }
-
-      if (new TextEncoder().encode(newPassword).length > 72) {
-        setErrorMessage('비밀번호가 너무 깁니다. 더 짧게 입력해주세요.');
-        return;
-      }
-
-      if (newPassword !== confirmNewPassword) {
-        setErrorMessage('새 비밀번호와 확인 입력값이 일치하지 않습니다.');
-        return;
-      }
+    if (
+      passwordChangeRequested &&
+      (passwordError || newPassword !== confirmNewPassword)
+    ) {
+      setErrorMessage('');
+      return;
     }
 
     setIsSaving(true);
@@ -477,10 +438,6 @@ function EditProfileForm() {
     }
   };
 
-  if (isLoading) {
-    return <p role="status">회원정보를 불러오는 중입니다.</p>;
-  }
-
   if (!profile) {
     return <p role="alert">{errorMessage || '회원정보가 없습니다.'}</p>;
   }
@@ -582,11 +539,13 @@ function EditProfileForm() {
         <PasswordInput
           id="edit-new-password"
           label="새 비밀번호"
-          placeholder="변경할 경우 8자 이상 입력"
+          placeholder="8~20자, 영문·숫자·특수문자 포함"
           autoComplete="new-password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
-          minLength={8}
+          onBlur={() => setIsPasswordTouched(true)}
+          aria-invalid={isPasswordTouched && Boolean(passwordError)}
+          aria-describedby="edit-password-feedback"
           disabled={isSaving}
           inline
           compact
@@ -595,6 +554,9 @@ function EditProfileForm() {
             setIsNewPasswordVisible((value) => !value)
           }
         />
+        <PasswordFeedback id="edit-password-feedback" role="status">
+          {isPasswordTouched ? passwordError : ''}
+        </PasswordFeedback>
 
         <PasswordInput
           id="edit-new-password-confirm"
@@ -605,6 +567,8 @@ function EditProfileForm() {
           onChange={(event) =>
             setConfirmNewPassword(event.target.value)
           }
+          onBlur={() => setIsPasswordConfirmTouched(true)}
+          aria-describedby="edit-password-confirm-feedback"
           disabled={isSaving}
           inline
           compact
@@ -613,6 +577,13 @@ function EditProfileForm() {
             setIsConfirmPasswordVisible((value) => !value)
           }
         />
+        <PasswordFeedback id="edit-password-confirm-feedback" role="status">
+          {(confirmNewPassword !== '' || isPasswordConfirmTouched) &&
+            passwordChangeRequested &&
+            newPassword !== confirmNewPassword
+            ? '새 비밀번호가 일치하지 않아요. 다시 확인해 주세요.'
+            : ''}
+        </PasswordFeedback>
 
         <Divider />
 

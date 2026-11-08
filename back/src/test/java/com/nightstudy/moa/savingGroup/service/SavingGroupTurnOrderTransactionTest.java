@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -24,7 +25,7 @@ class SavingGroupTurnOrderTransactionTest {
         var source = mock(DataSource.class); when(source.getConnection()).thenReturn(connection);
         when(connection.getAutoCommit()).thenReturn(true);
         when(connection.getTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
-        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper, null, null));
+        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class)));
         factory.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(source), new AnnotationTransactionAttributeSource()));
         service = (SavingGroupService) factory.getProxy();
     }

@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -44,7 +45,7 @@ class SavingGroupAccountApprovalTransactionTest {
         var state = proxy(new VirtualAccountIssueStateServiceImpl(accounts), VirtualAccountIssueStateService.class);
         var storage = proxy(new VirtualAccountStorageServiceImpl(accounts, AccountNumberCipherTest.cipher()), VirtualAccountStorageService.class);
         var approval = proxy(new VirtualAccountApprovalServiceImpl(issuer, storage, state), VirtualAccountApprovalService.class);
-        creation = proxy(new SavingGroupCreationServiceImpl(groups, mock(FileStorageService.class), approval), SavingGroupCreationService.class);
+        creation = proxy(new SavingGroupCreationServiceImpl(groups, mock(FileStorageService.class), approval, mock(NotificationService.class)), SavingGroupCreationService.class);
         var application = new SavingGroupCreationApplicationDetailResponse();
         application.setApprovalId(1L); application.setGroupId(2L); application.setType("CREATE"); application.setStatus("PENDING");
         when(groups.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);

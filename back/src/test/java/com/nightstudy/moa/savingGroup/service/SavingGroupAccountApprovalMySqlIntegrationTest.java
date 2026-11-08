@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.service.FileStorageService;
@@ -90,7 +91,7 @@ class SavingGroupAccountApprovalMySqlIntegrationTest {
         when(mapper.selectSavingGroupCreationApplicationForUpdate(1L)).thenReturn(application);
         when(mapper.approveSavingGroupCreationApplication(1L)).thenReturn(failApproval ? 0 : 1);
         if (!failApproval) { when(mapper.publishApprovedSavingGroup(2L)).thenReturn(1); when(mapper.approveSavingGroupCreationOwnerMembership(2L, 3L)).thenReturn(1); }
-        return proxy(new SavingGroupCreationServiceImpl(mapper, mock(FileStorageService.class), approval), SavingGroupCreationService.class);
+        return proxy(new SavingGroupCreationServiceImpl(mapper, mock(FileStorageService.class), approval, mock(NotificationService.class)), SavingGroupCreationService.class);
     }
     @Test void storesAccountAndCompletesHistory() {
         creation(new MockVirtualAccountIssueServiceImpl(), false).approveCreationApplication(1L, 3L);

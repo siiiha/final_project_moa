@@ -1,6 +1,8 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
@@ -23,9 +25,12 @@ import org.springframework.web.multipart.MultipartFile;
 public class SavingGroupPayoutServiceImpl implements SavingGroupPayoutService {
     private final SavingGroupMapper mapper;
     private final SavingGroupReceiptStorage storage;
-    public SavingGroupPayoutServiceImpl(SavingGroupMapper mapper, SavingGroupReceiptStorage storage) {
+    private final NotificationService notificationService;
+    public SavingGroupPayoutServiceImpl(SavingGroupMapper mapper, SavingGroupReceiptStorage storage,
+            NotificationService notificationService) {
         this.mapper = mapper;
         this.storage = storage;
+        this.notificationService = notificationService;
     }
     private ApiException error(HttpStatus status, String code, String message) { return new ApiException(status, code, message); }
     private SavingGroupPayoutTargetRow target(Long groupId, Long memberId) {
@@ -119,6 +124,15 @@ public class SavingGroupPayoutServiceImpl implements SavingGroupPayoutService {
                 if (mapper.insertReceiptExpense(row) != 1 || row.getId() == null) throw error(HttpStatus.INTERNAL_SERVER_ERROR, "PAYOUT_SAVE_FAILED", "요청 저장에 실패했습니다.");
             } catch (RuntimeException e) { if (!synchronization) storage.delete(name); throw e; }
         }
+        // AI작성: 저장이 완료된 뒤 현재 심사 권한이 있는 승인 계주에게 새 요청을 알린다.
+        mapper.selectSavingGroupPayoutReviewerIds(groupId).stream()
+                .filter(reviewerId -> !reviewerId.equals(memberId))
+                .forEach(reviewerId -> notificationService.send(
+                        reviewerId,
+                        NotificationType.SAVING_GROUP_PAYOUT_REQUESTED,
+                        "새로운 계금·지출 요청이 등록되었습니다.",
+                        "/saving-groups/" + groupId
+                ));
         return new SavingGroupPayoutResponse(ctx.group().getGroupType(), ctx.round() == null ? null : ctx.round().getRoundNumber(),
                 row.getAmount(), ctx.round() == null, row.getId(), "PENDING");
     }

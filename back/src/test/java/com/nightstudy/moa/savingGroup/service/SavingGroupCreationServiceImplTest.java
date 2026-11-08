@@ -15,6 +15,8 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListCond
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.math.BigDecimal;
 import java.util.List;
 import com.nightstudy.moa.member.dto.region.MemberRegionDto;
@@ -38,6 +40,9 @@ class SavingGroupCreationServiceImplTest {
     private FileStorageService fileStorageService;
     // AI작성: 기존 승인 회귀 테스트에서는 외부 계좌 경계를 대역으로 둔다.
     @Mock private VirtualAccountApprovalService virtualAccountApprovalService;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private SavingGroupCreationServiceImpl savingGroupCreationService;
@@ -129,6 +134,12 @@ class SavingGroupCreationServiceImplTest {
         var order = org.mockito.Mockito.inOrder(virtualAccountApprovalService, savingGroupMapper);
         order.verify(virtualAccountApprovalService).issueAndSave(1L, 100L);
         order.verify(savingGroupMapper).approveSavingGroupCreationApplication(1L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_CREATION_APPROVED,
+                "계모임 개설 신청이 승인되었습니다.",
+                "/saving-groups/200"
+        );
     }
 
     @Test
@@ -141,6 +152,12 @@ class SavingGroupCreationServiceImplTest {
         savingGroupCreationService.rejectCreationApplication(1L, "사유");
 
         verify(savingGroupMapper).rejectSavingGroupCreationOwnerMembership(100L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_CREATION_REJECTED,
+                "계모임 개설 신청이 반려되었습니다.",
+                null
+        );
     }
 
     // AI작성: 계좌 발급 오류·없는 신청·처리 완료 신청은 기존 승인 갱신 전에 차단한다.
@@ -172,6 +189,12 @@ class SavingGroupCreationServiceImplTest {
 
         verify(savingGroupMapper).approveSavingGroupDeletionApplication(1L);
         verify(savingGroupMapper).softDeleteSavingGroup(100L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_DELETION_APPROVED,
+                "계모임 삭제 신청이 승인되었습니다.",
+                null
+        );
     }
 
     @Test
@@ -228,6 +251,12 @@ class SavingGroupCreationServiceImplTest {
 
         verify(savingGroupMapper).rejectSavingGroupDeletionApplication(1L, "공동자금 정리 필요");
         verify(savingGroupMapper, never()).softDeleteSavingGroup(100L);
+        verify(notificationService).send(
+                10L,
+                NotificationType.SAVING_GROUP_DELETION_REJECTED,
+                "계모임 삭제 신청이 반려되었습니다.",
+                "/saving-groups/200"
+        );
     }
 
     @Test
@@ -346,7 +375,10 @@ class SavingGroupCreationServiceImplTest {
     private SavingGroupCreationApplicationDetailResponse pendingApplication(Long groupId) {
         SavingGroupCreationApplicationDetailResponse application = new SavingGroupCreationApplicationDetailResponse();
         application.setGroupId(groupId);
+        application.setSavingGroupId(200L);
+        application.setApplicantMemberId(10L);
         application.setStatus("PENDING");
+        application.setType("CREATE");
         return application;
     }
 

@@ -1,22 +1,6 @@
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
-
-// AI작성: 게시글 상세에서도 목록과 동일한 파스텔 카테고리 색상을 사용한다.
-function getCategoryTone(category, theme) {
-  if (category === '자유게시판') return { color: theme.colors.primary, background: theme.colors.primarySoft };
-  if (category?.includes('질문')) return { color: '#b4234d', background: '#fff0f5' };
-  if (category?.includes('동네')) return { color: '#9a5b08', background: '#fff4dd' };
-  if (category?.includes('거래') || category?.includes('나눔')) {
-    return { color: '#2457a6', background: '#edf4ff' };
-  }
-  return { color: theme.colors.secondaryText, background: theme.colors.background };
-}
-
-const CategoryBadge = styled(Badge)`
-  color: ${({ $category, theme }) => getCategoryTone($category, theme).color};
-  background: ${({ $category, theme }) => getCategoryTone($category, theme).background};
-`;
+import PostCategoryBadge from './PostCategoryBadge';
 
 const ArticleCard = styled.article`
   padding: 22px 18px 14px;
@@ -272,7 +256,7 @@ function PostDetail({
   return (
     <>
       <ArticleCard>
-        <CategoryBadge $category={post.category}>{post.category}</CategoryBadge>
+        <PostCategoryBadge category={post.category} size="detail" />
         <Meta>
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>

@@ -41,6 +41,9 @@ public interface AdminReportMapper {
     // AI작성: 중복 처리를 막고 콘텐츠 유형을 확인하기 위해 처리 대상 신고 사건을 잠금 조회한다.
     AdminReportListItemResponse selectReportForUpdate(@Param("reportId") Long reportId);
 
+    // AI작성: 같은 신고 사건을 접수한 모든 신고자의 회원 번호를 중복 없이 조회한다.
+    List<Long> selectReportReporterIds(@Param("reportId") Long reportId);
+
     // AI작성: 신고 유형에 따라 회원, 게시글 작성자 또는 댓글 작성자를 찾는다.
     Long selectReportedMemberId(@Param("reportId") Long reportId);
 

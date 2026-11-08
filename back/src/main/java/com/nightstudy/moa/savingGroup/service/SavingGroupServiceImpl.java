@@ -2,8 +2,11 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -95,7 +98,13 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_ROLE_UPDATE_FAILED",
                     "계원 상태가 변경되어 역할을 저장하지 못했습니다. 다시 확인해주세요.");
         }
-        // AI작성: 확정 정책에 따라 역할 변경 알림은 발송하지 않는다. OWNER 이전·해제는 지원하지 않는다.
+        // AI작성: 실제 역할 변경이 저장된 경우에만 대상 회원에게 회계 지정 또는 해제 결과를 알린다.
+        notificationService.send(
+                targetMemberId,
+                NotificationType.SAVING_GROUP_MEMBER_ROLE_CHANGED,
+                "MANAGER".equals(role) ? "계모임 회계로 지정되었습니다." : "계모임 일반 계원으로 변경되었습니다.",
+                "/saving-groups/" + savingGroupId
+        );
     }
     // AI작성: 목록도 모임→계주 관계 잠금 순서로 권한을 확인하고 최대 두 페이지로 제한한다.
     @Override
@@ -250,6 +259,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 approve ? "APPROVED" : "REJECTED", memberId, reason) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_REQUEST_ALREADY_PROCESSED", "요청 상태가 변경되었습니다. 다시 확인해 주세요.");
         }
+        // AI작성: 심사 상태 변경이 성공한 뒤 요청자에게 승인 또는 반려 결과를 알린다.
+        notificationService.send(
+                request.getRequesterId(),
+                approve ? NotificationType.SAVING_GROUP_PAYOUT_APPROVED
+                        : NotificationType.SAVING_GROUP_PAYOUT_REJECTED,
+                approve ? "계금·지출 요청이 승인되었습니다." : "계금·지출 요청이 반려되었습니다.",
+                "/saving-groups/" + savingGroupId
+        );
     }
     // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
     @Override
@@ -335,8 +352,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     private static final List<String> REGIONS = List.of(
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
+    private final NotificationService notificationService;
     // AI작성: 공개 상세 응답과 회원 전용 계좌 응답의 데이터 경계를 분리한다.
-    private final com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper accountMapper;
+    private final VirtualAccountStorageMapper accountMapper;
     private final AccountNumberCipher accountCipher;
 
     @Override
@@ -356,6 +374,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         return new SavingGroupAccountResponse(true, account.getBankCode(), accountCipher.masked(groupId, account.getAccountNumber()),
                 balance == null ? BigDecimal.ZERO : balance, true);
     }
+
 
     // AI작성: 모임 → 승인 관계 → 공지 순서로 잠그고 현재 고정 목록으로 동시 지정의 두 개 제한을 검증한다.
     @Override
@@ -461,6 +480,15 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_NOTICE_WRITE_FAILED",
                     "공지 등록에 실패했습니다.");
         }
+        // AI작성: 저장 성공 후 작성자를 제외한 승인 회원에게 계모임 공지 등록 알림을 발송한다.
+        savingGroupMapper.selectApprovedSavingGroupMemberIds(target.getGroupId()).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .forEach(receiverId -> notificationService.send(
+                        receiverId,
+                        NotificationType.NOTICE_CREATED,
+                        "계모임에 새 공지가 등록되었습니다.",
+                        "/saving-groups/" + savingGroupId
+                ));
     }
 
     // AI작성: 승인과 거절이 공유하는 잠금 검증 결과를 묶어, 처리별 추가 검증은 각각 분리한다.
@@ -521,6 +549,13 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
                     "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 가입 승인이 완료된 후 신청 회원에게 계모임 상세 화면으로 이동할 수 있는 알림을 보낸다.
+        notificationService.send(
+                request.getMemberId(),
+                NotificationType.SAVING_GROUP_JOIN_APPROVED,
+                "계모임 가입 신청이 승인되었습니다.",
+                "/saving-groups/" + savingGroupId
+        );
     }
 
     // AI작성: 거절은 정원·가입 가능 수와 무관하므로 계주 권한·소속·대기 상태만 잠근 뒤 상태를 변경한다.
@@ -536,6 +571,13 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_REJECTION_FAILED",
                     "가입 신청 상태가 변경되어 거절할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 가입 거절이 완료된 후 신청 회원에게 처리 결과 알림을 보낸다.
+        notificationService.send(
+                request.getMemberId(),
+                NotificationType.SAVING_GROUP_JOIN_REJECTED,
+                "계모임 가입 신청이 거절되었습니다.",
+                null
+        );
     }
 
     // AI작성: 계주 권한과 대상의 승인 관계를 같은 트랜잭션에서 잠가 확인한 뒤 추방 상태로 변경한다.
@@ -582,8 +624,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_EXPULSION_FAILED",
                     "계원 상태가 변경되어 추방할 수 없습니다. 다시 확인해주세요.");
         }
-        // AI작성: TODO: 추방 사유·환불·정산 등 후속 정책은 확정 후 별도 구현한다.
-        // TODO: 알림 기능 구현 후 추방당한 회원에게 추방 알림을 발송한다.
+        // AI작성: 추방 사유·환불·정산 등 후속 정책은 확정 후 별도 구현한다.
+        // AI작성: 추방 처리가 완료된 후 대상 회원에게 계모임 상세 화면으로 이동할 수 있는 알림을 보낸다.
+        notificationService.send(
+                targetMemberId,
+                NotificationType.SAVING_GROUP_MEMBER_EXPELLED,
+                "계모임에서 제외되었습니다.",
+                null
+        );
     }
 
     // AI작성: 계주가 승인 후 시작 전인 자신의 계모임만 삭제하도록 대상·소유자·상태를 잠근 동일 트랜잭션에서 검증한다.
@@ -610,11 +658,23 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                     "승인 후 시작 전인 계모임만 삭제할 수 있습니다.");
         }
 
+        // AI작성: 삭제 후에는 모임 조회가 불가능하므로 상태 변경 전에 승인 회원 수신자를 확보한다.
+        List<Long> notificationReceiverIds = savingGroupMapper
+                .selectApprovedSavingGroupMemberIds(target.getGroupId()).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .toList();
         int affectedRows = savingGroupMapper.softDeleteSavingGroup(target.getGroupId());
         if (affectedRows != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DELETE_FAILED",
                     "계모임 상태가 변경되어 삭제할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 삭제된 상세 화면으로 이동시키지 않고 계주를 제외한 기존 승인 회원에게 결과만 알린다.
+        notificationReceiverIds.forEach(receiverId -> notificationService.send(
+                receiverId,
+                NotificationType.SAVING_GROUP_DELETED,
+                "참여 중인 계모임이 삭제되었습니다.",
+                null
+        ));
     }
 
     @Override
@@ -766,11 +826,16 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     }
 
     // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
-    public SavingGroupServiceImpl(SavingGroupMapper savingGroupMapper,
-            com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper accountMapper, AccountNumberCipher accountCipher) {
+    public SavingGroupServiceImpl(
+            SavingGroupMapper savingGroupMapper,
+            VirtualAccountStorageMapper accountMapper,
+            AccountNumberCipher accountCipher,
+            NotificationService notificationService
+    ) {
         this.savingGroupMapper = savingGroupMapper;
         this.accountMapper = accountMapper;
         this.accountCipher = accountCipher;
+        this.notificationService = notificationService;
     }
 
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.
@@ -1165,6 +1230,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_DUPLICATED",
                     "이미 가입 신청한 계모임입니다.");
         }
+
+        // AI작성: 가입 신청 저장이 완료된 후 계주에게 새로운 신청이 접수되었음을 알린다.
+        notificationService.send(
+                target.getOwnerMemberId(),
+                NotificationType.SAVING_GROUP_JOIN_REQUEST,
+                "새로운 계모임 가입 신청이 접수되었습니다.",
+                "/saving-groups/" + savingGroupId
+        );
     }
 
     // AI작성: 상세 조회와 실제 신청에서 계정·본인 인증 조건을 동일하게 검사한다.

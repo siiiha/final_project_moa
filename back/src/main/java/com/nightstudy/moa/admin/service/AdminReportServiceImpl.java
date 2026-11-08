@@ -14,6 +14,8 @@ import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.util.List;
 import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,17 +32,20 @@ public class AdminReportServiceImpl implements AdminReportService {
     private final AdminReportMapper adminReportMapper;
     private final AdminMemberMapper adminMemberMapper;
     private final MemberRestrictionPolicy memberRestrictionPolicy;
+    private final NotificationService notificationService;
 
     // AI작성: 신고 조회와 상태 변경에 사용할 Mapper를 생성자 주입으로 전달받는다.
     @Autowired
     public AdminReportServiceImpl(
             AdminReportMapper adminReportMapper,
             AdminMemberMapper adminMemberMapper,
-            MemberRestrictionPolicy memberRestrictionPolicy
+            MemberRestrictionPolicy memberRestrictionPolicy,
+            NotificationService notificationService
     ){
         this.adminReportMapper = adminReportMapper;
         this.adminMemberMapper = adminMemberMapper;
         this.memberRestrictionPolicy = memberRestrictionPolicy;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -147,6 +152,18 @@ public class AdminReportServiceImpl implements AdminReportService {
                     "신고 처리 상태가 변경되어 처리하지 못했습니다."
             );
         }
+
+        // AI작성: 사건 처리가 확정된 뒤 같은 사건을 접수한 모든 신고자에게 승인·반려 결과를 알린다.
+        String notificationMessage = "CONFIRMED".equals(request.getStatus())
+                ? "신고하신 내용이 확인되어 처리되었습니다."
+                : "신고하신 내용을 검토했으나 반려되었습니다.";
+        adminReportMapper.selectReportReporterIds(reportId)
+                .forEach(reporterId -> notificationService.send(
+                        reporterId,
+                        NotificationType.REPORT_PROCESSED,
+                        notificationMessage,
+                        null
+                ));
     }
 
     @Override

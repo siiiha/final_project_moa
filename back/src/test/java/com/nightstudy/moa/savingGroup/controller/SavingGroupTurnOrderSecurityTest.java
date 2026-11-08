@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.controller;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -33,7 +34,7 @@ class SavingGroupTurnOrderSecurityTest {
     MockMvc mvc;
     @BeforeEach void setup() {
         var filter = new JwtAuthenticationFilter(provider, new SecurityErrorResponseWriter(new ObjectMapper()), revoked, sessions);
-        mvc = MockMvcBuilders.standaloneSetup(new SavingGroupController(new SavingGroupServiceImpl(mapper, null, null)))
+        mvc = MockMvcBuilders.standaloneSetup(new SavingGroupController(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class))))
                 .setControllerAdvice(new GlobalExceptionHandler()).addFilters(filter).build();
     }
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }

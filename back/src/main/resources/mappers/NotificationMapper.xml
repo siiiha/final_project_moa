@@ -55,6 +55,22 @@
         LIMIT #{size}
     </select>
 
+    <!-- AI작성: SSE 재연결 시 마지막 수신 번호 이후의 알림을 발생 순서대로 복구합니다. -->
+    <select id="findAfter" resultType="NotificationDto">
+        SELECT
+        notification_id,
+        receiver_id,
+        type,
+        message,
+        target_url,
+        read_at,
+        created_at
+        FROM notification
+        WHERE receiver_id = #{receiverId}
+        AND notification_id &gt; #{lastEventId}
+        ORDER BY notification_id ASC
+    </select>
+
     <select id="countUnread" resultType="int">
         SELECT COUNT(*)
         FROM notification

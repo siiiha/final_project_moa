@@ -7,7 +7,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface NotificationService {
 
-    SseEmitter subscribe(Long receiverId);
+    SseEmitter subscribe(Long receiverId, Long lastEventId);
 
     // AI작성: 지정한 회원에게 정해진 종류의 알림을 생성합니다.
     void send(

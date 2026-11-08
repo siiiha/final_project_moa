@@ -125,6 +125,16 @@
         FROM `groups` g JOIN saving_group sg ON sg.group_id = g.group_id
         WHERE g.group_id = #{groupId} AND g.deleted_at IS NULL FOR UPDATE
     </select>
+    <!-- AI작성: 현재 심사 권한과 동일하게 승인 상태인 계주의 회원 번호만 알림 대상으로 조회한다. -->
+    <select id="selectSavingGroupPayoutReviewerIds" resultType="long">
+        SELECT DISTINCT gm.member_id
+        FROM group_member gm
+        JOIN `groups` g ON g.group_id = gm.group_id AND g.member_id = gm.member_id
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        WHERE gm.group_id = #{groupId}
+          AND gm.membership_status = 'APPROVED'
+          AND gm.member_role = 'OWNER'
+    </select>
     <select id="selectPayoutSequence" resultType="java.lang.Integer">
         SELECT sequence_number FROM group_member
         WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'
@@ -966,6 +976,15 @@
         VALUES (#{groupId}, #{writerId}, #{title}, #{content})
     </insert>
 
+    <!-- AI작성: 공지 등록 알림 대상인 승인 계주·운영진·계원의 회원 번호만 중복 없이 조회한다. -->
+    <select id="selectApprovedSavingGroupMemberIds" resultType="long">
+        SELECT DISTINCT member_id
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND membership_status = 'APPROVED'
+          AND member_role IN ('OWNER', 'MANAGER', 'MEMBER')
+    </select>
+
     <select id="selectApprovedMemberRoles" resultType="string">
         SELECT DISTINCT member_role FROM group_member
         WHERE group_id = #{groupId} AND member_id = #{memberId}
@@ -1145,6 +1164,8 @@
     <sql id="creationApplicationDetailColumns">
         SELECT ma.approval_id,
         g.group_id,
+        sg.saving_group_id,
+        g.member_id AS applicant_member_id,
         g.group_name,
         <include refid="savingGroupApplicationApplicantName"/>,
         r.region_name,

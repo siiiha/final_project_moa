@@ -3,6 +3,8 @@ package com.nightstudy.moa.savingGroup.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SavingGroupPayoutDecisionServiceTest {
     @Mock SavingGroupMapper mapper;
+    @Mock NotificationService notificationService;
     @InjectMocks SavingGroupServiceImpl service;
     SavingGroupPayoutDecisionRow group, request;
     void group(String type, String status) {
@@ -55,6 +58,10 @@ class SavingGroupPayoutDecisionServiceTest {
                 approve ? null : "확인 필요")).thenReturn(1);
         act(approve);
         verify(mapper).updatePayoutDecision(20L, 40L, type, approve ? "APPROVED" : "REJECTED", 30L, approve ? null : "확인 필요");
+        verify(notificationService).send(50L,
+                approve ? NotificationType.SAVING_GROUP_PAYOUT_APPROVED : NotificationType.SAVING_GROUP_PAYOUT_REJECTED,
+                approve ? "계금·지출 요청이 승인되었습니다." : "계금·지출 요청이 반려되었습니다.",
+                "/saving-groups/10");
     }
     @ParameterizedTest @ValueSource(strings = {"순번계", "친목계"})
     void ownerMayReviewOwnRequest(String type) {
