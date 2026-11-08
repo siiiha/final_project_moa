@@ -7,4 +7,6 @@ import java.time.YearMonth;
 public interface SavingGroupCalendarService {
     Month getMonth(Long groupId, Long memberId, YearMonth month);
     Event create(Long groupId, Long memberId, CreateRequest request);
+    // AI작성: 승인된 관리자가 대상 모임 일정을 삭제한다.
+    void delete(Long groupId, Long memberId, Long scheduleId);
 }

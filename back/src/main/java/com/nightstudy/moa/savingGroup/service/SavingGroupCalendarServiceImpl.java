@@ -55,12 +55,24 @@ public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarServic
         return toEvent(row.scheduleId, row.title, row.eventDate);
     }
 
-    private String requireRole(Long groupId, Long memberId, boolean forCreate) {
+    // AI작성: 등록과 같은 모임 잠금을 사용해 삭제와 하루 상한 집계를 직렬화한다.
+    @Override
+    @Transactional
+    public void delete(Long groupId, Long memberId, Long scheduleId) {
+        if (!canCreate(requireRole(groupId, memberId, true))) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "계주와 회계만 일정을 삭제할 수 있습니다.");
+        }
+        if (mapper.deleteCalendarEvent(groupId, scheduleId) == 0) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "삭제할 일정을 찾을 수 없습니다.");
+        }
+    }
+
+    private String requireRole(Long groupId, Long memberId, boolean forWrite) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        // AI작성: 등록은 일반 SELECT로 읽기 스냅샷을 만들기 전에 기존 모임 행을 잠근다.
-        boolean exists = forCreate ? mapper.selectSavingGroupStatusForUpdate(groupId) != null
+        // AI작성: 등록과 삭제는 일반 SELECT로 읽기 스냅샷을 만들기 전에 기존 모임 행을 잠근다.
+        boolean exists = forWrite ? mapper.selectSavingGroupStatusForUpdate(groupId) != null
                 : mapper.selectSavingGroupDetail(groupId) != null;
         if (!exists) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");

@@ -13,6 +13,8 @@ public interface SavingGroupMapper {
     List<SavingGroupCalendarDto.EventRow> selectCalendarEvents(@Param("groupId") Long groupId,
             @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
     int insertCalendarEvent(SavingGroupCalendarDto.Insert event);
+    // AI작성: 같은 계모임에 속한 일정만 삭제한다.
+    int deleteCalendarEvent(@Param("groupId") Long groupId, @Param("scheduleId") Long scheduleId);
     // AI작성: 등록 대상 모임에서 선택일에 이미 저장된 일정 수를 집계한다.
     int countCalendarEvents(@Param("groupId") Long groupId,
             @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);

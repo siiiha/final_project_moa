@@ -1386,4 +1386,8 @@
         INSERT INTO group_event (group_id, writer_id, title, event_date)
         VALUES (#{groupId}, #{writerId}, #{title}, #{eventDate})
     </insert>
+    <!-- AI작성: 다른 모임의 일정 ID를 전달해도 해당 행은 삭제되지 않는다. -->
+    <delete id="deleteCalendarEvent">
+        DELETE FROM group_event WHERE group_id = #{groupId} AND schedule_id = #{scheduleId}
+    </delete>
 </mapper>
