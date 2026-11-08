@@ -20,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -88,7 +89,23 @@ public class PostServiceImpl implements PostService {
         } else {
             System.out.println("작성자 본인이거나 존재하지 않는 게시글입니다.");
         }
+        post.setImages(postMapper.selectPostImages(postId));
         return post;
+    }
+
+    // AI작성: 상세 조회와 같은 게시글 조건을 적용하고 파일의 소속을 확인합니다.
+    @Override
+    public Resource getPostImage(Long postId, String fileName) {
+        String imageUrl = postImagePrefix(postId) + fileName;
+        if (postMapper.selectPostDetail(postId) == null
+                || postMapper.selectPostImages(postId).stream().noneMatch(image -> imageUrl.equals(image.getImageUrl()))) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "POST_IMAGE_NOT_FOUND", "게시글 사진을 찾을 수 없습니다.");
+        }
+        return imageStorage.load(fileName);
+    }
+
+    private String postImagePrefix(Long postId) {
+        return "/api/community/" + postId + "/images/";
     }
 
     @Override
@@ -158,7 +175,7 @@ public class PostServiceImpl implements PostService {
         for (MultipartFile image : images) {
             String fileName = imageStorage.store(image);
             storedFiles.add(fileName);
-            String imageUrl = "/api/community/" + postId + "/images/" + fileName;
+            String imageUrl = postImagePrefix(postId) + fileName;
             if (postMapper.insertPostImage(postId, imageUrl, sortOrder++) != 1) {
                 throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "POST_IMAGE_SAVE_FAILED",
                         "게시글 사진 저장에 실패했습니다.");

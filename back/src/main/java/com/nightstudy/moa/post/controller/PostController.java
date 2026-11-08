@@ -10,6 +10,9 @@ import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.service.PostService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
@@ -85,6 +88,17 @@ public class PostController {
     ) {
         PostDto post = postService.getPostDetail(postId, loginMemberId);
         return ApiResponse.ok(post);
+    }
+
+    // AI작성: 첨부 파일의 접근 권한을 요청마다 검사할 수 있도록 캐시를 사용하지 않습니다.
+    @GetMapping("/{postId}/images/{fileName}")
+    public ResponseEntity<Resource> getImage(@PathVariable @Positive Long postId, @PathVariable String fileName) {
+        Resource image = postService.getPostImage(postId, fileName);
+        return ResponseEntity.ok()
+                .contentType(fileName.endsWith(".png") ? MediaType.IMAGE_PNG : MediaType.IMAGE_JPEG)
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(image);
     }
 
     @PutMapping("/edit/{postId}")

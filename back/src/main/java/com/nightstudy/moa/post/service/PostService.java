@@ -7,6 +7,7 @@ import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import java.util.List;
+import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 
@@ -22,6 +23,8 @@ public interface PostService {
     Long editPost(Long postId, Long loginMemberId, PostEditRequest request);
 
     PostDto getPostDetail(Long postId, Long loginMemberId);
+
+    Resource getPostImage(Long postId, String fileName);
 
     void deletePost (Long postId, Long loginMemberId);
 }

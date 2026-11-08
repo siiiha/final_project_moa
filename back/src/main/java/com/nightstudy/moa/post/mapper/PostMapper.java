@@ -1,6 +1,7 @@
 package com.nightstudy.moa.post.mapper;
 
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostImageDto;
 import com.nightstudy.moa.post.dto.PostCategoryDto;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
@@ -20,6 +21,8 @@ public interface PostMapper {
     List<PostDto> selectPostList(PostSearchCondition condition);
 
     PostDto selectPostDetail(Long postId);
+
+    List<PostImageDto> selectPostImages(@Param("postId") Long postId);
 
     int selectPostListCount(PostSearchCondition condition);
 
