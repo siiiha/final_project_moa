@@ -33,12 +33,26 @@ class SavingGroupTransactionMySqlIntegrationTest {
             }
             // AI작성: 연결 범위 임시 테이블만 사용하므로 실제 거래나 스키마를 변경하지 않는다.
             try (var statement = connection.createStatement()) {
+                // AI작성: 실제 연결 키로 회비, 지급 완료, 분류 추천을 검증한다.
+                statement.execute("CREATE TEMPORARY TABLE group_account (account_id BIGINT PRIMARY KEY, group_id BIGINT)");
+                statement.execute("CREATE TEMPORARY TABLE saving_group_mock_deposit_request (transaction_id BIGINT, account_id BIGINT, status VARCHAR(20))");
+                statement.execute("CREATE TEMPORARY TABLE meeting_round (round_id BIGINT, group_id BIGINT)");
+                statement.execute("CREATE TEMPORARY TABLE payout_request (round_id BIGINT, transaction_id BIGINT, status VARCHAR(20))");
+                statement.execute("CREATE TEMPORARY TABLE card_expense_upload (upload_id BIGINT, group_id BIGINT)");
+                statement.execute("CREATE TEMPORARY TABLE card_expense (card_expense_id BIGINT, upload_id BIGINT, transaction_id BIGINT, approval_status VARCHAR(20), final_category VARCHAR(30), suggested_category VARCHAR(30), classification_status VARCHAR(30))");
+                statement.execute("INSERT INTO group_account VALUES (3,30),(4,40)");
+                statement.execute("INSERT INTO saving_group_mock_deposit_request VALUES (12,3,'COMPLETED')");
+                statement.execute("INSERT INTO meeting_round VALUES (1,30)");
+                statement.execute("INSERT INTO payout_request VALUES (1,11,'COMPLETED')");
+                statement.execute("INSERT INTO card_expense_upload VALUES (1,30)");
+                statement.execute("INSERT INTO card_expense VALUES (1,1,10,'APPROVED',NULL,'FOOD','REVIEW_PENDING'),(2,1,11,'APPROVED',NULL,'FOOD','REVIEW_PENDING')");
                 statement.execute("CREATE TEMPORARY TABLE group_transaction (transaction_id BIGINT PRIMARY KEY, account_id BIGINT, transaction_type VARCHAR(20), amount DECIMAL(15,2), balance_after DECIMAL(15,2), transacted_at DATETIME, description VARCHAR(255))");
                 for (int id = 1; id <= 12; id++) {
                     statement.execute("INSERT INTO group_transaction VALUES (" + id
                             + ",3,'DEPOSIT'," + id + ",0,'2026-11-08 12:00:00','테스트 입금')");
                 }
                 statement.execute("INSERT INTO group_transaction VALUES (13,4,'WITHDRAWAL',100,0,'2026-11-08 12:00:00','다른 계좌')");
+                statement.execute("UPDATE group_transaction SET transaction_type = 'WITHDRAWAL' WHERE transaction_id IN (10,11)");
             }
             var config = new Configuration();
             config.setEnvironment(new Environment("transaction-test",new JdbcTransactionFactory(),new SingleConnectionDataSource(connection,true)));
@@ -58,6 +72,11 @@ class SavingGroupTransactionMySqlIntegrationTest {
                 assertThat(second.get(1).amount()).isEqualByComparingTo("1");
                 assertThat(first.get(0).balanceAfter()).isEqualByComparingTo("0");
                 assertThat(first.get(0).description()).isEqualTo("테스트 입금");
+                assertThat(first.get(0).purposeType()).isEqualTo("DUES");
+                assertThat(first.get(1).purposeType()).isEqualTo("PAYOUT");
+                assertThat(first.get(1).category()).isNull();
+                assertThat(first.get(2).purposeType()).isEqualTo("EXPENSE");
+                assertThat(first.get(2).category()).isEqualTo("FOOD");
                 assertThat(mapper.selectSavingGroupTransactions(3L, 20L, 10)).isEmpty();
                 assertThat(mapper.selectSavingGroupTransactionCount(4L)).isEqualTo(1);
             }

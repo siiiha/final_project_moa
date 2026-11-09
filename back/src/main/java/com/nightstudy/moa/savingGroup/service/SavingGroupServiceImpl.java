@@ -428,7 +428,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
                     "거래내역을 확인할 수 없습니다.");
-        return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(), row.balanceAfter());
+        // AI작성: 장부에 기록된 목적과 저장된 분류 결과를 같은 응답으로 반환한다.
+        return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(),
+                row.balanceAfter(), row.purposeType(), row.category(), row.classificationStatus());
     }
 
     @Override
