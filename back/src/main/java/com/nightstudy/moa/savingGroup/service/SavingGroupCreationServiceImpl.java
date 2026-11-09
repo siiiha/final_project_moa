@@ -82,6 +82,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                     "계모임 개설 신청에 실패했습니다."
             );
         }
+        // AI작성: 개설 신청과 함께 채팅방을 만들고, 계주 권한은 개설 승인 시 부여한다.
+        savingGroupMapper.insertSavingGroupChatRoom(savingGroupCreationRequest.getGroupId());
         return true;
     }
 
@@ -147,6 +149,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 승인할 수 없는 신청입니다.");
         }
+        // AI작성: 계주가 승인된 시점에 채팅방 참여 권한을 부여한다.
+        savingGroupMapper.insertSavingGroupChatMember(application.getGroupId(), application.getApplicantMemberId());
         // AI작성: 개설 심사의 모든 상태 변경이 성공한 뒤 신청자에게 승인 결과와 공개 상세 경로를 알린다.
         notificationService.send(
                 application.getApplicantMemberId(),

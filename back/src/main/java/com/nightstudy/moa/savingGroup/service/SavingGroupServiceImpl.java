@@ -616,6 +616,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
                     "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 승인 상태가 저장되는 트랜잭션에서 채팅방 참여 권한을 부여한다.
+        savingGroupMapper.insertSavingGroupChatMember(request.getGroupId(), request.getMemberId());
         // AI작성: 가입 승인이 완료된 후 신청 회원에게 계모임 상세 화면으로 이동할 수 있는 알림을 보낸다.
         notificationService.send(
                 request.getMemberId(),
@@ -691,6 +693,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_EXPULSION_FAILED",
                     "계원 상태가 변경되어 추방할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 계원 제외와 함께 채팅방 참여 권한을 회수한다.
+        savingGroupMapper.deleteSavingGroupChatMember(target.getGroupId(), targetMemberId);
         // AI작성: 추방 사유·환불·정산 등 후속 정책은 확정 후 별도 구현한다.
         // AI작성: 추방 처리가 완료된 후 대상 회원에게 계모임 상세 화면으로 이동할 수 있는 알림을 보낸다.
         notificationService.send(
@@ -828,6 +832,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_LEAVE_FAILED",
                     "계원 상태가 변경되어 탈퇴할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 계모임 탈퇴와 함께 채팅방 참여 권한을 회수한다.
+        savingGroupMapper.deleteSavingGroupChatMember(target.getGroupId(), memberId);
     }
 
     // AI작성: 후속 승인 처리의 트랜잭션에 반드시 참여하며 이 단계에서는 저장하지 않는다.

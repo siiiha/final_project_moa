@@ -1044,6 +1044,29 @@
           AND member_role IN ('OWNER', 'MANAGER', 'MEMBER')
     </select>
 
+    <!-- AI작성: 계모임 회원 변경과 함께 방 및 채팅 참여자 정보를 관리한다. -->
+    <insert id="insertSavingGroupChatRoom">
+        INSERT INTO chat_room (saving_group_id)
+        SELECT saving_group_id FROM saving_group WHERE group_id = #{groupId}
+    </insert>
+
+    <insert id="insertSavingGroupChatMember">
+        INSERT INTO chat_room_member (room_id, member_id)
+        SELECT r.room_id, gm.member_id
+        FROM chat_room r
+        JOIN saving_group sg ON sg.saving_group_id = r.saving_group_id
+        JOIN group_member gm ON gm.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId} AND gm.member_id = #{memberId}
+          AND gm.membership_status = 'APPROVED'
+    </insert>
+
+    <delete id="deleteSavingGroupChatMember">
+        DELETE crm FROM chat_room_member crm
+        JOIN chat_room r ON r.room_id = crm.room_id
+        JOIN saving_group sg ON sg.saving_group_id = r.saving_group_id
+        WHERE sg.group_id = #{groupId} AND crm.member_id = #{memberId}
+    </delete>
+
     <select id="selectApprovedMemberRoles" resultType="string">
         SELECT DISTINCT member_role FROM group_member
         WHERE group_id = #{groupId} AND member_id = #{memberId}

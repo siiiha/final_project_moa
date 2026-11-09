@@ -111,6 +111,11 @@ public interface SavingGroupMapper {
     // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
     int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
+    // AI작성: 계모임 회원 상태와 채팅방 참여 상태를 같은 트랜잭션에서 반영한다.
+    int insertSavingGroupChatRoom(@Param("groupId") Long groupId);
+    int insertSavingGroupChatMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    int deleteSavingGroupChatMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
     int insertSavingGroupCreationOwnerMembership(@Param("groupId") Long groupId,
                                                   @Param("memberId") Long memberId);
     int insertSavingGroupCreationApproval(@Param("groupId") Long groupId);
