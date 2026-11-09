@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { SiKakaotalk, SiNaver } from 'react-icons/si';
+import { SiNaver } from 'react-icons/si';
+import { RiKakaoTalkFill } from 'react-icons/ri';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -125,8 +126,8 @@ const SocialButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  color: ${({ $provider, theme }) => ($provider === 'naver' ? theme.colors.white : theme.colors.text)};
+  gap: 8px;
+  color: ${({ $provider, theme }) => ($provider === 'naver' ? theme.colors.white : 'rgba(0, 0, 0, 0.85)')};
   background: ${({ $provider }) => {
     if ($provider === 'naver') return '#03c75a';
     if ($provider === 'kakao') return '#fee500';
@@ -136,6 +137,13 @@ const SocialButton = styled.button`
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.4;
+
+  /* AI작성: 아이콘이 줄어들지 않도록 하고 문구와 세로 중앙을 맞춥니다. */
+  > svg {
+    display: block;
+    flex-shrink: 0;
+  }
 
   &:hover {
     filter: brightness(0.97);
@@ -148,7 +156,8 @@ function ProviderIcon({ provider }) {
   }
 
   if (provider === 'kakao') {
-    return <SiKakaotalk size={18} aria-hidden="true" />;
+    // AI작성: 사각형 앱 아이콘 대신 말풍선 형태의 카카오톡 심볼을 표시합니다.
+    return <RiKakaoTalkFill size={22} color="#000000" aria-hidden="true" />;
   }
 
   return null;
@@ -310,7 +319,7 @@ function LoginForm() {
       popupTimerRef.current = null;
       popupRef.current = null;
       setIsSubmitting(false);
-      setErrorMessage('소셜 로그인 창이 닫혔습니다. 다시 시도해주세요.');
+      setErrorMessage('');
     }, 500);
   };
 
