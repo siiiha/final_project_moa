@@ -26,6 +26,13 @@ public interface SavingGroupMapper {
             @Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
             @Param("offset") long offset, @Param("size") int size);
     java.math.BigDecimal selectMonthlyPaymentDues(@Param("groupId") Long groupId, @Param("end") LocalDateTime end);
+    // AI작성: 납부일·대상 월·알림 구분을 함께 전달해 미납자의 중복 알림을 제외한다.
+    List<SavingGroupDuesNotificationTarget> selectDuesNotificationTargets(
+            @Param("duesDay") int duesDay,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("paymentMonth") String paymentMonth,
+            @Param("reminderKey") String reminderKey);
 
     int selectSavingGroupTransactionCount(@Param("accountId") Long accountId);
     List<SavingGroupTransactionRow> selectSavingGroupTransactions(@Param("accountId") Long accountId,
