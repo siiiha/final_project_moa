@@ -79,12 +79,16 @@
           AND (sg.start_date IS NULL OR sg.start_date &lt; #{end})
           AND (sg.end_date IS NULL OR sg.end_date &gt;= #{start})
           AND COALESCE(deposits.total, 0) &lt; sg.dues_amount
-          <!-- AI작성: 회원·계모임·대상 월·알림 시점이 같은 기존 알림은 재발송하지 않는다. -->
+          <!-- AI작성: 일반 납부 안내와 날짜별 미납 알림의 유형을 구분해 같은 알림을 재발송하지 않는다. -->
           AND NOT EXISTS (
               SELECT 1
               FROM notification n
               WHERE n.receiver_id = gm.member_id
-                AND n.type = 'DUES_PAYMENT_DUE'
+                AND n.type = CASE
+                    WHEN LEFT(#{reminderKey}, 8) = 'OVERDUE_'
+                        THEN 'DUES_PAYMENT_OVERDUE'
+                    ELSE 'DUES_PAYMENT_DUE'
+                END
                 AND n.target_url = CONCAT(
                     '/saving-groups/', sg.saving_group_id,
                     '?menu=dues&amp;paymentMonth=', #{paymentMonth},
