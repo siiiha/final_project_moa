@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
@@ -23,7 +24,7 @@ class SavingGroupPayoutDecisionTransactionTest {
         mapper = mock(SavingGroupMapper.class); connection = mock(Connection.class);
         var datasource = mock(DataSource.class); when(datasource.getConnection()).thenReturn(connection);
         when(connection.getAutoCommit()).thenReturn(true);
-        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper));
+        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class)));
         factory.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(datasource), new AnnotationTransactionAttributeSource()));
         service = (SavingGroupService) factory.getProxy();
         var group = new SavingGroupPayoutDecisionRow(); group.setGroupId(20L); group.setOwnerMemberId(30L);

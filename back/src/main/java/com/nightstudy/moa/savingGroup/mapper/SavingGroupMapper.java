@@ -9,6 +9,57 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 목록 조회는 최대 세 번의 SELECT로 처리한다.
 @Mapper
 public interface SavingGroupMapper {
+    // AI작성: 대상 모임과 월 범위를 함께 제한해 공유 일정을 조회한다.
+    List<SavingGroupCalendarDto.EventRow> selectCalendarEvents(@Param("groupId") Long groupId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    int insertCalendarEvent(SavingGroupCalendarDto.Insert event);
+    // AI작성: 같은 계모임에 속한 일정만 삭제한다.
+    int deleteCalendarEvent(@Param("groupId") Long groupId, @Param("scheduleId") Long scheduleId);
+    // AI작성: 등록 대상 모임에서 선택일에 이미 저장된 일정 수를 집계한다.
+    int countCalendarEvents(@Param("groupId") Long groupId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    // AI작성: 공용 계좌에 속한 내부 장부만 조회한다.
+    // AI작성: 월별 입금 집계와 회비 기준 조회에 선택 월의 범위를 전달한다.
+    int countSavingGroupPaymentStatus(@Param("groupId") Long groupId);
+    List<SavingGroupPaymentStatusRow> selectSavingGroupPaymentStatus(@Param("groupId") Long groupId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+            @Param("offset") long offset, @Param("size") int size);
+    java.math.BigDecimal selectMonthlyPaymentDues(@Param("groupId") Long groupId, @Param("end") LocalDateTime end);
+
+    int selectSavingGroupTransactionCount(@Param("accountId") Long accountId);
+    List<SavingGroupTransactionRow> selectSavingGroupTransactions(@Param("accountId") Long accountId,
+            @Param("offset") long offset, @Param("size") int size);
+    // AI작성: 공통 모임 잠금 아래 예약 목록을 통째로 저장하며 실제 회차·지급 원장은 변경하지 않는다.
+    SavingGroupTurnOrderPlanRow selectTurnOrderGroupForUpdate(@Param("savingGroupId") Long savingGroupId);
+    List<SavingGroupTurnOrderAssignmentRow> selectTurnOrderAssignmentMembers(@Param("groupId") Long groupId);
+    SavingGroupTurnOrderPlanRow selectTurnOrderPlan(@Param("savingGroupId") Long savingGroupId,
+            @Param("month") java.time.LocalDate month);
+    List<SavingGroupTurnOrderAssignmentRow> selectTurnOrderPlanMembers(@Param("planId") Long planId);
+    int insertTurnOrderPlan(SavingGroupTurnOrderPlanRow plan);
+    int deleteTurnOrderPlanMembers(@Param("planId") Long planId);
+    int insertTurnOrderPlanMember(@Param("planId") Long planId, @Param("memberId") Long memberId,
+            @Param("roundNumber") int roundNumber);
+    int updateTurnOrderSequence(@Param("groupId") Long groupId, @Param("memberId") Long memberId,
+            @Param("roundNumber") int roundNumber);
+    Long selectTurnOrderSavingGroupId(@Param("groupId") Long groupId);
+    boolean existsCompletedTurnOrderPayout(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    boolean existsUpcomingTurnOrderPayout(@Param("groupId") Long groupId, @Param("startRound") int startRound);
+    // AI작성: 추천에는 현재 승인된 모든 역할을 포함하며 저장 SQL은 추가하지 않는다.
+    SavingGroupTurnOrderContextRow selectTurnOrderRecommendationContext(@Param("savingGroupId") Long savingGroupId);
+    List<SavingGroupTurnOrderMemberRow> selectTurnOrderRecommendationMembers(@Param("groupId") Long groupId);
+    // AI작성: 모임 잠금 후 현재 읽기로 재전송·최초 5분 기준·확인 소비를 직렬화한다.
+    Long selectDepositAccountForUpdate(@Param("groupId") Long groupId);
+    LocalDateTime selectDepositNow();
+    SavingGroupDepositRow selectDepositRequestForUpdate(@Param("memberId") Long memberId,
+            @Param("requestKey") String requestKey);
+    SavingGroupDepositRow selectDepositAnchorForUpdate(@Param("accountId") Long accountId,
+            @Param("memberId") Long memberId, @Param("amount") java.math.BigDecimal amount,
+            @Param("since") LocalDateTime since);
+    int insertDepositTransaction(SavingGroupDepositRow row);
+    int insertDepositRequest(SavingGroupDepositRow row);
+    int refreshDepositConfirmation(SavingGroupDepositRow row);
+    int completeDepositRequest(SavingGroupDepositRow row);
     // AI작성: 모임 잠금 후 현재 읽기로 승인된 회계 목록을 확인해 동시 지정 시 최대 한 명을 보장한다.
     List<Long> selectSavingGroupManagerIdsForUpdate(@Param("groupId") Long groupId);
     int updateSavingGroupMemberRole(@Param("groupId") Long groupId, @Param("crewMemberId") Long crewMemberId,
@@ -60,6 +111,12 @@ public interface SavingGroupMapper {
     // AI작성: 계모임 개설 기능도 동일 도메인 Mapper와 XML namespace를 사용하도록 통합한다.
     int insertGroups(SavingGroupCreationRequest savingGroupCreationRequest);
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
+    // AI작성: 계모임 회원 상태와 채팅방 참여 상태를 같은 트랜잭션에서 반영한다.
+    int insertSavingGroupChatRoom(@Param("groupId") Long groupId);
+    boolean canAccessSavingGroupChat(@Param("roomId") Long roomId, @Param("memberId") Long memberId);
+    int insertSavingGroupChatMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+    int deleteSavingGroupChatMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
+
     int insertSavingGroupCreationOwnerMembership(@Param("groupId") Long groupId,
                                                   @Param("memberId") Long memberId);
     int insertSavingGroupCreationApproval(@Param("groupId") Long groupId);

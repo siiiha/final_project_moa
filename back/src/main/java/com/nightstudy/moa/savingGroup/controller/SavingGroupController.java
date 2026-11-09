@@ -40,6 +40,52 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: 본인 탈퇴 요청에는 서버가 인증한 회원 ID만 사용한다.
+    @DeleteMapping("/{savingGroupId}/members/me")
+    public ApiResponse<Void> leaveSavingGroup(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        savingGroupService.leaveSavingGroup(savingGroupId, memberId);
+        return ApiResponse.ok();
+    }
+
+    // AI작성: JWT 속성만 전달하며 매 요청 새 제안이므로 브라우저·중간 캐시에 저장하지 않는다.
+    @GetMapping("/{savingGroupId}/turn-orders/recommendations")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderRecommendationResponse>> turnOrderRecommendations(
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            jakarta.servlet.http.HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        return ApiResponse.ok(savingGroupService.getTurnOrderRecommendations(savingGroupId, memberId));
+    }
+    // AI작성: 인증 사용자와 검증된 페이지를 전달하고 거래 조회는 Service에 위임한다.
+    @GetMapping("/{savingGroupId}/account/transactions")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionResponse>> transactions(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupTransactions(savingGroupId, memberId, condition.getPage());
+        return ApiResponse.ok(result.items(), result.pageMeta());
+    }
+
+    // AI작성: 계주 전용 조회 결과를 기존 목록 응답 형식으로 반환한다.
+    @GetMapping("/{savingGroupId}/dues/payment-status")
+    public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusResponse>> paymentStatus(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusSearchCondition condition) {
+        var result = savingGroupService.getSavingGroupPaymentStatus(
+                savingGroupId, memberId, java.time.YearMonth.parse(condition.getMonth()), condition.getPage());
+        return ApiResponse.ok(result.items(), result.pageMeta());
+    }
+
+    // AI작성: 계좌 원문 없이 회원 전용 정보를 반환하며 모임 소속 검증은 Service에서 수행한다.
+    @GetMapping("/{groupId}/account")
+    public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse> account(
+            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(savingGroupService.getSavingGroupAccount(groupId, memberId));
+    }
     // AI작성: 기존 추방 경로를 연결하고 인증 사용자·소속·권한·상태 판단은 Service에 위임한다.
     @PatchMapping("/{groupId}/members/{memberId}/expel")
     public ApiResponse<Void> expelMember(

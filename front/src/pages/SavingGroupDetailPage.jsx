@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupDetail from '../components/savingGroup/SavingGroupDetail';
+import SavingGroupAccountCard from '../components/savingGroup/SavingGroupAccountCard';
+import SavingGroupDepositForm, { SavingGroupDepositResultModal } from '../components/savingGroup/SavingGroupDepositForm';
+import { getSavingGroupAccount, leaveSavingGroup } from '../api/savingGroups.js';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import useAuthStore from '../store/authStore';
@@ -58,6 +61,10 @@ function SavingGroupDetailPage() {
   // AI작성: 동일 렌더의 연속 클릭은 ref로 차단하고 안내는 모임·계정별로 구분한다.
   const joinLock = useRef(null);
   const joinScope = useRef(null);
+  // AI작성: 요청 잠금과 확인창 상태를 분리해 같은 렌더의 연속 요청을 막는다.
+  const leaveLock = useRef(null);
+  const [leaveDialog, setLeaveDialog] = useState(null);
+  const currentLeave = leaveDialog?.id === id && leaveDialog?.authVersion === authVersion ? leaveDialog : null;
   const [joinState, setJoinState] = useState(null);
   const currentJoin = joinState?.id === id && joinState?.authVersion === authVersion ? joinState : null;
   const isJoinSubmitting = currentJoin?.status === 'submitting';
@@ -74,6 +81,7 @@ function SavingGroupDetailPage() {
       noticeRequest.current?.abort();
       // AI작성: 다른 모임으로 갔다가 돌아와도 이전 완료·실패 안내가 다시 열리지 않게 한다.
       setJoinState(null);
+      setLeaveDialog(null);
     };
   }, [id, authVersion]);
 
@@ -133,6 +141,45 @@ function SavingGroupDetailPage() {
   const scoped = result?.id === id && result?.authVersion === authVersion ? result : null;
   const current = scoped?.retry === retry && scoped.noticePage === noticePage && scoped.noticeSort === noticeSort ? scoped : null;
   const visibleGroup = scoped?.group;
+  // AI작성: 모집 중인 계모임의 승인된 일반 계원·회계만 탈퇴할 수 있다.
+  const canLeave = visibleGroup?.status === '01' && visibleGroup.membershipStatus === 'APPROVED'
+    && ['MEMBER', 'MANAGER'].includes(visibleGroup.myRole);
+
+  const handleLeave = async () => {
+    const scope = joinScope.current;
+    if (!canLeave || !currentLeave || !scope?.active || leaveLock.current === scope) return;
+    leaveLock.current = scope;
+    setLeaveDialog({ id, authVersion, pending: true });
+    try {
+      await leaveSavingGroup(visibleGroup.savingGroupId);
+      if (scope.active) navigate('/saving-groups', { replace: true });
+    } catch (error) {
+      if (scope.active) setLeaveDialog({ id, authVersion, error: error.message });
+    } finally {
+      if (leaveLock.current === scope) leaveLock.current = null;
+    }
+  };
+  // AI작성: 회원 전용 계좌 조회는 공개 상세와 분리하고 계정·모임·재시도별 이전 응답을 숨긴다.
+  const [accountResult, setAccountResult] = useState(null);
+  const [accountRetry, setAccountRetry] = useState(0);
+  // AI작성: 성공 안내는 재조회 상태와 별도로 보존하고 모임·계정이 바뀌면 숨긴다.
+  const [depositResult, setDepositResult] = useState(null);
+  // AI작성: 계좌 카드 아래에는 버튼만 두고 입력 모달 상태는 모임·계정별로 분리한다.
+  const [depositDialog, setDepositDialog] = useState(null);
+  const canReadAccount = visibleGroup?.membershipStatus === 'APPROVED'
+    && ['OWNER', 'MANAGER', 'MEMBER'].includes(visibleGroup?.myRole);
+  useEffect(() => {
+    if (!canReadAccount) return undefined;
+    const controller = new AbortController();
+    let active = true;
+    getSavingGroupAccount(id, { signal: controller.signal })
+      .then((data) => { if (active) setAccountResult({ id, authVersion, accountRetry, status: 'success', data }); })
+      .catch((error) => { if (active && error.code !== 'ERR_CANCELED')
+        setAccountResult({ id, authVersion, accountRetry, status: 'error', message: error.message }); });
+    return () => { active = false; controller.abort(); };
+  }, [id, authVersion, accountRetry, canReadAccount]);
+  const currentAccount = canReadAccount && accountResult?.id === id && accountResult?.authVersion === authVersion
+    && accountResult?.accountRetry === accountRetry ? accountResult : null;
   // AI작성: 등록 후 조회만 갱신해 실패 시 폼 상태를 보존하고 모임·계정 변경 뒤 이전 응답은 반영하지 않는다.
   const handleNoticeRefresh = async ({ resetNoticeQuery = false } = {}) => {
     const scope = joinScope.current;
@@ -226,6 +273,11 @@ function SavingGroupDetailPage() {
             </EmptyCard>
           ) : (
             <SavingGroupDetail key={`${id}-${authVersion}`} group={visibleGroup}
+              accountPanel={canReadAccount ? <SavingGroupAccountCard state={currentAccount}
+                depositMessage={depositResult?.id === id && depositResult?.authVersion === authVersion ? depositResult.message : null}
+                canDeposit={visibleGroup.status === '02'}
+                onDeposit={() => setDepositDialog({ id, authVersion, groupId: visibleGroup.groupId, account: currentAccount.data })}
+                onRetry={() => setAccountRetry((value) => value + 1)} /> : null}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               onMenuChange={(value) => setMenu({ id, value })}
               onJoinRequest={handleJoinRequest}
@@ -239,9 +291,31 @@ function SavingGroupDetailPage() {
                 toSavingGroupNoticeSearch(1, sort, previous), { preventScrollReset: true })}
               onNoticeRetry={handleNoticeRetry}
               noticePinState={currentPin} onNoticePinChange={handleNoticePinChange}
+              onLeave={canLeave ? () => setLeaveDialog({ id, authVersion }) : undefined}
               onBack={() => navigate('/saving-groups')} />
           )}
       </Content>
+      {/* AI작성: 탈퇴를 확인한 뒤 요청하며 실패 사유는 같은 확인창에 표시한다. */}
+      {currentLeave && (
+        <ConfirmModal title="계모임에서 탈퇴하시겠어요?"
+          description="탈퇴하면 이 계모임의 회원 전용 메뉴를 이용할 수 없습니다."
+          confirmLabel={currentLeave.pending ? '탈퇴 처리 중' : '탈퇴하기'}
+          confirmVariant="danger" cancelFirst isBusy={currentLeave.pending}
+          onConfirm={handleLeave} onCancel={() => setLeaveDialog(null)}>
+          {currentLeave.error && <p role="alert">{currentLeave.error}</p>}
+        </ConfirmModal>
+      )}
+      {depositDialog?.id === id && depositDialog?.authVersion === authVersion && canReadAccount && visibleGroup?.status === '02' && (
+        <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={depositDialog.groupId} account={depositDialog.account}
+          onClose={() => setDepositDialog(null)} onCompleted={data => {
+            setDepositDialog(null);
+            setDepositResult({ id, authVersion, ...data });
+            setAccountRetry(value => value + 1);
+          }} />
+      )}
+      {depositResult?.id === id && depositResult?.authVersion === authVersion && (
+        <SavingGroupDepositResultModal result={depositResult} onClose={() => setDepositResult(null)} />
+      )}
       {/* AI작성: 최대 두 개 제한은 공통 모달로 안내하며 확인·닫기 후 기존 고정을 해제할 수 있다. */}
       {currentPin?.phase === 'limit' && (
         <ConfirmModal title="고정 공지 개수 제한"

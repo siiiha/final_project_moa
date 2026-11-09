@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.notification.dto.NotificationType;
@@ -23,6 +24,45 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 같은 읽기 스냅샷의 모임·회원·회비로 계산하며 실제 순번·회차·지급 상태는 변경하지 않는다.
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public List<SavingGroupTurnOrderRecommendationResponse> getTurnOrderRecommendations(Long savingGroupId, Long memberId) {
+        if (memberId == null || memberId <= 0)
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        if (savingGroupId == null || savingGroupId <= 0)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 번호가 올바르지 않습니다.");
+        var group = savingGroupMapper.selectTurnOrderRecommendationContext(savingGroupId);
+        if (group == null)
+            throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        var owner = savingGroupMapper.selectSavingGroupMembership(group.getGroupId(), memberId);
+        if (owner == null || !"APPROVED".equals(owner.getMembershipStatus())
+                || !"OWNER".equals(owner.getMemberRole()) || !savingGroupMapper.existsMember(memberId))
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_OWNER_REQUIRED", "승인된 계주만 순번 추천을 조회할 수 있습니다.");
+        if (!"순번계".equals(group.getGroupType()))
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TYPE_INVALID", "순번계에서만 순번을 추천받을 수 있습니다.");
+        if (!"01".equals(group.getStatus()) && !"02".equals(group.getStatus()))
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "모집중 또는 진행중인 계모임에서만 이용할 수 있습니다.");
+        var members = new java.util.ArrayList<>(savingGroupMapper.selectTurnOrderRecommendationMembers(group.getGroupId()));
+        if (members.isEmpty()) return List.of();
+        BigDecimal dues = group.getDuesAmount();
+        if (dues == null || dues.signum() <= 0 || dues.stripTrailingZeros().scale() > 0)
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DUES_INVALID", "원 단위 기본 회비를 확인해주세요.");
+        // AI작성: 사용자 승인 정책이다. 모든 회원을 동등하게 섞으며 이전 순번·개인정보·납부 이력은 사용하지 않는다.
+        java.util.Collections.shuffle(members);
+        BigDecimal extra = dues.multiply(new BigDecimal("0.01")).setScale(0, java.math.RoundingMode.DOWN);
+        BigDecimal base = dues.multiply(BigDecimal.valueOf(members.size()));
+        var result = new java.util.ArrayList<SavingGroupTurnOrderRecommendationResponse>();
+        for (int i = 0; i < members.size(); i++) {
+            var member = members.get(i);
+            // AI작성: 인원·회비 유지 및 앞 순번 전원 지급을 가정한 예상액이며 확정 회차 금액과 무관하다.
+            BigDecimal expected = base.add(extra.multiply(BigDecimal.valueOf(i)));
+            if (expected.compareTo(new BigDecimal("9999999999999")) > 0)
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DUES_INVALID", "예상 지급 금액의 허용 범위를 확인해주세요.");
+            result.add(new SavingGroupTurnOrderRecommendationResponse(member.getMemberId(), member.getNickname(), i + 1, expected));
+        }
+        return List.copyOf(result);
+    }
     // AI작성: 모임 잠금이 같은 모임의 역할 변경을 직렬화하며 현재 회계는 잠금 읽기로 확인한다.
     @Override
     @Transactional
@@ -204,7 +244,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_REQUESTER_INELIGIBLE", "현재 요청자의 회원 자격으로 처리할 수 없습니다.");
         }
         if (approve && "순번계".equals(type)) {
-            Integer sequence = savingGroupMapper.selectPayoutDecisionSequence(group.getGroupId(), request.getRequesterId());
+            // AI작성: 심사도 요청과 같은 예약 순번 기준을 사용하고 지급 완료 회원의 재승인을 차단한다.
+            Integer sequence = SavingGroupTurnOrderServiceImpl.resolveSequence(savingGroupMapper, group.getGroupId(), request.getRequesterId(),
+                    savingGroupMapper.selectPayoutDecisionSequence(group.getGroupId(), request.getRequesterId()), request.getRoundNumber());
             if (sequence == null || sequence <= 0 || !sequence.equals(request.getRoundNumber())) {
                 throw new ApiException(HttpStatus.CONFLICT, "PAYOUT_SEQUENCE_MISMATCH", "요청자의 지급 순번과 요청 회차가 일치하지 않습니다.");
             }
@@ -311,6 +353,95 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             "서울", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주도");
     private final SavingGroupMapper savingGroupMapper;
     private final NotificationService notificationService;
+    // AI작성: 공개 상세 응답과 회원 전용 계좌 응답의 데이터 경계를 분리한다.
+    private final VirtualAccountStorageMapper accountMapper;
+    private final AccountNumberCipher accountCipher;
+
+    // AI작성: 계주 권한 확인 후 월별 회비와 완료 입금액을 읽기 전용으로 비교한다.
+    @Override
+    @Transactional(readOnly = true)
+    public com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(
+            Long groupId, Long memberId, java.time.YearMonth month, int page) {
+        var relation = requireSavingGroupAccountMember(groupId, memberId);
+        if (!"OWNER".equals(relation.getMemberRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_PAYMENT_STATUS_FORBIDDEN",
+                    "계주만 회비 납부 현황을 확인할 수 있습니다.");
+        }
+        if (month == null || page < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "조회 월과 페이지를 확인해 주세요.");
+        }
+        int size = 10;
+        int total = savingGroupMapper.countSavingGroupPaymentStatus(groupId);
+        var meta = PageMeta.of(page, size, total);
+        long offset = (page - 1L) * size;
+        if (offset >= total) {
+            return new com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse(List.of(), meta);
+        }
+        var start = month.atDay(1).atStartOfDay();
+        var end = month.plusMonths(1).atDay(1).atStartOfDay();
+        BigDecimal dues = savingGroupMapper.selectMonthlyPaymentDues(groupId, end);
+        var items = savingGroupMapper.selectSavingGroupPaymentStatus(groupId, start, end, offset, size)
+                .stream().map(row -> {
+                    BigDecimal remaining = dues == null ? null : dues.subtract(row.depositedAmount()).max(BigDecimal.ZERO);
+                    return new com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusResponse(
+                            row.memberName(), dues, row.depositedAmount(), remaining,
+                            remaining == null ? null : remaining.signum() == 0);
+                }).toList();
+        return new com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse(items, meta);
+    }
+
+    // AI작성: 계좌 조회와 거래내역 조회에 동일한 현재 모임원 권한을 적용한다.
+    private com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow requireSavingGroupAccountMember(Long groupId, Long memberId) {
+        if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        if (groupId == null || groupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
+        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        var relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
+        if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
+                || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 계좌 정보를 확인할 수 있습니다.");
+        return relation;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long groupId, Long memberId, int page) {
+        requireSavingGroupAccountMember(groupId, memberId);
+        if (page < 1)
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
+        var account = accountMapper.selectAccount(groupId);
+        if (account == null)
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+
+        int size = 10;
+        int total = savingGroupMapper.selectSavingGroupTransactionCount(account.getAccountId());
+        var meta = PageMeta.of(page, size, total);
+        long offset = (page - 1L) * size;
+        if (offset >= total) return new SavingGroupTransactionListResponse(List.of(), meta);
+        var items = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size)
+                .stream().map(this::toTransactionResponse).toList();
+        return new SavingGroupTransactionListResponse(items, meta);
+    }
+
+    // AI작성: 잘못된 장부 행은 원본 메모나 거래 정보를 공개하지 않고 조회 오류로 처리한다.
+    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row) {
+        if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
+                    "거래내역을 확인할 수 없습니다.");
+        return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(), row.balanceAfter());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId) {
+        requireSavingGroupAccountMember(groupId, memberId);
+        var account = accountMapper.selectAccount(groupId);
+        if (account == null) return new SavingGroupAccountResponse(false, null, null, BigDecimal.ZERO, true);
+        BigDecimal balance = savingGroupMapper.selectSavingGroupBalance(groupId);
+        return new SavingGroupAccountResponse(true, account.getBankCode(), accountCipher.masked(groupId, account.getAccountNumber()),
+                balance == null ? BigDecimal.ZERO : balance, true);
+    }
+
 
     // AI작성: 모임 → 승인 관계 → 공지 순서로 잠그고 현재 고정 목록으로 동시 지정의 두 개 제한을 검증한다.
     @Override
@@ -485,6 +616,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "JOIN_REQUEST_APPROVAL_FAILED",
                     "가입 신청 상태가 변경되어 승인할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 승인 상태가 저장되는 트랜잭션에서 채팅방 참여 권한을 부여한다.
+        savingGroupMapper.insertSavingGroupChatMember(request.getGroupId(), request.getMemberId());
         // AI작성: 가입 승인이 완료된 후 신청 회원에게 계모임 상세 화면으로 이동할 수 있는 알림을 보낸다.
         notificationService.send(
                 request.getMemberId(),
@@ -560,6 +693,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_EXPULSION_FAILED",
                     "계원 상태가 변경되어 추방할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 계원 제외와 함께 채팅방 참여 권한을 회수한다.
+        savingGroupMapper.deleteSavingGroupChatMember(target.getGroupId(), targetMemberId);
         // AI작성: 추방 사유·환불·정산 등 후속 정책은 확정 후 별도 구현한다.
         // AI작성: 추방 처리가 완료된 후 대상 회원에게 계모임 상세 화면으로 이동할 수 있는 알림을 보낸다.
         notificationService.send(
@@ -685,12 +820,20 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                     "승인 상태의 계원을 찾을 수 없습니다.");
         }
 
+        // AI작성: 계주 탈퇴를 막고 승인된 일반 계원과 회계만 탈퇴를 허용한다.
+        if (!"MEMBER".equals(member.getMemberRole()) && !"MANAGER".equals(member.getMemberRole())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_LEAVE_FORBIDDEN",
+                    "일반 계원과 회계만 계모임에서 탈퇴할 수 있습니다.");
+        }
+
         int affectedRows = savingGroupMapper.leaveApprovedSavingGroupMember(
                 member.getCrewMemberId(), target.getGroupId());
         if (affectedRows != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_MEMBER_LEAVE_FAILED",
                     "계원 상태가 변경되어 탈퇴할 수 없습니다. 다시 확인해주세요.");
         }
+        // AI작성: 계모임 탈퇴와 함께 채팅방 참여 권한을 회수한다.
+        savingGroupMapper.deleteSavingGroupChatMember(target.getGroupId(), memberId);
     }
 
     // AI작성: 후속 승인 처리의 트랜잭션에 반드시 참여하며 이 단계에서는 저장하지 않는다.
@@ -764,9 +907,13 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
     public SavingGroupServiceImpl(
             SavingGroupMapper savingGroupMapper,
+            VirtualAccountStorageMapper accountMapper,
+            AccountNumberCipher accountCipher,
             NotificationService notificationService
     ) {
         this.savingGroupMapper = savingGroupMapper;
+        this.accountMapper = accountMapper;
+        this.accountCipher = accountCipher;
         this.notificationService = notificationService;
     }
 
@@ -822,6 +969,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 availability.code(), availability.message());
         // AI작성: 고정 공지는 페이지·일반 정렬과 관계없이 별도로 반환하고 PageMeta 집계에는 포함하지 않는다.
         detail.setPinnedNotices(savingGroupMapper.selectSavingGroupPinnedNotices(groupId));
+        // AI작성: 실제 상세 응답에도 유형을 포함해 순번계 전용 추천 버튼을 노출한다.
+        detail.setGroupType(row.getGroupType());
         return new SavingGroupDetailPageResponse(detail, pageMeta);
     }
 

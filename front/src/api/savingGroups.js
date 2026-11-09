@@ -1,5 +1,119 @@
 import client from './client.js';
 
+// AI작성: 현재 순번과 다음 달 예약안을 같은 인증 client로 조회·저장한다.
+function toTurnOrderAssignment(data) {
+  if (!data || !/^\d{4}-\d{2}-01$/.test(data.effectiveMonth) || !Number.isSafeInteger(data.startRoundNumber)
+    || data.startRoundNumber < 1 || typeof data.scheduled !== 'boolean' || typeof data.needsReassignment !== 'boolean'
+    || !Array.isArray(data.members)) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
+  const ids = new Set();
+  const members = data.members.map((row) => {
+    const memberId = savingGroupPathId(row.memberId);
+    if (ids.has(memberId) || typeof row.nickname !== 'string' || !['OWNER', 'MANAGER', 'MEMBER'].includes(row.role)
+      || typeof row.paid !== 'boolean' || [row.currentSequenceNumber, row.plannedSequenceNumber].some(
+        value => value != null && (!Number.isSafeInteger(value) || value < 1))) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
+    ids.add(memberId);
+    return { memberId, nickname: row.nickname, role: row.role, paid: row.paid,
+      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null };
+  });
+  return { effectiveMonth: data.effectiveMonth, startRoundNumber: data.startRoundNumber,
+    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members };
+}
+
+export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
+  const result = await savingGroupMemberResponse(
+    () => client.get(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, { signal }),
+    '순번을 불러오지 못했습니다.');
+  return toTurnOrderAssignment(result.data);
+}
+
+export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal } = {}) {
+  const result = await savingGroupMemberResponse(
+    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, { turnOrders }, { signal }),
+    '순번 저장 결과를 확인하지 못했습니다. 다시 조회해주세요.');
+  return toTurnOrderAssignment(result.data);
+}
+
+// AI작성: 전체 모의 추천 결과만 조회하며 저장·적용 API는 호출하지 않는다.
+export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const result = await savingGroupMemberResponse(
+    () => client.get(`/saving-groups/${id}/turn-orders/recommendations`, { signal }),
+    '순번 추천을 불러오지 못했습니다. 다시 시도해주세요.'
+  );
+  const rows = result.data;
+  const ids = new Set();
+  const orders = new Set();
+  const invalid = () => { const error = new Error('순번 추천 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+    error.code = 'INVALID_RESPONSE'; return error; };
+  if (!Array.isArray(rows)) throw invalid();
+  const items = rows.map((row) => {
+    let memberId;
+    try { memberId = savingGroupPathId(row?.memberId); } catch { throw invalid(); }
+    if (ids.has(memberId) || !Number.isSafeInteger(row.recommendedTurnOrder)
+      || row.recommendedTurnOrder < 1 || row.recommendedTurnOrder > rows.length
+      || orders.has(row.recommendedTurnOrder) || typeof row.nickname !== 'string' || !row.nickname.trim()
+      || !Number.isSafeInteger(row.expectedPayoutAmount) || row.expectedPayoutAmount < 1
+      || row.expectedPayoutAmount > 9999999999999) throw invalid();
+    ids.add(memberId); orders.add(row.recommendedTurnOrder);
+    return { memberId, nickname: row.nickname, recommendedTurnOrder: row.recommendedTurnOrder,
+      expectedPayoutAmount: row.expectedPayoutAmount };
+  });
+  return items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+}
+
+// AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.
+export async function requestSavingGroupDeposit(groupId, { amount, requestKey }, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  if (!Number.isSafeInteger(amount) || amount < 1 || amount > 9999999999999) {
+    throw new Error('금액은 1원 이상의 원 단위 정수로 입력해주세요.');
+  }
+  validateDepositKey(requestKey);
+  const result = await savingGroupMemberResponse(
+    () => client.post(`/saving-groups/${id}/account/deposits`, { amount, requestKey }, { signal }),
+    '입금 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'
+  );
+  return toDepositResponse(result.data);
+}
+
+// AI작성: 확인값은 메모리에서만 전달하며 재시도는 동일한 요청·확인값을 사용한다.
+export async function confirmSavingGroupDeposit(groupId, { requestKey, confirmationToken }, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  validateDepositKey(requestKey);
+  if (typeof confirmationToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(confirmationToken)) {
+    throw new Error('입금 확인 정보를 다시 확인해주세요.');
+  }
+  const result = await savingGroupMemberResponse(
+    () => client.post(`/saving-groups/${id}/account/deposits/confirm`, { requestKey, confirmationToken }, { signal }),
+    '입금 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'
+  );
+  const data = toDepositResponse(result.data);
+  if (data.status !== 'COMPLETED') throw new Error('입금 완료 결과를 확인하지 못했습니다.');
+  return data;
+}
+
+function validateDepositKey(key) {
+  if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{16,64}$/.test(key)) throw new Error('입금 요청 정보를 확인해주세요.');
+}
+
+function toDepositResponse(data) {
+  // AI작성: 허용 필드만 반환하여 계좌번호·내부 식별자 등의 부가 필드를 화면으로 전달하지 않는다.
+  if (!data || !Number.isSafeInteger(data.amount) || data.amount < 1 || data.amount > 9999999999999
+    || !['COMPLETED', 'PENDING_CONFIRMATION'].includes(data.status)
+    || (data.status === 'COMPLETED' && (typeof data.balance !== 'number' || !Number.isFinite(data.balance)))
+    || (data.status === 'PENDING_CONFIRMATION' && (typeof data.confirmationToken !== 'string'
+      || !/^[A-Za-z0-9_-]{43}$/.test(data.confirmationToken)
+      || typeof data.confirmationExpiresAt !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(data.confirmationExpiresAt)))) {
+    const error = new Error('입금 응답을 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.');
+    error.code = 'INVALID_RESPONSE'; throw error;
+  }
+  return { status: data.status, amount: data.amount,
+    balance: data.status === 'COMPLETED' ? data.balance : null,
+    confirmationToken: data.status === 'PENDING_CONFIRMATION' ? data.confirmationToken : null,
+    confirmationExpiresAt: data.status === 'PENDING_CONFIRMATION' ? data.confirmationExpiresAt : null,
+    message: typeof data.message === 'string' ? data.message : '테스트 입금 처리 결과를 확인해주세요.' };
+}
+
 // AI작성: 계원 관리 요청은 공통 JWT client를 사용하고 서버 코드·상태·취소를 보존한다.
 async function savingGroupMemberResponse(send, fallbackMessage) {
   try {
@@ -60,6 +174,15 @@ export async function updateSavingGroupMemberRole(savingGroupId, memberId, role,
     '역할을 저장하지 못했습니다. 목록을 다시 확인해주세요.'
   );
   return result.data;
+}
+
+// AI작성: 자진 탈퇴에는 계모임 ID만 전달하고 기존 계원 관리 응답 처리를 재사용한다.
+export async function leaveSavingGroup(savingGroupId) {
+  const id = savingGroupPathId(savingGroupId);
+  await savingGroupMemberResponse(
+    () => client.delete(`/saving-groups/${id}/members/me`),
+    '계모임에서 탈퇴하지 못했습니다. 다시 시도해 주세요.'
+  );
 }
 
 // AI작성: 추방은 공통 groupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
@@ -283,7 +406,8 @@ export async function getSavingGroupCreationApplication(approvalId, { signal } =
 
 export async function approveSavingGroupCreationApplication(approvalId) {
   try {
-    const response = await client.patch(`/admin/saving-group-applications/${encodeURIComponent(approvalId)}/approve`);
+    // AI작성: 외부 발급의 연결·읽기 제한 시간을 고려해 이 요청만 대기 시간을 늘리고 자동 재전송하지 않는다.
+    const response = await client.patch(`/admin/saving-group-applications/${encodeURIComponent(approvalId)}/approve`, undefined, { timeout: 30000 });
     if (!response.data?.success) {
       throw new SavingGroupCreationApplicationError(
         response.data?.error?.code || 'SAVING_GROUP_APPLICATION_APPROVE_FAILED',
@@ -292,6 +416,99 @@ export async function approveSavingGroupCreationApplication(approvalId) {
     }
   } catch (error) {
     throw toCreationApplicationError(error, '개설 신청 승인에 실패했습니다.');
+  }
+}
+
+// AI작성: 계모임 공유 일정은 기존 인증 클라이언트로 조회하고 등록한다.
+export async function getSavingGroupCalendar(groupId, { month, signal }) {
+  const id = savingGroupPathId(groupId);
+  try {
+    const { data: response } = await client.get(`/saving-groups/${id}/calendar`, { params: { month }, signal });
+    if (response?.success !== true || !Array.isArray(response.data?.events)) {
+      throw new Error('일정 조회 응답을 확인할 수 없습니다.');
+    }
+    return response.data;
+  } catch (error) {
+    throw toCreationApplicationError(error, '일정을 불러오지 못했습니다.');
+  }
+}
+
+export async function createSavingGroupCalendarEvent(groupId, event) {
+  const id = savingGroupPathId(groupId);
+  try {
+    const { data: response } = await client.post(`/saving-groups/${id}/calendar/events`, event);
+    if (response?.success !== true || !response.data?.id) {
+      throw new Error('일정 등록 응답을 확인할 수 없습니다.');
+    }
+    return response.data;
+  } catch (error) {
+    throw toCreationApplicationError(error, '일정을 저장하지 못했습니다.');
+  }
+}
+
+// AI작성: 일정 ID를 문자열로 유지하고 모임 범위 삭제 API를 호출한다.
+export async function deleteSavingGroupCalendarEvent(groupId, scheduleId) {
+  const id = savingGroupPathId(groupId);
+  const eventId = savingGroupPathId(scheduleId);
+  try {
+    const { data: response } = await client.delete(`/saving-groups/${id}/calendar/events/${eventId}`);
+    if (response?.success !== true) throw new Error('일정 삭제 응답을 확인할 수 없습니다.');
+  } catch (error) {
+    throw toCreationApplicationError(error, '일정을 삭제하지 못했습니다.');
+  }
+}
+
+// AI작성: 선택 월과 페이지를 계주 전용 납부 현황 API에 전달한다.
+export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, signal }) {
+  const id = savingGroupPathId(groupId);
+  const { data: response } = await client.get(`/saving-groups/${id}/dues/payment-status`, {
+    params: { month, page }, signal,
+  });
+  if (response?.success !== true || !Array.isArray(response.data) || !response.meta) {
+    throw new Error('납부 현황 응답을 확인할 수 없습니다.');
+  }
+  return { items: response.data, meta: response.meta };
+}
+
+/** AI작성: 공용 계좌 장부의 공개 필드와 서버 페이지 정보만 화면에 전달한다. */
+export async function getSavingGroupTransactions(groupId, { page = 1, signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  const { data: response } = await client.get(`/saving-groups/${id}/account/transactions`, {
+    params: { page }, signal,
+  });
+  if (response?.success !== true || !Array.isArray(response.data) || !response.meta) {
+    throw new Error('거래내역 응답을 확인할 수 없습니다.');
+  }
+  return {
+    items: response.data.map(({ transactedAt, transactionType, amount, balanceAfter }) => ({
+      transactedAt, transactionType, amount, balanceAfter,
+    })),
+    meta: response.meta,
+  };
+}
+
+// AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
+export async function getSavingGroupAccount(groupId, { signal } = {}) {
+  const pathId = savingGroupPathId(groupId);
+  const failure = (detail, status) => Object.assign(new Error(detail?.message || '계좌 정보를 불러오지 못했습니다.'), {
+    name: 'SavingGroupAccountError', code: detail?.code || 'SAVING_GROUP_ACCOUNT_READ_FAILED', status,
+  });
+  try {
+    const response = await client.get(`/saving-groups/${pathId}/account`, { signal });
+    if (response.data?.success !== true) throw failure(response.data?.error, response.status);
+    const data = response.data.data;
+    if (!data || typeof data.issued !== 'boolean' || data.testAccount !== true
+      || typeof data.balance !== 'number' || !Number.isFinite(data.balance)
+      || (data.issued && (typeof data.bankCode !== 'string'
+        || typeof data.maskedAccountNumber !== 'string' || !/^\*{4,}\d{4}$/.test(data.maskedAccountNumber)))) {
+      throw failure({ code: 'INVALID_RESPONSE', message: '계좌 정보 응답을 확인할 수 없습니다.' }, response.status);
+    }
+    return { issued: data.issued, bankCode: data.issued ? data.bankCode : null,
+      maskedAccountNumber: data.issued ? data.maskedAccountNumber : null,
+      balance: data.balance, testAccount: true };
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupAccountError') throw error;
+    throw failure(error.response?.data?.error, error.response?.status);
   }
 }
 
@@ -579,8 +796,8 @@ export function toSavingGroupCard(item) {
 
 // AI작성: 회원 역할은 서버 응답만 사용하며 승인되지 않은 사용자는 공지만 표시한다.
 export function getSavingGroupMenus(role) {
-  const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
-  if (role === 'OWNER') return [...common, 'members', 'settings', 'joinRequests'];
+  const common = ['notice', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
+  if (role === 'OWNER') return [common[0], 'payment', ...common.slice(1), 'members', 'settings', 'joinRequests'];
   return role === 'MANAGER' || role === 'MEMBER' ? common : ['notice'];
 }
 

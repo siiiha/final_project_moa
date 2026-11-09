@@ -2,6 +2,135 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 입금 없는 승인 계원도 포함하도록 완료 거래 집계만 LEFT JOIN한다. -->
+    <sql id="monthlyPaymentMembers">
+        FROM group_member gm
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+    </sql>
+    <sql id="monthlyPaymentMembership">
+        WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
+    </sql>
+    <select id="countSavingGroupPaymentStatus" resultType="int">
+        SELECT COUNT(*)
+        <include refid="monthlyPaymentMembers"/>
+        <include refid="monthlyPaymentMembership"/>
+    </select>
+    <select id="selectSavingGroupPaymentStatus" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusRow">
+        SELECT m.name AS member_name, COALESCE(deposits.total, 0) AS deposited_amount
+        <include refid="monthlyPaymentMembers"/>
+        LEFT JOIN (
+            SELECT dr.member_id, SUM(gt.amount) AS total
+            FROM group_account ga
+            JOIN group_transaction gt ON gt.account_id = ga.account_id
+            JOIN saving_group_mock_deposit_request dr ON dr.transaction_id = gt.transaction_id
+                AND dr.account_id = ga.account_id AND dr.status = 'COMPLETED'
+            WHERE ga.group_id = #{groupId} AND gt.transaction_type = 'DEPOSIT'
+                AND gt.transacted_at &gt;= #{start} AND gt.transacted_at &lt; #{end}
+            GROUP BY dr.member_id
+        ) deposits ON deposits.member_id = gm.member_id
+        <include refid="monthlyPaymentMembership"/>
+        ORDER BY gm.crew_member_id
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <!-- AI작성: 첫 금액 변경 전의 원래 금액은 이력에 저장되지 않으므로 역산하지 않는다. -->
+    <select id="selectMonthlyPaymentDues" resultType="java.math.BigDecimal">
+        SELECT CASE WHEN sc.setting_change_id IS NULL THEN sg.dues_amount
+                    WHEN sc.effective_at &lt; #{end} THEN sc.dues_amount END
+        FROM saving_group sg
+        LEFT JOIN saving_group_setting_change sc ON sc.group_id = sg.group_id
+            AND sc.status = 'APPLIED' AND sc.dues_amount IS NOT NULL
+        WHERE sg.group_id = #{groupId}
+          <!-- AI작성: 시작일이 없는 모임도 현재 월은 확인된 회비 기준으로 판정한다. -->
+          AND (sg.start_date &lt; #{end}
+               OR (sg.start_date IS NULL AND CURRENT_DATE &gt;= DATE_SUB(#{end}, INTERVAL 1 MONTH)
+                   AND CURRENT_DATE &lt; #{end}))
+        ORDER BY (sc.effective_at &lt; #{end}) DESC, sc.effective_at DESC, sc.setting_change_id DESC
+        LIMIT 1
+    </select>
+
+    <!-- AI작성: 동일 시각의 거래도 페이지별 순서를 고정한다. -->
+    <select id="selectSavingGroupTransactionCount" resultType="int">
+        SELECT COUNT(*) FROM group_transaction WHERE account_id = #{accountId}
+    </select>
+
+    <select id="selectSavingGroupTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
+        SELECT transacted_at, transaction_type, amount, balance_after, description
+        FROM group_transaction
+        WHERE account_id = #{accountId}
+        ORDER BY transacted_at DESC, transaction_id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+    <!-- AI작성: savingGroupId를 내부 groupId로 해석하고 기존 회원·지급 처리와 모임 잠금을 공유한다. -->
+    <select id="selectTurnOrderGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">
+        SELECT sg.saving_group_id, sg.group_id, sg.saving_group_type AS group_type,
+               sg.status, sg.start_date, sg.end_date
+        FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="selectTurnOrderAssignmentMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderAssignmentRow">
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname, gm.member_role AS role, gm.sequence_number,
+            EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                   WHERE mr.group_id = gm.group_id AND pr.requester_id = gm.member_id AND pr.status = 'COMPLETED') AS paid
+        FROM group_member gm JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
+          AND gm.member_role IN ('OWNER', 'MANAGER', 'MEMBER') ORDER BY gm.crew_member_id FOR UPDATE
+    </select>
+    <!-- AI작성: 해당 월까지의 최신 예약을 사용하고 예약 전체가 미래 회차 배정을 보존한다. -->
+    <select id="selectTurnOrderPlan" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">
+        SELECT * FROM saving_group_turn_order_plan
+        WHERE saving_group_id = #{savingGroupId} AND effective_month &lt;= #{month}
+        ORDER BY effective_month DESC LIMIT 1 FOR UPDATE
+    </select>
+    <select id="selectTurnOrderPlanMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderAssignmentRow">
+        SELECT CAST(member_id AS CHAR) AS member_id, round_number AS sequence_number
+        FROM saving_group_turn_order_plan_member WHERE turn_order_plan_id = #{planId}
+        ORDER BY round_number FOR UPDATE
+    </select>
+    <insert id="insertTurnOrderPlan" useGeneratedKeys="true" keyProperty="turnOrderPlanId">
+        INSERT INTO saving_group_turn_order_plan (saving_group_id, effective_month, start_round_number, assigned_by)
+        VALUES (#{savingGroupId}, #{effectiveMonth}, #{startRoundNumber}, #{assignedBy})
+        ON DUPLICATE KEY UPDATE turn_order_plan_id = LAST_INSERT_ID(turn_order_plan_id),
+          start_round_number = VALUES(start_round_number), assigned_by = VALUES(assigned_by), assigned_at = CURRENT_TIMESTAMP
+    </insert>
+    <delete id="deleteTurnOrderPlanMembers">
+        DELETE FROM saving_group_turn_order_plan_member WHERE turn_order_plan_id = #{planId}
+    </delete>
+    <insert id="insertTurnOrderPlanMember">
+        INSERT INTO saving_group_turn_order_plan_member (turn_order_plan_id, member_id, round_number)
+        VALUES (#{planId}, #{memberId}, #{roundNumber})
+    </insert>
+    <update id="updateTurnOrderSequence">
+        UPDATE group_member SET sequence_number = #{roundNumber}
+        WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'
+    </update>
+    <!-- AI작성: 운영 기간당 중복 수령과 예약 변경으로 기존 요청의 대상이 바뀌는 상황을 차단한다. -->
+    <select id="selectTurnOrderSavingGroupId" resultType="long">
+        SELECT saving_group_id FROM saving_group WHERE group_id = #{groupId}
+    </select>
+    <select id="existsCompletedTurnOrderPayout" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+            WHERE mr.group_id = #{groupId} AND pr.requester_id = #{memberId} AND pr.status = 'COMPLETED')
+    </select>
+    <select id="existsUpcomingTurnOrderPayout" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+            WHERE mr.group_id = #{groupId} AND mr.round_number &gt;= #{startRound}
+              AND pr.status IN ('PENDING', 'APPROVED', 'COMPLETED'))
+    </select>
+    <!-- AI작성: 공개 계모임 ID로 내부 모임 ID를 해석하며 삭제 모임은 제외한다. -->
+    <select id="selectTurnOrderRecommendationContext" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderContextRow">
+        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, sg.dues_amount
+        FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL
+    </select>
+    <!-- AI작성: 조회 정렬은 추천 우선순위가 아니다. Service에서 승인된 무작위 모의 배치를 수행한다. -->
+    <select id="selectTurnOrderRecommendationMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderMemberRow">
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname
+        FROM group_member gm JOIN members m ON m.member_id = gm.member_id
+        WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
+          AND gm.member_role IN ('OWNER', 'MANAGER', 'MEMBER') AND m.deleted_at IS NULL
+        ORDER BY gm.crew_member_id
+    </select>
     <!-- AI작성: 집계 스냅샷 대신 잠금 현재 읽기를 사용하며 기존 승인 회계만 센다. -->
     <select id="selectSavingGroupManagerIdsForUpdate" resultType="long">
         SELECT member_id FROM group_member
@@ -748,6 +877,8 @@
     <!-- AI작성: URL ID는 saving_group_id가 아닌 groups.group_id다. -->
     <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
         SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,
+        <!-- AI작성: 순번 추천 버튼이 실제 상세 응답의 유형으로 표시되도록 조회한다. -->
+        sg.saving_group_type AS group_type,
         r.region_name, g.max_members, sg.dues_amount, sg.dues_day, sg.status
         <include refid="listFrom"/>
         WHERE g.group_id = #{groupId}
@@ -912,6 +1043,41 @@
           AND membership_status = 'APPROVED'
           AND member_role IN ('OWNER', 'MANAGER', 'MEMBER')
     </select>
+
+    <!-- AI작성: 계모임 회원 변경과 함께 방 및 채팅 참여자 정보를 관리한다. -->
+    <insert id="insertSavingGroupChatRoom">
+        INSERT INTO chat_room (saving_group_id)
+        SELECT saving_group_id FROM saving_group WHERE group_id = #{groupId}
+    </insert>
+
+    <select id="canAccessSavingGroupChat" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM chat_room_member crm
+            JOIN chat_room r ON r.room_id = crm.room_id
+            JOIN saving_group sg ON sg.saving_group_id = r.saving_group_id
+            JOIN `groups` g ON g.group_id = sg.group_id AND g.deleted_at IS NULL
+            JOIN group_member gm ON gm.group_id = sg.group_id AND gm.member_id = crm.member_id
+            WHERE crm.room_id = #{roomId} AND crm.member_id = #{memberId}
+              AND gm.membership_status = 'APPROVED'
+        )
+    </select>
+
+    <insert id="insertSavingGroupChatMember">
+        INSERT INTO chat_room_member (room_id, member_id)
+        SELECT r.room_id, gm.member_id
+        FROM chat_room r
+        JOIN saving_group sg ON sg.saving_group_id = r.saving_group_id
+        JOIN group_member gm ON gm.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId} AND gm.member_id = #{memberId}
+          AND gm.membership_status = 'APPROVED'
+    </insert>
+
+    <delete id="deleteSavingGroupChatMember">
+        DELETE crm FROM chat_room_member crm
+        JOIN chat_room r ON r.room_id = crm.room_id
+        JOIN saving_group sg ON sg.saving_group_id = r.saving_group_id
+        WHERE sg.group_id = #{groupId} AND crm.member_id = #{memberId}
+    </delete>
 
     <select id="selectApprovedMemberRoles" resultType="string">
         SELECT DISTINCT member_role FROM group_member
@@ -1192,4 +1358,71 @@
         AND member_role = 'OWNER'
         AND membership_status = 'PENDING'
     </update>
+    <!-- AI작성: 실제 금융·발급 Mapper를 호출하지 않고 내부 계좌 ID만 잠근다. -->
+    <select id="selectDepositAccountForUpdate" resultType="long">
+        SELECT account_id FROM group_account WHERE group_id = #{groupId} FOR UPDATE
+    </select>
+    <select id="selectDepositNow" resultType="java.time.LocalDateTime">
+        SELECT CURRENT_TIMESTAMP(6)
+    </select>
+    <select id="selectDepositRequestForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupDepositRow">
+        SELECT * FROM saving_group_mock_deposit_request
+        WHERE member_id = #{memberId} AND request_key = #{requestKey} FOR UPDATE
+    </select>
+    <!-- AI작성: 추가 확인 입금이 최초 성공 기준 시각을 연장하지 않도록 일반 완료 행만 찾는다. -->
+    <select id="selectDepositAnchorForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupDepositRow">
+        SELECT * FROM saving_group_mock_deposit_request
+        WHERE account_id = #{accountId} AND member_id = #{memberId} AND amount = #{amount}
+          AND status = 'COMPLETED' AND window_anchor_request_id IS NULL
+          AND completed_at &gt; #{since}
+        ORDER BY completed_at DESC, deposit_request_id DESC LIMIT 1 FOR UPDATE
+    </select>
+    <insert id="insertDepositTransaction" useGeneratedKeys="true" keyProperty="transactionId" keyColumn="transaction_id">
+        INSERT INTO group_transaction (account_id, transaction_type, amount, balance_after, transacted_at, description)
+        VALUES (#{accountId}, 'DEPOSIT', #{amount}, #{balanceAfter}, #{completedAt}, '테스트 입금')
+    </insert>
+    <insert id="insertDepositRequest" useGeneratedKeys="true" keyProperty="depositRequestId" keyColumn="deposit_request_id">
+        INSERT INTO saving_group_mock_deposit_request
+          (account_id, member_id, amount, request_key, status, window_anchor_request_id,
+           confirmation_token_hash, confirmation_expires_at, transaction_id, requested_at, completed_at)
+        VALUES (#{accountId}, #{memberId}, #{amount}, #{requestKey}, #{status}, #{windowAnchorRequestId},
+           #{confirmationTokenHash}, #{confirmationExpiresAt}, #{transactionId}, #{requestedAt}, #{completedAt})
+    </insert>
+    <!-- AI작성: 응답 유실 후 같은 요청 키로 재조회하면 새 확인값을 발급하고 기존 확인값은 무효화한다. -->
+    <update id="refreshDepositConfirmation">
+        UPDATE saving_group_mock_deposit_request
+        SET confirmation_token_hash = #{confirmationTokenHash}, confirmation_expires_at = #{confirmationExpiresAt}
+        WHERE deposit_request_id = #{depositRequestId} AND member_id = #{memberId}
+          AND account_id = #{accountId} AND status = 'PENDING_CONFIRMATION'
+    </update>
+    <update id="completeDepositRequest">
+        UPDATE saving_group_mock_deposit_request
+        SET status = 'COMPLETED', transaction_id = #{transactionId}, completed_at = #{completedAt},
+            confirmation_token_hash = NULL
+        WHERE deposit_request_id = #{depositRequestId} AND member_id = #{memberId}
+          AND account_id = #{accountId} AND status = 'PENDING_CONFIRMATION'
+    </update>
+    <!-- AI작성: 기존 group_event에 저장하며 동일 시각에는 일정 ID 순으로 정렬한다. -->
+    <select id="selectCalendarEvents" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupCalendarDto$EventRow">
+        SELECT schedule_id AS scheduleId, title, event_date AS eventDate
+        FROM group_event
+        WHERE group_id = #{groupId} AND event_date &gt;= #{start} AND event_date &lt; #{end}
+        ORDER BY event_date, schedule_id
+    </select>
+
+    <!-- AI작성: 날짜 범위와 계모임 ID를 함께 제한한다. -->
+    <select id="countCalendarEvents" resultType="int">
+        SELECT COUNT(*)
+        FROM group_event
+        WHERE group_id = #{groupId} AND event_date &gt;= #{start} AND event_date &lt; #{end}
+    </select>
+
+    <insert id="insertCalendarEvent" useGeneratedKeys="true" keyProperty="scheduleId" keyColumn="schedule_id">
+        INSERT INTO group_event (group_id, writer_id, title, event_date)
+        VALUES (#{groupId}, #{writerId}, #{title}, #{eventDate})
+    </insert>
+    <!-- AI작성: 다른 모임의 일정 ID를 전달해도 해당 행은 삭제되지 않는다. -->
+    <delete id="deleteCalendarEvent">
+        DELETE FROM group_event WHERE group_id = #{groupId} AND schedule_id = #{scheduleId}
+    </delete>
 </mapper>

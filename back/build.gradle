@@ -26,6 +26,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    // AI작성: 계모임 채팅의 WebSocket 연결과 STOMP 브로커를 사용한다.
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.security:spring-security-crypto'
     // AI작성: 카드사 HTML 형식 .xls 명세서의 표를 안전하게 읽기 위한 파서다.

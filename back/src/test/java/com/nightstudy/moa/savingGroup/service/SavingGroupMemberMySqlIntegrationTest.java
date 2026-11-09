@@ -1,5 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
+import com.nightstudy.moa.notification.service.NotificationService;
 import static org.assertj.core.api.Assertions.*;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
@@ -71,7 +72,7 @@ class SavingGroupMemberMySqlIntegrationTest {
             configuration.getTypeAliasRegistry().registerAliases("com.nightstudy.moa.savingGroup.dto");
             factory.setConfiguration(configuration); factory.setMapperLocations(new ClassPathResource("mappers/SavingGroupMapper.xml"));
             var template = new SqlSessionTemplate(factory.getObject());
-            var proxy = new ProxyFactory(new SavingGroupServiceImpl(template.getMapper(SavingGroupMapper.class)));
+            var proxy = new ProxyFactory(new SavingGroupServiceImpl(template.getMapper(SavingGroupMapper.class), null, null, org.mockito.Mockito.mock(NotificationService.class)));
             proxy.setInterfaces(SavingGroupService.class);
             proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
             service = (SavingGroupService) proxy.getProxy();

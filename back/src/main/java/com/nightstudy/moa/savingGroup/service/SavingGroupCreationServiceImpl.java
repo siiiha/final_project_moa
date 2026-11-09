@@ -28,12 +28,16 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
 
     private final SavingGroupMapper savingGroupMapper;
     private final FileStorageService fileStorageService;
+    // AI작성: 발급 계층은 기존 승인 API 안에서 호출하며 별도 공개 발급 API를 만들지 않는다.
+    private final VirtualAccountApprovalService virtualAccountApprovalService;
     private final NotificationService notificationService;
 
     public SavingGroupCreationServiceImpl(SavingGroupMapper savingGroupMapper, FileStorageService fileStorageService,
+            VirtualAccountApprovalService virtualAccountApprovalService,
             NotificationService notificationService) {
         this.savingGroupMapper = savingGroupMapper;
         this.fileStorageService = fileStorageService;
+        this.virtualAccountApprovalService = virtualAccountApprovalService;
         this.notificationService = notificationService;
     }
 
@@ -78,6 +82,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                     "계모임 개설 신청에 실패했습니다."
             );
         }
+        // AI작성: 개설 신청과 함께 채팅방을 만들고, 계주 권한은 개설 승인 시 부여한다.
+        savingGroupMapper.insertSavingGroupChatRoom(savingGroupCreationRequest.getGroupId());
         return true;
     }
 
@@ -134,6 +140,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             approveDeletionApplication(application);
             return;
         }
+        // AI작성: 발급·암호화 저장이 성공해야 기존 신청 승인·공개·계주 승인을 이어서 처리한다.
+        virtualAccountApprovalService.issueAndSave(approvalId, application.getGroupId());
         if (savingGroupMapper.approveSavingGroupCreationApplication(approvalId) != 1
                 || savingGroupMapper.publishApprovedSavingGroup(application.getGroupId()) != 1
                 || savingGroupMapper.approveSavingGroupCreationOwnerMembership(
@@ -141,6 +149,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 승인할 수 없는 신청입니다.");
         }
+        // AI작성: 계주가 승인된 시점에 채팅방 참여 권한을 부여한다.
+        savingGroupMapper.insertSavingGroupChatMember(application.getGroupId(), application.getApplicantMemberId());
         // AI작성: 개설 심사의 모든 상태 변경이 성공한 뒤 신청자에게 승인 결과와 공개 상세 경로를 알린다.
         notificationService.send(
                 application.getApplicantMemberId(),
@@ -170,6 +180,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             );
             return;
         }
+        // AI작성: 발급 여부가 불확실한 신청을 반려해 외부 계좌가 방치되지 않도록 먼저 확인한다.
+        virtualAccountApprovalService.requireRejectable(approvalId);
         if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, normalizedRejectReason) != 1
                 || savingGroupMapper.rejectSavingGroupCreationOwnerMembership(application.getGroupId()) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",

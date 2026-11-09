@@ -57,6 +57,8 @@ const menuItems = [
   { id: 'calendar', label: '캘린더' },
   { id: 'dues', label: '대시보드' },
   { id: 'transactionHistory', label: '거래 내역' },
+  // AI작성: 승인 회원의 메뉴 목록에 있을 때 채팅방 탭을 표시한다.
+  { id: 'chat', label: '채팅방' },
   { id: 'payoutRequest', label: '계금 요청' },
   { id: 'settings', label: '설정' },
   { id: 'joinRequests', label: '신청 목록' },
@@ -67,7 +69,7 @@ function SavingGroupMenuTabs({ activeMenu, onMenuChange, allowedMenus, canAccess
   const visibleMenuItems = menuItems.filter((item) => {
     const isAllowed = Array.isArray(allowedMenus)
       ? allowedMenus.includes(item.id)
-      : item.id !== 'settings' || canAccessSettings;
+      : item.id !== 'chat' && (item.id !== 'settings' || canAccessSettings);
 
     return isAllowed && (item.id !== 'settings' || settingsPath);
   });

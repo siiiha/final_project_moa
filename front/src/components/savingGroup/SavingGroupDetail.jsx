@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
+import SavingGroupChatPanel from './SavingGroupChatPanel.jsx';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 // AI작성: 기존 react-icons 패키지의 테두리·채움 핀으로 일반·고정 상태를 구분한다.
 import { BsPinAngle, BsPinAngleFill } from 'react-icons/bs';
@@ -16,6 +17,8 @@ import SavingGroupPayoutRequestPanel from './SavingGroupPayoutRequestPanel';
 import SavingGroupPaymentStatusPanel from './SavingGroupPaymentStatusPanel';
 import SavingGroupTransactionHistoryPanel from './SavingGroupTransactionHistoryPanel';
 import SavingGroupDashboardPanel from './SavingGroupDashboardPanel';
+import SavingGroupCalendarPanel from './SavingGroupCalendarPanel';
+import { createSavingGroupCalendarEvent, deleteSavingGroupCalendarEvent, getSavingGroupCalendar } from '../../api/savingGroups.js';
 import SavingGroupNoticeCreateForm from './SavingGroupNoticeCreateForm';
 
 const HeaderCard = styled.section`
@@ -302,7 +305,7 @@ const ActionButton = styled(Button)`
 // AI작성: 공개 상세는 API 응답만 표시하고 범위 밖인 업무 탭에는 Mock 데이터를 섞지 않는다.
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh,
   noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry,
-  noticePinState, onNoticePinChange }) {
+  noticePinState, onNoticePinChange, accountPanel, onLeave }) {
   // AI작성: 일반 공지 네 개의 페이지 번호만 계산하며 기존 계모임 전체 목록 계산과 분리한다.
   const noticePages = getSavingGroupNoticePagination(noticePagination.page, noticePagination.totalPages);
   const pinnedNotices = group.pinnedNotices ?? [];
@@ -346,7 +349,9 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ))}
     </NoticeTable>
   );
-  const allowedMenus = getSavingGroupMenus(group.myRole);
+  // AI작성: 가입 승인 상태가 확인된 회원에게 채팅방 탭을 연다.
+  const baseMenus = getSavingGroupMenus(group.myRole);
+  const allowedMenus = group.membershipStatus === 'APPROVED' ? [...baseMenus, 'chat'] : baseMenus;
   // AI작성: 허용되지 않은 탭 상태가 남아 있어도 공지로 되돌려 계주 전용 패널을 렌더링하지 않는다.
   const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
   const paymentDay = group.duesDay == null ? '납부일 미정'
@@ -377,6 +382,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           <Meta><FiMapPin size={16} aria-hidden="true" /> {group.regionName}</Meta>
           <Meta><FiUsers size={16} aria-hidden="true" /> {group.memberCount}명 / {group.maxMembers == null ? '정원 미정' : '정원 ' + group.maxMembers + '명'}</Meta>
         </MetaList>
+        {/* AI작성: 승인 모임원용 계좌는 공개 상세 데이터와 별도로 조회한 카드만 전달받는다. */}
+        {group.membershipStatus === 'APPROVED' && accountPanel}
         <SavingGroupMenuTabs
           activeMenu={currentMenu}
           onMenuChange={onMenuChange}
@@ -385,23 +392,37 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         />
       </HeaderCard>
 
-      {currentMenu === 'members' ? (
+      {currentMenu === 'chat' ? (
+        <SavingGroupChatPanel key={group.savingGroupId} group={group} />
+      ) : currentMenu === 'members' ? (
         <MembersContent>
           {/* AI작성: 승인 계주와 운영 가능한 모임 상태에서만 관리 API를 요청하고 모임 변경 시 편집 상태를 초기화한다. */}
           {group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' && ['01', '02'].includes(group.status)
             ? <SavingGroupMembersPanel
                 /* AI작성: ID 종류를 구분하고 모임·권한 변경 시 이전 편집/요청 상태를 폐기한다. */
                 key={JSON.stringify([group.savingGroupId, group.groupId, group.myRole, group.membershipStatus, group.status])}
-                savingGroupId={String(group.savingGroupId)} groupId={group.groupId}
+                savingGroupId={String(group.savingGroupId)} groupId={group.groupId} groupType={group.groupType}
                 myRole={group.myRole} membershipStatus={group.membershipStatus} status={group.status} />
             : <p>모집중 또는 진행중인 계모임의 계주만 계원을 관리할 수 있습니다.</p>}
         </MembersContent>
-      ) : currentMenu === 'payment' ? (
-        <SavingGroupPaymentStatusPanel />
+      ) : currentMenu === 'payment' && group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' ? (
+        <SavingGroupPaymentStatusPanel key={group.groupId} groupId={group.groupId} />
+      ) : currentMenu === 'calendar' ? (
+        /* AI작성: 다른 계모임이나 역할로 전환하면 이전 캘린더 조회 상태를 폐기한다. */
+        <SavingGroupCalendarPanel
+          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
+          groupId={group.groupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
+          deleteEvent={deleteSavingGroupCalendarEvent}
+        />
       ) : currentMenu === 'dues' ? (
-        <SavingGroupDashboardPanel onViewTransactions={() => onMenuChange('transactionHistory')} />
+        /* AI작성: 모임이나 권한이 바뀌면 대시보드 조회 상태를 초기화한다. */
+        <SavingGroupDashboardPanel
+          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
+          groupId={group.groupId}
+          canViewOutstanding={group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED'}
+        />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel myRole={group.myRole} />
+        <SavingGroupTransactionHistoryPanel key={group.groupId} groupId={group.groupId} />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel groupId={group.groupId} />
@@ -472,6 +493,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
                 <dt>상태</dt><dd>{statusLabel}</dd>
               </DetailList>
               <ActionButton type="button" $variant="secondary" onClick={onBack}>계모임 목록으로</ActionButton>
+              {/* AI작성: 상세 페이지에서 탈퇴 자격을 확인한 경우에만 버튼을 표시한다. */}
+              {onLeave && <ActionButton type="button" $variant="secondary" onClick={onLeave}>계모임 탈퇴</ActionButton>}
             </Card>
           </SideColumn>
         </Layout>

@@ -10,6 +10,9 @@ import lombok.Getter;
 @Getter
 @RequiredArgsConstructor
 public class SavingGroupDetailResponse {
+    // AI작성: 기존 생성자 호환을 유지하며 Service가 조회한 유형을 전달한다.
+    @Setter
+    private String groupType;
     // AI작성: 상세 URL은 groupId를 사용하지만 가입 신청은 savingGroupId가 필요해 함께 반환한다.
     private final Long savingGroupId;
     private final Long groupId;
