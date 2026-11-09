@@ -113,6 +113,7 @@ public interface SavingGroupMapper {
     int insertSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest);
     // AI작성: 계모임 회원 상태와 채팅방 참여 상태를 같은 트랜잭션에서 반영한다.
     int insertSavingGroupChatRoom(@Param("groupId") Long groupId);
+    boolean canAccessSavingGroupChat(@Param("roomId") Long roomId, @Param("memberId") Long memberId);
     int insertSavingGroupChatMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
     int deleteSavingGroupChatMember(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
 

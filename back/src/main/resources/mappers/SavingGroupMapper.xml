@@ -1050,6 +1050,18 @@
         SELECT saving_group_id FROM saving_group WHERE group_id = #{groupId}
     </insert>
 
+    <select id="canAccessSavingGroupChat" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1 FROM chat_room_member crm
+            JOIN chat_room r ON r.room_id = crm.room_id
+            JOIN saving_group sg ON sg.saving_group_id = r.saving_group_id
+            JOIN groups g ON g.group_id = sg.group_id AND g.deleted_at IS NULL
+            JOIN group_member gm ON gm.group_id = sg.group_id AND gm.member_id = crm.member_id
+            WHERE crm.room_id = #{roomId} AND crm.member_id = #{memberId}
+              AND gm.membership_status = 'APPROVED'
+        )
+    </select>
+
     <insert id="insertSavingGroupChatMember">
         INSERT INTO chat_room_member (room_id, member_id)
         SELECT r.room_id, gm.member_id
