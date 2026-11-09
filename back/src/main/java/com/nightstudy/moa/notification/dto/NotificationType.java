@@ -31,8 +31,10 @@ public enum NotificationType {
     NOTICE_CREATED,
     VOTE_CREATED,
 
-    // AI작성: 회비 납부 안내 또는 신고 처리 결과를 전달할 때 사용하는 알림입니다.
+    // AI작성: 회비 납부 안내와 입금 완료 확인 결과를 전달할 때 사용하는 알림입니다.
     DUES_PAYMENT_DUE,
+    DUES_PAYMENT_CONFIRMED,
+    // AI작성: 관리자가 신고 처리를 완료했을 때 신고자에게 결과를 알립니다.
     REPORT_PROCESSED,
 
     // AI작성: 계금·지출 요청의 접수와 계주의 승인·반려 결과를 전달할 때 사용합니다.
