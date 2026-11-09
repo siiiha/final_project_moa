@@ -81,7 +81,7 @@ async function requestRefresh(authVersion) {
   return token;
 }
 
-function refreshAccessToken(authVersion) {
+export function refreshAccessToken(authVersion) {
   // AI작성: 같은 화면의 동시 요청은 하나의 재발급 작업을 기다린다.
   if (!refreshPromise) {
     const refresh = () => requestRefresh(authVersion);

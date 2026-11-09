@@ -1,6 +1,8 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { FiSend } from 'react-icons/fi';
 import styled from 'styled-components';
+import { connectSavingGroupChat, fetchChatHistory, findChatRoom } from '../../api/savingGroupChat.js';
+import useAuthStore from '../../store/authStore.js';
 
 const Panel = styled.section`
   margin-top: 20px;
@@ -90,12 +92,95 @@ const dayFormat = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeri
 const timeFormat = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' });
 
 // AI작성: 큰 입력창과 좌우 말풍선으로 계모임 채팅 시안을 구현한다.
-export default function SavingGroupChatPanel({ group, messages = [], memberId, onSend, status, error }) {
+export default function SavingGroupChatPanel({ group }) {
   const [draft, setDraft] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState('채팅방에 연결하고 있습니다.');
+  const [error, setError] = useState('');
+  const [memberId, setMemberId] = useState(null);
+  const authVersion = useAuthStore((state) => state.authVersion);
+  const connection = useRef(null);
+  const history = useRef(null);
+  const { savingGroupId } = group;
+
+  useEffect(() => {
+    const abort = new AbortController();
+    const { signal } = abort;
+    let chat;
+    setConnected(false);
+    setMessages([]);
+    setError('');
+    setStatus('채팅방에 연결하고 있습니다.');
+
+    // AI작성: REST와 STOMP 응답 순서에 관계없이 메시지 번호로 합치고 중복을 제거한다.
+    function merge(incoming) {
+      if (signal.aborted) return;
+      setMessages((current) => {
+        const byId = new Map([...current, ...incoming].map((message) => [message.messageId, message]));
+        return [...byId.values()].sort((left, right) => left.messageId - right.messageId);
+      });
+    }
+
+    function showError(message) {
+      if (!signal.aborted) setError(message);
+    }
+
+    async function start() {
+      try {
+        const roomId = await findChatRoom(savingGroupId, signal);
+        if (signal.aborted) return;
+        const payload = useAuthStore.getState().token?.split('.')[1];
+        const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+        setMemberId(JSON.parse(window.atob(normalized)).sub);
+        chat = connectSavingGroupChat(roomId, authVersion, {
+          onConnect() {
+            if (signal.aborted) return;
+            setConnected(true);
+            setStatus('');
+            setError('');
+            fetchChatHistory(roomId, signal).then(merge).catch(() =>
+              showError('이전 대화를 불러오지 못했습니다.'));
+          },
+          onMessage: (message) => merge([message]),
+          onError: showError,
+          onDisconnect(retrying) {
+            if (signal.aborted) return;
+            setConnected(false);
+            setStatus(retrying ? '채팅방에 다시 연결하고 있습니다.' : '');
+          },
+        });
+        connection.current = chat;
+      } catch {
+        if (signal.aborted) return;
+        setStatus('');
+        showError('채팅방을 열지 못했습니다. 가입 상태를 확인해 주세요.');
+      }
+    }
+
+    void start();
+    return () => {
+      abort.abort();
+      connection.current = null;
+      void chat?.close();
+    };
+  }, [savingGroupId, authVersion]);
+
+  useEffect(() => {
+    if (history.current) history.current.scrollTop = history.current.scrollHeight;
+  }, [messages]);
 
   function submit(event) {
     event.preventDefault();
-    if (draft.trim() && onSend?.(draft)) setDraft('');
+    if (!draft.trim()) return;
+    try {
+      if (connection.current?.send(draft)) {
+        setDraft('');
+        setError('');
+      }
+    } catch {
+      setError('메시지를 보내지 못했습니다.');
+    }
   }
 
   return (
@@ -104,10 +189,10 @@ export default function SavingGroupChatPanel({ group, messages = [], memberId, o
         <div><h2>채팅방</h2><p>계모임 회원 전용</p></div>
         <strong>참여 회원 {group.memberCount}명</strong>
       </Header>
-      <History role="log" aria-label="채팅 메시지">
+      <History ref={history} role="log" aria-label="채팅 메시지">
         {status && <p role="status">{status}</p>}
         {error && <p role="alert">{error}</p>}
-        {!messages.length && !status && <p>첫 메시지를 보내 대화를 시작해 보세요.</p>}
+        {!messages.length && !status && !error && <p>첫 메시지를 보내 대화를 시작해 보세요.</p>}
         {messages.map((message, index) => {
           const mine = message.senderId != null && String(message.senderId) === String(memberId);
           const date = new Date(message.createdAt);
@@ -127,7 +212,7 @@ export default function SavingGroupChatPanel({ group, messages = [], memberId, o
       <Composer onSubmit={submit}>
         <textarea aria-label="메시지" placeholder="메시지를 입력하세요" maxLength={1000}
           rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} />
-        <button type="submit" disabled={!onSend || !draft.trim()}>
+        <button type="submit" disabled={!connected || !draft.trim()}>
           <FiSend aria-hidden="true" /> 보내기
         </button>
       </Composer>
