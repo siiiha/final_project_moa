@@ -3,6 +3,7 @@ package com.nightstudy.moa.savingGroup.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
@@ -34,7 +35,9 @@ class SavingGroupDepositTransactionTest {
         when(mapper.insertDepositRequest(any())).thenReturn(0);
         var connection = mock(Connection.class); when(connection.getAutoCommit()).thenReturn(true);
         var source = mock(DataSource.class); when(source.getConnection()).thenReturn(connection);
-        var proxy = new ProxyFactory(new SavingGroupDepositServiceImpl(mapper, () -> {}));
+        // AI작성: 트랜잭션 테스트도 실제 서비스와 같은 알림 의존성을 명시한다.
+        NotificationService notificationService = mock(NotificationService.class);
+        ProxyFactory proxy = new ProxyFactory(new SavingGroupDepositServiceImpl(mapper, notificationService, () -> {}));
         proxy.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(source), new AnnotationTransactionAttributeSource()));
         var service = (SavingGroupDepositService) proxy.getProxy();
         assertThatThrownBy(() -> service.deposit(10L, 20L, new SavingGroupDepositRequest(BigDecimal.TEN, "mock-request-key-0001")))

@@ -48,9 +48,10 @@ function SavingGroupDetailPage() {
   const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
   const [retry, setRetry] = useState(0);
-  const [menu, setMenu] = useState({ id, value: 'notice' });
   // AI작성: URL을 조회 조건의 기준으로 삼아 상세 복귀·뒤로 가기·새로고침 때 같은 조건을 복원한다.
   const [searchParams, setSearchParams] = useSearchParams();
+  const requestedMenu = searchParams.get('menu');
+  const [menu, setMenu] = useState({ id, value: 'notice' });
   const { page: noticePage, sort: noticeSort } = readSavingGroupNoticeQuery(searchParams);
   const noticeRequest = useRef(null);
   // AI작성: 고정 변경은 전송 후 취소하지 않으며 중복 클릭과 다른 계정·모임에서의 응답 반영을 차단한다.
@@ -278,8 +279,18 @@ function SavingGroupDetailPage() {
                 canDeposit={visibleGroup.status === '02'}
                 onDeposit={() => setDepositDialog({ id, authVersion, groupId: visibleGroup.groupId, account: currentAccount.data })}
                 onRetry={() => setAccountRetry((value) => value + 1)} /> : null}
-              activeMenu={menu.id === id ? menu.value : 'notice'}
-              onMenuChange={(value) => setMenu({ id, value })}
+              /* AI작성: 알림 URL의 menu를 우선 반영하고, 사용자가 탭을 바꾸면 알림용 조회 조건을 제거한다. */
+              activeMenu={requestedMenu || (menu.id === id ? menu.value : 'notice')}
+              onMenuChange={(value) => {
+                setMenu({ id, value });
+                if (requestedMenu) setSearchParams((previous) => {
+                  const next = new URLSearchParams(previous);
+                  next.delete('menu');
+                  next.delete('paymentMonth');
+                  next.delete('reminder');
+                  return next;
+                }, { replace: true, preventScrollReset: true });
+              }}
               onJoinRequest={handleJoinRequest}
               isJoinSubmitting={isJoinSubmitting}
               onNoticeRefresh={handleNoticeRefresh}

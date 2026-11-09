@@ -1,6 +1,8 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
@@ -8,10 +10,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -22,12 +26,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavingGroupDepositServiceImpl implements SavingGroupDepositService {
     private final SavingGroupMapper mapper;
+    private final NotificationService notificationService;
     private final Runnable delay;
     private final SecureRandom random = new SecureRandom();
 
     @Autowired
-    public SavingGroupDepositServiceImpl(SavingGroupMapper mapper) {
-        this(mapper, () -> {
+    public SavingGroupDepositServiceImpl(
+            SavingGroupMapper mapper,
+            NotificationService notificationService) {
+        this(mapper, notificationService, () -> {
             try { Thread.sleep(ThreadLocalRandom.current().nextInt(300, 801)); }
             catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -35,9 +42,14 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
             }
         });
     }
-    // AI작성: 테스트에서는 지연만 대체하고 검증·거래 처리 로직은 그대로 실행한다.
-    SavingGroupDepositServiceImpl(SavingGroupMapper mapper, Runnable delay) {
-        this.mapper = mapper; this.delay = delay;
+    // AI작성: 테스트는 지연과 필수 알림 의존성을 모두 명시적으로 전달한다.
+    SavingGroupDepositServiceImpl(
+            SavingGroupMapper mapper,
+            NotificationService notificationService,
+            Runnable delay) {
+        this.mapper = mapper;
+        this.notificationService = notificationService;
+        this.delay = delay;
     }
 
     @Override @Transactional
@@ -66,6 +78,7 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
         saveTransaction(groupId, row, now);
         row.setStatus("COMPLETED");
         requireOne(mapper.insertDepositRequest(row));
+        sendPaymentConfirmed(groupId, memberId, row.getAmount());
         return completed(groupId, row);
     }
 
@@ -90,6 +103,7 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
             throw error(HttpStatus.FORBIDDEN, "DEPOSIT_CONFIRMATION_INVALID", "유효하지 않은 입금 확인 정보입니다.");
         saveTransaction(groupId, row, now);
         requireOne(mapper.completeDepositRequest(row));
+        sendPaymentConfirmed(groupId, memberId, row.getAmount());
         return completed(groupId, row);
     }
 
@@ -136,6 +150,17 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
         BigDecimal balance = mapper.selectSavingGroupBalance(groupId);
         return new SavingGroupDepositResponse("COMPLETED", row.getAmount(), balance == null ? BigDecimal.ZERO : balance,
                 null, null, "테스트 입금이 등록되었습니다. 실제 돈은 이동하지 않습니다.");
+    }
+    // AI작성: 신규 입금 거래가 확정된 경우에만 회원 본인에게 납부 금액과 확인 결과를 알린다.
+    private void sendPaymentConfirmed(Long savingGroupId, Long memberId, BigDecimal amount) {
+        String message = "회비 납부가 확인되었습니다. 납부 금액: "
+                + NumberFormat.getNumberInstance(Locale.KOREA).format(amount) + "원";
+        notificationService.send(
+                memberId,
+                NotificationType.DUES_PAYMENT_CONFIRMED,
+                message,
+                "/saving-groups/" + savingGroupId + "?menu=dues"
+        );
     }
     private void requireOne(int count) {
         if (count != 1) throw error(HttpStatus.CONFLICT, "DEPOSIT_SAVE_CONFLICT", "입금 처리 상태가 변경되었습니다. 같은 요청으로 다시 확인해주세요.");
