@@ -183,6 +183,17 @@ export default function SavingGroupChatPanel({ group }) {
     }
   }
 
+  // AI작성: 한글 조합과 Shift+Enter를 유지하고 Enter는 보내기 버튼과 같은 경로로 처리한다.
+  function handleMessageKeyDown(event) {
+    if (event.key !== 'Enter' || event.shiftKey
+        || event.nativeEvent.isComposing || event.keyCode === 229) return;
+
+    event.preventDefault();
+    if (connected && draft.trim()) {
+      event.currentTarget.form?.requestSubmit();
+    }
+  }
+
   return (
     <Panel aria-label="계모임 채팅방">
       <Header>
@@ -211,7 +222,8 @@ export default function SavingGroupChatPanel({ group }) {
       </History>
       <Composer onSubmit={submit}>
         <textarea aria-label="메시지" placeholder="메시지를 입력하세요" maxLength={1000}
-          rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} />
+          rows={1} value={draft} onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={handleMessageKeyDown} />
         <button type="submit" disabled={!connected || !draft.trim()}>
           <FiSend aria-hidden="true" /> 보내기
         </button>
