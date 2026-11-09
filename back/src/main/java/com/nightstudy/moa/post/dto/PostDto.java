@@ -2,6 +2,7 @@ package com.nightstudy.moa.post.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,6 +36,9 @@ public class PostDto {
 
     // member join해서 가져올 값
     private String writerNickname;
+
+    // AI작성: 게시글 상세에 표시할 첨부 목록입니다.
+    private List<PostImageDto> images;
 
 
 }

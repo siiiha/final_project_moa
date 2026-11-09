@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
+import useAuthStore from '../store/authStore';
 import SmallGroupDetail from '../components/smallGroup/SmallGroupDetail';
 import {
   createSmallGroupVote,
   fetchSmallGroupCategories,
   getSmallGroupDetail,
+  readSmallGroupNoticeQuery,
+  toSmallGroupNoticeSearch,
   getSmallGroupSettings,
   getSmallGroupVotes,
   requestSmallGroupJoin,
@@ -59,6 +62,12 @@ function toSmallGroupDetailView(data) {
     meetDate: data.meetDate,
     location: data.location,
     notices: data.notices,
+    pinnedNotices: data.pinnedNotices,
+    // AI작성: 표시용 변환에서 서버의 가입 신청 상태·판단 필드를 누락하지 않는다.
+    membershipStatus: data.membershipStatus,
+    canApply: data.canApply,
+    joinRestrictionCode: data.joinRestrictionCode,
+    joinRestrictionMessage: data.joinRestrictionMessage,
   };
 }
 
@@ -66,7 +75,12 @@ function SmallGroupDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams();
+  const noticeQuery = readSmallGroupNoticeQuery(location.search);
+  // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
+  const authVersion = useAuthStore((state) => state.authVersion);
   const [result, setResult] = useState(null);
+  // AI작성: 상세 조회·작성 후 갱신 요청은 같은 순번으로 이전 응답을 폐기한다.
+  const detailRequest = useRef(0);
   const [retry, setRetry] = useState(0);
   const [menu, setMenu] = useState({
     id,
@@ -77,35 +91,59 @@ function SmallGroupDetailPage() {
   const [settingsRetry, setSettingsRetry] = useState(0);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  const [isJoinSubmitting, setIsJoinSubmitting] = useState(false);
-  const [joinErrorMessage, setJoinErrorMessage] = useState(null);
-  const [isIdentityVerificationModalOpen, setIsIdentityVerificationModalOpen] = useState(false);
   const [isVoteCreating, setIsVoteCreating] = useState(false);
   const [isVoteCreateSuccessModalOpen, setIsVoteCreateSuccessModalOpen] = useState(false);
   const [voteResult, setVoteResult] = useState(null);
   const [voteRetry, setVoteRetry] = useState(0);
+
+  // AI작성: 동일 렌더의 연속 클릭은 ref로 차단하고 안내는 모임·계정별로 구분한다.
+  const joinLock = useRef(null);
+  const joinScope = useRef(null);
+  const [joinState, setJoinState] = useState(null);
+  const currentJoin = joinState?.id === id && joinState?.authVersion === authVersion ? joinState : null;
+  const isJoinSubmitting = currentJoin?.status === 'submitting';
+  const isJoinModalOpen = currentJoin?.status === 'success';
+  const isIdentityVerificationModalOpen = currentJoin?.status === 'verification';
+  const joinErrorMessage = currentJoin?.status === 'error' ? currentJoin.message : null;
+
+  // AI작성: 이미 전송된 POST는 취소로 되돌릴 수 없으므로 화면 이탈 후의 안내·재조회만 차단한다.
+  useEffect(() => {
+    const scope = { active: true };
+    joinScope.current = scope;
+    return () => {
+      scope.active = false;
+      // AI작성: 다른 모임으로 갔다가 돌아와도 이전 완료·실패 안내가 다시 열리지 않게 한다.
+      setJoinState(null);
+    };
+  }, [id, authVersion]);
 
   // AI작성: URL 변경·화면 이탈 시 이전 요청을 취소해 다른 소모임의 결과가 표시되지 않게 한다.
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
 
-    getSmallGroupDetail(id, { signal: controller.signal })
+    const requestVersion = ++detailRequest.current;
+    getSmallGroupDetail(id, { signal: controller.signal, noticePage: noticeQuery.page, noticeSort: noticeQuery.sort })
       .then((group) => {
-        if (active) setResult({ id, retry, group });
+        // AI작성: 마지막 공지 삭제 등으로 서버가 페이지를 보정하면 URL도 같은 페이지로 맞춘다.
+        if (active && requestVersion === detailRequest.current && group.noticePageMeta?.page && group.noticePageMeta.page !== noticeQuery.page) {
+          navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(group.noticePageMeta.page, noticeQuery.sort, location.search) }, { replace: true });
+          return;
+        }
+        if (active && requestVersion === detailRequest.current) setResult({ id, retry, authVersion, search: location.search, group });
       })
       .catch((error) => {
-        if (active && !controller.signal.aborted) setResult({ id, retry, error });
+        if (active && requestVersion === detailRequest.current && !controller.signal.aborted) setResult({ id, retry, authVersion, search: location.search, error });
       });
 
     return () => {
       active = false;
       controller.abort();
+      detailRequest.current += 1;
     };
-  }, [id, retry]);
+  }, [id, retry, authVersion, location.search, location.pathname, navigate, noticeQuery.page, noticeQuery.sort]);
 
-  const current = result?.id === id && result?.retry === retry ? result : null;
+  const current = result?.id === id && result?.retry === retry && result?.authVersion === authVersion && result?.search === location.search ? result : null;
   const isSettingsSelected = current?.group?.myRole === 'OWNER'
     && menu.id === id && menu.value === 'settings';
   const isVoteSelected = ['OWNER', 'MEMBER'].includes(current?.group?.myRole)
@@ -179,20 +217,29 @@ function SmallGroupDetailPage() {
 
   // AI작성: 가입 신청은 상세 조회 ID를 그대로 사용하며, 본인 인증 오류만 별도 안내 모달로 구분한다.
   const handleJoinRequest = async () => {
-    if (isJoinSubmitting) return;
+    const scope = joinScope.current;
+    if (!scope?.active || joinLock.current?.scope === scope || current?.group?.canApply !== true) return;
 
-    setIsJoinSubmitting(true);
+    const request = { scope };
+    joinLock.current = request;
+    setJoinState({ id, authVersion, status: 'submitting' });
     try {
       await requestSmallGroupJoin(id);
-      setIsJoinModalOpen(true);
+      if (!scope.active) return;
+      setJoinState({ id, authVersion, status: 'success' });
+      // AI작성: 신청 성공은 가입 완료가 아니므로 서버의 최신 심사 상태를 다시 조회한다.
+      setRetry((value) => value + 1);
     } catch (error) {
-      if (error.code === 'IDENTITY_VERIFICATION_REQUIRED') {
-        setIsIdentityVerificationModalOpen(true);
-      } else {
-        setJoinErrorMessage(error.message || '가입 신청 처리에 실패했습니다.');
-      }
+      if (!scope.active) return;
+      setJoinState({
+        id, authVersion,
+        status: error.code === 'IDENTITY_VERIFICATION_REQUIRED' ? 'verification' : 'error',
+        message: error.message || '가입 신청 처리에 실패했습니다.',
+      });
+      // AI작성: 정원·가입 상태 변경 또는 응답 유실 후에는 POST를 반복하지 않고 상세부터 확인한다.
+      setRetry((value) => value + 1);
     } finally {
-      setIsJoinSubmitting(false);
+      if (joinLock.current === request) joinLock.current = null;
     }
   };
 
@@ -205,6 +252,12 @@ function SmallGroupDetailPage() {
       await createSmallGroupVote(id, request);
       setVoteRetry((value) => value + 1);
       setIsVoteCreateSuccessModalOpen(true);
+    } catch (error) {
+      // AI작성: 생성 한도 오류 시 서버 기준 목록을 다시 읽고, 입력값과 오류 안내는 생성 모달에 유지한다.
+      if (error.code === 'SMALL_GROUP_OPEN_VOTE_LIMIT_EXCEEDED') {
+        setVoteRetry((value) => value + 1);
+      }
+      throw error;
     } finally {
       setIsVoteCreating(false);
     }
@@ -253,7 +306,7 @@ function SmallGroupDetailPage() {
             </EmptyCard>
           ) : (
             <SmallGroupDetail
-              key={id}
+              key={`${id}:${authVersion}`}
               group={group}
               groupId={current.group.groupId}
               smallGroupId={current.group.smallGroupId}
@@ -267,7 +320,11 @@ function SmallGroupDetailPage() {
               votes={currentVotes?.votes || []}
               isVoteLoading={isVoteSelected && (!currentVotes || currentVotes.loading)}
               voteErrorMessage={currentVotes?.error ? voteErrorMessage : null}
-              onMenuChange={(value) => setMenu({ id, value })}
+              onMenuChange={(value) => {
+                // AI작성: 변경 도중 다른 탭으로 이탈했어도 공지 재진입 시 서버 상태를 다시 확인한다.
+                setMenu({ id, value });
+                if (value === 'notice') setRetry((previous) => previous + 1);
+              }}
               onSettingsSubmit={handleSettingsSubmit}
               onSettingsCancel={() => setMenu({ id, value: 'notice' })}
               onRetrySettings={() => setSettingsRetry((value) => value + 1)}
@@ -277,6 +334,20 @@ function SmallGroupDetailPage() {
               onCreateVote={handleVoteCreate}
               isVoteCreating={isVoteCreating}
               onRetryVotes={() => setVoteRetry((value) => value + 1)}
+              onNoticeDetail={(noticeId) => navigate('/small-groups/' + encodeURIComponent(id) + '/notices/' + encodeURIComponent(noticeId) + '?' + toSmallGroupNoticeSearch(current.group.noticePageMeta?.page || noticeQuery.page, noticeQuery.sort))}
+              noticePageMeta={current.group.noticePageMeta}
+              noticeSort={noticeQuery.sort}
+              onNoticeQueryChange={(page, sort) => navigate({ pathname: location.pathname, search: toSmallGroupNoticeSearch(page, sort, location.search) })}
+              onNoticeRefresh={async ({ resetNoticeQuery = false } = {}) => {
+                // AI작성: 작성 성공은 최신순 첫 페이지로 이동하고 재조회 실패 시 등록을 반복하지 않는다.
+                const query = resetNoticeQuery ? { page: 1, sort: 'LATEST' } : noticeQuery;
+                const version = ++detailRequest.current;
+                const data = await getSmallGroupDetail(id, { noticePage: query.page, noticeSort: query.sort });
+                if (version !== detailRequest.current) return;
+                const search = '?' + toSmallGroupNoticeSearch(data.noticePageMeta?.page || query.page, query.sort, location.search);
+                if (search !== location.search) navigate({ pathname: location.pathname, search }, { replace: true });
+                else setResult({ id, retry, authVersion, search: location.search, group: data });
+              }}
               onVoteDetail={(smallGroupVoteId) => navigate(`/small-groups/${id}/votes/${smallGroupVoteId}`)}
             />
           )}
@@ -295,11 +366,11 @@ function SmallGroupDetailPage() {
       {isJoinModalOpen && (
         <ConfirmModal
           title="가입 신청 완료"
-          description="가입 신청이 완료되었습니다."
+          description="가입 신청이 접수되었습니다. 모임 운영자의 심사를 기다려 주세요."
           confirmLabel="확인"
           showCancel={false}
-          onConfirm={() => setIsJoinModalOpen(false)}
-          onCancel={() => setIsJoinModalOpen(false)}
+          onConfirm={() => setJoinState(null)}
+          onCancel={() => setJoinState(null)}
         />
       )}
       {isVoteCreateSuccessModalOpen && (
@@ -320,7 +391,7 @@ function SmallGroupDetailPage() {
           cancelLabel="닫기"
           cancelFirst
           onConfirm={() => navigate('/member/verify')}
-          onCancel={() => setIsIdentityVerificationModalOpen(false)}
+          onCancel={() => setJoinState(null)}
         />
       )}
       {joinErrorMessage && (
@@ -329,8 +400,8 @@ function SmallGroupDetailPage() {
           description={joinErrorMessage}
           confirmLabel="확인"
           showCancel={false}
-          onConfirm={() => setJoinErrorMessage(null)}
-          onCancel={() => setJoinErrorMessage(null)}
+          onConfirm={() => setJoinState(null)}
+          onCancel={() => setJoinState(null)}
         />
       )}
     </Page>

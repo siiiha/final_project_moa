@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import styled from 'styled-components';
-import Badge from '../common/Badge';
 import Button from '../common/Button';
+import PostCategoryBadge from './PostCategoryBadge';
 
 const ArticleCard = styled.article`
   padding: 22px 18px 14px;
@@ -34,6 +35,35 @@ const PostContent = styled.div`
     font-size: 15px;
   }
 `;
+
+// AI작성: 상세 본문 아래에 첨부를 원본 비율로 표시합니다.
+const PostImages = styled.ul`
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 12px 0;
+  list-style: none;
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 640px;
+    object-fit: contain;
+  }
+`;
+
+function PostAttachment({ imageUrl, index }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <li>
+      {failed ? (
+        <p>첨부 사진을 불러오지 못했습니다.</p>
+      ) : (
+        <img src={imageUrl} alt={`첨부 사진 ${index + 1}`} loading="lazy" onError={() => setFailed(true)} />
+      )}
+    </li>
+  );
+}
 
 const PostActions = styled.div`
   padding-top: 13px;
@@ -96,11 +126,26 @@ const Author = styled.h3`
   font-weight: 800;
 `;
 
+const AuthorInfo = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+`;
+
+const CommentDate = styled.time`
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 12px;
+`;
+
 const CommentText = styled.p`
   margin-top: 7px;
   color: ${({ theme }) => theme.colors.secondaryText};
   font-size: 15px;
   line-height: 1.6;
+  /* AI작성: 댓글·대댓글에 저장된 줄바꿈을 유지하고 긴 문자열은 영역 안에서 줄바꿈한다. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 `;
 
 const Reply = styled.div`
@@ -191,6 +236,21 @@ const ReplyForm = styled(CommentEditForm)`
   border-left: 2px solid ${({ theme }) => theme.colors.primarySoft};
 `;
 
+// AI작성: 댓글과 대댓글 작성일을 동일한 한국어 날짜·시간 형식으로 표시한다.
+function formatCommentDate(value) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
 function PostDetail({
   post,
   memberId,
@@ -226,11 +286,18 @@ function PostDetail({
   return (
     <>
       <ArticleCard>
-        <Badge>{post.category}</Badge>
+        <PostCategoryBadge category={post.category} size="detail" />
         <Meta>
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>
         <PostContent>{post.content}</PostContent>
+        {post.images?.length > 0 && (
+          <PostImages aria-label="첨부 사진">
+            {post.images.map((image, index) => (
+              <PostAttachment key={image.imageId} imageUrl={image.imageUrl} index={index} />
+            ))}
+          </PostImages>
+        )}
         <PostActions>
           {Number(post.writerId) === Number(memberId) ? <>
             <Button type="button" $size="small" onClick={onEdit}>수정</Button>
@@ -256,7 +323,10 @@ function PostDetail({
           {comments.map((comment) => (
             <Comment key={comment.id}>
               <CommentHeader>
-                <Author>{comment.author}</Author>
+                <AuthorInfo>
+                  <Author>{comment.author}</Author>
+                  <CommentDate dateTime={comment.createdAt}>{formatCommentDate(comment.createdAt)}</CommentDate>
+                </AuthorInfo>
                 {!comment.deleted && (
                   <ReplyActions>
                     {/* AI작성: 원댓글에만 한 단계 답글 작성 버튼을 제공합니다. */}
@@ -326,7 +396,10 @@ function PostDetail({
               {comment.replies.map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>
-                    <Author>↳ {reply.author}</Author>
+                    <AuthorInfo>
+                      <Author>↳ {reply.author}</Author>
+                      <CommentDate dateTime={reply.createdAt}>{formatCommentDate(reply.createdAt)}</CommentDate>
+                    </AuthorInfo>
                     {!reply.deleted && (
                       <ReplyActions>
                         {/* AI작성: 대댓글은 한 단계만 허용하므로 수정과 삭제 기능만 제공합니다. */}

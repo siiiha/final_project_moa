@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
-import Checkbox from '../common/Checkbox';
-import { savingGroupPayments } from '../../mocks/savingGroupPayments';
+import { formatSavingGroupAmount, getSavingGroupPaymentStatus } from '../../api/savingGroups';
 
+// AI작성: 기존 납부 현황의 카드, 배지, 반응형 표 스타일을 복원한다.
 const Panel = styled.section`
   margin-top: 22px;
 `;
@@ -158,12 +158,6 @@ const StatusBadge = styled(Badge)`
   font-size: 10px;
 `;
 
-const HistoryButton = styled(Button)`
-  min-height: 29px;
-  padding: 5px 8px;
-  font-size: 10px;
-`;
-
 const MobileList = styled.div`
   margin-top: 14px;
   display: none;
@@ -201,26 +195,11 @@ const MobileInfo = styled.dl`
   }
 `;
 
-const MobileAction = styled.div`
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-`;
-
 const Empty = styled.p`
   padding: 42px 16px;
   color: ${({ theme }) => theme.colors.muted};
   text-align: center;
   font-size: 13px;
-`;
-
-const HistoryNotice = styled.p`
-  margin-top: 14px;
-  padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
 `;
 
 const Pagination = styled.nav`
@@ -234,167 +213,137 @@ const PageButton = styled(Button)`
   min-width: 30px;
 `;
 
-const PAGE_SIZE = 10;
+// AI작성: 한국 시간의 연·월을 월 선택 입력의 초기값으로 사용한다.
+function currentMonth() {
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit',
+  }).formatToParts(new Date());
+  return `${parts.find((part) => part.type === 'year').value}-${parts.find((part) => part.type === 'month').value}`;
+}
 
-function SavingGroupPaymentStatusPanel() {
-  const [selectedMonth, setSelectedMonth] = useState('2026-10');
-  const [onlyOverdue, setOnlyOverdue] = useState(false);
-  const [selectedMember, setSelectedMember] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+export default function SavingGroupPaymentStatusPanel({ groupId }) {
+  const [month, setMonth] = useState(currentMonth);
+  const [page, setPage] = useState(1);
+  const [request, setRequest] = useState(null);
+  const [retry, setRetry] = useState(0);
+  const key = `${groupId}/${month}/${page}/${retry}`;
 
-  const filteredPayments = useMemo(
-    () => (onlyOverdue ? savingGroupPayments.filter((payment) => payment.status === '미납') : savingGroupPayments),
-    [onlyOverdue],
-  );
-  const totalPages = Math.max(1, Math.ceil(filteredPayments.length / PAGE_SIZE));
-  const visiblePayments = filteredPayments.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const paidCount = savingGroupPayments.filter((payment) => payment.status === '납부').length;
-  const overdueCount = savingGroupPayments.filter((payment) => payment.status === '미납').length;
-  const totalAmount = paidCount * 30000;
+  // AI작성: 월이나 페이지가 바뀌면 이전 요청을 취소하고 이전 결과를 숨긴다.
+  useEffect(() => {
+    if (!month) return undefined;
+    const controller = new AbortController();
+    getSavingGroupPaymentStatus(groupId, { month, page, signal: controller.signal })
+      .then((result) => {
+        if (!controller.signal.aborted) setRequest({ key, result });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setRequest({ key, error: true });
+      });
+    return () => controller.abort();
+  }, [groupId, key, month, page]);
 
-  const handleHistoryClick = (memberName) => {
-    // TODO: Spring Boot 서버에서 선택한 계원의 회비 납부 이력을 조회합니다.
-    setSelectedMember(memberName);
-  };
+  const current = request?.key === key ? request : null;
+  const items = current?.result?.items ?? [];
+  const totalPages = current?.result?.meta?.totalPages ?? 0;
 
-  const handleOnlyOverdueChange = (event) => {
-    setOnlyOverdue(event.target.checked);
-    setCurrentPage(1);
-  };
 
-  const handlePageChange = (page) => {
-    setCurrentPage(Math.min(Math.max(page, 1), totalPages));
-  };
+  // AI작성: 현재 페이지의 입금 합계와 상태를 표시한다.
+  const paidItems = items.filter((item) => item.paid === true);
+  const unpaidCount = items.filter((item) => item.paid === false).length;
+  const paidAmount = items.reduce((sum, item) => sum + Number(item.depositedAmount), 0);
+  const payments = items.map((item) => ({
+    ...item,
+    status: item.paid == null ? '회비 기준 확인 필요' : item.paid ? '납부' : '미납',
+    monthlyDues: item.duesAmount == null ? '—' : formatSavingGroupAmount(item.duesAmount),
+    deposited: formatSavingGroupAmount(item.depositedAmount),
+    remaining: item.remainingAmount == null ? '—' : formatSavingGroupAmount(item.remainingAmount),
+  }));
 
   return (
-    <Panel>
+    <Panel aria-label="회비 납부 현황">
       <Title>회비 납부 현황</Title>
       <FilterBar>
         <MonthField>
           조회 월
-          <MonthInput
-            type="month"
-            value={selectedMonth}
-            onChange={(event) => {
-              setSelectedMonth(event.target.value);
-              setCurrentPage(1);
-            }}
-          />
+          <MonthInput type="month" min="0001-01" max="9999-12" value={month} onChange={(event) => {
+            setMonth(event.target.value);
+            setPage(1);
+          }} />
         </MonthField>
-        <Checkbox
-          id="only-overdue-payments"
-          label="미납만 보기"
-          checked={onlyOverdue}
-          onChange={handleOnlyOverdueChange}
-        />
       </FilterBar>
-
-      <Summary>
-        <SummaryCard>
-          <SummaryLabel>납부</SummaryLabel>
-          <SummaryValue>{paidCount}명</SummaryValue>
-        </SummaryCard>
-        <SummaryCard>
-          <SummaryLabel>미납</SummaryLabel>
-          <SummaryValue $warning>{overdueCount}명</SummaryValue>
-        </SummaryCard>
-        <SummaryCard>
-          <SummaryLabel>이번 달 입금액</SummaryLabel>
-          <SummaryValue>{totalAmount.toLocaleString()}원</SummaryValue>
-        </SummaryCard>
-      </Summary>
-
+      {current?.result && (
+        <Summary aria-label="현재 페이지 회비 요약">
+          <SummaryCard>
+            <SummaryLabel>이 페이지 납부</SummaryLabel>
+            <SummaryValue>{paidItems.length}건</SummaryValue>
+          </SummaryCard>
+          <SummaryCard>
+            <SummaryLabel>이 페이지 미납</SummaryLabel>
+            <SummaryValue $warning>{unpaidCount}건</SummaryValue>
+          </SummaryCard>
+          <SummaryCard>
+            <SummaryLabel>이 페이지 입금 합계</SummaryLabel>
+            <SummaryValue>{formatSavingGroupAmount(paidAmount)}</SummaryValue>
+          </SummaryCard>
+        </Summary>
+      )}
       <ListCard>
         <ListTitle>계원별 납부 현황</ListTitle>
-        {visiblePayments.length ? (
+        {!month && <Empty>조회할 월을 선택해 주세요.</Empty>}
+        {month && !current && <Empty role="status">납부 현황을 불러오는 중입니다.</Empty>}
+        {current?.error && (
+          <div role="alert">
+            <Empty>납부 현황을 불러오지 못했습니다.</Empty>
+            <Button type="button" onClick={() => setRetry(retry + 1)}>다시 시도</Button>
+          </div>
+        )}
+        {current?.result && payments.length === 0 && <Empty role="status">조회 결과가 없습니다.</Empty>}
+        {payments.length > 0 && (
           <>
             <TableWrap>
-              <Table>
-                <colgroup>
-                  <col width="22%" />
-                  <col width="18%" />
-                  <col width="18%" />
-                  <col width="20%" />
-                  <col width="22%" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th scope="col">이름</th>
-                    <th scope="col">월 회비</th>
-                    <th scope="col">납부 여부</th>
-                    <th scope="col">납부일</th>
-                    <th scope="col">납부내역</th>
-                  </tr>
-                </thead>
+              <Table aria-label="계원별 월간 납부 현황">
+                <thead><tr>
+                  <th scope="col">이름</th><th scope="col">월 회비</th><th scope="col">입금 합계</th>
+                  <th scope="col">부족액</th><th scope="col">납부 여부</th>
+                </tr></thead>
                 <tbody>
-                  {visiblePayments.map((payment) => (
-                    <tr key={payment.id}>
+                  {payments.map((payment, index) => (
+                    <tr key={index}>
                       <td><Name>{payment.memberName}</Name></td>
                       <td>{payment.monthlyDues}</td>
+                      <td>{payment.deposited}</td>
+                      <td>{payment.remaining}</td>
                       <td><StatusBadge $status={payment.status}>{payment.status}</StatusBadge></td>
-                      <td>{payment.paidAt}</td>
-                      <td>
-                        <HistoryButton type="button" $variant="secondary" onClick={() => handleHistoryClick(payment.memberName)}>
-                          이력 보기
-                        </HistoryButton>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
               </Table>
             </TableWrap>
-
             <MobileList>
-              {visiblePayments.map((payment) => (
-                <MobileItem key={payment.id}>
+              {payments.map((payment, index) => (
+                <MobileItem key={index}>
                   <MobileTop>
                     <Name>{payment.memberName}</Name>
                     <StatusBadge $status={payment.status}>{payment.status}</StatusBadge>
                   </MobileTop>
                   <MobileInfo>
-                    <dt>월 회비</dt>
-                    <dd>{payment.monthlyDues}</dd>
-                    <dt>납부일</dt>
-                    <dd>{payment.paidAt}</dd>
+                    <dt>월 회비</dt><dd>{payment.monthlyDues}</dd>
+                    <dt>입금 합계</dt><dd>{payment.deposited}</dd>
+                    <dt>부족액</dt><dd>{payment.remaining}</dd>
                   </MobileInfo>
-                  <MobileAction>
-                    <HistoryButton type="button" $variant="secondary" onClick={() => handleHistoryClick(payment.memberName)}>
-                      이력 보기
-                    </HistoryButton>
-                  </MobileAction>
                 </MobileItem>
               ))}
             </MobileList>
           </>
-        ) : (
-          <Empty>해당 월에 미납한 계원이 없습니다.</Empty>
         )}
-        {selectedMember && <HistoryNotice role="status">{selectedMember}님의 납부 이력을 조회할 예정입니다.</HistoryNotice>}
       </ListCard>
-      {totalPages > 1 && (
+      {current?.result && (totalPages > 1 || page > 1) && (
         <Pagination aria-label="납부 현황 페이지 이동">
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)}>
-            이전
-          </PageButton>
-          {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
-            <PageButton
-              key={page}
-              type="button"
-              $variant={page === currentPage ? 'primary' : 'secondary'}
-              $size="small"
-              aria-current={page === currentPage ? 'page' : undefined}
-              onClick={() => handlePageChange(page)}
-            >
-              {page}
-            </PageButton>
-          ))}
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === totalPages} onClick={() => handlePageChange(currentPage + 1)}>
-            다음
-          </PageButton>
+          <PageButton type="button" $variant="secondary" $size="small" disabled={page <= 1} onClick={() => setPage(page - 1)}>이전</PageButton>
+          <span>{page} / {Math.max(totalPages, 1)} 페이지</span>
+          <PageButton type="button" $variant="secondary" $size="small" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>다음</PageButton>
         </Pagination>
       )}
     </Panel>
   );
 }
-
-export default SavingGroupPaymentStatusPanel;

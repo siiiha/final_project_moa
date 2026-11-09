@@ -3,6 +3,7 @@ import test from 'node:test';
 import client from './client.js';
 import {
   createSmallGroup,
+  getSmallGroups,
   createSmallGroupReview,
   getSmallGroupReviews,
   hasWrittenSmallGroupReview,
@@ -10,6 +11,7 @@ import {
   toSmallGroupReviewListItem,
   SmallGroupReviewCreateError,
   createSmallGroupVote,
+  closeSmallGroupVote,
   deleteSmallGroupVote,
   getSmallGroupVoteDetail,
   getSmallGroupVoteStatus,
@@ -20,6 +22,7 @@ import {
   SmallGroupDetailLoadError,
   SmallGroupJoinRequestError,
   SmallGroupVoteCreateError,
+  SmallGroupVoteCloseError,
   SmallGroupVoteDeleteError,
   SmallGroupVoteDetailLoadError,
   SmallGroupVoteParticipationError,
@@ -236,6 +239,92 @@ test('소모임 후기 등록은 네트워크 실패를 안내 오류로 변환�
       (error) => error instanceof SmallGroupReviewCreateError && error.code === 'NETWORK_ERROR');
   } finally {
     client.post = originalPost;
+  }
+});
+
+// AI작성: 종료 요청의 경로 인코딩·본문 없음·재요청 성공과 오류 보존을 기존 client 대역으로 검증한다.
+test('소모임 투표 종료는 본문 없이 인코딩한 경로로 PATCH 요청하며 재요청도 성공한다', async () => {
+  const originalPatch = client.patch;
+  let calls = 0;
+  try {
+    client.patch = async (...args) => {
+      assert.deepEqual(args, ['/small-groups/7%2F8/votes/11%3F12/close']);
+      calls += 1;
+      return { data: { success: true, data: null, meta: null, error: null } };
+    };
+    assert.equal(await closeSmallGroupVote('7/8', '11?12'), undefined);
+    assert.equal(await closeSmallGroupVote('7/8', '11?12'), undefined);
+    assert.equal(calls, 2);
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 HTTP 오류의 서버 코드와 메시지를 보존한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    for (const [status, code] of [
+      [400, 'BAD_REQUEST'], [401, 'LOGIN_REQUIRED'], [403, 'SMALL_GROUP_VOTE_CLOSE_FORBIDDEN'],
+      [404, 'SMALL_GROUP_NOT_FOUND'], [404, 'SMALL_GROUP_VOTE_NOT_FOUND'], [500, 'SMALL_GROUP_VOTE_CLOSE_FAILED'],
+    ]) {
+      const message = `종료 요청 오류 ${status}`;
+      client.patch = async () => {
+        throw { response: { status, data: { success: false, error: { code, message } } } };
+      };
+      await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+        && error.code === code && error.message === message);
+    }
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 실패 응답 봉투의 코드와 메시지도 보존한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    client.patch = async () => ({ data: { success: false,
+      error: { code: 'SMALL_GROUP_VOTE_CLOSE_FORBIDDEN', message: '종료 권한이 없습니다.' } } });
+    await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+      && error.code === 'SMALL_GROUP_VOTE_CLOSE_FORBIDDEN' && error.message === '종료 권한이 없습니다.');
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 불명확한 성공 응답을 거절한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    for (const data of [null, {}, { success: false }, { success: 'true' }, { success: 1 }]) {
+      client.patch = async () => ({ data });
+      await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+        && error.code === 'SMALL_GROUP_VOTE_CLOSE_FAILED');
+    }
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 네트워크 오류를 종료 전용 오류와 기본 안내로 변환한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    client.patch = async () => { throw new Error('Network Error'); };
+    await assert.rejects(closeSmallGroupVote(7, 11), (error) => error instanceof SmallGroupVoteCloseError
+      && error.code === 'SMALL_GROUP_VOTE_CLOSE_FAILED'
+      && error.message === '투표를 종료하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  } finally { client.patch = originalPatch; }
+});
+
+test('소모임 투표 종료는 취소 오류와 기존 종료 오류 객체를 그대로 전달한다', async () => {
+  const originalPatch = client.patch;
+  try {
+    for (const original of [Object.assign(new Error('cancelled'), { code: 'ERR_CANCELED' }),
+      new SmallGroupVoteCloseError('SMALL_GROUP_VOTE_CLOSE_FAILED', '종료 오류')]) {
+      client.patch = async () => { throw original; };
+      await assert.rejects(closeSmallGroupVote(7, 11), (error) => error === original);
+    }
+  } finally { client.patch = originalPatch; }
+});
+
+// AI작성: 권한 필드는 boolean으로만 받아 true·false를 보존하고 누락을 허용하지 않는다.
+test('소모임 투표 상세의 canClose는 서버 boolean만 허용한다', () => {
+  for (const canClose of [true, false]) {
+    assert.equal(toSmallGroupVoteDetail({ ...voteDetail(), canClose }).canClose, canClose);
+  }
+  for (const canClose of [undefined, null, 'true', 1]) {
+    assert.throws(() => toSmallGroupVoteDetail({ ...voteDetail(), canClose }),
+      (error) => error instanceof SmallGroupVoteDetailLoadError && error.code === 'INVALID_RESPONSE');
   }
 });
 
@@ -892,6 +981,9 @@ test('소모임 상세는 smallGroupId로 공개 API를 호출하고 최근 공�
         writerNickname: '운영진',
         createdAt: '2026-10-28T10:00:00',
       }],
+      // AI작성: 공지 페이지 메타와 고정 목록이 추가된 상세 응답을 검증한다.
+      noticePageMeta: null,
+      pinnedNotices: [],
     });
   } finally {
     client.get = originalGet;
@@ -1089,6 +1181,8 @@ test('소모임 설정 수정은 서버 정원 축소 오류 코드와 메시지
 function voteDetail() {
   return {
     smallGroupVoteId: 11,
+    // AI작성: 상세·현황 응답에 서버 계산 종료 권한을 포함한다.
+    canClose: false,
     title: '11월 모임 장소',
     creatorNickname: '모임장',
     multipleChoice: true,
@@ -1130,3 +1224,38 @@ async function assertDetailLoadError(code, message) {
     client.get = originalGet;
   }
 }
+
+// AI작성: 부분 지역 검색과 기존 코드·관심사·취소 신호를 실제 통신 없이 검증한다.
+test('소모임 전체·시·구·동 검색은 선택 단계만 전달하고 기존 지역 코드를 유지한다', async () => {
+  const original = client.get;
+  const signal = new AbortController().signal;
+  const conditions = [
+    {},
+    { provinceName: '서울특별시' },
+    { provinceName: '서울특별시', districtName: '강남구' },
+    { provinceName: '서울특별시', districtName: '강남구', townName: '역삼동' },
+    { provinceName: '세종특별자치시', districtName: '', townName: '어진동' },
+    { regionCode: '01' },
+  ];
+  try {
+    for (const area of conditions) {
+      client.get = async (path, options) => {
+        assert.equal(path, '/small-groups');
+        assert.deepEqual(options.params, {
+          keyword: '산책', regionCode: undefined, ...area, likeCategory: '운동', page: 2,
+        });
+        assert.equal(options.signal, signal);
+        return { data: { success: true, data: [], meta: { page: 2, size: 6, total: 7, totalPages: 2 } } };
+      };
+      const result = await getSmallGroups({ keyword: '산책', ...area, likeCategory: '운동', page: 2, signal });
+      assert.equal(result.totalElements, 7);
+      assert.equal(result.currentPage, 2);
+      assert.deepEqual(result.items, []);
+    }
+    client.get = async () => ({ data: { success: false, error: { code: 'BAD_REQUEST', message: '지역 조건 오류' } } });
+    await assert.rejects(() => getSmallGroups({ provinceName: '서울특별시' }), /지역 조건 오류/);
+    const canceled = Object.assign(new Error('취소'), { code: 'ERR_CANCELED' });
+    client.get = async () => { throw canceled; };
+    await assert.rejects(() => getSmallGroups({ signal }), (error) => error === canceled);
+  } finally { client.get = original; }
+});

@@ -55,6 +55,56 @@ public class SmallGroupController {
         this.smallGroupService = smallGroupService;
     }
 
+    // AI작성: 명시적인 고정 여부와 인증 회원만 받아 서비스의 모임장 권한을 검증한다.
+    @PatchMapping("/{smallGroupId}/notices/{noticeId}/pin")
+    public ApiResponse<Void> pinNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.smallGroup.dto.SmallGroupNoticePinRequest request) {
+        smallGroupService.updateSmallGroupNoticePinned(smallGroupId, noticeId, memberId, request.getPinned());
+        return ApiResponse.ok(null);
+    }
+
+    // AI작성: 삭제 대상·인증 회원만 전달하고 논리 삭제와 권한은 Service에서 처리한다.
+    @DeleteMapping("/{smallGroupId}/notices/{noticeId}")
+    public ApiResponse<Void> deleteNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.deleteSmallGroupNotice(smallGroupId, noticeId, memberId);
+        return ApiResponse.ok(null);
+    }
+
+    // AI작성: 수정 입력은 작성과 동일하게 검증하고 작성자 권한은 서버에서 재확인한다.
+    @org.springframework.web.bind.annotation.PutMapping("/{smallGroupId}/notices/{noticeId}")
+    public ApiResponse<Long> updateNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeEditRequest request) {
+        return ApiResponse.ok(smallGroupService.updateSmallGroupNotice(smallGroupId, noticeId, memberId, request.getTitle(), request.getContent()));
+    }
+
+    // AI작성: 상세 본문은 인증 회원과 두 식별자를 Service에 전달해 권한을 검증한다.
+    @GetMapping("/{smallGroupId}/notices/{noticeId}")
+    public ApiResponse<com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse> noticeDetail(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @PathVariable("noticeId") @Positive Long noticeId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        return ApiResponse.ok(smallGroupService.getSmallGroupNoticeDetail(smallGroupId, noticeId, memberId));
+    }
+
+    // AI작성: 요청 작성자 필드를 받지 않고 인증 회원만 서비스에 전달한다.
+    @PostMapping("/{smallGroupId}/notices")
+    public ApiResponse<Void> createNotice(
+            @PathVariable("smallGroupId") @Positive Long smallGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeCreateRequest request) {
+        smallGroupService.createSmallGroupNotice(smallGroupId, memberId, request.getTitle(), request.getContent());
+        return ApiResponse.ok(null);
+    }
+
     // AI작성: 이 경로는 공개 목록 경로와 달리 인증이 필요하며 본인 작성 여부만 반환한다.
     @GetMapping("/{smallGroupId}/reviews/me")
     public ApiResponse<Boolean> hasWrittenReview(
@@ -178,6 +228,16 @@ public class SmallGroupController {
                 smallGroupService.getSmallGroupVoteStatus(smallGroupId, smallGroupVoteId, memberId));
     }
 
+    // AI작성: 종료 요청은 본문 없이 JWT 회원 ID와 경로 식별자만 전달하고 권한·재요청 정책은 Service가 처리한다.
+    @PatchMapping("/{smallGroupId}/votes/{smallGroupVoteId}/close")
+    public ApiResponse<Void> closeVote(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.closeSmallGroupVote(smallGroupId, smallGroupVoteId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 삭제 요청은 JWT 회원 ID와 경로 식별자만 Service에 전달하고 소속·권한·삭제 상태 판단은 Service가 처리한다.
     @DeleteMapping("/{smallGroupId}/votes/{smallGroupVoteId}")
     public ApiResponse<Void> deleteVote(
@@ -218,8 +278,14 @@ public class SmallGroupController {
     @GetMapping("/{id}")
     public ApiResponse<SmallGroupDetailResponse> detail(
             @PathVariable("id") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long id,
-            @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ApiResponse.ok(smallGroupService.getSmallGroupDetail(id, memberId));
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @ModelAttribute com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSearchCondition condition) {
+        // AI작성: 공개 상세의 역할 검증을 먼저 통과한 뒤 공지 목록과 공통 페이지 메타를 반환한다.
+        SmallGroupDetailResponse detail = smallGroupService.getSmallGroupDetail(id, memberId);
+        var notices = smallGroupService.getSmallGroupNotices(detail.getGroupId(), condition);
+        detail.setNotices(notices.getItems());
+        detail.getPinnedNotices().addAll(notices.getPinnedItems());
+        return ApiResponse.ok(detail, notices.getPageMeta());
     }
 
     // AI작성: 설정 정보는 JWT 필터가 검증한 회원 ID를 Service에만 전달하고 권한 판단은 Service에서 처리한다.

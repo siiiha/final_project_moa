@@ -53,10 +53,17 @@
         VALUES (#{writerId}, #{categoryId}, #{title}, #{content}, 0)
     </insert>
 
+    <!-- AI작성: 생성된 게시글에 첨부 정보와 표시 순서를 기록합니다. -->
+    <insert id="insertPostImage">
+        INSERT INTO post_image (post_id, image_url, sort_order)
+        VALUES (#{postId}, #{imageUrl}, #{sortOrder})
+    </insert>
+
     <select id="selectPostList" parameterType="PostSearchCondition" resultType="PostDto">
         SELECT p.post_id, p.writer_id, p.category_id, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,
-        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        <!-- AI작성: 게시글 작성일을 댓글과 동일한 날짜·시간 형식으로 반환한다. -->
+        DATE_FORMAT(p.created_at, '%Y. %m. %d. %H:%i') AS created_at_str,
         m.nickname AS writer_nickname,
         pc.category_name
         FROM post p
@@ -79,7 +86,8 @@
     <select id="selectPostDetail" parameterType="long" resultType="PostDto">
         SELECT p.post_id, p.category_id, p.writer_id, m.nickname AS writer_nickname, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,
-        DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
+        <!-- AI작성: 게시글 상세 작성일도 목록과 동일한 날짜·시간 형식으로 반환한다. -->
+        DATE_FORMAT(p.created_at, '%Y. %m. %d. %H:%i') AS created_at_str,
         DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i') AS updated_at_str,
         pc.category_name
         FROM post p
@@ -90,6 +98,24 @@
         WHERE p.post_id = #{postId}
         AND p.deleted_at IS NULL
     </select>
+
+    <!-- AI작성: 상세에서 사용할 첨부를 표시 순서대로 조회합니다. -->
+    <select id="selectPostImages" resultType="com.nightstudy.moa.post.dto.PostImageDto">
+        SELECT image_id AS imageId, image_url AS imageUrl
+        FROM post_image
+        WHERE post_id = #{postId}
+        ORDER BY sort_order, image_id
+    </select>
+
+    <!-- AI작성: 게시글 수정 시 기존 첨부를 제거하거나 표시 순서를 갱신합니다. -->
+    <delete id="deletePostImage">
+        DELETE FROM post_image WHERE post_id = #{postId} AND image_id = #{imageId}
+    </delete>
+
+    <update id="updatePostImageOrder">
+        UPDATE post_image SET sort_order = #{sortOrder}
+        WHERE post_id = #{postId} AND image_id = #{imageId}
+    </update>
 
     <select id="selectPostListCount"
             parameterType="PostSearchCondition"

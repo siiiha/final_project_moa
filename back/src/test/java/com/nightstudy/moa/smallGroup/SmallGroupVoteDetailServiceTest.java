@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupMemberRelationRow;
@@ -21,7 +23,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @ExtendWith(MockitoExtension.class)
 // AI작성: 소모임 투표 상세의 회원 권한·결과 공개·마감 후 숨김 정책을 DB 없이 검증한다.
@@ -170,6 +175,85 @@ class SmallGroupVoteDetailServiceTest {
         assertThat(invalidId.getCode()).isEqualTo("BAD_REQUEST");
         assertThat(unauthenticated.getCode()).isEqualTo("UNAUTHORIZED");
         verify(smallGroupMapper, never()).selectSmallGroupVoteListTarget(SMALL_GROUP_ID);
+    }
+
+    // AI작성: 현재 시각을 고정해 24시간 직전·정각·직후의 경계를 실제 상세 조회 경로에서 검증한다.
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0, 1})
+    void getSmallGroupVoteDetailUsesStrictTwentyFourHourBoundary(int secondsAfterBoundary) {
+        LocalDateTime now = LocalDateTime.of(2026, 11, 3, 15, 0);
+        mockApprovedMember("MEMBER");
+        when(smallGroupMapper.selectSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID))
+                .thenReturn(vote(false, now.minusHours(24).minusSeconds(secondsAfterBoundary), null));
+        if (secondsAfterBoundary <= 0) {
+            when(smallGroupMapper.selectSmallGroupVoteDetailOptions(VOTE_ID)).thenReturn(List.of());
+        }
+
+        try (MockedStatic<LocalDateTime> time = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
+            time.when(() -> LocalDateTime.now(KOREA_ZONE_ID)).thenReturn(now);
+            if (secondsAfterBoundary > 0) {
+                ApiException exception = catchThrowableOfType(
+                        () -> smallGroupService.getSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID, MEMBER_ID),
+                        ApiException.class);
+                assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_VOTE_NOT_FOUND");
+                verify(smallGroupMapper, never()).selectSmallGroupVoteDetailOptions(VOTE_ID);
+            } else {
+                assertThat(smallGroupService.getSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID, MEMBER_ID)
+                        .getStatus()).isEqualTo("CLOSED");
+            }
+        }
+    }
+
+    // AI작성: 명시적 종료 시각이 있으면 마감 예정 시각보다 우선하여 노출 기간을 계산한다.
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0, 1})
+    void getSmallGroupVoteDetailPrioritizesClosedAtOverEndsAt(int secondsAfterBoundary) {
+        LocalDateTime now = LocalDateTime.of(2026, 11, 3, 15, 0);
+        mockApprovedMember("MEMBER");
+        SmallGroupVoteDetailRow row = vote(false, now.minusHours(48),
+                now.minusHours(24).minusSeconds(secondsAfterBoundary));
+        row.setStatus("CLOSED");
+        when(smallGroupMapper.selectSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID)).thenReturn(row);
+        if (secondsAfterBoundary <= 0) {
+            when(smallGroupMapper.selectSmallGroupVoteDetailOptions(VOTE_ID)).thenReturn(List.of());
+        }
+
+        try (MockedStatic<LocalDateTime> time = mockStatic(LocalDateTime.class, CALLS_REAL_METHODS)) {
+            time.when(() -> LocalDateTime.now(KOREA_ZONE_ID)).thenReturn(now);
+            if (secondsAfterBoundary > 0) {
+                ApiException exception = catchThrowableOfType(
+                        () -> smallGroupService.getSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID, MEMBER_ID),
+                        ApiException.class);
+                assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_VOTE_NOT_FOUND");
+            } else {
+                assertThat(smallGroupService.getSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID, MEMBER_ID)
+                        .getStatus()).isEqualTo("CLOSED");
+            }
+        }
+    }
+
+    // AI작성: 작성자·현재 개설자·승인 OWNER와 진행 상태가 모두 맞는 경우에만 종료 가능 여부를 반환한다.
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "OWNER,40,40,OPEN,false,false,true", "MEMBER,40,40,OPEN,false,false,false",
+            "OWNER,50,40,OPEN,false,false,false", "OWNER,40,50,OPEN,false,false,false",
+            "OWNER,40,40,CLOSED,false,false,false", "OWNER,40,40,OPEN,true,false,false",
+            "OWNER,40,40,OPEN,false,true,false"})
+    void canCloseRequiresFullAuthorityAndOpenVote(String role, long author, long creator,
+            String status, boolean ended, boolean hasClosedAt, boolean expected) {
+        mockApprovedMember(role);
+        SmallGroupVoteListTargetRow target = voteTarget();
+        target.setCreatorMemberId(creator);
+        when(smallGroupMapper.selectSmallGroupVoteListTarget(SMALL_GROUP_ID)).thenReturn(target);
+        SmallGroupVoteDetailRow row = vote(false, LocalDateTime.now(KOREA_ZONE_ID).plusHours(1), null);
+        row.setCreatorMemberId(author);
+        row.setStatus(status);
+        if (ended) row.setEndsAt(LocalDateTime.now(KOREA_ZONE_ID).minusMinutes(1));
+        if (hasClosedAt) row.setClosedAt(LocalDateTime.now(KOREA_ZONE_ID).minusMinutes(1));
+        when(smallGroupMapper.selectSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID)).thenReturn(row);
+        when(smallGroupMapper.selectSmallGroupVoteDetailOptions(VOTE_ID)).thenReturn(List.of());
+        assertThat(smallGroupService.getSmallGroupVoteDetail(SMALL_GROUP_ID, VOTE_ID, MEMBER_ID).isCanClose())
+                .isEqualTo(expected);
     }
 
     private void mockApprovedMember(String role) {

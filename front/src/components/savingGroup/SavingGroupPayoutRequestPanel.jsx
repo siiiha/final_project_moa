@@ -1,345 +1,127 @@
-import { useState } from 'react';
-import { FiFileText, FiImage } from 'react-icons/fi';
+import { useEffect, useId, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
-import Textarea from '../common/Textarea';
+import useAuthStore from '../../store/authStore.js';
+import { createSavingGroupPayout, getSavingGroupPayoutOptions } from '../../api/savingGroups.js';
 
+// AI작성: 기존 테마·버튼을 재사용하고 큰 글씨와 명확한 입력 문구로 계금 요청만 처리한다.
 const Panel = styled.section`
   margin-top: 22px;
-`;
-
-const Intro = styled.div`
-  h2 {
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.9px;
-  }
-
-  p {
-    margin-top: 8px;
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
-  }
-`;
-
-const Card = styled.section`
-  margin-top: 16px;
-  padding: 22px;
+  padding: 24px;
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
-  box-shadow: ${({ theme }) => theme.shadow.card};
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: 18px;
+  font-size: 16px;
+  line-height: 1.7;
+  h2 { font-size: 22px; margin-bottom: 12px; }
+  p { margin: 12px 0; }
+  form { display: grid; gap: 20px; margin-top: 20px; }
+  label { display: grid; gap: 8px; font-weight: 700; }
+  input {
+    width: 100%; min-height: 48px; padding: 10px;
+    font: inherit; border: 1px solid ${({ theme }) => theme.colors.border};
+    border-radius: ${({ theme }) => theme.radius.sm};
   }
+  button { min-height: 48px; font-size: 16px; }
 `;
 
-const CardTitle = styled.h3`
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 15px;
-  font-weight: 800;
-`;
+// AI작성: 모임·로그인 세션 변경 시 입력·요청 상태를 새로 만들고 이전 계정 결과를 표시하지 않는다.
+function SavingGroupPayoutRequestPanel({ groupId }) {
+  const authVersion = useAuthStore((state) => state.authVersion);
+  return <PayoutForm key={`${groupId}:${authVersion}`} groupId={groupId} />;
+}
 
-const ScheduledPayout = styled.div`
-  margin-top: 14px;
-  padding: 16px;
-  background: ${({ theme }) => theme.colors.primarySoft};
-  border-radius: ${({ theme }) => theme.radius.sm};
+function PayoutForm({ groupId }) {
+  const fieldId = useId();
+  const lock = useRef(false);
+  const alive = useRef(false);
+  const submitController = useRef(null);
+  const [options, setOptions] = useState(null);
+  const [phase, setPhase] = useState('loading');
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [amount, setAmount] = useState('');
+  const [title, setTitle] = useState('');
+  const [receipt, setReceipt] = useState(null);
 
-  span {
-    display: block;
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 11px;
-  }
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; submitController.current?.abort(); };
+  }, []);
 
-  strong {
-    margin-top: 5px;
-    display: block;
-    color: ${({ theme }) => theme.colors.text};
-    font-size: 15px;
-  }
-`;
+  useEffect(() => {
+    const controller = new AbortController();
+    let current = true;
+    getSavingGroupPayoutOptions(groupId, { signal: controller.signal }).then((value) => {
+      if (!current) return;
+      if (!['순번계', '친목계'].includes(value?.groupType)
+          || (value.groupType === '순번계' && (value.amount == null || value.roundNumber == null))) {
+        throw new Error('요청 정보를 확인할 수 없습니다.');
+      }
+      setOptions(value); setPhase('ready');
+    }).catch((failure) => {
+      if (!current || failure.code === 'ERR_CANCELED') return;
+      setError(failure.message); setPhase('blocked');
+    });
+    return () => { current = false; controller.abort(); };
+  }, [groupId, revision]);
 
-const PayoutAmount = styled.strong`
-  color: ${({ theme }) => theme.colors.primary} !important;
-  font-size: 19px !important;
-  letter-spacing: -0.7px;
-`;
+  const isRotation = options?.groupType === '순번계';
+  const formattedAmount = options?.amount == null ? '' : `${Number(options.amount).toLocaleString('ko-KR')}원`;
+  const retry = () => { setError(''); setOptions(null); setPhase('loading'); setRevision((value) => value + 1); };
 
-const InfoNotice = styled.p`
-  margin-top: 8px;
-  padding: 10px 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.primarySoft};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 11px;
-  line-height: 1.55;
-`;
-
-const Form = styled.form`
-  margin-top: 16px;
-`;
-
-const FieldGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const Field = styled.label`
-  display: grid;
-  gap: 7px;
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 12px;
-  font-weight: 700;
-`;
-
-const FullField = styled(Field)`
-  margin-top: 14px;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  height: 42px;
-  padding: 0 12px;
-  color: ${({ theme }) => theme.colors.text};
-  background: ${({ $readOnly, theme }) => ($readOnly ? theme.colors.background : theme.colors.white)};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 13px;
-
-  &::placeholder {
-    color: ${({ theme }) => theme.colors.muted};
-  }
-
-  &:focus {
-    border-color: ${({ theme }) => theme.colors.primary};
-    outline: 0;
-    box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
-  }
-`;
-
-const UploadArea = styled.div`
-  padding: 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: ${({ theme }) => theme.colors.background};
-  border: 1px dashed ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    align-items: stretch;
-    flex-direction: column;
-  }
-`;
-
-const FileInput = styled.input`
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-`;
-
-const UploadButton = styled.label`
-  min-height: 36px;
-  padding: 8px 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: ${({ theme }) => theme.colors.text};
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.primarySoft};
-  }
-`;
-
-const FileName = styled.p`
-  min-width: 0;
-  overflow: hidden;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-const Analysis = styled.div`
-  margin-top: 12px;
-  padding: 13px 14px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.primarySoft};
-  border-radius: ${({ theme }) => theme.radius.sm};
-
-  div {
-    min-width: 0;
-  }
-
-  span,
-  strong {
-    display: block;
-  }
-
-  span {
-    font-size: 11px;
-  }
-
-  strong {
-    margin-top: 3px;
-    color: ${({ theme }) => theme.colors.primary};
-    font-size: 16px;
-  }
-`;
-
-const HelpText = styled.p`
-  margin-top: 7px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 11px;
-`;
-
-const ActionRow = styled.div`
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-`;
-
-const RequestButton = styled(Button)`
-  min-height: 40px;
-  padding: 9px 16px;
-  font-size: 13px;
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    width: 100%;
-  }
-`;
-
-const SuccessMessage = styled.p`
-  margin-top: 14px;
-  padding: 11px 12px;
-  color: ${({ theme }) => theme.colors.primary};
-  background: ${({ theme }) => theme.colors.primarySoft};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 12px;
-  font-weight: 700;
-`;
-
-function SavingGroupPayoutRequestPanel({ groupType }) {
-  const [requestGroupType] = useState(groupType || '순번계');
-  const [receiptName, setReceiptName] = useState('선택된 영수증이 없습니다.');
-  const [analyzedAmount, setAnalyzedAmount] = useState('');
-  const [isRequested, setIsRequested] = useState(false);
-  const isRotationGroup = requestGroupType === '순번계';
-
-  const handleReceiptChange = (event) => {
-    const [receipt] = event.target.files;
-    setReceiptName(receipt ? receipt.name : '선택된 영수증이 없습니다.');
-    // TODO: Spring Boot 서버의 영수증 OCR 분석 API로 실제 지출 금액을 조회합니다.
-    setAnalyzedAmount(receipt ? '32,000원' : '');
-  };
-
-  const handleSubmit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
-    // TODO: Spring Boot 서버에 계금 요청 API와 계모임 유형별 요청 정보를 전송합니다.
-    setIsRequested(true);
+    if (lock.current || phase !== 'ready') return;
+    if (!isRotation && (!/^[1-9]\d*$/.test(amount) || amount.length > 13 || !title.trim() || !receipt)) {
+      setError('사용 금액은 1원 이상의 정수로 입력하고 제목과 영수증을 확인해주세요.'); return;
+    }
+    lock.current = true; setPhase('submitting'); setError('');
+    const controller = new AbortController(); submitController.current = controller;
+    try {
+      await createSavingGroupPayout(groupId, isRotation ? {} : { amount, title: title.trim(), receipt }, { signal: controller.signal });
+      if (alive.current) { setPhase('success'); setReceipt(null); }
+    } catch (failure) {
+      if (!alive.current || failure.code === 'ERR_CANCELED') return;
+      setError(failure.message); setPhase('blocked');
+    } finally { lock.current = false; }
   };
 
-  return (
-    <Panel>
-      <Intro>
-        <h2>계금 요청</h2>
-        <p>{isRotationGroup ? '이번 회차의 수령 대상과 지급 금액을 확인해주세요.' : '선결제한 지출의 영수증을 첨부해 계금을 요청할 수 있습니다.'}</p>
-      </Intro>
-
-      <Card>
-        <CardTitle>{isRotationGroup ? '수령 정보' : '지출 증빙 정보'}</CardTitle>
-        {isRotationGroup ? (
-          <>
-            <ScheduledPayout>
-              <span>이번 회차 수령 예정 계원</span>
-              <strong>김영희</strong>
-              <PayoutAmount>1,200,000원</PayoutAmount>
-              <span>2026년 10월 · 10회차</span>
-            </ScheduledPayout>
-            <InfoNotice>순번계에서는 계금 수령을 요청할 수 있습니다. 회차와 납부 상태를 먼저 확인해주세요.</InfoNotice>
-          </>
-        ) : (
-          <>
-            <FullField as="div">
-              <span>영수증 사진</span>
-              <UploadArea>
-                <FileInput id="payout-receipt" type="file" accept="image/*" onChange={handleReceiptChange} />
-                <UploadButton htmlFor="payout-receipt">
-                  <FiImage size={15} aria-hidden="true" /> 영수증 첨부
-                </UploadButton>
-                <FileName>{receiptName}</FileName>
-              </UploadArea>
-            </FullField>
-            {analyzedAmount && (
-              <Analysis aria-live="polite">
-                <FiFileText size={19} aria-hidden="true" />
-                <div>
-                  <span>영수증 분석 금액</span>
-                  <strong>{analyzedAmount}</strong>
-                </div>
-              </Analysis>
-            )}
-            <HelpText>JPG, PNG, WEBP 형식의 영수증 이미지를 첨부할 수 있습니다.</HelpText>
-          </>
-        )}
-
-        <Form onSubmit={handleSubmit}>
-          <FieldGrid>
-            <Field>
-              {isRotationGroup ? '수령 은행' : '지급 은행'}
-              <Input name="bank" required defaultValue="모아은행" />
-            </Field>
-            <Field>
-              {isRotationGroup ? '수령 계좌' : '지급 계좌'}
-              <Input name="account" required defaultValue="123-456-7890" />
-            </Field>
-          </FieldGrid>
-          {!isRotationGroup && (
-            <FullField>
-              분석된 요청 금액
-              <Input name="amount" $readOnly readOnly value={analyzedAmount} placeholder="영수증을 첨부하면 금액이 표시됩니다." required />
-            </FullField>
-          )}
-          <FullField>
-            요청 메모
-            <Textarea
-              name="memo"
-              placeholder={isRotationGroup ? '이번 회차 계금 지급을 요청합니다.' : '지출 내역과 지급 요청 내용을 입력해주세요.'}
-              defaultValue={isRotationGroup ? '이번 회차 계금 지급을 요청합니다.' : ''}
-            />
-          </FullField>
-          <ActionRow>
-            <RequestButton type="submit" disabled={!isRotationGroup && !analyzedAmount}>
-              계금 요청하기
-            </RequestButton>
-          </ActionRow>
-        </Form>
-        {isRequested && <SuccessMessage role="status">계금 요청이 접수되었습니다.</SuccessMessage>}
-      </Card>
-    </Panel>
-  );
+  return <Panel aria-labelledby={`${fieldId}-heading`}>
+    <h2 id={`${fieldId}-heading`}>계금 요청</h2>
+    {phase === 'loading' && <p role="status">요청 가능 정보를 확인하고 있습니다.</p>}
+    {phase === 'success' ? <p role="status">계금 요청이 접수되었습니다. 승인 결과를 기다려주세요.</p> : <>
+      {error && <p role="alert">{error}</p>}
+      {phase === 'blocked' && <Button type="button" onClick={retry}>요청 가능 정보 다시 확인</Button>}
+      {options && phase !== 'blocked' && <>
+        {isRotation ? <p>현재 {options.roundNumber}회차 · 확정 요청 금액 <strong>{formattedAmount}</strong></p>
+          : <p>사용 금액과 제목을 입력하고 영수증을 첨부해주세요. 저장된 영수증은 계주만 열람할 수 있습니다.</p>}
+        <form onSubmit={submit} aria-busy={phase === 'submitting'}>
+          {!isRotation && <>
+            <label htmlFor={`${fieldId}-amount`}>사용 금액 (원)
+              <input id={`${fieldId}-amount`} inputMode="numeric" pattern="[1-9][0-9]*" maxLength={13} required
+                value={amount} onChange={(event) => setAmount(event.target.value)} disabled={phase === 'submitting'} />
+            </label>
+            <label htmlFor={`${fieldId}-title`}>사용 내역 제목
+              <input id={`${fieldId}-title`} maxLength={100} required value={title}
+                onChange={(event) => setTitle(event.target.value)} disabled={phase === 'submitting'} />
+            </label>
+            <label htmlFor={`${fieldId}-receipt`}>영수증 이미지 (필수)
+              <input id={`${fieldId}-receipt`} type="file" accept="image/jpeg,image/png" required disabled={phase === 'submitting'}
+                onChange={(event) => {
+                  const selected = event.target.files?.[0];
+                  if (selected && (!['image/jpeg', 'image/png'].includes(selected.type) || selected.size > 5 * 1024 * 1024)) {
+                    event.target.value = ''; setReceipt(null); setError('JPG 또는 PNG 이미지를 5MB 이하로 첨부해주세요.');
+                  } else { setReceipt(selected || null); setError(''); }
+                }} />
+            </label>
+            <p>가로·세로 각각 4096픽셀 이하의 JPG·PNG 파일을 첨부해주세요. 개인정보는 가린 후 첨부해주세요.</p>
+          </>}
+          <Button type="submit" disabled={phase !== 'ready'}>{phase === 'submitting' ? '요청 중입니다…' : '계금 요청하기'}</Button>
+        </form>
+      </>}
+    </>}
+  </Panel>;
 }
 
 export default SavingGroupPayoutRequestPanel;

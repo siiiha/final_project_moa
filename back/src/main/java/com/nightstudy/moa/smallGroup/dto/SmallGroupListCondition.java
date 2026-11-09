@@ -10,6 +10,10 @@ import lombok.Setter;
 public class SmallGroupListCondition {
     private final String keywordPattern;
     private final String regionName;
+    // AI작성: 상위 지역만 선택하면 하위 지역 조건은 null로 유지한다.
+    private final String provinceName;
+    private final String districtName;
+    private final String townName;
     private final String likeCategory;
     @Setter
     private int offset;

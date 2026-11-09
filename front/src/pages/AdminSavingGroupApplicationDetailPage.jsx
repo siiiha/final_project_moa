@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
@@ -42,6 +42,8 @@ function AdminSavingGroupApplicationDetailPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  // AI작성: 같은 렌더에서 연속 클릭해도 승인·발급 요청은 한 번만 전송한다.
+  const processLock = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,6 +57,8 @@ function AdminSavingGroupApplicationDetailPage() {
   }, [id]);
 
   const handleProcess = async (type, rejectReason) => {
+    if (processLock.current) return;
+    processLock.current = true;
     setError('');
     setSuccessMessage('');
     setIsProcessing(true);
@@ -75,6 +79,7 @@ function AdminSavingGroupApplicationDetailPage() {
     } catch (failure) {
       setError(failure.message);
     } finally {
+      processLock.current = false;
       setIsProcessing(false);
     }
   };

@@ -34,6 +34,37 @@ import org.apache.ibatis.annotations.Param;
 // AI작성: 소모임 생성과 목록 조회는 기존 MyBatis Mapper/XML에서 함께 관리한다.
 @Mapper
 public interface SmallGroupMapper {
+    // AI작성: 고정 목록은 일반 목록과 분리하며 변경은 모임 잠금 후 처리한다.
+    List<SmallGroupNoticeSummaryResponse> selectSmallGroupPinnedNotices(@Param("groupId") Long groupId);
+    com.nightstudy.moa.smallGroup.dto.SmallGroupNoticePinRow selectSmallGroupNoticePinForUpdate(
+            @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
+    List<Long> selectSmallGroupPinnedNoticeIdsForUpdate(@Param("groupId") Long groupId);
+    int updateSmallGroupNoticePinned(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId, @Param("pinned") boolean pinned);
+
+    // AI작성: 작성자와 모임을 함께 제한해 삭제 시각만 남긴다.
+    int deleteSmallGroupNotice(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId, @Param("writerId") Long writerId);
+
+    // AI작성: 모임·관계를 잠근 다음 소속 공지를 잠가 수정·삭제와 고정을 직렬화한다.
+    com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse selectSmallGroupNoticeForUpdate(
+            @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
+    int updateSmallGroupNotice(@Param("groupId") Long groupId, @Param("noticeId") Long noticeId,
+            @Param("writerId") Long writerId, @Param("title") String title, @Param("content") String content);
+
+    // AI작성: 소모임 소속 공지만 조회하며 삭제된 공지는 제외한다.
+    com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse selectSmallGroupNoticeDetail(
+            @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
+
+    // AI작성: 정렬은 SQL choose로 제한하고 페이지 크기는 네 건으로 고정한다.
+    int countSmallGroupNotices(@Param("groupId") Long groupId);
+    List<SmallGroupNoticeSummaryResponse> selectSmallGroupNoticePage(@Param("groupId") Long groupId,
+            @Param("offset") int offset, @Param("sort") String sort);
+
+    // AI작성: 소모임 ID를 공통 모임 ID로 검증한 뒤 공지를 저장한다.
+    int insertSmallGroupNotice(com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeCreateRow row);
+
+    // AI작성: 공개 상세 조회에서는 행 잠금 없이 본인의 신청 조건만 읽는다.
+    SmallGroupJoinMemberRow selectSmallGroupJoinMember(@Param("memberId") Long memberId);
+
     // AI작성: 같은 소모임 조건으로 후기 전체 건수를 조회해 공통 페이징 정보를 구성한다.
     int selectSmallGroupReviewCount(SmallGroupReviewListCondition condition);
 
@@ -84,6 +115,9 @@ public interface SmallGroupMapper {
 
     // AI작성: 소모임 참여 인원은 승인된 OWNER와 MEMBER만 중복 없이 집계한다.
     long selectApprovedSmallGroupMemberCount(@Param("groupId") Long groupId);
+
+    // AI작성: 새 투표 알림을 보낼 승인 OWNER·MEMBER의 회원 번호를 중복 없이 조회한다.
+    List<Long> selectApprovedSmallGroupMemberIds(@Param("groupId") Long groupId);
 
     // AI작성: 가입 신청 중 회원 계정·본인 인증·시스템 권한 변경과 경합하지 않도록 회원 행을 잠가 조회한다.
     SmallGroupJoinMemberRow selectSmallGroupJoinMemberForUpdate(@Param("memberId") Long memberId);
@@ -174,6 +208,11 @@ public interface SmallGroupMapper {
 
     // AI작성: 참여 저장 중 투표 행을 잠가 마감·삭제·선택 변경과 동시 요청을 같은 기준으로 처리한다.
     SmallGroupVoteDetailRow selectSmallGroupVoteDetailForUpdate(
+            @Param("smallGroupId") Long smallGroupId,
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
+    // AI작성: Service가 소속·작성자 권한을 검증한 진행 중 투표만 닫고 갱신 건수를 반환한다.
+    int closeSmallGroupVote(
             @Param("smallGroupId") Long smallGroupId,
             @Param("smallGroupVoteId") Long smallGroupVoteId);
 

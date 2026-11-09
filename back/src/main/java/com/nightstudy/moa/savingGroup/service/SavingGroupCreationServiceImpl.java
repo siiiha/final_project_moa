@@ -9,6 +9,9 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationListItem
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationApplicationSearchCondition;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.member.dto.region.MemberRegionDto;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,23 +28,37 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
 
     private final SavingGroupMapper savingGroupMapper;
     private final FileStorageService fileStorageService;
+    // AI작성: 발급 계층은 기존 승인 API 안에서 호출하며 별도 공개 발급 API를 만들지 않는다.
+    private final VirtualAccountApprovalService virtualAccountApprovalService;
+    private final NotificationService notificationService;
 
-    public SavingGroupCreationServiceImpl(SavingGroupMapper savingGroupMapper, FileStorageService fileStorageService) {
+    public SavingGroupCreationServiceImpl(SavingGroupMapper savingGroupMapper, FileStorageService fileStorageService,
+            VirtualAccountApprovalService virtualAccountApprovalService,
+            NotificationService notificationService) {
         this.savingGroupMapper = savingGroupMapper;
         this.fileStorageService = fileStorageService;
+        this.virtualAccountApprovalService = virtualAccountApprovalService;
+        this.notificationService = notificationService;
     }
 
     @Override
     @Transactional
     public boolean applyForCreationSavingGroup(SavingGroupCreationRequest savingGroupCreationRequest) {
-        Long regionId = savingGroupMapper.selectRegionIdByName(savingGroupCreationRequest.getRegionName());
-        if (regionId == null) {
+        // AI작성: 화면 검증을 우회해도 광역 지역만 저장할 수 없으며 클라이언트의 regionId는 신뢰하지 않는다.
+        String regionName = savingGroupCreationRequest.getRegionName();
+        if (regionName == null || regionName.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REGION_NOT_FOUND", "활동 지역을 다시 선택해 주세요.");
         }
+        List<MemberRegionDto> regions = savingGroupMapper.selectCreationRegionsByName(regionName.strip());
+        if (regions.size() != 1 || !isCreationRegion(regions.get(0))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REGION_NOT_FOUND", "활동 지역을 다시 선택해 주세요.");
+        }
+        MemberRegionDto region = regions.get(0);
         if (!savingGroupMapper.existsMember(savingGroupCreationRequest.getMemberId())) {
             throw new ApiException(HttpStatus.NOT_FOUND, "MEMBER_NOT_FOUND", "신청자 정보를 찾을 수 없습니다.");
         }
-        savingGroupCreationRequest.setRegionId(regionId);
+        savingGroupCreationRequest.setRegionId(region.getRegionId());
+        savingGroupCreationRequest.setRegionName(region.getRegionName());
         savingGroupCreationRequest.setGroupName(savingGroupCreationRequest.getGroupName().strip());
         savingGroupCreationRequest.setDescription(savingGroupCreationRequest.getDescription().strip());
         MultipartFile groupImage = savingGroupCreationRequest.getGroupImage();
@@ -65,7 +82,18 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                     "계모임 개설 신청에 실패했습니다."
             );
         }
+        // AI작성: 개설 신청과 함께 채팅방을 만들고, 계주 권한은 개설 승인 시 부여한다.
+        savingGroupMapper.insertSavingGroupChatRoom(savingGroupCreationRequest.getGroupId());
         return true;
+    }
+
+    // AI작성: 구 단위와 그 하위 동을 허용한다. 구가 없는 세종만 빈 구 이름을 허용하고 null은 거절한다.
+    private boolean isCreationRegion(MemberRegionDto region) {
+        return region.getRegionId() != null
+                && region.getProvinceName() != null && !region.getProvinceName().isBlank()
+                && region.getDistrictName() != null
+                && (!region.getDistrictName().isBlank()
+                    || ("세종특별자치시".equals(region.getProvinceName()) && region.getDistrictName().isEmpty()));
     }
 
     @Override
@@ -112,6 +140,8 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             approveDeletionApplication(application);
             return;
         }
+        // AI작성: 발급·암호화 저장이 성공해야 기존 신청 승인·공개·계주 승인을 이어서 처리한다.
+        virtualAccountApprovalService.issueAndSave(approvalId, application.getGroupId());
         if (savingGroupMapper.approveSavingGroupCreationApplication(approvalId) != 1
                 || savingGroupMapper.publishApprovedSavingGroup(application.getGroupId()) != 1
                 || savingGroupMapper.approveSavingGroupCreationOwnerMembership(
@@ -119,6 +149,15 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 승인할 수 없는 신청입니다.");
         }
+        // AI작성: 계주가 승인된 시점에 채팅방 참여 권한을 부여한다.
+        savingGroupMapper.insertSavingGroupChatMember(application.getGroupId(), application.getApplicantMemberId());
+        // AI작성: 개설 심사의 모든 상태 변경이 성공한 뒤 신청자에게 승인 결과와 공개 상세 경로를 알린다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_CREATION_APPROVED,
+                "계모임 개설 신청이 승인되었습니다.",
+                "/saving-groups/" + application.getSavingGroupId()
+        );
     }
 
     @Override
@@ -132,13 +171,29 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
             if (savingGroupMapper.rejectSavingGroupDeletionApplication(approvalId, normalizedRejectReason) != 1) {
                 throw applicationProcessFailed();
             }
+            // AI작성: 삭제 신청이 반려된 뒤 신청자인 계주에게 유지된 계모임의 상세 경로와 결과를 알린다.
+            notificationService.send(
+                    application.getApplicantMemberId(),
+                    NotificationType.SAVING_GROUP_DELETION_REJECTED,
+                    "계모임 삭제 신청이 반려되었습니다.",
+                    "/saving-groups/" + application.getSavingGroupId()
+            );
             return;
         }
+        // AI작성: 발급 여부가 불확실한 신청을 반려해 외부 계좌가 방치되지 않도록 먼저 확인한다.
+        virtualAccountApprovalService.requireRejectable(approvalId);
         if (savingGroupMapper.rejectSavingGroupCreationApplication(approvalId, normalizedRejectReason) != 1
                 || savingGroupMapper.rejectSavingGroupCreationOwnerMembership(application.getGroupId()) != 1) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_APPLICATION_PROCESS_FAILED",
                     "이미 처리되었거나 반려할 수 없는 신청입니다.");
         }
+        // AI작성: 개설 심사와 대기 계주 관계가 모두 반려된 뒤 신청자에게 결과를 알리며 비공개 모임 링크는 제공하지 않는다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_CREATION_REJECTED,
+                "계모임 개설 신청이 반려되었습니다.",
+                null
+        );
     }
 
     // AI작성: 승인 시점에 상태·공동자금·출금을 다시 확인해 신청 이후 변경으로 인한 잘못된 삭제를 막는다.
@@ -161,6 +216,13 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
                 || savingGroupMapper.softDeleteSavingGroup(groupId) != 1) {
             throw applicationProcessFailed();
         }
+        // AI작성: 삭제 심사 승인과 소프트 삭제가 모두 성공한 뒤 신청자인 계주에게 결과만 알린다.
+        notificationService.send(
+                application.getApplicantMemberId(),
+                NotificationType.SAVING_GROUP_DELETION_APPROVED,
+                "계모임 삭제 신청이 승인되었습니다.",
+                null
+        );
     }
 
     private ApiException applicationProcessFailed() {

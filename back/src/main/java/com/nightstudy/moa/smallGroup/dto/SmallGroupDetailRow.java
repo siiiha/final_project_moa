@@ -13,6 +13,8 @@ import lombok.Setter;
 public class SmallGroupDetailRow {
     private Long smallGroupId;
     private Long groupId;
+    // AI작성: 가입 가능 여부 검사에만 사용하는 내부 개설자 식별자다.
+    private Long creatorMemberId;
     private String groupName;
     private String description;
     private String regionName;

@@ -1,0 +1,62 @@
+﻿merchant_name,suggested_category,review_decision,review_note,source,source_tag,source_file
+왕조2동공영주차장,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+진접 노상제8,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+진접 노상제7,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+와부 제1공영,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+홍성읍 대교공원 주차장,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+홍성역 주변 주차장,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+장애인종합복지관 앞 주차장,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+종각뒤,교통비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,공공데이터포털 전국주차장정보표준데이터,공영주차장,expense_public_transport_candidates_v1.csv
+6층 공용 회의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+5층 공용 회의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+4층 공용 회의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+2층 중회의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+3층 세미나실1,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+2층 강의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+3층 강의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+계단식 강의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+3층 세미나실2,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+3층 중회의실,대관료,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,세종특별자치시시설관리공단_회의실 대관 정보,회의실 대관,expense_public_rental_candidates_v1.csv
+대덕문화전당,활동비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,대구광역시 남구_문화시설 현황,,expense_public_culture_candidates_v1.csv
+남부도서관,활동비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,대구광역시 남구_문화시설 현황,,expense_public_culture_candidates_v1.csv
+대구교육대학교 박물관,활동비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,대구광역시 남구_문화시설 현황,,expense_public_culture_candidates_v1.csv
+(주)김경자소문난대구왕뽈찜,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+고궁누룽지백숙,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+곤지암소머리국밥,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+골목집설렁탕,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+가성돈면(누들카츠),식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,경양식,expense_public_restaurant_candidates_v1.csv
+덕수궁,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+돈수백,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+돼지천하,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+등촌샤브칼국수,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+바람난장어,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+박은자맛사랑,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+보영만두,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,분식,expense_public_restaurant_candidates_v1.csv
+북경오리구이,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+북문해물탕,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+북수원화로,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+사강식당,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+삼봉집,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+삼풍가든,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+송죽부산밀면국밥,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+수천냉면,식비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,경기도 수원시_모범음식점 현황,한식,expense_public_restaurant_candidates_v1.csv
+한일여인숙,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+서인여인숙,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+화정여인숙,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+부흥여인숙,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+양지여인숙,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+귀빈장여관,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+수정여인숙,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+금성장여관,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+아람장여관,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+현대장 모텔,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+대원장여관,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+목련장,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+그린호텔,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+목화여인숙,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+또와모텔,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+거북장여관,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+모텔별밤,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+남일장모텔,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+명보장여관,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv
+해인장모텔,숙박비,검토 대기,실제 장소명이며 카드 명세서 표기·결제 목적 확인 필요,충청남도 서산시_숙박업소 현황,숙박업(일반),expense_public_lodging_candidates_v1.csv

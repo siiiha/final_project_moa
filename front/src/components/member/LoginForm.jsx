@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { SiKakaotalk, SiNaver } from 'react-icons/si';
+import { SiNaver } from 'react-icons/si';
+import { RiKakaoTalkFill } from 'react-icons/ri';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../common/Button';
@@ -125,8 +126,8 @@ const SocialButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  color: ${({ $provider, theme }) => ($provider === 'naver' ? theme.colors.white : theme.colors.text)};
+  gap: 8px;
+  color: ${({ $provider, theme }) => ($provider === 'naver' ? theme.colors.white : 'rgba(0, 0, 0, 0.85)')};
   background: ${({ $provider }) => {
     if ($provider === 'naver') return '#03c75a';
     if ($provider === 'kakao') return '#fee500';
@@ -136,6 +137,13 @@ const SocialButton = styled.button`
   border-radius: ${({ theme }) => theme.radius.sm};
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.4;
+
+  /* AI작성: 아이콘이 줄어들지 않도록 하고 문구와 세로 중앙을 맞춥니다. */
+  > svg {
+    display: block;
+    flex-shrink: 0;
+  }
 
   &:hover {
     filter: brightness(0.97);
@@ -148,7 +156,8 @@ function ProviderIcon({ provider }) {
   }
 
   if (provider === 'kakao') {
-    return <SiKakaotalk size={18} aria-hidden="true" />;
+    // AI작성: 사각형 앱 아이콘 대신 말풍선 형태의 카카오톡 심볼을 표시합니다.
+    return <RiKakaoTalkFill size={22} color="#000000" aria-hidden="true" />;
   }
 
   return null;
@@ -168,85 +177,84 @@ function LoginForm() {
   const popupRef = useRef(null);
   const popupTimerRef = useRef(null);
 
-// AI작성: 우리가 연 카카오 인증 창의 메시지만 처리한다.
-useEffect(() => {
-  const closePopup = () => {
-    window.clearInterval(popupTimerRef.current);
-    popupTimerRef.current = null;
+  // AI작성: 우리가 연 카카오 인증 창의 메시지만 처리한다.
+  useEffect(() => {
+    const closePopup = () => {
+      window.clearInterval(popupTimerRef.current);
+      popupTimerRef.current = null;
 
-    if (popupRef.current && !popupRef.current.closed) {
-      popupRef.current.close();
-    }
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.close();
+      }
 
-    popupRef.current = null;
-  };
+      popupRef.current = null;
+    };
 
-  const handlePopupMessage = (event) => {
-    if (
-      event.origin !== window.location.origin ||
-      !popupRef.current ||
-      event.source !== popupRef.current ||
-      event.data?.type !== 'MOA_SOCIAL_RESULT'
-    ) {
-      return;
-    }
+    const handlePopupMessage = (event) => {
+      if (
+        event.origin !== window.location.origin ||
+        !popupRef.current ||
+        event.source !== popupRef.current ||
+        event.data?.type !== 'MOA_SOCIAL_RESULT'
+      ) {
+        return;
+      }
 
-    closePopup();
-    setIsSubmitting(false);
+      closePopup();
+      setIsSubmitting(false);
 
-    if (typeof event.data.error === 'string') {
-      setErrorMessage(event.data.error);
-      return;
-    }
+      if (typeof event.data.error === 'string') {
+        setErrorMessage(event.data.error);
+        return;
+      }
 
-    const result = event.data.result;
+      const result = event.data.result;
 
-    if (
-      result?.signupRequired === true &&
-      typeof result.signupToken === 'string' &&
-      /^[A-Za-z0-9_-]{43}$/.test(result.signupToken)
-    ) {
-      clearToken();
-      sessionStorage.setItem(
-        'moa-social-signup',
-        JSON.stringify({
-          signupToken: result.signupToken,
-          expiresAt: Date.now() + 10 * 60 * 1000,
-        }),
-      );
+      if (
+        result?.signupRequired === true &&
+        typeof result.signupToken === 'string' &&
+        /^[A-Za-z0-9_-]{43}$/.test(result.signupToken)
+      ) {
+        clearToken();
+        sessionStorage.setItem(
+          'moa-social-signup',
+          JSON.stringify({
+            signupToken: result.signupToken,
+            expiresAt: Date.now() + 10 * 60 * 1000,
+          }),
+        );
 
-      navigate('/member/join?social=1', { replace: true });
-      return;
-    }
+        navigate('/member/join?social=1', { replace: true });
+        return;
+      }
 
-    if (
-      result?.signupRequired === false &&
-      typeof result.token === 'string' &&
-      result.token.trim()
-    ) {
-      sessionStorage.removeItem('moa-social-signup');
-      setToken(result.token);
-      navigate('/', { replace: true });
-      return;
-    }
+      if (
+        result?.signupRequired === false &&
+        typeof result.token === 'string' &&
+        result.token.trim()
+      ) {
+        sessionStorage.removeItem('moa-social-signup');
+        setToken(result.token);
+        navigate('/', { replace: true });
+        return;
+      }
 
-    setErrorMessage('카카오 로그인 결과를 확인할 수 없습니다.');
-  };
+      setErrorMessage('카카오 로그인 결과를 확인할 수 없습니다.');
+    };
 
-  window.addEventListener('message', handlePopupMessage);
+    window.addEventListener('message', handlePopupMessage);
 
-  return () => {
-    window.removeEventListener('message', handlePopupMessage);
-    closePopup();
-  };
-}, [navigate, setToken, clearToken]);
+    return () => {
+      window.removeEventListener('message', handlePopupMessage);
+      closePopup();
+    };
+  }, [navigate, setToken, clearToken]);
 
-// 로그인 성공 시 JWT를 저장하고 메인페이지로 이동
+  // 로그인 성공 시 JWT를 저장하고 메인페이지로 이동
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
-    setErrorMessage('');
     try {
       const token = await loginMember(email.trim(), password);
 
@@ -260,7 +268,7 @@ useEffect(() => {
     } catch (error) {
       setErrorMessage(
         error.response?.data?.error?.message ??
-          '로그인에 실패했습니다. 입력값과 서버 연결을 확인해주세요.',
+        '로그인에 실패했습니다. 입력값과 서버 연결을 확인해주세요.',
       );
     } finally {
       setIsSubmitting(false);
@@ -268,52 +276,52 @@ useEffect(() => {
   };
 
   // AI작성: 원래 모아 화면을 유지하면서 카카오 인증 창을 연다.
-const handleSocialLogin = (providerId) => {
-  if (isSubmitting || popupRef.current) return;
+  const handleSocialLogin = (providerId) => {
+    if (isSubmitting || popupRef.current) return;
 
-  if (!['kakao', 'naver'].includes(providerId)) {
-    setErrorMessage('해당 소셜 로그인은 준비 중입니다.');
-    return;
-  }
+    if (!['kakao', 'naver'].includes(providerId)) {
+      setErrorMessage('해당 소셜 로그인은 준비 중입니다.');
+      return;
+    }
 
-  setErrorMessage('');
+    setErrorMessage('');
 
-  const width = 480;
-  const height = 720;
-  const left = Math.max(
-    0,
-    window.screenX + (window.outerWidth - width) / 2,
-  );
-  const top = Math.max(
-    0,
-    window.screenY + (window.outerHeight - height) / 2,
-  );
+    const width = 480;
+    const height = 720;
+    const left = Math.max(
+      0,
+      window.screenX + (window.outerWidth - width) / 2,
+    );
+    const top = Math.max(
+      0,
+      window.screenY + (window.outerHeight - height) / 2,
+    );
 
-  const popup = window.open(
-  `/api/auth/${providerId}/login`,
-  `moa-${providerId}-${crypto.randomUUID()}`,
-    `popup=yes,width=${width},height=${height},left=${left},top=${top}`,
-  );
+    const popup = window.open(
+      `/api/auth/${providerId}/login`,
+      `moa-${providerId}-${crypto.randomUUID()}`,
+      `popup=yes,width=${width},height=${height},left=${left},top=${top}`,
+    );
 
-  if (!popup) {
-    setErrorMessage('팝업이 차단됐습니다. 팝업을 허용한 뒤 다시 눌러주세요.');
-    return;
-  }
+    if (!popup) {
+      setErrorMessage('팝업이 차단됐습니다. 팝업을 허용한 뒤 다시 눌러주세요.');
+      return;
+    }
 
-  popupRef.current = popup;
-  setIsSubmitting(true);
+    popupRef.current = popup;
+    setIsSubmitting(true);
 
-  // AI작성: 사용자가 인증 창을 직접 닫으면 다시 시도할 수 있게 한다.
-  popupTimerRef.current = window.setInterval(() => {
-    if (!popup.closed) return;
+    // AI작성: 사용자가 인증 창을 직접 닫으면 다시 시도할 수 있게 한다.
+    popupTimerRef.current = window.setInterval(() => {
+      if (!popup.closed) return;
 
-    window.clearInterval(popupTimerRef.current);
-    popupTimerRef.current = null;
-    popupRef.current = null;
-    setIsSubmitting(false);
-    setErrorMessage('소셜 로그인 창이 닫혔습니다. 다시 시도해주세요.');
-  }, 500);
-};
+      window.clearInterval(popupTimerRef.current);
+      popupTimerRef.current = null;
+      popupRef.current = null;
+      setIsSubmitting(false);
+      setErrorMessage('');
+    }, 500);
+  };
 
   // AI작성: 로그인 입력과 소셜 로그인 버튼을 표시한다.
   return (
@@ -348,7 +356,9 @@ const handleSocialLogin = (providerId) => {
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
         />
-        {errorMessage && <p role="alert">{errorMessage}</p>}
+        <div style={{ minHeight: '2.8em', lineHeight: 1.4 }}>
+          {errorMessage && <p role="alert">{errorMessage}</p>}
+        </div>
         <LoginButton type="submit" disabled={isSubmitting}>
           {isSubmitting ? '로그인 중…' : '로그인'}
         </LoginButton>

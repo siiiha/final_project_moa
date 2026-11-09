@@ -10,6 +10,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class SavingGroupRow {
+    // AI작성: 상세 화면의 순번계 전용 기능 노출에 사용하는 저장된 모임 유형이다.
+    private String groupType;
     private Long savingGroupId;
     private Long groupId;
     private String groupName;

@@ -1,6 +1,7 @@
 package com.nightstudy.moa.post.mapper;
 
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostImageDto;
 import com.nightstudy.moa.post.dto.PostCategoryDto;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
@@ -13,9 +14,21 @@ public interface PostMapper {
     List<PostCategoryDto> selectPostCategories();
     int insertPost(PostDto postDto);
 
+    // AI작성: 게시글 첨부 정보와 표시 순서를 저장합니다.
+    int insertPostImage(@Param("postId") Long postId, @Param("imageUrl") String imageUrl,
+                        @Param("sortOrder") int sortOrder);
+
     List<PostDto> selectPostList(PostSearchCondition condition);
 
     PostDto selectPostDetail(Long postId);
+
+    List<PostImageDto> selectPostImages(@Param("postId") Long postId);
+
+    // AI작성: 첨부 변경은 해당 게시글에 연결된 행에만 적용합니다.
+    int deletePostImage(@Param("postId") Long postId, @Param("imageId") Long imageId);
+
+    int updatePostImageOrder(@Param("postId") Long postId, @Param("imageId") Long imageId,
+                             @Param("sortOrder") int sortOrder);
 
     int selectPostListCount(PostSearchCondition condition);
 

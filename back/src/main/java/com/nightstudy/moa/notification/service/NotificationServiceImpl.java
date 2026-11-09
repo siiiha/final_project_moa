@@ -1,0 +1,152 @@
+package com.nightstudy.moa.notification.service;
+
+import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.common.sse.SseEmitters;
+import com.nightstudy.moa.notification.dto.NotificationDto;
+import com.nightstudy.moa.notification.dto.NotificationResponse;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.mapper.NotificationMapper;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+@Service
+@RequiredArgsConstructor
+public class NotificationServiceImpl implements NotificationService {
+
+    private static final String NOTIFICATION_EVENT_NAME = "notification";
+
+    private final NotificationMapper notificationMapper;
+    private final SseEmitters sseEmitters;
+
+    @Override
+    public SseEmitter subscribe(Long receiverId, Long lastEventId) {
+        SseEmitter emitter = sseEmitters.add(receiverId);
+
+        if (lastEventId == null) {
+            return emitter;
+        }
+
+        // AI작성: 재연결한 브라우저에만 마지막 수신 번호 이후의 누락 알림을 발생 순서대로 재전송합니다.
+        notificationMapper.findAfter(receiverId, lastEventId)
+                .stream()
+                .map(NotificationResponse::from)
+                .forEach(notification -> sseEmitters.send(
+                        receiverId,
+                        emitter,
+                        NOTIFICATION_EVENT_NAME,
+                        notification.getNotificationId(),
+                        notification
+                ));
+
+        return emitter;
+    }
+
+    // AI작성: 알림을 DB에 먼저 저장한 후 접속 중인 회원에게 실시간 전송합니다.
+    @Override
+    public void send(
+            Long receiverId,
+            NotificationType type,
+            String message,
+            String targetUrl
+    ) {
+        NotificationDto notification = new NotificationDto();
+        notification.setReceiverId(receiverId);
+        notification.setType(type);
+        notification.setMessage(message);
+        notification.setTargetUrl(targetUrl);
+
+        notificationMapper.insert(notification);
+
+        //createdAt 같은 값을 얻기 위해서 다시 조회
+        NotificationDto saved =
+                notificationMapper.findById(notification.getNotificationId());
+
+        NotificationResponse response =
+                NotificationResponse.from(saved);
+
+        sendSseAfterCommit(receiverId, saved.getNotificationId(), response);
+    }
+
+    // AI작성: DB 조회 결과에서 회원 번호를 제외한 응답 객체 목록을 생성합니다.
+    @Override
+    public List<NotificationResponse> getRecent(
+            Long receiverId,
+            Long lastNotificationId,
+            int size
+    ) {
+        return notificationMapper
+                .findRecent(receiverId, lastNotificationId, size)
+                .stream()
+                // 목록 조회
+                .map(NotificationResponse::from)
+                .toList();
+    }
+
+    @Override
+    public int countUnread(Long receiverId) {
+        return notificationMapper.countUnread(receiverId);
+    }
+
+    // AI작성: 본인의 알림이 존재하면 이미 읽은 알림도 오류 없이 성공 처리합니다.
+    @Override
+    public void read(Long receiverId, Long notificationId) {
+        boolean exists = notificationMapper.existsByIdAndReceiverId(
+                notificationId,
+                receiverId
+        );
+
+        if (!exists) {
+            throw new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "NOTIFICATION_NOT_FOUND",
+                    "알림을 찾을 수 없습니다."
+            );
+        }
+
+        notificationMapper.markRead(notificationId, receiverId);
+    }
+
+    @Override
+    public void readAll(Long receiverId) {
+        notificationMapper.markAllRead(receiverId);
+    }
+
+    // AI작성: 회원 본인의 읽은 알림만 삭제하고 삭제된 알림 개수를 호출자에게 전달합니다.
+    @Override
+    public int deleteAllRead(Long receiverId) {
+        return notificationMapper.deleteAllRead(receiverId);
+    }
+
+    // AI작성: DB 트랜잭션이 롤백되면 실시간 알림도 전송되지 않도록 커밋 완료 후 SSE를 보냅니다.
+    private void sendSseAfterCommit(
+            Long receiverId,
+            Long notificationId,
+            NotificationResponse response
+    ) {
+        Runnable sendTask = () -> sseEmitters.send(
+                receiverId,
+                NOTIFICATION_EVENT_NAME,
+                notificationId,
+                response
+        );
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            sendTask.run();
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        sendTask.run();
+                    }
+                }
+        );
+    }
+}

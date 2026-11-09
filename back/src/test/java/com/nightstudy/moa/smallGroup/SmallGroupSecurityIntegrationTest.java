@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -25,6 +26,8 @@ import com.nightstudy.moa.common.dto.PageMeta;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Date;
+import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -71,11 +74,17 @@ class SmallGroupSecurityIntegrationTest {
         SmallGroupDetailResponse response = new SmallGroupDetailResponse(
                 1L, 2L, "동네 걷기", "함께 걷는 소모임입니다.", "서울", "운동",
                 LocalDate.of(2026, 11, 1), "한강 공원", 10, 2L,
-                "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0), null, List.of());
+                "모아회원", LocalDateTime.of(2026, 10, 1, 10, 0), null, List.of(), null, false, "UNAUTHORIZED", "로그인이 필요합니다.");
         when(smallGroupService.getSmallGroupDetail(1L, null)).thenReturn(response);
+        // AI작성: 공개 상세의 공지 페이지 응답도 동일한 공개 권한으로 제공한다.
+        when(smallGroupService.getSmallGroupNotices(eq(2L), any()))
+                .thenReturn(new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse(List.of(), PageMeta.of(1, 4, 0), List.of()));
 
+        // AI작성: 비로그인 공개 상세도 신청 불가 여부와 사유를 정상 응답으로 전달한다.
         mockMvc.perform(get("/api/small-groups/1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.canApply").value(false))
+                .andExpect(jsonPath("$.data.joinRestrictionCode").value("UNAUTHORIZED"));
 
         verify(smallGroupService).getSmallGroupDetail(1L, null);
     }
@@ -174,9 +183,55 @@ class SmallGroupSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // AI작성: 인증 속성 위조만으로 종료 API에 접근할 수 없고 Service도 호출되지 않는다.
+    @Test
+    void smallGroupVoteCloseApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(patch("/api/small-groups/1/votes/2/close").requestAttr("memberId", 40L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("LOGIN_REQUIRED"));
+        verifyNoInteractions(smallGroupService);
+    }
+
+    // AI작성: 실제 서명 토큰 대신 가상 Claims로 필터를 통과시키고 JWT 회원 ID가 요청 속성을 덮어쓰는지 확인한다.
+    @Test
+    void authenticatedVoteCloseUsesJwtMemberId() throws Exception {
+        Claims claims = mock(Claims.class);
+        Date expiration = new Date(System.currentTimeMillis() + 60000);
+        when(jwtTokenProvider.parseToken("mock-close-request")).thenReturn(claims);
+        when(claims.getSubject()).thenReturn("40");
+        when(claims.get("role", String.class)).thenReturn("USER");
+        when(claims.getId()).thenReturn("mock-close-id");
+        when(claims.get("sid", String.class)).thenReturn("mock-close-session");
+        when(claims.getExpiration()).thenReturn(expiration);
+        when(authSessionService.isAccessAllowed(40L, "USER", "mock-close-session", "mock-close-id", expiration.getTime()))
+                .thenReturn(true);
+        mockMvc.perform(patch("/api/small-groups/1/votes/2/close")
+                        .header("Authorization", "Bearer mock-close-request")
+                        .requestAttr("memberId", 99L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        verify(smallGroupService).closeSmallGroupVote(1L, 2L, 40L);
+    }
+
     @Test
     void smallGroupJoinRequestApprovalApiRequiresAuthentication() throws Exception {
         mockMvc.perform(patch("/api/small-groups/1/join-requests/2/approve"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // AI작성: 공개 요약 경로가 공지 본문·변경 API까지 공개하지 않는지 실제 보안 필터로 검증한다.
+    @Test
+    void noticeBodyAndMutationsRequireJwt() throws Exception {
+        mockMvc.perform(get("/api/small-groups/1/notices/9")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/small-groups/1/notices").requestAttr("memberId", 40L)
+                .contentType("application/json").content("{\"title\":\"공지\",\"content\":\"본문\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/small-groups/1/notices/9")
+                .contentType("application/json").content("{\"title\":\"공지\",\"content\":\"본문\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/small-groups/1/notices/9")).andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/api/small-groups/1/notices/9/pin").contentType("application/json").content("{\"pinned\":true}"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(smallGroupService);
     }
 }

@@ -1,6 +1,7 @@
 package com.nightstudy.moa.member.mapper;
 
 import com.nightstudy.moa.member.dto.auth.MemberLoginDto;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
 import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.signup.MemberInsertDto;
 import com.nightstudy.moa.member.dto.terms.MemberTermDto;
@@ -8,6 +9,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+
 import com.nightstudy.moa.member.dto.region.MemberRegionDto;
 
 @Mapper
@@ -16,6 +18,7 @@ public interface MemberMapper {
     int countByEmail(@Param("email") String email);
 
     int countRegionById(@Param("regionId") Long regionId);
+
     List<MemberRegionDto> findRegions();
 
     int markRegionVerified(
@@ -34,6 +37,7 @@ public interface MemberMapper {
     int countVerifiedEmail(@Param("email") String email);
 
     int countRequiredTerms();
+
     List<MemberTermDto> findTerms();
 
     int countRequiredAgreedTerms(
@@ -62,6 +66,10 @@ public interface MemberMapper {
             @Param("memberId") Long memberId
     );
 
+    List<MemberJoinedGroupResponse> findJoinedGroupsByMemberId(
+            @Param("memberId") Long memberId
+    );
+
     List<MemberProfileResponse.Interest> findInterestsByMemberId(
             @Param("memberId") Long memberId
     );
@@ -74,7 +82,7 @@ public interface MemberMapper {
     // 본인 제외 동일 닉네임 사용하는 회원 수 조회
     int countByNicknameExcludingMember(
             @Param("nickname") String nickname,
-            @Param("memberId")  Long memberId
+            @Param("memberId") Long memberId
     );
 
     // 로그인한 회원의 닉네임 변경
@@ -109,7 +117,7 @@ public interface MemberMapper {
     // 회원의 프로필 사진 경로를 변경 or 초기화
     int updateProfileImageUrl(
             @Param("memberId") Long memberId,
-            @Param("profileImageUrl")  String profileImageUrl
+            @Param("profileImageUrl") String profileImageUrl
     );
 
     // 이메일 인증을 통한 비밀번호 재설정 시 조회 당시 비밀번호가 유지된 활성 계정만 변경
@@ -148,6 +156,15 @@ public interface MemberMapper {
     // 활성 회원의 본인인증 완료 시각 저장
     int markIdentityVerified(
             @Param("memberId") Long memberId
+    );
+
+    int saveIdentityCiHashIfAbsent(
+            @Param("memberId") Long memberId,
+            @Param("identityCiHash") String identityCiHash
+    );
+
+    List<java.util.Map<String, Object>> findAccountsByIdentityCiHash(
+            @Param("identityCiHash") String identityCiHash
     );
 
     // 탈퇴 회원의 소셜 계정 연결을 삭제

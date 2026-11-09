@@ -62,7 +62,11 @@ function PostCreatePage() {
   const [categories, setCategories] = useState([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [imageName, setImageName] = useState('');
+  // AI작성: 서버 첨부와 아직 전송하지 않은 원본 파일을 구분합니다.
+  const [existingImages, setExistingImages] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [imagesChanged, setImagesChanged] = useState(false);
+  const imageCount = existingImages.length + selectedFiles.length;
   const [isLoadingPost, setIsLoadingPost] = useState(isEditMode);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -154,6 +158,9 @@ function PostCreatePage() {
         setCategory(response.data.categoryName || '');
         setTitle(response.data.title || '');
         setContent(response.data.content || '');
+        setExistingImages(response.data.images || []);
+        setSelectedFiles([]);
+        setImagesChanged(false);
       } catch (error) {
         if (!isActive) return;
         setErrorMessage(
@@ -172,8 +179,21 @@ function PostCreatePage() {
   }, [isEditMode, postId]);
 
   const handleImageChange = (event) => {
-    // TODO: Spring Boot 이미지 업로드 API와 연결해 업로드한 이미지 URL을 게시글 등록 요청에 포함합니다.
-    setImageName(event.target.files?.[0]?.name || '');
+    // AI작성: 잘못된 선택은 적용하지 않고 기존 첨부 편집 상태를 유지합니다.
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) return;
+    if (imageCount + files.length > 3) {
+      setErrorMessage('사진은 최대 3장 첨부할 수 있습니다.');
+      return;
+    }
+    if (files.some((file) => !['image/jpeg', 'image/png'].includes(file.type)
+      || file.size === 0 || file.size > 5 * 1024 * 1024)) {
+      setErrorMessage('5MB 이하의 JPG 또는 PNG 사진을 선택해주세요.');
+      return;
+    }
+    setSelectedFiles((current) => [...current, ...files]);
+    setErrorMessage('');
   };
 
   const handleSubmit = async (event) => {
@@ -194,20 +214,19 @@ function PostCreatePage() {
     setErrorMessage('');
 
     try {
+      const postData = { categoryId, title: title.trim(), content: content.trim() };
+      const hasImageChanges = imagesChanged || selectedFiles.length > 0;
       let response;
 
-      if (isEditMode) {
+      if (isEditMode && hasImageChanges) {
         response = await updatePost(postId, {
-          categoryId,
-          title: title.trim(),
-          content: content.trim(),
-        });
+          ...postData,
+          retainedImageIds: existingImages.map((image) => image.imageId),
+        }, selectedFiles);
+      } else if (isEditMode) {
+        response = await updatePost(postId, postData);
       } else {
-        response = await createPost({
-          categoryId,
-          title: title.trim(),
-          content: content.trim(),
-        });
+        response = await createPost(postData, selectedFiles);
       }
 
       if (!response.success || !response.data) {
@@ -235,7 +254,7 @@ function PostCreatePage() {
   const handleCancel = () => {
     const hasSavedDraft = Boolean(postDraftKey && sessionStorage.getItem(postDraftKey));
     const hasNewWriting = !isEditMode && Boolean(title.trim() || content.trim());
-    const hasWriting = hasSavedDraft || hasNewWriting || Boolean(imageName);
+    const hasWriting = hasSavedDraft || hasNewWriting || (imagesChanged || selectedFiles.length > 0);
 
     // AI작성: 작성하거나 변경한 내용이 없으면 임시저장을 정리하고 바로 이전 화면으로 이동합니다.
     if (!hasWriting) {
@@ -277,7 +296,14 @@ function PostCreatePage() {
             category={category}
             title={title}
             content={content}
-            imageName={imageName}
+            existingImages={existingImages}
+            selectedFiles={selectedFiles}
+            isSubmitting={isSubmitting}
+            onRemoveExisting={(imageId) => {
+              setExistingImages((current) => current.filter((image) => image.imageId !== imageId));
+              setImagesChanged(true);
+            }}
+            onRemoveSelected={(index) => setSelectedFiles((current) => current.filter((_, i) => i !== index))}
             onCategoryChange={handleCategoryChange}
             onTitleChange={handleTitleChange}
             onContentChange={handleContentChange}
