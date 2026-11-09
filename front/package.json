@@ -13,6 +13,7 @@
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
     "@portone/browser-sdk": "^0.1.13",
+    "@stomp/stompjs": "^7.5.0",
     "axios": "^1.20.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
