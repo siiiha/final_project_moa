@@ -5,6 +5,7 @@ import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.Locale;
@@ -37,8 +38,8 @@ public class SavingGroupDuesNotificationScheduler {
 
     private void sendReminder(LocalDate paymentDate, String reminderKey, String messagePrefix) {
         YearMonth paymentMonth = YearMonth.from(paymentDate);
-        var start = paymentMonth.atDay(1).atStartOfDay();
-        var end = paymentMonth.plusMonths(1).atDay(1).atStartOfDay();
+        LocalDateTime start = paymentMonth.atDay(1).atStartOfDay();
+        LocalDateTime end = paymentMonth.plusMonths(1).atDay(1).atStartOfDay();
         String paymentMonthValue = paymentMonth.toString();
 
         savingGroupMapper.selectDuesNotificationTargets(
