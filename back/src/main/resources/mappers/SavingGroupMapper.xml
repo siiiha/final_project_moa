@@ -73,7 +73,12 @@
             GROUP BY ga.group_id, dr.member_id
         ) deposits ON deposits.group_id = sg.group_id AND deposits.member_id = gm.member_id
         WHERE sg.status = '02'
-          AND sg.dues_day = #{duesDay}
+          <!-- AI작성: 미납 알림은 현재 월에서 납부일이 지난 모임 전체를, 일반 안내는 대상 납부일만 조회한다. -->
+          AND (
+              (LEFT(#{reminderKey}, 8) = 'OVERDUE_' AND sg.dues_day &lt; #{duesDay})
+              OR
+              (LEFT(#{reminderKey}, 8) != 'OVERDUE_' AND sg.dues_day = #{duesDay})
+          )
           AND sg.dues_amount IS NOT NULL
           AND sg.dues_amount &gt; 0
           AND (sg.start_date IS NULL OR sg.start_date &lt; #{end})
