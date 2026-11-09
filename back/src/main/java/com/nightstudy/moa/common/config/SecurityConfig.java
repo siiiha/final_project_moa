@@ -126,7 +126,9 @@ public class SecurityConfig {
 
                         // AI작성: 숫자 게시글 ID의 상세 GET 요청은 비로그인 조회를 허용한다.
                         .requestMatchers(
-                                new RegexRequestMatcher("^/api/community/detail/\\d+$", HttpMethod.GET.name())
+                                // AI작성: 공개 게시글 상세와 동일하게 이미지 조회는 비로그인 요청도 받습니다.
+                                new RegexRequestMatcher("^/api/community/detail/\\d+$", HttpMethod.GET.name()),
+                                new RegexRequestMatcher("^/api/community/\\d+/images/[^/]+$", HttpMethod.GET.name())
                         ).permitAll()
 
                         // AI작성: 게시글의 댓글 목록은 작성·수정 권한과 분리해 공개 조회만 허용한다.

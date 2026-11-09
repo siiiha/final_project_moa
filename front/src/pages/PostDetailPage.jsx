@@ -232,6 +232,8 @@ function PostDetailPage() {
           category: detail.categoryName || '기타',
           title: detail.title,
           content: detail.content,
+          // AI작성: 상세 API의 표시 순서대로 첨부를 전달합니다.
+          images: detail.images || [],
           author: detail.writerNickname || '알 수 없음',
           writerId: detail.writerId,
           date: detail.createdAtStr || '',
