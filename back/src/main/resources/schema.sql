@@ -918,6 +918,62 @@ CREATE TABLE IF NOT EXISTS `post_image` (
     DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci;
 
+CREATE  TABLE  IF NOT EXISTS `chat_room` (
+    `room_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `saving_group_id` BIGINT NOT NULL,
+
+    PRIMARY KEY (`room_id`),
+    UNIQUE KEY `uq_chat_room_saving_group` (`saving_group_id`),
+
+    CONSTRAINT `fk_chat_room_saving_group`
+        FOREIGN KEY (`saving_group_id`)
+        REFERENCES `saving_group` (`saving_group_id`)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_room_member` (
+    `room_id` BIGINT NOT NULL,
+    `member_id` BIGINT NOT NULL,
+
+    PRIMARY KEY (`room_id`, `member_id`),
+    KEY `ix_chat_room_member_member` (`member_id`),
+
+    CONSTRAINT `fk_chat_room_member_room`
+        FOREIGN KEY (`room_id`)
+        REFERENCES `chat_room` (`room_id`)
+        ON DELETE CASCADE,
+
+    CONSTRAINT `fk_chat_room_member_member`
+        FOREIGN KEY (`member_id`)
+        REFERENCES `members` (`member_id`)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_message`(
+    `message_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `room_id` BIGINT NOT NULL,
+    `sender_id` BIGINT NULL DEFAULT NULL,
+    `content` VARCHAR(1000) NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`message_id`),
+    KEY `idx_room_message` (`room_id`, `message_id`),
+    KEY `ix_chat_message_sender` (`sender_id`),
+
+    CONSTRAINT `fk_chat_message_room`
+        FOREIGN KEY (`room_id`)
+        REFERENCES `chat_room` (`room_id`)
+        ON DELETE CASCADE,
+
+    CONSTRAINT `fk_chat_message_sender`
+        FOREIGN KEY (`sender_id`)
+        REFERENCES `members` (`member_id`)
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
+
 ALTER TABLE `member_interest` ADD CONSTRAINT `FK_interest_TO_member_interest_1` FOREIGN KEY (
 	`interest_id`
 )
