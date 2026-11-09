@@ -41,7 +41,7 @@ public class SecurityConfig {
 
         // AI작성: 회원 상태와 로그인 세션을 함께 검증하는 JWT 필터를 등록한다.
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter (
+                new JwtAuthenticationFilter(
                         jwtTokenProvider,
                         errorResponseWriter,
                         revokedTokenMapper,
@@ -92,7 +92,9 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/auth/email-verifications/verify",
-                                "/api/auth/email-verifications/find-account"
+                                "/api/auth/email-verifications/find-account",
+                                "/api/auth/account-recovery/start",
+                                "/api/auth/account-recovery/complete"
                         ).permitAll()
 
                         // AI작성: 소셜 인증 시작·콜백·결과 조회는 비로그인 상태에서 허용한다.
@@ -145,6 +147,9 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/admin/**"
                         ).hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/chatbot/messages").permitAll()
 
                         .requestMatchers(
                                 "/api/**"

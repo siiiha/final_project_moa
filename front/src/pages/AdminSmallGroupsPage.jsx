@@ -18,7 +18,8 @@ const SummaryGrid = styled.section`
 `;
 
 const SummaryCard = styled.article`
-  min-height: 108px;
+  /* AI작성: 안내 문구 제거 후 남는 세로 여백을 줄인다. */
+  min-height: 104px;
   padding: 16px;
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
@@ -28,22 +29,18 @@ const SummaryCard = styled.article`
 
 const SummaryLabel = styled.p`
   color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
+  /* AI작성: 요약 항목명을 더 쉽게 확인할 수 있도록 키운다. */
+  font-size: 15px;
   font-weight: 700;
 `;
 
 const SummaryValue = styled.strong`
   display: block;
-  margin-top: 13px;
+  margin-top: 6px;
   color: ${({ $danger, theme }) => ($danger ? theme.colors.danger : theme.colors.text)};
-  font-size: 24px;
+  /* AI작성: 핵심 집계 수치를 강조한다. */
+  font-size: 29px;
   letter-spacing: -1px;
-`;
-
-const SummaryDescription = styled.p`
-  margin-top: 2px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 10px;
 `;
 
 const ReasonInput = styled.textarea`
@@ -216,17 +213,14 @@ function AdminSmallGroupsPage() {
             <SummaryCard>
               <SummaryLabel>전체 소모임</SummaryLabel>
               <SummaryValue>{summary.totalSmallGroups.toLocaleString()}개</SummaryValue>
-              <SummaryDescription>서비스에 등록된 소모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>활동 중</SummaryLabel>
               <SummaryValue>{summary.activeSmallGroups.toLocaleString()}개</SummaryValue>
-              <SummaryDescription>정상 운영 중인 소모임</SummaryDescription>
             </SummaryCard>
             <SummaryCard>
               <SummaryLabel>이용 제한</SummaryLabel>
               <SummaryValue $danger>{summary.restrictedSmallGroups.toLocaleString()}개</SummaryValue>
-              <SummaryDescription>현재 관리자 제한 중인 소모임</SummaryDescription>
             </SummaryCard>
           </SummaryGrid>
           <SmallGroupTable

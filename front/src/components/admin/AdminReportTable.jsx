@@ -37,7 +37,8 @@ const Table = styled.table`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
     font-weight: 700;
-    text-align: left;
+    /* AI작성: 회원 신고 표의 모든 열 제목을 중앙 정렬한다. */
+    text-align: center;
   }
 
   td {
@@ -45,6 +46,8 @@ const Table = styled.table`
     color: ${({ theme }) => theme.colors.secondaryText};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
+    /* AI작성: 회원 신고 목록의 모든 표시값을 중앙 정렬한다. */
+    text-align: center;
     vertical-align: middle;
   }
 
@@ -140,7 +143,7 @@ const TargetButton = styled.button`
   border: 0;
   font-size: 12px;
   font-weight: 700;
-  text-align: left;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;

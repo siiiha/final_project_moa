@@ -2,6 +2,194 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 공통 조건을 목록과 전체 개수에 동일하게 적용한다. -->
 <mapper namespace="com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper">
+    <!-- AI작성: 집계 스냅샷 대신 잠금 현재 읽기를 사용하며 기존 승인 회계만 센다. -->
+    <select id="selectSavingGroupManagerIdsForUpdate" resultType="long">
+        SELECT member_id FROM group_member
+        WHERE group_id = #{groupId} AND membership_status = 'APPROVED' AND member_role = 'MANAGER'
+        ORDER BY crew_member_id
+        FOR UPDATE
+    </select>
+    <!-- AI작성: 소속·승인 상태·변경 전 역할을 다시 확인하고 삭제된 회원과 OWNER는 변경하지 않는다. -->
+    <update id="updateSavingGroupMemberRole">
+        UPDATE group_member gm
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        SET gm.member_role = #{role}
+        WHERE gm.group_id = #{groupId} AND gm.crew_member_id = #{crewMemberId}
+          AND gm.membership_status = 'APPROVED'
+          AND gm.member_role = #{previousRole} AND gm.member_role IN ('MEMBER', 'MANAGER')
+          AND #{role} IN ('MEMBER', 'MANAGER')
+    </update>
+    <!-- AI작성: 승인 계원 중 계주와 삭제 회원은 제외하며 집계·목록 조건을 공유한다. -->
+    <sql id="savingGroupMemberFromWhere">
+        FROM group_member gm
+        JOIN members m ON m.member_id = gm.member_id
+        WHERE gm.group_id = #{groupId}
+          AND gm.membership_status = 'APPROVED'
+          AND gm.member_role IN ('MEMBER', 'MANAGER')
+          AND m.deleted_at IS NULL
+        <!-- AI작성: 전체 승인 계원에서 이름·원문 이메일을 먼저 검색하고 결과에 기존 20명 제한을 적용한다. -->
+        <if test="keywordPattern != null">
+          AND (m.name LIKE #{keywordPattern} ESCAPE '!'
+               OR m.email LIKE #{keywordPattern} ESCAPE '!')
+        </if>
+    </sql>
+    <select id="selectSavingGroupMemberCount" resultType="int">
+        SELECT LEAST(COUNT(*), 20)
+        <include refid="savingGroupMemberFromWhere"/>
+    </select>
+    <!-- AI작성: 이름 원문은 확정 정책으로 제공하고 이메일은 로컬 부분 첫 글자 외 마스킹한다.
+         BIGINT는 문자열로 반환하며 가입일은 서비스 가입일이 아닌 모임 관계의 가입일이다. -->
+    <select id="selectSavingGroupMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupMemberResponse">
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.name,
+               CASE WHEN m.email IS NULL THEN NULL
+                    WHEN LOCATE('@', m.email) &lt; 2 THEN '***'
+                    ELSE CONCAT(LEFT(m.email, 1), '***', SUBSTRING(m.email, LOCATE('@', m.email))) END AS email,
+               gm.member_role AS role, gm.joined_at
+        <include refid="savingGroupMemberFromWhere"/>
+        ORDER BY gm.joined_at DESC, gm.crew_member_id DESC
+        LIMIT 10 OFFSET #{offset}
+    </select>
+    <!-- AI작성: 동시 요청은 기존 모임 행을 공통 잠금으로 사용해 직렬화한다. -->
+    <select id="selectPayoutTargetForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutTargetRow">
+        SELECT g.group_id, sg.saving_group_type AS group_type, sg.status, sg.start_date
+        FROM `groups` g JOIN saving_group sg ON sg.group_id = g.group_id
+        WHERE g.group_id = #{groupId} AND g.deleted_at IS NULL FOR UPDATE
+    </select>
+    <!-- AI작성: 현재 심사 권한과 동일하게 승인 상태인 계주의 회원 번호만 알림 대상으로 조회한다. -->
+    <select id="selectSavingGroupPayoutReviewerIds" resultType="long">
+        SELECT DISTINCT gm.member_id
+        FROM group_member gm
+        JOIN `groups` g ON g.group_id = gm.group_id AND g.member_id = gm.member_id
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        WHERE gm.group_id = #{groupId}
+          AND gm.membership_status = 'APPROVED'
+          AND gm.member_role = 'OWNER'
+    </select>
+    <select id="selectPayoutSequence" resultType="java.lang.Integer">
+        SELECT sequence_number FROM group_member
+        WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'
+    </select>
+    <!-- AI작성: 기존 회차만 조회하며 확정 산정값이 없는 과거 행을 현재 데이터로 보정하지 않는다. -->
+    <select id="selectPayoutRoundForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRoundRow">
+        SELECT round_id, round_number, base_dues_amount, approved_member_count,
+               previous_paid_member_count, additional_dues_amount, payout_amount
+        FROM meeting_round WHERE group_id = #{groupId} AND round_number = #{roundNumber} FOR UPDATE
+    </select>
+    <select id="existsBlockingRoundPayout" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM payout_request WHERE round_id = #{roundId}
+            AND status IN ('PENDING', 'APPROVED', 'COMPLETED'))
+    </select>
+    <select id="existsBlockingReceiptExpense" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM expenses WHERE group_id = #{groupId} AND receipt_sha256 = #{hash}
+            AND status IN ('PENDING', 'APPROVED'))
+    </select>
+    <!-- AI작성: 승인·거래·지급 완료 필드는 건드리지 않고 요청 상태만 저장한다. -->
+    <insert id="insertRoundPayout" useGeneratedKeys="true" keyProperty="id" keyColumn="payout_request_id">
+        INSERT INTO payout_request (round_id, requester_id, amount, status)
+        VALUES (#{roundId}, #{requesterId}, #{amount}, 'PENDING')
+    </insert>
+    <insert id="insertReceiptExpense" useGeneratedKeys="true" keyProperty="id" keyColumn="expense_id">
+        INSERT INTO expenses (group_id, applicant_id, amount, title, receipt_img_url, receipt_sha256, status)
+        VALUES (#{groupId}, #{requesterId}, #{amount}, #{title}, #{receiptImgUrl}, #{receiptSha256}, 'PENDING')
+    </insert>
+    <!-- AI작성: OWNER 검증은 Service에서 모임·관계 잠금 후 수행하며 이 쿼리는 모임 소속 증빙만 반환한다. -->
+    <select id="selectPayoutReceiptForOwner" resultType="string">
+        SELECT receipt_img_url FROM expenses WHERE group_id = #{groupId} AND expense_id = #{expenseId}
+    </select>
+    <!-- AI작성: 친목계 지출과 순번계 계금은 기존 테이블을 각각 조회한다. 탈퇴 이력은 삭제하지 않고 조회에서 제외한다. -->
+    <select id="selectSavingGroupPayoutType" resultType="string">
+        SELECT saving_group_type FROM saving_group WHERE group_id = #{groupId}
+    </select>
+    <sql id="payoutRequestFromWhere">
+        <choose>
+            <when test="groupType == '순번계'">
+                FROM payout_request req
+                JOIN meeting_round mr ON mr.round_id = req.round_id
+                JOIN members requester ON requester.member_id = req.requester_id
+                WHERE mr.group_id = #{groupId}
+            </when>
+            <otherwise>
+                FROM expenses req
+                JOIN members requester ON requester.member_id = req.applicant_id
+                WHERE req.group_id = #{groupId}
+            </otherwise>
+        </choose>
+        AND requester.deleted_at IS NULL
+        AND EXISTS (SELECT 1 FROM group_member applicant_relation
+                    WHERE applicant_relation.group_id = #{groupId}
+                      AND applicant_relation.member_id = requester.member_id
+                      AND applicant_relation.membership_status = 'APPROVED')
+        <if test="status != null">AND req.status = #{status}</if>
+    </sql>
+    <select id="selectSavingGroupPayoutRequestCount" resultType="int">
+        SELECT COUNT(*) <include refid="payoutRequestFromWhere"/>
+    </select>
+    <select id="selectSavingGroupPayoutRequests" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutRequestResponse">
+        SELECT requester.name AS requester_name, req.amount, req.status,
+        <choose>
+            <when test="groupType == '순번계'">
+                CAST(req.payout_request_id AS CHAR) AS request_id, req.requested_at,
+                mr.round_number, req.reviewed_at,
+                (SELECT reviewer.name FROM members reviewer
+                 WHERE reviewer.member_id = req.reviewer_id AND reviewer.deleted_at IS NULL
+                   AND EXISTS (SELECT 1 FROM group_member reviewer_relation
+                               WHERE reviewer_relation.group_id = #{groupId}
+                                 AND reviewer_relation.member_id = reviewer.member_id
+                                 AND reviewer_relation.membership_status = 'APPROVED')) AS reviewer_name
+            </when>
+            <otherwise>
+                CAST(req.expense_id AS CHAR) AS request_id, req.created_at AS requested_at,
+                req.title, (req.receipt_img_url IS NOT NULL AND TRIM(req.receipt_img_url) != '') AS has_evidence
+            </otherwise>
+        </choose>
+        <include refid="payoutRequestFromWhere"/>
+        <choose>
+            <when test="groupType == '순번계'">ORDER BY req.requested_at DESC, req.payout_request_id DESC</when>
+            <otherwise>ORDER BY req.created_at DESC, req.expense_id DESC</otherwise>
+        </choose>
+        LIMIT 10 OFFSET #{offset}
+    </select>
+    <!-- AI작성: 목록 조회와 같은 saving_group_id를 공통 group_id로 해석하고 모임을 먼저 잠근다. -->
+    <select id="selectPayoutDecisionGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutDecisionRow">
+        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, g.member_id AS owner_member_id
+        FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL FOR UPDATE
+    </select>
+    <!-- AI작성: 유형은 서버에서 확인하며 ID가 같은 다른 테이블 요청으로 교차 처리하지 않는다. -->
+    <select id="selectPayoutDecisionRequestForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutDecisionRow">
+        <choose>
+            <when test="groupType == '순번계'">
+                SELECT pr.requester_id, pr.status, mr.round_number
+                FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                WHERE pr.payout_request_id = #{requestId} AND mr.group_id = #{groupId} FOR UPDATE
+            </when>
+            <otherwise>
+                SELECT applicant_id AS requester_id, status,
+                       (receipt_img_url IS NOT NULL AND TRIM(receipt_img_url) != '') AS has_evidence
+                FROM expenses WHERE expense_id = #{requestId} AND group_id = #{groupId} FOR UPDATE
+            </otherwise>
+        </choose>
+    </select>
+    <select id="selectPayoutDecisionSequence" resultType="java.lang.Integer">
+        SELECT sequence_number FROM group_member
+        WHERE group_id = #{groupId} AND member_id = #{memberId} AND membership_status = 'APPROVED'
+    </select>
+    <!-- AI작성: 친목계 심사 기록 3개 컬럼은 DB 담당자 적용이 선행되어야 한다. 거래・완료 필드는 변경하지 않는다. -->
+    <update id="updatePayoutDecision">
+        <choose>
+            <when test="groupType == '순번계'">
+                UPDATE payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                SET pr.status = #{status}, pr.reviewer_id = #{reviewerId},
+                    pr.reviewed_at = CURRENT_TIMESTAMP, pr.reject_reason = #{rejectReason}
+                WHERE pr.payout_request_id = #{requestId} AND mr.group_id = #{groupId} AND pr.status = 'PENDING'
+            </when>
+            <otherwise>
+                UPDATE expenses SET status = #{status}, reviewer_id = #{reviewerId},
+                    reviewed_at = CURRENT_TIMESTAMP, reject_reason = #{rejectReason}
+                WHERE expense_id = #{requestId} AND group_id = #{groupId} AND status = 'PENDING'
+            </otherwise>
+        </choose>
+    </update>
     <!-- AI작성: 계주 본인 관계·탈퇴·추방·삭제 회원을 제외한 신청 상태를 동일한 조건으로 집계·조회한다. -->
     <sql id="joinRequestFromWhere">
         FROM group_member gm
@@ -576,14 +764,153 @@
         <constructor>
             <idArg column="notice_id" javaType="java.lang.Long"/>
             <arg column="title" javaType="java.lang.String"/>
+            <!-- AI작성: 공지 요약 DTO의 생성자 순서에 맞춰 작성자와 작성일을 매핑한다. -->
+            <arg column="writer_nickname" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
         </constructor>
     </resultMap>
 
     <!-- AI작성: 같은 작성 시각에는 ID를 보조 정렬하며 본문은 조회하지 않는다. -->
     <select id="selectRecentNotices" resultMap="noticeSummary">
-        SELECT notice_id, title FROM group_notice
+        <!-- AI작성: 작성자 닉네임을 함께 조회하고 회원 행이 없어도 기존 공지 목록은 유지한다. -->
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn
+        LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC LIMIT 4
+    </select>
+
+    <!-- AI작성: 고정 공지는 일반 목록과 PageMeta의 전체 개수에서 제외한다. -->
+    <select id="selectSavingGroupNoticeCount" resultType="int">
+        SELECT COUNT(*)
+        FROM group_notice
+        WHERE group_id = #{groupId} AND is_pinned = 0 AND deleted_at IS NULL
+    </select>
+
+    <!-- AI작성: 기존 요약 매핑과 작성자 LEFT JOIN을 재사용하며 정렬은 고정 SQL 분기로 제한한다. -->
+    <select id="selectSavingGroupNotices" resultMap="noticeSummary">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn
+        LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.is_pinned = 0 AND gn.deleted_at IS NULL
+        <choose>
+            <when test='sort == "OLDEST"'>
+                ORDER BY gn.created_at ASC, gn.notice_id ASC
+            </when>
+            <otherwise>
+                ORDER BY gn.created_at DESC, gn.notice_id DESC
+            </otherwise>
+        </choose>
+        LIMIT 4 OFFSET #{offset}
+    </select>
+
+    <!-- AI작성: 고정 영역은 일반 목록의 정렬·페이지와 관계없이 작성일·ID 최신순으로 표시한다. -->
+    <select id="selectSavingGroupPinnedNotices" resultMap="noticeSummary">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn
+        LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.is_pinned = 1 AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
+    </select>
+
+    <!-- AI작성: 공통 groupId로 기존 변경 작업과 같은 계모임·모임 행을 잠그며 상태·회원 권한은 Service가 검증한다. -->
+    <select id="selectSavingGroupNoticeTargetForUpdate"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow">
+        SELECT sg.saving_group_id, sg.group_id, sg.status, g.max_members, g.member_id AS owner_member_id
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        WHERE sg.group_id = #{groupId} AND g.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: TINYINT 고정 컬럼을 Boolean으로 매핑하고 공지 본문·작성자 정보는 조회하지 않는다. -->
+    <resultMap id="noticePin" type="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticePinRow">
+        <constructor>
+            <idArg column="notice_id" javaType="java.lang.Long"/>
+            <arg column="is_pinned" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+    <select id="selectSavingGroupNoticePinForUpdate" resultMap="noticePin">
+        SELECT notice_id, is_pinned
+        FROM group_notice
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 모임 잠금 이후 현재 고정 ID를 잠금 조회해 Service가 동시 요청에서도 최대 두 개를 검증하게 한다. -->
+    <select id="selectSavingGroupPinnedNoticeIdsForUpdate" resultType="java.lang.Long">
+        SELECT notice_id
+        FROM group_notice
+        WHERE group_id = #{groupId} AND is_pinned = 1 AND deleted_at IS NULL
+        ORDER BY notice_id
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 타 모임 공지를 변경하지 않고 요청한 상태와 다른 행만 갱신한다. -->
+    <update id="updateSavingGroupNoticePinned">
+        UPDATE group_notice
+        SET is_pinned = #{pinned}
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId}
+          AND deleted_at IS NULL
+          AND is_pinned != #{pinned}
+    </update>
+
+    <!-- AI작성: 불변 상세 DTO의 생성자 순서와 타입을 명시해 조회 컬럼을 매핑한다. -->
+    <resultMap id="noticeDetail" type="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeDetailResponse">
+        <constructor>
+            <idArg column="notice_id" javaType="java.lang.Long"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="content" javaType="java.lang.String"/>
+            <arg column="writer_id" javaType="java.lang.Long"/>
+            <arg column="writer_nickname" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- AI작성: 다른 모임 공지를 반환하지 않도록 두 ID를 함께 검사하고 기존 요약의 작성자 조인을 재사용한다. -->
+    <!-- AI작성: 변경 대상은 소속과 미삭제 조건을 함께 검사하며 기존 상세 응답 매핑을 재사용한다. -->
+    <select id="selectSavingGroupNoticeForUpdate" resultMap="noticeDetail">
+        SELECT notice_id, title, content, writer_id, NULL AS writer_nickname, created_at
+        FROM group_notice
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL
+        FOR UPDATE
+    </select>
+    <!-- AI작성: 마지막 수정 시각만 갱신하고 원작성자·작성일·고정 상태는 유지한다. -->
+    <update id="updateSavingGroupNotice">
+        UPDATE group_notice
+        SET title = #{title}, content = #{content}, updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL
+    </update>
+    <select id="selectSavingGroupNoticeDetail" resultMap="noticeDetail">
+        SELECT gn.notice_id, gn.title, gn.content, gn.writer_id,
+               writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn
+        LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL
+    </select>
+
+    <!-- AI작성: DB 담당자가 준비한 deleted_at을 사용하며 작성자·소속·미삭제 조건을 저장 시에도 확인한다. -->
+    <update id="deleteSavingGroupNotice">
+        UPDATE group_notice
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId}
+          AND writer_id = #{memberId} AND deleted_at IS NULL
+    </update>
+
+    <!-- AI작성: savingGroupId가 아닌 내부 groupId를 저장하며 작성일은 테이블 기본값을 사용한다. -->
+    <insert id="insertSavingGroupNotice"
+            parameterType="com.nightstudy.moa.savingGroup.dto.SavingGroupNoticeCreateRow">
+        INSERT INTO group_notice (group_id, writer_id, title, content)
+        VALUES (#{groupId}, #{writerId}, #{title}, #{content})
+    </insert>
+
+    <!-- AI작성: 공지 등록 알림 대상인 승인 계주·운영진·계원의 회원 번호만 중복 없이 조회한다. -->
+    <select id="selectApprovedSavingGroupMemberIds" resultType="long">
+        SELECT DISTINCT member_id
+        FROM group_member
         WHERE group_id = #{groupId}
-        ORDER BY created_at DESC, notice_id DESC LIMIT 4
+          AND membership_status = 'APPROVED'
+          AND member_role IN ('OWNER', 'MANAGER', 'MEMBER')
     </select>
 
     <select id="selectApprovedMemberRoles" resultType="string">
@@ -765,6 +1092,8 @@
     <sql id="creationApplicationDetailColumns">
         SELECT ma.approval_id,
         g.group_id,
+        sg.saving_group_id,
+        g.member_id AS applicant_member_id,
         g.group_name,
         <include refid="savingGroupApplicationApplicantName"/>,
         r.region_name,

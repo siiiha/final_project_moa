@@ -48,8 +48,28 @@ CREATE TABLE IF NOT EXISTS `group_account` (
 	`account_number`	VARCHAR(255)	NOT NULL,
 	`account_holder_name`	VARCHAR(100)	NOT NULL,
 	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`account_id`)
+    PRIMARY KEY (`account_id`),
+    UNIQUE KEY `uq_group_account_group` (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE IF NOT EXISTS `saving_group_account_issue` (
+    `issue_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `approval_id` BIGINT NOT NULL,
+    `group_id` BIGINT NOT NULL,
+    `order_id` VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `status` ENUM('REQUESTED', 'COMPLETED', 'FAILED', 'UNKNOWN') NOT NULL,
+    `account_id` BIGINT NULL DEFAULT NULL,
+    `error_code` VARCHAR(100) NULL DEFAULT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`issue_id`),
+    UNIQUE KEY `uq_account_issue_approval` (`approval_id`),
+    UNIQUE KEY `uq_account_issue_group` (`group_id`),
+    UNIQUE KEY `uq_account_issue_order` (`order_id`),
+    UNIQUE KEY `uq_account_issue_account` (`account_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `term_agreement` (
 	`agreement_id`	BIGINT	NOT NULL AUTO_INCREMENT,
@@ -85,6 +105,7 @@ CREATE TABLE IF NOT EXISTS `members` (
 	`user_level`	VARCHAR(20)	NULL,
 	`system_role`	ENUM('USER',  'ADMIN')	NOT NULL	DEFAULT 'USER',
 	`identity_verified_at`	DATETIME	NULL,
+    `identity_ci_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
 	`region_verified_at`	DATETIME	NULL,
 	`account_status`	ENUM('ACTIVE', 'SUSPENDED',  'INACTIVE')	NOT NULL	DEFAULT 'ACTIVE',
     `suspended_until` DATETIME NULL DEFAULT NULL,
@@ -115,6 +136,7 @@ CREATE TABLE IF NOT EXISTS member_auth_session (
     member_id BIGINT NOT NULL,
     expires_at_ms BIGINT NOT NULL,
     revoked_at DATETIME(6) NULL,
+    mypage_verified_at DATETIME(6) NULL,
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     PRIMARY KEY (session_id),
@@ -210,7 +232,10 @@ CREATE TABLE IF NOT EXISTS `group_notice` (
 	`writer_id`	BIGINT	NOT NULL,
 	`title`	VARCHAR(200)	NOT NULL,
 	`content`	TEXT	NOT NULL,
+    `is_pinned` TINYINT(1) NOT NULL DEFAULT 0,
 	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NULL DEFAULT NULL,
+    `deleted_at` DATETIME NULL DEFAULT NULL,
 	PRIMARY KEY (`notice_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -272,6 +297,55 @@ CREATE TABLE IF NOT EXISTS `saving_group` (
 		CHECK(`dues_day` BETWEEN 1 AND 28)
     ) ENGINE=InnoDB DEFAULT CHARSET=UTF8MB4
     COLLATE=utf8mb4_unicode_ci;
+
+-- 계모임의 적용월별 예약 순번 목록을 저장
+CREATE TABLE IF NOT EXISTS `saving_group_turn_order_plan` (
+    `turn_order_plan_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `saving_group_id` BIGINT NOT NULL,
+    `effective_month` DATE NOT NULL,
+    `start_round_number` INT NOT NULL,
+    `assigned_by` BIGINT NOT NULL,
+    `assigned_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`turn_order_plan_id`),
+    UNIQUE KEY `uq_turn_order_plan_group_month`
+        (`saving_group_id`, `effective_month`),
+    KEY `ix_turn_order_plan_assigned_by` (`assigned_by`),
+
+    CONSTRAINT `fk_turn_order_plan_saving_group`
+        FOREIGN KEY (`saving_group_id`)
+        REFERENCES `saving_group` (`saving_group_id`),
+    CONSTRAINT `fk_turn_order_plan_assigned_by`
+        FOREIGN KEY (`assigned_by`)
+     REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `chk_turn_order_plan_month`
+        CHECK (DAYOFMONTH(`effective_month`) = 1),
+    CONSTRAINT `chk_turn_order_plan_start`
+        CHECK (`start_round_number` >= 1)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 예약 목록별 회원의 실제 지급 회차를 저장
+CREATE TABLE IF NOT EXISTS `saving_group_turn_order_plan_member` (
+    `turn_order_plan_id` BIGINT NOT NULL,
+    `member_id` BIGINT NOT NULL,
+    `round_number` INT NOT NULL,
+
+    PRIMARY KEY (`turn_order_plan_id`, `member_id`),
+    UNIQUE KEY `uq_turn_order_plan_round`
+        (`turn_order_plan_id`, `round_number`),
+    KEY `ix_turn_order_plan_member` (`member_id`),
+
+    CONSTRAINT `fk_turn_order_plan_member_plan`
+        FOREIGN KEY (`turn_order_plan_id`)
+        REFERENCES `saving_group_turn_order_plan` (`turn_order_plan_id`),
+    CONSTRAINT `fk_turn_order_plan_member_member`
+        FOREIGN KEY (`member_id`)
+        REFERENCES `members` (`member_id`),
+
+    CONSTRAINT `chk_turn_order_plan_member_round`
+        CHECK (`round_number` >= 1)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `restriction_history` (
     `restriction_history_id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -581,12 +655,17 @@ CREATE TABLE IF NOT EXISTS `region` (
 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `meeting_round` (
-	`round_id`	BIGINT	NOT NULL AUTO_INCREMENT,
-	`group_id`	BIGINT	NOT NULL,
-	`round_number`	INT	NOT NULL,
-	`due_date`	DATE	NOT NULL,
-	`scheduled_payout_date`	DATE	NULL,
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
+	`round_id` BIGINT NOT NULL AUTO_INCREMENT,
+	`group_id` BIGINT NOT NULL,
+	`round_number` INT NOT NULL,
+	`due_date` DATE NOT NULL,
+	`scheduled_payout_date`	DATE NULL,
+    `base_dues_amount` DECIMAL(15,2) NULL,
+    `approved_member_count` INT NULL,
+    `previous_paid_member_count` INT NULL,
+    `additional_dues_amount` DECIMAL(15,2) NULL,
+    `payout_amount` DECIMAL(15,2) NULL,
+	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (`round_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -606,21 +685,99 @@ CREATE TABLE IF NOT EXISTS `payout_request` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `expenses` (
-	`expense_id`	BIGINT	NOT NULL AUTO_INCREMENT,
+	`expense_id` BIGINT	NOT NULL AUTO_INCREMENT,
 	`group_id`	BIGINT	NOT NULL,
-	`applicant_id`	BIGINT	NOT NULL,
-	`amount`	DECIMAL(15,2)	NOT NULL,
-	`title`	VARCHAR(100)	NOT NULL,
-	`receipt_img_url`	VARCHAR(500)	NULL,
-	`status`	ENUM('PENDING', 'APPROVED', 'REJECTED')	NOT NULL	DEFAULT 'PENDING',
-	`created_at`	DATETIME	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (`expense_id`)
+	`applicant_id` BIGINT NOT NULL,
+	`amount` DECIMAL(15,2) NOT NULL,
+	`title`	VARCHAR(100) NOT NULL,
+	`receipt_img_url` VARCHAR(500) NULL,
+    `receipt_sha256` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+	`status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `reviewer_id` BIGINT NULL DEFAULT NULL,
+    `reviewed_at` DATETIME NULL DEFAULT NULL,
+    `reject_reason` VARCHAR(500) NULL DEFAULT NULL,
+	`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY (`expense_id`),
+    KEY `ix_expenses_group_receipt_status` (`group_id`, `receipt_sha256`,`status`),
+    CONSTRAINT `fk_expenses_reviewer`
+        FOREIGN KEY (`reviewer_id`) REFERENCES `members` (`member_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `interest` (
 	`interest_id`	BIGINT	NOT NULL AUTO_INCREMENT,
 	`interest_name`	VARCHAR(50)	NOT NULL,
 	PRIMARY KEY (`interest_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS card_expense_upload (
+    upload_id BIGINT NOT NULL AUTO_INCREMENT,
+    group_id BIGINT NOT NULL,
+    uploaded_by BIGINT NOT NULL,
+    uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (upload_id),
+
+    CONSTRAINT fk_card_expense_upload_group
+        FOREIGN KEY (group_id)
+        REFERENCES `groups` (group_id),
+
+    CONSTRAINT fk_card_expense_upload_member
+        FOREIGN KEY (uploaded_by)
+        REFERENCES members (member_id),
+
+    INDEX ix_card_expense_upload_group_uploaded
+        (group_id, uploaded_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE IF NOT EXISTS card_expense (
+    card_expense_id BIGINT NOT NULL AUTO_INCREMENT,
+    upload_id BIGINT NOT NULL,
+
+    used_date DATE NOT NULL,
+    merchant_name VARCHAR(255) NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+
+    approval_status ENUM('APPROVED', 'CANCELED') NOT NULL,
+
+    suggested_category VARCHAR(30) NULL,
+    final_category VARCHAR(30) NULL,
+
+    classification_status ENUM(
+        'REVIEW_PENDING',
+        'REVIEW_REQUIRED',
+        'CONFIRMED',
+        'CANCEL_PENDING'
+    ) NOT NULL,
+
+    confidence_score DECIMAL(5,4) NULL,
+
+    classification_source ENUM(
+        'KEYWORD_RULE',
+        'MACHINE_LEARNING',
+        'PAYMENT_PROVIDER',
+        'USER'
+    ) NULL,
+
+    review_reason VARCHAR(500) NULL,
+
+    confirmed_by BIGINT NULL,
+    confirmed_at DATETIME NULL,
+
+    PRIMARY KEY (card_expense_id),
+
+    CONSTRAINT fk_card_expense_upload
+        FOREIGN KEY (upload_id)
+        REFERENCES card_expense_upload (upload_id),
+
+    CONSTRAINT fk_card_expense_confirmed_member
+        FOREIGN KEY (confirmed_by)
+        REFERENCES members (member_id),
+
+    INDEX ix_card_expense_upload_status
+        (upload_id, classification_status),
+
+    INDEX ix_card_expense_status_confirmed
+        (classification_status, confirmed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `group_transaction` (
@@ -637,6 +794,75 @@ CREATE TABLE IF NOT EXISTS `group_transaction` (
     PRIMARY KEY (`transaction_id`),
     UNIQUE KEY `uq_group_transaction_source`
 (`account_id`, `source_provider`, `source_transaction_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI작성: 테스트 입금 요청과 중복 확인 이력을 저장합니다.
+CREATE TABLE IF NOT EXISTS `saving_group_mock_deposit_request` (
+    `deposit_request_id` BIGINT NOT NULL AUTO_INCREMENT,
+    `account_id` BIGINT NOT NULL,
+    `member_id` BIGINT NOT NULL,
+    `amount` DECIMAL(15,2) NOT NULL,
+    `request_key` VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `status` VARCHAR(30) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `window_anchor_request_id` BIGINT NULL DEFAULT NULL,
+    `confirmation_token_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL,
+    `confirmation_expires_at` DATETIME(6) NULL DEFAULT NULL,
+    `transaction_id` BIGINT NULL DEFAULT NULL,
+    `requested_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `completed_at` DATETIME(6) NULL DEFAULT NULL,
+
+    PRIMARY KEY (`deposit_request_id`),
+    UNIQUE KEY `uq_mock_dep_member_key` (`member_id`, `request_key`),
+    UNIQUE KEY `uq_mock_dep_transaction` (`transaction_id`),
+    UNIQUE KEY `uq_mock_dep_confirm_hash` (`confirmation_token_hash`),
+    KEY `ix_mock_dep_recent`
+(`account_id`, `member_id`, `amount`, `status`, `completed_at`),
+    KEY `ix_mock_dep_anchor` (`window_anchor_request_id`),
+
+    CONSTRAINT `fk_mock_dep_account`
+        FOREIGN KEY (`account_id`)
+        REFERENCES `group_account` (`account_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT `fk_mock_dep_member`
+        FOREIGN KEY (`member_id`)
+        REFERENCES `members` (`member_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT `fk_mock_dep_transaction`
+        FOREIGN KEY (`transaction_id`)
+        REFERENCES `group_transaction` (`transaction_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+    CONSTRAINT `fk_mock_dep_anchor`
+        FOREIGN KEY (`window_anchor_request_id`)
+        REFERENCES `saving_group_mock_deposit_request` (`deposit_request_id`)
+        ON DELETE RESTRICT ON UPDATE RESTRICT,
+
+    CONSTRAINT `chk_mock_dep_amount`
+        CHECK (`amount` >= 1 AND `amount` = FLOOR(`amount`)),
+    CONSTRAINT `chk_mock_dep_key`
+        CHECK (CHAR_LENGTH(TRIM(`request_key`)) > 0),
+    CONSTRAINT `chk_mock_dep_status`
+        CHECK (`status` IN ('PENDING_CONFIRMATION', 'COMPLETED')),
+    CONSTRAINT `chk_mock_dep_state`
+        CHECK (
+                (`status` = 'PENDING_CONFIRMATION'
+                AND `transaction_id` IS NULL
+                AND `completed_at` IS NULL
+                AND `window_anchor_request_id` IS NOT NULL
+                AND `confirmation_token_hash` IS NOT NULL
+                AND `confirmation_expires_at` IS NOT NULL)
+            OR
+                (`status` = 'COMPLETED'
+                AND `transaction_id` IS NOT NULL
+                AND `completed_at` IS NOT NULL
+                AND `confirmation_token_hash` IS NULL)
+        ),
+    CONSTRAINT `chk_mock_dep_completion_time`
+        CHECK (`completed_at` IS NULL OR `completed_at` >= `requested_at`),
+    CONSTRAINT `chk_mock_dep_expiry_time`
+        CHECK (
+              `confirmation_expires_at` IS NULL
+              OR `confirmation_expires_at` > `requested_at`
+          )
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `transaction_anomaly_analysis` (

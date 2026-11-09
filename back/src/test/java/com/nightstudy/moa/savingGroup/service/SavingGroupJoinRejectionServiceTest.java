@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinMemberRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow;
@@ -31,6 +33,9 @@ class SavingGroupJoinRejectionServiceTest {
     @Mock
     private SavingGroupMapper savingGroupMapper;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private SavingGroupServiceImpl savingGroupService;
 
@@ -42,6 +47,12 @@ class SavingGroupJoinRejectionServiceTest {
         savingGroupService.rejectSavingGroupJoin(SAVING_GROUP_ID, REQUEST_ID, OWNER_ID);
 
         verify(savingGroupMapper).rejectSavingGroupJoinRequest(REQUEST_ID, GROUP_ID);
+        verify(notificationService).send(
+                APPLICANT_ID,
+                NotificationType.SAVING_GROUP_JOIN_REJECTED,
+                "계모임 가입 신청이 거절되었습니다.",
+                null
+        );
     }
 
     @Test

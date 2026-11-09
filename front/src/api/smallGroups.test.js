@@ -981,6 +981,9 @@ test('소모임 상세는 smallGroupId로 공개 API를 호출하고 최근 공�
         writerNickname: '운영진',
         createdAt: '2026-10-28T10:00:00',
       }],
+      // AI작성: 공지 페이지 메타와 고정 목록이 추가된 상세 응답을 검증한다.
+      noticePageMeta: null,
+      pinnedNotices: [],
     });
   } finally {
     client.get = originalGet;

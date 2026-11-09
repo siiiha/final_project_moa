@@ -157,6 +157,32 @@ public class AuthSessionServiceImpl implements AuthSessionService {
         return tokens;
     }
 
+    @Override
+    public boolean hasRecentMypageVerification(String sessionId, Long memberId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+
+        return sessionMapper.hasRecentMypageVerification(
+                sessionId,
+                memberId,
+                System.currentTimeMillis()
+        );
+    }
+
+    @Override
+    public boolean markMypageVerified(String sessionId, Long memberId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+
+        return sessionMapper.markMypageVerified(
+                sessionId,
+                memberId,
+                System.currentTimeMillis()
+        ) == 1;
+    }
+
     // access token이 만료됐어도 refresh token 세션은 로그아웃할 수 있음
     @Override
     @Transactional
@@ -233,7 +259,6 @@ public class AuthSessionServiceImpl implements AuthSessionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public boolean isAccessAllowed(
             Long memberId,
             String systemRole,
@@ -255,18 +280,17 @@ public class AuthSessionServiceImpl implements AuthSessionService {
                 || sessionId.length() != 36) {
             return false;
         }
-
         AuthStateCache.CacheLookup<Boolean> revokedToken =
                 authStateCache.findRevokedToken(tokenId);
-
         if (revokedToken.isHit()
                 && Boolean.TRUE.equals(revokedToken.value())) {
             return false;
         }
 
-        // AI작성: Valkey 장애가 감지되면 캐시 값을 신뢰하지 않고 MySQL 단일 인증 조회로 대체한다.
+        // AI작성: Redis 장애 시에는 기존 DB 인증 조회로 대체합니다.
         if (revokedToken.status()
                 != AuthStateCache.CacheLookup.Status.UNAVAILABLE) {
+
             AuthStateCache.CacheLookup<AuthStateCache.SessionState>
                     cachedSession = authStateCache.findSession(sessionId);
 

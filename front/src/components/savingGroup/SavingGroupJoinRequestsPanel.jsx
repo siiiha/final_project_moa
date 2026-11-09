@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import SavingGroupJoinRequestList from './SavingGroupJoinRequestList';
-import { savingGroupPayoutRequests } from '../../mocks/savingGroupPayoutRequests';
 import { approveSavingGroupJoin, getSavingGroupJoinRequests, rejectSavingGroupJoin } from '../../api/savingGroups';
 import ConfirmModal from '../common/ConfirmModal';
 
-const PAGE_SIZE = 10;
-// AI작성: 화면 필터를 서버 신청 상태에 연결한다. 계금 요청 Mock은 별도 탭에만 유지한다.
+// AI작성: 가입 상태 필터를 서버와 연결하고 계금·지출 목록은 별도 조회 컴포넌트에 위임한다.
 const REQUEST_STATUS = { 대기: 'PENDING', 승인: 'APPROVED', 거절: 'REJECTED' };
 
-function SavingGroupJoinRequestsPanel({ savingGroupId }) {
+function SavingGroupJoinRequestsPanel({ savingGroupId, groupType }) {
   const [activeFilter, setActiveFilter] = useState('전체');
   const [selectedIds, setSelectedIds] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [payoutCurrentPage, setPayoutCurrentPage] = useState(1);
-  const [reviewApplicant, setReviewApplicant] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState(null);
   const [pendingId, setPendingId] = useState(null);
@@ -54,9 +50,7 @@ function SavingGroupJoinRequestsPanel({ savingGroupId }) {
     if (submitting.current) return;
     setActiveFilter(filter);
     setCurrentPage(1);
-    setPayoutCurrentPage(1);
     setSelectedIds([]);
-    setReviewApplicant('');
   };
 
   const changePage = (page) => {
@@ -152,8 +146,6 @@ function SavingGroupJoinRequestsPanel({ savingGroupId }) {
 
   // AI작성: 선택 승인은 API 정책이 확정되지 않아 실제 데이터를 로컬에서 변경하지 않는다.
   const unavailableAction = () => {};
-  const payoutTotalPages = Math.max(1, Math.ceil(savingGroupPayoutRequests.length / PAGE_SIZE));
-  const visiblePayoutRequests = savingGroupPayoutRequests.slice((payoutCurrentPage - 1) * PAGE_SIZE, payoutCurrentPage * PAGE_SIZE);
 
   return (
     <>
@@ -177,13 +169,8 @@ function SavingGroupJoinRequestsPanel({ savingGroupId }) {
         pendingAction={pendingAction}
         onRetry={retry}
         onFirstPage={() => changePage(1)}
-        payoutRequests={visiblePayoutRequests}
-        payoutCurrentPage={payoutCurrentPage}
-        payoutTotalPages={payoutTotalPages}
-        onPayoutPageChange={(page) => setPayoutCurrentPage(Math.min(Math.max(page, 1), payoutTotalPages))}
-        payoutTotalCount={savingGroupPayoutRequests.length}
-        onPayoutReview={setReviewApplicant}
-        reviewApplicant={reviewApplicant}
+        savingGroupId={savingGroupId}
+        groupType={groupType}
       />
       {rejectTarget && (
         <ConfirmModal

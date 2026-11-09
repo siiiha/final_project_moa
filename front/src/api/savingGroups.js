@@ -1,5 +1,168 @@
 import client from './client.js';
 
+// AI작성: 계원 관리 요청은 공통 JWT client를 사용하고 서버 코드·상태·취소를 보존한다.
+async function savingGroupMemberResponse(send, fallbackMessage) {
+  try {
+    const response = await send();
+    if (response.data?.success !== true) throw { response };
+    return response.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || fallbackMessage);
+    failure.code = serverError?.code || 'SAVING_GROUP_MEMBER_REQUEST_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
+// AI작성: 검색어를 정리해 이름·원문 이메일 검색으로 전달하고 서버의 마스킹 응답만 표시한다.
+export async function getSavingGroupMembers(savingGroupId, { keyword, page = 1, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  if (!Number.isSafeInteger(page) || page < 1) throw new Error('페이지는 1 이상이어야 합니다.');
+  if (keyword != null && typeof keyword !== 'string') throw new Error('검색어를 다시 입력해주세요.');
+  const normalizedKeyword = keyword?.trim() || undefined;
+  if (normalizedKeyword && normalizedKeyword.length > 20) throw new Error('검색어는 20자 이내로 입력해 주세요.');
+  const result = await savingGroupMemberResponse(
+    () => client.get(`/saving-groups/${id}/members`, {
+      params: { ...(normalizedKeyword ? { keyword: normalizedKeyword } : {}), page }, signal,
+    }),
+    '계원 목록을 불러오지 못했습니다. 다시 시도해주세요.'
+  );
+  const meta = result.meta;
+  if (!Array.isArray(result.data) || result.data.length > 10 || !meta
+      || meta.page !== page || meta.size !== 10 || !Number.isInteger(meta.total) || meta.total < 0 || meta.total > 20
+      || meta.totalPages !== Math.ceil(meta.total / 10)
+      || result.data.some((item) => !item || !['MEMBER', 'MANAGER'].includes(item.role))) {
+    const failure = new Error('계원 목록 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+    failure.code = 'INVALID_RESPONSE';
+    throw failure;
+  }
+  return {
+    items: result.data.map((item) => ({
+      id: savingGroupPathId(item.memberId),
+      name: item.name || '이름 미등록',
+      email: item.email || '이메일 미등록',
+      role: item.role,
+      joinedAt: formatApplicationDate(item.joinedAt),
+    })),
+    meta,
+  };
+}
+
+// AI작성: OWNER·처리자 입력은 보내지 않으며 변경된 회원의 목표 역할만 전송한다.
+export async function updateSavingGroupMemberRole(savingGroupId, memberId, role, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const targetId = savingGroupPathId(memberId);
+  if (!['MEMBER', 'MANAGER'].includes(role)) throw new Error('계원 또는 회계 역할만 지정할 수 있습니다.');
+  const result = await savingGroupMemberResponse(
+    () => client.patch(`/saving-groups/${id}/members/${targetId}/role`, { role }, { signal }),
+    '역할을 저장하지 못했습니다. 목록을 다시 확인해주세요.'
+  );
+  return result.data;
+}
+
+// AI작성: 추방은 공통 groupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
+export async function expelSavingGroupMember(groupId, memberId, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  const targetId = savingGroupPathId(memberId);
+  const result = await savingGroupMemberResponse(
+    () => client.patch(`/saving-groups/${id}/members/${targetId}/expel`, undefined, { signal }),
+    '계원을 추방하지 못했습니다. 목록을 확인한 후 다시 시도해주세요.'
+  );
+  return result.data;
+}
+
+// AI작성: 기존 공통 클라이언트의 인증·오류 형식을 사용하며 계좌 정보는 전송하지 않는다.
+async function payoutCall(operation) {
+  try {
+    const response = await operation();
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || '계금 요청을 처리하지 못했습니다. 요청 내역을 확인한 후 다시 시도해주세요.');
+    failure.code = serverError?.code || 'PAYOUT_REQUEST_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
+export async function getSavingGroupPayoutOptions(groupId, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  return payoutCall(() => client.get(`/saving-groups/${id}/payout-requests/options`, { signal }));
+}
+
+// AI작성: 순번계는 빈 폼을 보내고 친목계만 금액·제목·영수증을 전달한다. multipart 경계는 브라우저가 생성한다.
+export async function createSavingGroupPayout(groupId, { amount, title, receipt } = {}, { signal } = {}) {
+  const id = savingGroupPathId(groupId);
+  const body = new FormData();
+  if (amount != null) body.append('amount', String(amount));
+  if (title != null) body.append('title', title);
+  if (receipt != null) body.append('receipt', receipt);
+  return payoutCall(() => client.post(`/saving-groups/${id}/payout-requests`, body, { signal }));
+}
+
+// AI작성: 목록의 savingGroupId·요청 ID만 사용하며 승인 본문이나 처리자 정보는 보내지 않는다.
+export async function approveSavingGroupPayoutRequest(savingGroupId, requestId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const targetId = savingGroupPathId(requestId);
+  return payoutCall(() => client.patch(`/saving-groups/${id}/payout-requests/${targetId}/approve`, undefined, { signal }));
+}
+
+// AI작성: 서버와 동일하게 원본 입력 길이·공백을 검증하고 사유만 전달한다. 앞뒤 공백 정리는 서버가 담당한다.
+export async function rejectSavingGroupPayoutRequest(savingGroupId, requestId, rejectReason, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const targetId = savingGroupPathId(requestId);
+  if (typeof rejectReason !== 'string' || !rejectReason.trim() || rejectReason.length > 500) {
+    throw new Error('거절 사유를 공백 없이 입력하고 500자 이내로 작성해주세요.');
+  }
+  return payoutCall(() => client.patch(`/saving-groups/${id}/payout-requests/${targetId}/reject`, { rejectReason }, { signal }));
+}
+
+// AI작성: 서버가 저장된 모임 유형에 따라 요청을 고르므로 클라이언트는 유형·처리자 정보를 보내지 않는다.
+export async function getSavingGroupPayoutRequests(savingGroupId, { status, page = 1, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  let response;
+  try {
+    response = await client.get(`/saving-groups/${id}/payout-requests`, {
+      params: { status: status || undefined, page }, signal,
+    });
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const failure = new Error(error.response?.data?.error?.message || '요청 목록을 불러오지 못했습니다.');
+    failure.code = error.response?.data?.error?.code || 'PAYOUT_REQUEST_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+  if (response.data?.success !== true) {
+    const failure = new Error(response.data?.error?.message || '요청 목록을 불러오지 못했습니다.');
+    failure.code = response.data?.error?.code || 'PAYOUT_REQUEST_FAILED';
+    failure.status = response.status;
+    throw failure;
+  }
+  const { data, meta } = response.data;
+  if (!Array.isArray(data) || !meta || !Number.isInteger(meta.page) || meta.page < 1
+    || meta.size !== 10 || !Number.isInteger(meta.total) || meta.total < 0
+    || !Number.isInteger(meta.totalPages) || meta.totalPages < 0) {
+    throw new Error('요청 목록 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+  }
+  return {
+    items: data.map((item) => ({
+      ...item,
+      id: savingGroupPathId(item.requestId),
+      applicant: item.requesterName || '이름 미등록',
+      // AI작성: 증빙 유무와 회차는 실제 응답에 있는 경우에만 화면에 표시한다.
+      type: item.roundNumber != null ? '계금' : '지출',
+      amount: item.amount == null || !Number.isFinite(Number(item.amount))
+        ? '금액 확인 필요' : `${Number(item.amount).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}원`,
+      status: { PENDING: '대기', APPROVED: '승인', REJECTED: '반려', COMPLETED: '완료' }[item.status] || '상태 확인 필요',
+    })),
+    meta,
+  };
+}
+
 // AI작성: 관리자 계모임 심사의 API 코드와 화면 문구를 한곳에서 관리해 직접 문자열 비교를 줄인다.
 export const savingGroupReviewStatus = Object.freeze({
   PENDING: 'PENDING',
@@ -177,6 +340,120 @@ function savingGroupPathId(value) {
   return String(value);
 }
 
+// AI작성: 공지 작성 실패의 서버 코드·HTTP 상태를 유지해 화면에서 권한·상태 변경을 안내한다.
+function toSavingGroupNoticeError(error, status) {
+  const failure = new Error(error?.message || '공지를 등록하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  failure.name = 'SavingGroupNoticeError';
+  failure.code = error?.code || 'SAVING_GROUP_NOTICE_WRITE_FAILED';
+  failure.status = status;
+  return failure;
+}
+
+// AI작성: 공통 client의 JWT 인증을 재사용하고 제목·내용만 JSON으로 전송한다. 작성자·권한은 서버에서 판단한다.
+export async function createSavingGroupNotice(savingGroupId, { title, content }, { signal } = {}) {
+  const groupId = savingGroupPathId(savingGroupId);
+  try {
+    const response = await client.post(`/saving-groups/${groupId}/notices`, { title, content }, { signal });
+    if (response.data?.success !== true) {
+      throw toSavingGroupNoticeError(response.data?.error, response.status);
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupNoticeError') throw error;
+    throw toSavingGroupNoticeError(error.response?.data?.error, error.response?.status);
+  }
+}
+
+// AI작성: 고정 변경 오류의 서버 코드·문구·상태를 유지해 권한 변경과 최대 개수 초과를 안내한다.
+// AI작성: 수정 오류를 작성·고정 오류와 구분하고 서버 코드·상태 및 취소 원본을 유지한다.
+export async function updateSavingGroupNotice(groupId, noticeId, { title, content }, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  try {
+    const response = await client.put(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { title, content }, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || '공지를 수정하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    failure.code = serverError?.code || 'SAVING_GROUP_NOTICE_EDIT_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
+// AI작성: 작성자는 요청으로 받지 않고 공통 인증 client로 삭제하며 오류·취소를 보존한다.
+export async function deleteSavingGroupNotice(groupId, noticeId, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  try {
+    const response = await client.delete(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    if (response.data?.success !== true) throw { response };
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED') throw error;
+    const serverError = error.response?.data?.error;
+    const failure = new Error(serverError?.message || '공지를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    failure.code = serverError?.code || 'SAVING_GROUP_NOTICE_DELETE_FAILED';
+    failure.status = error.response?.status;
+    throw failure;
+  }
+}
+
+function toSavingGroupNoticePinError(error, status) {
+  const failure = new Error(error?.message || '공지 고정을 변경하지 못했습니다. 목록을 새로 고침해 주세요.');
+  failure.name = 'SavingGroupNoticePinError';
+  failure.code = error?.code || 'SAVING_GROUP_NOTICE_PIN_FAILED';
+  failure.status = status;
+  return failure;
+}
+
+// AI작성: 토글 대신 목표 상태를 전달해 응답 유실 후 재요청에서도 상태가 뒤집히지 않게 한다.
+export async function updateSavingGroupNoticePinned(groupId, noticeId, pinned, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  if (typeof pinned !== 'boolean') throw toSavingGroupNoticePinError({ code: 'BAD_REQUEST', message: '고정 여부를 확인해 주세요.' }, 400);
+  try {
+    const response = await client.patch(`/saving-groups/${groupPathId}/notices/${noticePathId}/pin`, { pinned }, { signal });
+    if (response.data?.success !== true) throw toSavingGroupNoticePinError(response.data?.error, response.status);
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupNoticePinError') throw error;
+    throw toSavingGroupNoticePinError(error.response?.data?.error, error.response?.status);
+  }
+}
+
+// AI작성: 조회 오류는 작성 오류와 구분하고 서버 코드·문구·HTTP 상태를 유지한다.
+function toSavingGroupNoticeDetailError(error, status) {
+  const failure = new Error(error?.message || '공지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  failure.name = 'SavingGroupNoticeDetailError';
+  failure.code = error?.code || 'SAVING_GROUP_NOTICE_READ_FAILED';
+  failure.status = status;
+  return failure;
+}
+
+// AI작성: 공통 groupId와 공지 ID를 문자열로 유지하며 인증·요청 취소는 기존 client를 재사용한다.
+export async function getSavingGroupNoticeDetail(groupId, noticeId, { signal } = {}) {
+  const groupPathId = savingGroupPathId(groupId);
+  const noticePathId = savingGroupPathId(noticeId);
+  try {
+    const response = await client.get(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    if (response.data?.success !== true) {
+      throw toSavingGroupNoticeDetailError(response.data?.error, response.status);
+    }
+    if (!response.data.data || typeof response.data.data !== 'object' || Array.isArray(response.data.data)) {
+      throw toSavingGroupNoticeDetailError(
+        { code: 'INVALID_RESPONSE', message: '공지 상세 응답을 확인하지 못했습니다.' }, response.status
+      );
+    }
+    return response.data.data;
+  } catch (error) {
+    if (error.code === 'ERR_CANCELED' || error.name === 'SavingGroupNoticeDetailError') throw error;
+    throw toSavingGroupNoticeDetailError(error.response?.data?.error, error.response?.status);
+  }
+}
+
 // AI작성: 목록·승인·거절 모두 서버의 오류 코드를 보존하며 요청 취소는 화면 오류로 바꾸지 않는다.
 async function savingGroupJoinResponse(request, fallback) {
   try {
@@ -304,7 +581,7 @@ export function toSavingGroupCard(item) {
 export function getSavingGroupMenus(role) {
   const common = ['notice', 'payment', 'calendar', 'dues', 'transactionHistory', 'payoutRequest'];
   if (role === 'OWNER') return [...common, 'members', 'settings', 'joinRequests'];
-  return ['MANAGER', 'MEMBER'].includes(role) ? common : ['notice'];
+  return role === 'MANAGER' || role === 'MEMBER' ? common : ['notice'];
 }
 
 // AI작성: null을 0원으로 바꾸거나 소수 금액을 반올림하지 않고 표시 직전에 포맷한다.
@@ -316,15 +593,48 @@ export function formatSavingGroupAmount(value) {
 }
 
 // AI작성: URL ID를 숫자로 변환하지 않으며 기존 API 클라이언트와 취소 신호를 재사용한다.
-export async function getSavingGroupDetail(id, { signal } = {}) {
-  const response = await client.get(`/saving-groups/${encodeURIComponent(id)}`, { signal });
+export async function getSavingGroupDetail(id, { signal, noticePage = 1, noticeSort = 'LATEST' } = {}) {
+  // AI작성: 기존 호출은 최신순 1페이지로 유지하고 공지 조건만 기존 상세 API 쿼리로 전달한다.
+  const response = await client.get(`/saving-groups/${encodeURIComponent(id)}`, {
+    params: { noticePage, noticeSort }, signal,
+  });
   if (!response.data.success) {
     throw new Error(response.data.error?.message || '계모임 정보를 불러오지 못했습니다.');
   }
-  return response.data.data;
+  // AI작성: 기존 상세 필드를 유지하면서 공통 meta를 공지 전용 이름으로 화면에 전달한다.
+  return { ...response.data.data, noticePageMeta: response.data.meta ?? null };
 }
 
-// AI작성: 최대 다섯 개의 번호만 생성하고 빈 결과·범위 초과는 번호를 만들지 않는다.
+// AI작성: 직접 입력한 URL에서도 서버의 정수 범위와 허용 정렬만 사용하고 나머지는 기본값으로 복원한다.
+export function readSavingGroupNoticeQuery(search) {
+  const params = new URLSearchParams(search);
+  const rawPage = params.get('noticePage') ?? '1';
+  const page = /^[1-9]\d*$/.test(rawPage) && Number(rawPage) <= 2147483647 ? Number(rawPage) : 1;
+  return { page, sort: params.get('noticeSort') === 'OLDEST' ? 'OLDEST' : 'LATEST' };
+}
+
+// AI작성: 공지 조회 조건만 변경해 같은 화면의 다른 쿼리는 유지한다.
+export function toSavingGroupNoticeSearch(page, sort, search = '') {
+  const params = new URLSearchParams(search);
+  params.set('noticePage', String(page));
+  params.set('noticeSort', sort);
+  return params.toString();
+}
+
+// AI작성: 공지 전용 세 페이지 묶음이며 이전은 앞 묶음 끝, 다음은 뒤 묶음 시작으로 이동한다.
+export function getSavingGroupNoticePagination(page, totalPages) {
+  const total = Math.max(1, totalPages);
+  const current = Math.min(Math.max(1, page), total);
+  const start = Math.floor((current - 1) / 3) * 3 + 1;
+  const end = Math.min(start + 2, total);
+  return {
+    pages: Array.from({ length: end - start + 1 }, (_, index) => start + index),
+    previous: start > 1 ? start - 1 : null,
+    next: end < total ? end + 1 : null,
+  };
+}
+
+// AI작성: 계모임 전체 목록의 기존 다섯 페이지 묶음은 공지와 별개로 유지한다.
 export function getSavingGroupPages(currentPage, totalPages) {
   if (totalPages < 1 || currentPage < 1 || currentPage > totalPages) return [];
   const start = Math.floor((currentPage - 1) / 5) * 5 + 1;

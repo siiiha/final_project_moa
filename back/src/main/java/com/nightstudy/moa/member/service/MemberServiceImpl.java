@@ -23,6 +23,7 @@ import com.nightstudy.moa.member.dto.withdrawal.MemberWithdrawalRequest;
 import com.nightstudy.moa.member.mapper.MemberMapper;
 import com.nightstudy.moa.member.service.auth.AuthSessionService;
 import com.nightstudy.moa.member.service.email.EmailVerificationService;
+import com.nightstudy.moa.member.service.identity.IdentityCiHasher;
 import com.nightstudy.moa.member.service.identity.PortOneApiClient;
 import com.nightstudy.moa.member.service.social.kakao.KakaoApiClient;
 import org.springframework.dao.DuplicateKeyException;
@@ -62,6 +63,7 @@ public class MemberServiceImpl implements MemberService {
     private final KakaoApiClient kakaoApiClient;
     private final PortOneProperties portOneProperties;
     private final PortOneApiClient portOneApiClient;
+    private final IdentityCiHasher identityCiHasher;
     private final ProfileImageService profileImageService;
 
     public MemberServiceImpl(
@@ -73,7 +75,9 @@ public class MemberServiceImpl implements MemberService {
             KakaoApiClient kakaoApiClient,
             PortOneProperties portOneProperties,
             PortOneApiClient portOneApiClient,
+            IdentityCiHasher identityCiHasher,
             ProfileImageService profileImageService
+
     ) {
         this.memberMapper = memberMapper;
         this.passwordEncoder = passwordEncoder;
@@ -83,6 +87,7 @@ public class MemberServiceImpl implements MemberService {
         this.kakaoApiClient = kakaoApiClient;
         this.portOneProperties = portOneProperties;
         this.portOneApiClient = portOneApiClient;
+        this.identityCiHasher = identityCiHasher;
         this.profileImageService = profileImageService;
     }
 
@@ -516,11 +521,59 @@ public class MemberServiceImpl implements MemberService {
         return getMyProfile(memberId);
     }
 
+    @Override
+    public boolean hasRecentMypageVerification(Long memberId, String sessionId) {
+        return authSessionService.hasRecentMypageVerification(sessionId, memberId);
+    }
+
+    @Override
+    @Transactional
+    public void verifyMypagePassword(
+            Long memberId,
+            String sessionId,
+            String currentPassword
+    ) {
+        MemberLoginDto member = memberMapper.findByMemberIdForUpdate(memberId);
+
+        if (member == null || !"ACTIVE".equals(member.getAccountStatus())) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "ACCOUNT_NOT_ACTIVE",
+                    "현재 계정으로 마이페이지를 이용할 수 없습니다."
+            );
+        }
+
+        verifyCurrentPassword(member, currentPassword);
+
+        if (!authSessionService.markMypageVerified(sessionId, memberId)) {
+            throw new ApiException(
+                    HttpStatus.UNAUTHORIZED,
+                    "INVALID_SESSION",
+                    "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
+            );
+        }
+    }
+
+    private void verifyCurrentPassword(MemberLoginDto member, String currentPassword) {
+        if (currentPassword == null
+                || currentPassword.isBlank()
+                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || member.getPasswordHash() == null
+                || !passwordEncoder.matches(currentPassword, member.getPasswordHash())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_CURRENT_PASSWORD",
+                    "현재 비밀번호가 올바르지 않습니다."
+            );
+        }
+    }
+
     // 비밀번호와 입력값 검증 후 회원정보 수정
     @Override
     @Transactional
     public MemberProfileResponse updateMyProfile(
             Long memberId,
+            String sessionId,
             MemberProfileUpdateRequest request
     ) {
         MemberLoginDto member =
@@ -542,20 +595,12 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        String currentPassword = request.getCurrentPassword();
-
-        if (currentPassword == null
-                || currentPassword.isBlank()
-                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
-                || member.getPasswordHash() == null
-                || !passwordEncoder.matches(
-                currentPassword,
-                member.getPasswordHash()
-        )) {
+        if (member.getPasswordHash() != null
+                && !authSessionService.hasRecentMypageVerification(sessionId, memberId)) {
             throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_CURRENT_PASSWORD",
-                    "현재 비밀번호가 올바르지 않습니다."
+                    HttpStatus.FORBIDDEN,
+                    "MYPAGE_VERIFICATION_REQUIRED",
+                    "비밀번호 확인 시간이 지났습니다. 내 정보 수정에서 다시 확인해 주세요."
             );
         }
 
@@ -643,14 +688,15 @@ public class MemberServiceImpl implements MemberService {
                         && !confirmNewPassword.isEmpty());
 
         if (passwordChangeRequested) {
-            MemberPasswordUpdateRequest passwordRequest =
-                    new MemberPasswordUpdateRequest();
+            if (member.getPasswordHash() == null) {
+                throw new ApiException(
+                        HttpStatus.FORBIDDEN,
+                        "PASSWORD_CHANGE_NOT_AVAILABLE",
+                        "이 계정은 비밀번호를 변경할 수 없습니다."
+                );
+            }
 
-            passwordRequest.setCurrentPassword(request.getCurrentPassword());
-            passwordRequest.setNewPassword(newPassword);
-            passwordRequest.setConfirmNewPassword(confirmNewPassword);
-
-            updatePassword(memberId, passwordRequest);
+            saveNewPassword(memberId, member, newPassword, confirmNewPassword);
         }
 
         return getMyProfile(memberId);
@@ -682,32 +728,30 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        String currentPassword = request.getCurrentPassword();
+        verifyCurrentPassword(member, request.getCurrentPassword());
+        saveNewPassword(
+                memberId,
+                member,
+                request.getNewPassword(),
+                request.getConfirmNewPassword()
+        );
+    }
 
-        if (currentPassword == null
-                || currentPassword.isBlank()
-                || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
-                || member.getPasswordHash() == null
-                || !passwordEncoder.matches(
-                currentPassword,
-                member.getPasswordHash()
-        )) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_CURRENT_PASSWORD",
-                    "현재 비밀번호가 올바르지 않습니다."
-            );
-        }
-
-        String newPassword = request.getNewPassword();
+    private void saveNewPassword(
+            Long memberId,
+            MemberLoginDto member,
+            String newPassword,
+            String confirmNewPassword
+    ) {
 
         if (newPassword == null
-                || newPassword.isBlank()
-                || newPassword.length() < 8) {
+                || !newPassword.matches(
+                "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\\[-`{-~])[!-~]{8,20}$"
+                )) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_NEW_PASSWORD",
-                    "새 비밀번호는 8자 이상 입력해주세요."
+                    "영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요."
             );
         }
 
@@ -719,7 +763,7 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        if (!newPassword.equals(request.getConfirmNewPassword())) {
+        if (!newPassword.equals(confirmNewPassword)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "PASSWORD_CONFIRM_MISMATCH",
@@ -837,16 +881,23 @@ public class MemberServiceImpl implements MemberService {
     public void resetPassword(PasswordResetRequest request) {
         String newPassword = request.getNewPassword();
 
+        // AI작성: 회원가입과 동일하게 영문·숫자·특수문자를 포함한 8~20자를 검사합니다.
         if (newPassword == null
-                || newPassword.isBlank()
-                || newPassword.length() < 8
-                || newPassword.length() > 20
-                || !newPassword.equals(request.getNewPasswordConfirm())
-                || newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
+                || !newPassword.matches(
+                "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\\[-`{-~])[!-~]{8,20}$"
+        )) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_NEW_PASSWORD",
-                    "새 비밀번호는 8~20자로 입력하고 확인 값도 동일하게 입력해주세요."
+                    "영문, 숫자, 특수문자를 각각 포함해 8~20자로 설정해 주세요."
+            );
+        }
+
+        if (!newPassword.equals(request.getNewPasswordConfirm())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_CONFIRM_MISMATCH",
+                    "새 비밀번호가 일치하지 않아요. 다시 확인해 주세요."
             );
         }
 
@@ -1076,6 +1127,13 @@ public class MemberServiceImpl implements MemberService {
             );
         }
 
-        return profile;
+        if (identityCiHasher.isConfigured() && StringUtils.hasText(customer.getCi())) {
+            memberMapper.saveIdentityCiHashIfAbsent(
+                    memberId,
+                    identityCiHasher.hash(customer.getCi())
+            );
+        }
+
+        return getMyProfile(memberId);
     }
 }

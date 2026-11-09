@@ -2,6 +2,9 @@
 # 계모임 목록 조회 API
 # 계모임 조회 API
 
+<!-- AI작성: 공지 페이징·고정의 현재 계약을 과거 단계별 기록과 구분한다. -->
+> 공지 목록·고정 기능은 문서 하단의 [2026-11-04 페이징·고정 최신 계약](#notice-pagination-and-pin)을 우선한다. 아래 기존 기록의 최신 4건·meta 없음·고정 제외는 당시 구현 범위다.
+
 ## 2026-10-20 상세 조회 확장 — 최신 계약
 
 <!-- AI작성: 구현 중 사용자 정정 사항을 반영한다. 아래 기존 목록 구현 기록보다 이 절을 우선한다. -->
@@ -486,15 +489,17 @@ PATCH /saving-groups/{groupId}/members/{memberId}/expel
 - groupId: 양수 Long, `groups.group_id`이면서 삭제되지 않은 계모임이어야 한다.
 - memberId: 양수 Long, 추방 대상 `members.member_id`다.
 - 요청 본문은 없다. 대상은 URL 경로로만 식별하며, 실행 계주·상태·역할은 클라이언트 입력으로 받지 않는다.
-- 실행자는 서버 인증 처리에서 설정한 request attribute `memberId`(Long)만 사용한다. 현재 JWT 연결 전에는 이 속성이 없으므로 HTTP 요청은 401을 반환한다.
+- 실행자는 서버 인증 처리에서 설정한 request attribute `memberId`(Long)만 사용한다. 기존 JWT 인증 필터가 설정한 속성을 사용하며, `/api` 인증 실패는 LOGIN_REQUIRED, Service 인증 속성 누락은 UNAUTHORIZED 정책을 따른다.
 - Service는 `groups.member_id` 일치와 `group_member`의 `OWNER` + `APPROVED` 관계를 모두 확인한다.
 
 ### 처리와 상태 전이
 
-1. 계모임과 요청 계주 관계를 `FOR UPDATE`로 확인한다.
+1. 계모임을 `FOR UPDATE`로 조회하고 모집중(`01`)인지 확인한 뒤, 생성자 일치 및 요청자의 `APPROVED OWNER` 관계를 잠금 검증한다. 진행중(`02`)·종료 등 나머지 상태에서는 추방할 수 없다.
 2. `groupId`와 대상 `memberId`의 `group_member` 행을 잠금 조회하고, `APPROVED` 상태인 경우에만 `crew_member_id`를 사용한다.
-3. 계주 본인을 대상자로 요청하면 상태를 변경하지 않고 409을 반환한다.
+3. 대상 회원이 미삭제 상태로 존재하는지 확인한다. 계주 본인 및 다른 OWNER 대상은 409이며, MEMBER·MANAGER는 직접 추방할 수 있다. 미정의 역할은 차단한다.
 4. 대상 행의 `crew_member_id`, `group_id`, `membership_status = 'APPROVED'`가 모두 일치할 때만 `membership_status`를 `EXPELLED`로 변경한다.
+
+MANAGER는 MEMBER로 먼저 변경할 필요가 없다(B 방식). 추방된 MANAGER는 APPROVED 회계 조회에서 제외되어 새 회계 지정을 막지 않는다. 기존 가입 정책에 따라 EXPELLED 회원의 재가입 신청은 JOIN_REAPPLICATION_FORBIDDEN으로 차단한다.
 
 `EXPELLED`는 기존 `group_member.membership_status` 상태값이므로 DB 마이그레이션·컬럼 변경은 없다. `left_at`, 역할, 승인 이력은 이 작업에서 변경하지 않는다.
 
@@ -528,19 +533,28 @@ HTTP 200, 기존 `ApiResponse.ok()`를 사용한다.
 | 403 | SAVING_GROUP_OWNER_REQUIRED | 해당 모임의 승인된 계주가 아님 |
 | 404 | SAVING_GROUP_NOT_FOUND | 계모임이 없거나 삭제됨 |
 | 404 | SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND | 대상 계원이 없거나 현재 상태가 APPROVED가 아님 |
-| 409 | SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED | 계주 본인을 추방하려는 요청 |
+| 409 | SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED | 계주 본인 또는 다른 OWNER를 추방하려는 요청 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중(01) 외 상태 |
+| 409 | SAVING_GROUP_MEMBER_ROLE_INVALID | MEMBER·MANAGER·OWNER 외 역할 |
 | 409 | SAVING_GROUP_MEMBER_EXPULSION_FAILED | 조건부 상태 변경 영향 행 수가 1이 아님 |
 | 500 | INTERNAL_ERROR | 예상하지 못한 DB·서버 오류 |
 
 ### 테스트 및 직접 검증
 
-`SavingGroupJoinApprovalServiceTest`는 계주 성공, 비계주, 대상 없음·비승인 상태, 계주 본인 차단, 조건부 UPDATE 영향 행 수 불일치를 검증한다. `SavingGroupJoinApprovalControllerTest`는 두 URL 별칭, 인증 누락, 잘못된 경로 값, Service 오류의 공통 응답을 검증한다.
+<!-- AI작성: 2026-11-05 진행 전 추방 구현 및 실제 검증 결과로 갱신한다. -->
+신규 SavingGroupMemberExpulsionServiceTest 29건, SavingGroupMemberExpulsionControllerTest 14건을 검증한다. 기존 역할 관리 Service 34건·Controller 19건, 가입 가능 여부 10건을 포함한 총 106건이 통과했다.
 
-현재 실행 환경에는 Java 17 toolchain이 없어 Gradle 테스트는 컴파일 전에 중단된다. Java 17을 준비한 뒤 아래 명령으로 재검증한다.
+기본 Gradle 실행은 Java 17 toolchain 부재로 실패했다. 설치된 Java 21과 `options.release = 17`을 사용하는 임시 init script로 운영 코드를 컴파일했다. 전체 테스트 컴파일은 기존 다른 영역의 AuthSessionService·MemberFeatureRestrictionService·KakaoApiClient import 오류 13건으로 실패하여, 임시 sourceSets 필터로 위 5개 테스트 클래스만 컴파일·실행했다. 저장소 build.gradle은 변경하지 않았다. 실제 Java 17 런타임·MySQL·JWT 필터 통합·동시 요청은 미검증이다.
+
+Java 17 및 기존 테스트 컴파일 오류 해결 후 재실행:
 
 ```powershell
-.\gradlew.bat test --tests '*SavingGroupJoinApprovalServiceTest' --tests '*SavingGroupJoinApprovalControllerTest' --tests '*SavingGroupServiceImplTest'
+.\gradlew.bat test --tests '*SavingGroupMemberExpulsion*' --tests '*SavingGroupMemberRole*' --tests '*SavingGroupJoinAvailabilityServiceTest'
 ```
+
+Postman 수동 검증: 테스트 DB에서 모집중 모임의 OWNER JWT로 본문 없이 PATCH를 호출하여 200 및 EXPELLED 저장을 확인한다. MANAGER 대상도 같은 결과여야 한다. 비OWNER는 403, 다른 모임·비승인 대상은 404, 진행중·종료 및 OWNER 대상은 409인지 확인한다. 재추방은 404, 재가입 신청은 기존 JOIN_REAPPLICATION_FORBIDDEN이어야 한다. 실제 금융 호출은 하지 않는다.
+
+TODO: 추방 사유·추방일·추방자·별도 이력·순번·회비·공동자금·정산 후속 정책은 미확정이며 새 컬럼이나 처리를 추가하지 않았다. 알림은 기존 TODO를 유지한다.
 
 <!-- AI작성: 실제 가입 신청 조회 API와 프론트 개별 승인 연결의 계약·제한·파일 목록을 기록한다. -->
 ## 계주 전용 가입 신청 목록과 프론트 승인 연결
@@ -759,3 +773,889 @@ Java 17이 준비된 환경에서 back 폴더에서 실행한다.
 - 로컬 검증 API를 이용한 실제 브라우저에서 상태 표시 22건, 두 모임의 연속 클릭 후 심사 중 갱신과 정원 충돌 후 갱신을 확인했다. NEW·CONFLICT 모두 각 모임 GET=2·POST=1이었다. 실제 Spring 서버·DB 종단 검증은 포함하지 않는다.
 - 브라우저 실측: 데스크톱 두 버튼은 높이 38px·글자 13px·padding 8px 14px. 375px 모바일에서 소모임은 34px·12px·7px 10px, 계모임은 38px·13px·8px 14px로 기존 설정과 일치했다.
 - 수동 확인: 기존 버튼 크기와 비교하고 상태별 문구·사유, 연속 클릭, 신청 성공 후 심사 중 전환, 정원 충돌 후 마감 안내, 로그인·인증 이동, 요청 중 모임·계정 변경, 조회 실패 후 재시도를 확인한다.
+
+<!-- AI작성: 사용자 승인에 따라 공지 작성 1~5단계 구현과 검증 범위를 6단계에서 일괄 기록합니다. -->
+## 계모임 공지 작성 (2026-11-04)
+
+### 요청·응답
+
+- `POST /api/saving-groups/{savingGroupId}/notices`
+- 기존 Controller 별칭인 `POST /saving-groups/{savingGroupId}/notices`도 지원한다.
+- `savingGroupId`는 양수 BIGINT인 계모임 식별자다. 상세 화면 URL의 공통 `groupId`와 구분한다.
+- `Authorization: Bearer <로그인 토큰>`, `Content-Type: application/json`을 사용한다. JWT 필터가 설정한 요청 속성 `memberId`만 작성자로 사용한다.
+
+| 요청 필드 | 타입 | 필수·검증 |
+| --- | --- | --- |
+| title | String | 필수, 공백만 입력 불가, 최대 100자 |
+| content | String | 필수, 공백만 입력 불가, 최대 5,000자 |
+
+```json
+{
+  "title": "다음 모임 안내",
+  "content": "다음 모임 일정을 안내합니다."
+}
+```
+
+기존 게시글과 동일하게 요청 문자열 길이를 검증한 뒤 앞뒤 공백을 제거해 저장한다. 작성자·모임 ID·작성일은 본문 입력 항목이 아니다. 성공은 HTTP 200, `ApiResponse<Void>`이며 공지 ID를 반환하지 않는다.
+
+```json
+{
+  "success": true,
+  "data": null,
+  "meta": null,
+  "error": null
+}
+```
+
+### 권한·상태·저장 흐름
+
+1. Controller는 경로와 JSON 본문을 검증하고 Service에 인증 회원 ID·제목·내용을 전달한다.
+2. Service는 로그인과 양수 계모임 ID를 확인하고 `selectSavingGroupJoinTargetForUpdate`로 삭제되지 않은 계모임과 공통 모임을 조회·잠근다.
+3. 모집중(`01`)·진행중(`02`)만 허용한다. 심사중(`00`)·정지(`03`)·종료(`04`) 및 미정의 상태는 차단한다.
+4. 조회한 내부 `groupId`와 인증 회원 ID로 `selectSavingGroupMembershipForUpdate`를 호출한다. `APPROVED`이면서 `OWNER` 또는 `MANAGER`여야 한다.
+5. `SavingGroupNoticeCreateRow`와 `insertSavingGroupNotice`로 공지를 저장한다. 영향 행 수가 1이 아니면 예외를 발생시킨다. 검증과 저장은 하나의 트랜잭션으로 처리한다.
+
+일반 회원, 대상 모임 비회원, 가입 대기·거절·탈퇴·추방 회원, 다른 모임에만 OWNER·MANAGER 관계가 있는 회원은 작성할 수 없다. 관리자 `CONTENT` 이용 제한은 담당자 별도 구현 범위이며 이번 공지 Service에는 추가하지 않았다. 기존 JWT·세션 인증 검사는 유지한다.
+
+기존 `group_notice(group_id, writer_id, title, content, created_at)`를 사용한다. `notice_id`는 자동 증가, `created_at`은 DB 기본값이다. 공지 테이블의 제목 저장 용량은 200자지만 API 입력 정책은 기존 게시글과 동일한 100자다. DB 스키마·마이그레이션 변경은 없다.
+
+### 실패 응답
+
+실패는 공통 `ApiResponse.fail(code, message)` 형식이다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | BAD_REQUEST | 경로 타입·양수 조건, 제목·내용 필수·길이 검증 실패 |
+| 400 | INVALID_REQUEST | JSON 문법 오류, 본문 누락 또는 null |
+| 401 | LOGIN_REQUIRED | `/api/**` Security 진입 시 미인증 |
+| 401 | UNAUTHORIZED | Service에 유효한 인증 회원 ID가 전달되지 않음 |
+| 403 | SAVING_GROUP_NOTICE_WRITE_FORBIDDEN | 대상 모임의 승인된 OWNER·MANAGER가 아님 |
+| 404 | SAVING_GROUP_NOT_FOUND | 대상 계모임이 없거나 공통 모임이 삭제됨 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중 외 모임 상태 |
+| 500 | SAVING_GROUP_NOTICE_WRITE_FAILED | INSERT 영향 행 수가 1이 아님 |
+
+JWT 만료·세션 무효화 등 인증 필터 오류와 예상하지 못한 DB 오류는 기존 공통 인증·예외 처리 정책을 따른다. 위 표의 저장 실패 코드는 모든 DB 예외를 변환하는 코드가 아니다.
+
+### React 연동
+
+- `createSavingGroupNotice(savingGroupId, { title, content }, { signal })`는 공통 Axios client의 `/api` baseURL·인증 처리를 재사용한다. ID 범위·정밀도를 확인하며 제목·내용만 JSON으로 전송한다.
+- 서버 오류 코드·메시지·HTTP 상태와 요청 취소를 보존한다. 성공 시 서버의 `data`(null)를 반환한다.
+- 최근 공지 영역의 작성 버튼·폼은 `membershipStatus=APPROVED`, `myRole=OWNER/MANAGER`, `status=01/02`를 모두 만족할 때만 표시한다. 누락·미정의 값은 작성 UI를 표시하지 않는다.
+- 제목·내용 글자 수, 필수·공백 검증, 등록·취소, 처리 중 입력·버튼 비활성화와 ref 중복 제출 잠금을 적용한다. 일반 등록 실패는 입력을 유지한다.
+- 401·403·404·409 응답 후에는 작성 UI를 숨기고 새로고침으로 현재 권한·상태를 다시 확인한다. 입력은 컴포넌트가 유지되는 동안 보존한다.
+- 등록 성공 후 폼을 닫고 기존 상세 GET을 재조회한다. 재조회 실패 시 등록 성공을 안내하고 새로고침만 제공한다. POST를 자동 반복하지 않는다.
+- 모임·인증 계정 변경 시 폼을 초기화하고, 이탈한 화면의 완료 응답은 반영하지 않는다. 서버에 이미 전달된 POST 자체를 되돌리지는 않는다.
+
+### 작업 파일·재사용 구조
+
+| 파일 (back/src/main/java/com/nightstudy/moa 기준) | 역할 |
+| --- | --- |
+| savingGroup/dto/SavingGroupNoticeCreateRow.java | 공지 저장 DTO |
+| savingGroup/mapper/SavingGroupMapper.java | 공지 저장 계약 |
+| savingGroup/service/SavingGroupService.java | 공지 작성 Service 계약 |
+| savingGroup/service/SavingGroupServiceImpl.java | 모임·회원·권한 검증과 저장 |
+| savingGroup/dto/SavingGroupNoticeCreateRequest.java | JSON 요청 Validation |
+| savingGroup/controller/SavingGroupController.java | 작성 API와 공통 성공 응답 |
+
+추가 변경 파일:
+
+- `back/src/main/resources/mappers/SavingGroupMapper.xml`: 공지 INSERT.
+- `back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupNoticeCreationServiceTest.java`: Service 테스트.
+- `back/src/test/java/com/nightstudy/moa/savingGroup/controller/SavingGroupNoticeCreationControllerTest.java`: Controller 테스트.
+- `front/src/api/savingGroups.js`, `front/src/api/savingGroups.test.js`: 요청 함수·API 테스트.
+- `front/src/components/savingGroup/SavingGroupNoticeCreateForm.jsx`: 작성 폼.
+- `front/src/components/savingGroup/SavingGroupDetail.jsx`, `front/src/pages/SavingGroupDetailPage.jsx`: 화면 연결·상세 갱신.
+
+기존 계모임·회원 관계 Mapper, 공지 요약 조회, 게시글 Validation·trim 관례, `ApiResponse`, `ApiException`, `GlobalExceptionHandler`, 공통 Axios client·Button·테마를 재사용했다.
+
+### 검증 결과와 남은 확인
+
+- 3단계에서 운영 코드 컴파일 통과, 공지 Controller 21건·Service 29건 총 50건 통과. 로컬 Java 17 경로를 실행 인자로 지정했다.
+- 기존 다른 테스트의 오래된 import로 전체 테스트 컴파일이 실패해 임시 Gradle init script로 위 두 테스트만 컴파일·실행했다. 저장소 빌드 설정이나 다른 테스트는 수정하지 않았다. 이 결과는 전체 백엔드 테스트 통과를 의미하지 않는다.
+- 4단계 `node --test src/api/savingGroups.test.js` 37건 통과. 공지 요청 테스트 4건과 기존 회귀 테스트를 포함한다. 테스트는 client 대역을 사용하며 실제 HTTP·DB 검증이 아니다.
+- 5단계 `npm run build` 통과. 변경 JSX lint 오류 없음, 기존 `ImagePlaceholder`·`Schedule` 미사용 경고 2건과 번들 크기 경고 유지. `git diff --check` 통과.
+- 브라우저 자동 검증은 내장 브라우저의 로컬 서버 연결 실패 및 Windows 도구의 URL 확인 실패로 중단했다. 임시 검증 화면·서버를 정리했다. 실제 UI 상호작용·모바일·Postman·MySQL 저장·트랜잭션 동시성 검증은 미완료다.
+
+수동 검증 절차:
+
+1. 테스트용 계모임·계정에서 OWNER·MANAGER 각각 모집중·진행중 정상 등록을 확인한다. DB에서 내부 group_id·인증 writer_id·앞뒤 공백 제거·created_at을 확인한다.
+2. Postman으로 일반 회원·비회원·가입 대기·탈퇴·타 모임 운영진의 403, 없는 모임·삭제 모임의 404, 심사중·정지·종료의 409, 미인증의 401을 확인한다.
+3. 제목 100/101자, 내용 5,000/5,001자, 누락·공백·잘못된 JSON·경로를 확인한다.
+4. 브라우저에서 위 역할·회원·모임 상태별 작성 버튼 숨김, 등록·취소·글자 수·실패 시 입력 유지·빠른 연속 클릭 차단을 확인한다.
+5. 등록 성공 뒤 최근 공지 갱신, 성공 후 조회 실패 시 GET만 재시도, 작성 중 권한·모임 상태 변경, 계정·모임 변경 후 이전 응답 무시를 확인한다.
+6. 모바일 줄바꿈·스크롤·키보드 초점 이동과 큰 글씨 가독성을 확인한다.
+
+TODO·제외 범위:
+
+- `NOTICE_CREATED` enum은 있으나 실제 사용 연계가 없어 공지 알림·SSE는 연결하지 않았다. 수신 대상·문구·이동 경로는 추후 정책 확정 후 별도 구현한다.
+- 고정·첨부파일·공개 범위·예약 발행은 기존 저장 구조가 없어 추가하지 않았다. 수정·삭제·목록·상세·댓글·일정 연계는 이번 범위 밖이다. 기존 최근 공지 요약 조회만 재사용한다.
+- 별도 금칙어 규칙과 관리자 이용 제한 연계, 실제 DB·브라우저 검증 및 전체 테스트 import 오류 정리는 담당자 후속 확인이 필요하다.
+
+<!-- AI작성: 계모임 공지 요약에 소모임과 같은 작성자·작성일을 추가한 현재 응답 계약입니다. -->
+## 계모임 최근 공지 작성자·작성일 표시 (2026-11-04)
+
+기존 계모임 상세 조회 `GET /api/saving-groups/{id}`의 `data.notices` 항목에 다음 두 필드를 추가했다. 여기서 상세 URL의 id는 공통 groupId이며 공지 작성 URL의 savingGroupId와 다르다. 초기의 공지 ID·제목 전용 응답을 확장한 것으로 기존 필드는 유지한다.
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| noticeId | Long | 기존 공지 식별자 |
+| title | String | 기존 제목 |
+| writerNickname | String 또는 null | 작성자 회원의 현재 닉네임. 실명·회원 ID는 추가 공개하지 않음 |
+| createdAt | LocalDateTime의 ISO 문자열 | 기존 공지 작성일. 예: 2026-11-04T10:30:00 |
+
+- SavingGroupNoticeSummaryResponse 생성자와 XML resultMap에 writerNickname·createdAt을 추가했다. SQL은 group_notice.writer_id로 members를 LEFT JOIN한다. 회원 행이 없으면 닉네임은 null이지만 공지 자체는 목록에 남긴다.
+- 최신 작성일·공지 ID 내림차순과 최대 4건 조회는 유지한다. DB 스키마, 작성 API, Controller, Service, React 요청 함수는 변경하지 않았다.
+- 화면은 소모임처럼 제목·작성자·작성일 열로 구성한다. 날짜는 한국어 연월일 형식이며 작성자 누락은 '작성자 정보 없음', 날짜 누락·오류는 '날짜 확인 필요'로 표시한다. 제목·닉네임은 줄바꿈을 허용한다.
+- 공지 작성 버튼의 카드 우측 상단 배치, 작성 폼 표시 시 목록 숨김, 등록 성공·취소 시 목록 복귀 동작을 유지한다.
+- 검증: Java 17 compileJava, 프론트 npm run build, 기존 savingGroups API 테스트 37건, XML 파싱·생성자 매핑 확인, git diff --check 통과. JSX lint는 기존 미사용 변수 경고 2건만 남았다. 이번 변경에 대한 실제 DB 조회·브라우저 검증은 수행하지 않았다.
+- 수동 확인: 상세 응답 notices의 네 필드, 실제 작성자 닉네임·작성일과 목록 순서, 빈 목록, 긴 제목·닉네임, 모바일 줄바꿈을 확인한다. 작성·취소·등록 성공 전후 목록 전환도 확인한다. 닉네임은 작성 당시 스냅샷이 아닌 현재 회원 테이블 값이다.
+
+<!-- AI작성: 사용자 확정 정책과 공지 상세 조회 1~5단계 구현·검증 결과를 6단계에서 일괄 기록한다. -->
+## 계모임 공지 상세 조회 (2026-11-04)
+
+이 절은 공지 상세 조회의 최신 계약이다. 앞의 공지 작성 작업에서 상세를 제외 범위로 기록한 내용은 당시 작업 범위를 의미하며, 이번 단계에서 아래 상세 기능을 추가했다.
+
+### 요청·식별자·권한
+
+- `GET /api/saving-groups/{groupId}/notices/{noticeId}`
+- 기존 Controller 별칭 `GET /saving-groups/{groupId}/notices/{noticeId}`도 지원한다.
+- 두 경로 변수는 양수 Long이다. `groupId`는 `groups.group_id`이며 공지 작성 POST의 `savingGroupId` (`saving_group_id`)와 다르다. 요청 본문은 없다.
+- 인증은 기존 JWT·세션 검증과 서버 요청 속성 `memberId`를 사용한다. 쿼리의 회원 ID는 사용하지 않는다.
+- 해당 계모임의 `APPROVED` 관계를 가진 `OWNER / MANAGER / MEMBER`만 본문을 조회할 수 있다. 작성은 OWNER·MANAGER만 가능하지만 상세 조회는 MEMBER도 가능하다.
+- 관계 없음과 `PENDING / REJECTED / LEFT / EXPELLED`는 403이다. 공개 계모임 상세의 최근 공지 요약 공개 정책은 유지하며 본문 조회 권한과 구분한다.
+- 기존 계모임 상세와 동일하게 `groups.deleted_at IS NULL`, `saving_group.status IN ('01','02')`인 모임만 조회한다. 조회할 수 없는 모임은 404다. 작성 API의 상태 제한 409 정책과 구분한다.
+
+### 성공 응답
+
+HTTP 200, 기존 `ApiResponse.ok(data)`를 사용한다. 응답 항목은 아래 6개뿐이다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "noticeId": 40,
+    "title": "다음 모임 안내",
+    "content": "다음 모임 일정을 안내합니다.",
+    "writerId": 30,
+    "writerNickname": "테스트닉네임",
+    "createdAt": "2026-11-04T10:00:00"
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이다. 작성자 닉네임은 members의 현재 값이며 LEFT JOIN으로 회원 행이 없으면 null이다. 작성자 ID는 공지 행의 writer_id를 반환한다. 실명·전화번호·계좌 등은 응답에 포함하지 않는다. React는 작성자 ID와 공지 ID를 화면 본문에 표시하지 않는다. 큰 ID의 응답 숫자 정밀도에 관한 기존 계약 한계는 유지한다.
+
+### Service·Mapper 처리
+
+1. Service에서 인증 회원 ID와 두 경로 ID를 검증한다.
+2. 기존 `selectSavingGroupDetail(groupId)`로 계모임 존재·삭제·상태를 확인한다.
+3. 기존 잠금 없는 `selectSavingGroupMembership(groupId, memberId)`로 승인 상태와 역할을 확인한다. 승인 관계의 null·미정의 역할은 기존 상세의 데이터 오류 관례에 따라 500으로 처리한다.
+4. `selectSavingGroupNoticeDetail(groupId, noticeId)`가 두 ID를 모두 WHERE 조건에 사용한다. 공지 없음과 다른 모임 소속 공지는 모두 동일한 404다.
+5. 전체 조회는 `@Transactional(readOnly = true)`이며 Controller는 요청 검증·전달·응답만 담당한다. 조회 수 증가나 쓰기 잠금은 추가하지 않았다.
+
+기존 `group_notice`, `members`, 계모임·회원 관계 Mapper, 공지 요약의 작성자 LEFT JOIN, `ApiResponse`, `ApiException`, `GlobalExceptionHandler`를 재사용했다. DB 스키마·마이그레이션·의존성·보안 설정 변경은 없다.
+
+### 실패 응답
+
+기존 실패 봉투 `success=false`, `data/meta=null`, `error.code/message`를 사용한다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | BAD_REQUEST | 경로 타입·Long 범위·양수 검증 실패 |
+| 401 | LOGIN_REQUIRED | `/api/**` 보안 계층에서 미인증 차단 |
+| 401 | UNAUTHORIZED | Service에 유효한 인증 회원 ID가 전달되지 않음 |
+| 403 | SAVING_GROUP_NOTICE_READ_FORBIDDEN | 대상 모임 관계 없음 또는 APPROVED가 아님 |
+| 404 | NOT_FOUND | 모임 없음·삭제·상태 01/02 외. 메시지: 조회할 수 있는 계모임이 없습니다. |
+| 404 | SAVING_GROUP_NOTICE_NOT_FOUND | 공지 없음 또는 다른 모임 소속. 메시지: 공지를 찾을 수 없습니다. |
+| 500 | INTERNAL_ERROR | 미정의 승인 역할·관계 데이터 오류·예기치 않은 서버 오류 |
+
+검증 순서는 인증 → 경로 ID → 모임 → 회원 관계 → 공지다. 미승인 사용자는 공지 존재 여부와 관계없이 회원 관계 단계에서 차단된다. JWT 만료·변조·세션 오류는 기존 인증 처리를 따른다.
+
+### React 화면·요청
+
+- `getSavingGroupNoticeDetail(groupId, noticeId, { signal })`는 기존 공통 client의 `/api` baseURL·인증을 재사용한다. 두 ID는 기존 양수 BIGINT 검증을 통과해야 하며 큰 문자열 ID를 Number로 변환하지 않는다.
+- 서버 코드·메시지·HTTP 상태를 보존하고 `ERR_CANCELED`는 원본 그대로 전달한다. 통신·실패 봉투의 기본 오류는 `SAVING_GROUP_NOTICE_READ_FAILED`, 본문 객체가 없는 성공 응답은 `INVALID_RESPONSE`다.
+- 화면 경로는 `/saving-groups/:id/notices/:noticeId`이며 id는 공통 group_id다. 승인된 OWNER·MANAGER·MEMBER이고 모임 상태가 01/02이면 기존 최근 공지 제목이 링크로 표시된다. 그 외에는 제목 텍스트를 유지한다. 서버가 실제 권한을 다시 검사한다.
+- 페이지가 URL·요청·로딩·오류·재시도를 관리하고 별도 표시 컴포넌트가 제목·작성자 닉네임·한국어 작성일·본문을 렌더링한다. 본문은 일반 텍스트로 표시하며 줄바꿈을 유지한다. 닉네임·날짜 누락 안내는 기존 목록 관례를 따른다.
+- URL·계정(authVersion)·재시도 회차가 바뀌면 이전 본문을 숨기고 이탈한 요청을 취소한다. 통신·서버 오류와 INVALID_RESPONSE에는 재시도를 제공한다. 400·401·403·404는 원인별 안내를 표시한다.
+- '계모임 공지로 돌아가기'는 같은 groupId의 계모임 기본 공지 탭으로 이동한다. 직접 URL 접근·새로고침도 URL 기반 GET으로 처리한다.
+- 공지 작성 폼·등록 후 최근 공지 갱신은 기존 코드를 유지한다. 전체 공지 목록 API나 화면은 추가하지 않았다.
+
+### 작업 파일과 커밋
+
+| 단계 | 파일 | 커밋 |
+| --- | --- | --- |
+| 1 | back/src/main/java/com/nightstudy/moa/savingGroup/dto/SavingGroupNoticeDetailResponse.java, savingGroup/mapper/SavingGroupMapper.java 및 back/src/main/resources/mappers/SavingGroupMapper.xml | 996620e |
+| 2 | back/src/main/java/com/nightstudy/moa/savingGroup/service/SavingGroupService.java, SavingGroupServiceImpl.java 및 back/src/test/java/com/nightstudy/moa/savingGroup/service/SavingGroupNoticeDetailServiceTest.java | d49a930 |
+| 3 | back/src/main/java/com/nightstudy/moa/savingGroup/controller/SavingGroupController.java 및 back/src/test/java/com/nightstudy/moa/savingGroup/controller/SavingGroupNoticeDetailControllerTest.java | 6e42e16 |
+| 4 | front/src/api/savingGroups.js, savingGroups.test.js | adbcc29 |
+| 5 | front/src/App.jsx, front/src/pages/SavingGroupNoticeDetailPage.jsx, front/src/components/savingGroup/SavingGroupNoticeDetail.jsx, SavingGroupDetail.jsx | 950bb07 |
+| 6 | docs/saving-groups-api.md, docs/ai-usage-log.md | 개발자 커밋 예정 |
+
+### 검증 결과·수동 확인·TODO
+
+- 1단계 Mapper XML 구문 확인 통과. 각 단계 git diff --check 통과.
+- 2단계 신규 상세·기존 작성 Service 테스트, 3단계 신규 상세·기존 작성 Controller 테스트 실행을 시도했으나 Java 17 toolchain을 찾지 못해 컴파일·테스트 실행 전에 중단됐다. Java 21은 확인했으며 프로젝트 설정은 변경하지 않았다. 앞의 작성 기능에 기록된 Java 17 성공 결과를 이번 상세 기능의 검증 결과로 간주하지 않는다.
+- 4·5단계 `node --test src/api/savingGroups.test.js` 41건 통과. client 대역을 사용하는 요청 계약 테스트이며 실제 HTTP·DB·React 상호작용 검증은 아니다.
+- 5단계 `npm run build` 통과. 변경 JSX lint는 기존 ImagePlaceholder·Schedule 미사용 경고 2건, 빌드는 번들 크기 경고가 남았다. 브라우저·Postman·MySQL 연동은 미검증이다.
+- Service 테스트의 모임 제외·공지 소속 불일치는 Mapper null 대역으로 검증하므로 실제 SQL 조건·조인 동작을 입증하지 않는다. Controller standalone 테스트에는 실제 JWT 필터가 포함되지 않는다.
+
+후속 수동 검증:
+
+1. Java 17 환경에서 신규 상세 Service·Controller 및 기존 작성 테스트를 실행한다. 기존 다른 테스트의 컴파일 문제 여부도 확인한다.
+2. 테스트용 계모임의 group_id와 saving_group_id가 다른 데이터로 GET 경로가 group_id를 사용하는지 확인한다. 승인 OWNER·MANAGER·MEMBER와 모임 상태 01/02에서 200 및 6개 필드를 확인한다.
+3. 미인증 401, 관계 없음·PENDING·REJECTED·LEFT·EXPELLED 403, 모임 없음·삭제·상태 00/03/04의 404, 공지 없음·다른 모임 공지의 404, 두 ID 각각 타입·범위·양수 오류 400을 확인한다.
+4. 실제 DB에서 공지·작성자 매핑, 닉네임 누락, 같은 공지 반복 조회 시 조회 데이터 변경 없음과 소속 조건을 확인한다.
+5. 브라우저에서 승인 역할별 제목 링크, 직접 접근·새로고침·돌아가기, 오류 안내·재시도, URL·계정 변경·로그아웃 뒤 이전 본문 숨김을 확인한다. 작성·취소·등록 성공 후 최근 공지 갱신도 회귀 확인한다.
+6. 긴 제목·본문·닉네임, 줄바꿈·HTML 문자 텍스트 표시, 모바일·키보드 초점·가독성을 확인한다.
+
+수정일·고정·첨부파일·조회 수·공지 삭제/비공개 상태는 테이블에 없어 추가하지 않았다. 향후 필요 시 별도 정책·DB 설계를 확정해야 한다. 작성·수정·삭제·전체 목록·댓글·알림·SSE 연계는 이번 상세 조회 범위 밖이다.
+
+<!-- AI작성: 사용자 확정 정책에 따라 페이징·고정 구현을 완료하고 마지막 단계에서 일괄 문서화한다. -->
+<a id="notice-pagination-and-pin"></a>
+
+## 계모임 공지 페이징·고정 최신 계약 (2026-11-04)
+
+### 확정 정책과 DB 선행 조건
+
+- 기존 계모임 홈 공지 영역에 일반 공지를 페이지당 4개 표시한다. 고정 공지는 모든 페이지 상단의 별도 영역에 표시하며 일반 목록과 전체 개수에 중복 포함하지 않는다.
+- 고정은 모임당 최대 2개다. 해당 모임의 APPROVED OWNER·MANAGER만 지정·해제한다. APPROVED MEMBER는 본문을 읽을 수 있지만 고정을 변경할 수 없다.
+- DB 담당자가 `group_notice.is_pinned TINYINT(1) NOT NULL DEFAULT 0`을 확정·반영했다고 사용자가 확인했다. 0은 일반, 1은 고정이다. AI는 DB 접속·DDL 실행·schema.sql 변경을 하지 않았다.
+- 저장소의 schema.sql에는 아직 해당 컬럼이 없다. 신규 DB를 schema.sql만으로 생성하는 경우 DB 담당자가 공유하는 최신 스키마 반영이 선행되어야 한다. 소모임 SQL과 공지 작성 INSERT는 변경하지 않았으며 기존 INSERT는 컬럼 기본값 0을 사용한다.
+
+### 기존 상세 GET의 공지 조회 확장
+
+`GET /saving-groups/{id}?noticePage=1&noticeSort=LATEST`
+
+`/api/saving-groups/{id}` 별칭도 동일하다. id는 saving_group_id가 아닌 공통 groups.group_id다. 별도 공지 목록 GET 경로는 추가하지 않았다.
+
+| 항목 | 규칙 |
+| --- | --- |
+| noticePage | Integer, 기본 1, 1 이상. 타입 오류·범위 초과·빈 값·0·음수는 400 BAD_REQUEST |
+| noticeSort | 기본 LATEST. LATEST 또는 OLDEST만 허용하며 빈 값·다른 값은 400 BAD_REQUEST |
+| 페이지 크기 | 서버에서 4 고정. size 변경 파라미터는 제공하지 않음 |
+| data.notices | 현재 페이지의 일반 공지 요약 |
+| data.pinnedNotices | 페이지·일반 정렬과 독립적인 고정 공지 요약, 작성일·공지 ID 내림차순 |
+| meta | 기존 PageMeta. page·size·total·totalPages와 기존 getOffset()의 offset |
+
+두 목록의 항목은 기존 SavingGroupNoticeSummaryResponse(noticeId, title, writerNickname, createdAt)를 재사용한다. 본문·작성자 회원 ID는 포함하지 않는다. 일반 공지 정렬은 작성일과 공지 ID를 함께 ASC 또는 DESC로 정렬한다. members LEFT JOIN으로 작성자 행이 없어도 공지를 유지한다.
+
+기존 상세 데이터 필드와 공개 범위는 유지한다. 고정 목록도 기존 공개 요약 범위이며 공지 본문은 기존 승인 회원 상세 API를 사용한다. 없는 모임·삭제된 모임·상태 01/02 이외의 모임 조회는 기존 404 정책을 유지한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "groupId": 20,
+    "notices": [],
+    "pinnedNotices": [
+      { "noticeId": 40, "title": "예시 고정 공지", "writerNickname": "예시 작성자", "createdAt": "2026-11-04T10:00:00" }
+    ]
+  },
+  "meta": { "page": 1, "size": 4, "total": 0, "totalPages": 0, "offset": 0 },
+  "error": null
+}
+```
+
+예시는 공지 관련 항목만 발췌했다. 실제 data에는 기존 모임 정보·본인 역할·가입 상태 등이 유지된다. 고정만 존재해도 일반 공지 total은 0이다. Service는 빈 목록·범위 초과에서 offset 계산·일반 목록 SQL을 생략하고 요청 페이지의 meta를 유지한다. React는 마지막 유효 페이지(최소 1)로 URL을 보정해 재조회한다. 공통 PageMeta는 수정하지 않았다.
+
+### 고정 지정·해제 PATCH
+
+`PATCH /saving-groups/{groupId}/notices/{noticeId}/pin`
+
+`/api/saving-groups/{groupId}/notices/{noticeId}/pin` 별칭도 지원한다. 두 ID는 양수 Long이다. JWT 인증 계층이 전달하는 요청 속성 memberId만 사용하며 쿼리·본문의 처리자 ID는 권한 근거로 사용하지 않는다.
+
+```json
+{ "pinned": true }
+```
+
+지정은 true, 해제는 false다. pinned는 필수이며 누락·null은 400이다. 성공은 HTTP 200의 기존 ApiResponse.ok()다. 토글이 아니라 목표 상태를 전달하며 이미 같은 상태인 요청은 추가 UPDATE 없이 성공한다.
+
+| HTTP·코드 | 조건 |
+| --- | --- |
+| 400 BAD_REQUEST | 잘못된 ID·필수 고정 여부 누락·입력 검증 실패 |
+| 400 INVALID_REQUEST | 공통 예외 처리기가 처리하는 잘못된 JSON·본문 없음 |
+| 401 UNAUTHORIZED | 인증 회원 없음 |
+| 403 SAVING_GROUP_NOTICE_PIN_FORBIDDEN | 관계 없음, 미승인 관계, 승인 MEMBER 또는 허용되지 않는 역할 |
+| 404 NOT_FOUND | 계모임 없음·삭제 |
+| 404 SAVING_GROUP_NOTICE_NOT_FOUND | 공지 없음 또는 다른 모임의 공지 |
+| 409 SAVING_GROUP_ACTIVITY_RESTRICTED | 계모임 상태가 01·02가 아님 |
+| 409 SAVING_GROUP_NOTICE_PIN_LIMIT_EXCEEDED | 새로운 고정 지정 시 이미 2개 이상 존재 |
+| 500 SAVING_GROUP_NOTICE_PIN_FAILED | 상태 변경 UPDATE 영향 행 수가 예상과 다름 |
+
+Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서로 잠근다. 새로운 고정 지정일 때 FOR UPDATE로 현재 고정 ID 전체를 조회하고 목록 크기로 제한을 검증한다. 모임 잠금은 고정 공지가 0개일 때도 동시 변경을 직렬화하는 기준이다. 해제에는 남은 고정 슬롯을 요구하지 않는다. 공지 UPDATE는 group_id·notice_id를 모두 제한하며 요청 상태와 다른 행만 변경한다. 실제 MySQL의 잠금·동시성 실행 검증은 별도로 필요하다.
+
+### React 화면과 상태 유지
+
+- getSavingGroupDetail은 기존 상세 경로에 noticePage·noticeSort를 전달하고 기존 data 필드를 유지하면서 meta를 noticePageMeta로 전달한다. pinnedNotices는 data의 별도 배열을 그대로 사용한다.
+- 우측 정렬 버튼은 최신순·과거순이며 기본 최신순이다. 선택 상태를 aria-pressed로 표시한다. 정렬 변경은 1페이지로 이동한다.
+- 페이지 번호는 최대 3개 묶음이다. 전체 7페이지에서 1/2/3의 이전은 비활성, 다음은 4/5/6의 4페이지다. 여기서 이전은 1/2/3의 3페이지, 다음은 7페이지다. 7의 이전은 6페이지이고 다음은 비활성이다.
+- 0건·한 페이지 모두 `비활성 이전 | 1 | 비활성 다음`을 표시한다. 페이지 이동은 스크롤을 강제로 옮기지 않는다.
+- URL noticePage·noticeSort를 기준으로 조회한다. 상세 링크에도 두 조건을 전달하며 상세의 돌아가기와 브라우저 뒤로 가기·새로고침에서 복원한다. 직접 상세 진입은 최신순 1페이지로 돌아간다. 직접 입력한 잘못된 프론트 URL 조건은 기본값으로 해석한다.
+- 고정 영역은 [고정] 배지·배경·별도 제목으로 구분한다. 승인 OWNER·MANAGER에게만 고정 지정·해제 버튼을 제공한다. 일반 공지와 동일한 상세 링크·작성자·작성일 표시를 재사용한다.
+- 로딩은 `공지를 불러오는 중입니다.`, 목록 오류는 `공지를 불러오지 못했습니다.`와 `새로 고침`, 전체 0건은 `등록된 공지가 없습니다.`, 고정만 있으면 `등록된 일반 공지가 없습니다.`를 표시한다.
+- 고정 변경 중에는 정렬·페이지·고정·작성 버튼을 비활성화하고 중복 PATCH를 ref로 차단한다. 전송된 PATCH를 화면 이탈로 취소한 것으로 간주하지 않는다.
+- 고정 변경 후 현재 페이지·정렬로 다시 조회하며 페이지가 사라지면 마지막 유효 페이지로 보정한다. 변경 성공 후 재조회 실패는 성공한 PATCH를 반복하지 않고 조회만 재시도한다. 변경 실패·응답 유실도 목록 확인 전까지 추가 고정 변경을 막는다.
+- 작성 성공 후에는 최신순 1페이지로 갱신한다. GET 취소·요청 식별·모임/계정 범위 검사를 사용해 이전 응답을 현재 화면에 반영하지 않는다.
+
+### 단계별 파일·커밋
+
+| 단계 | 주요 파일 | 커밋 |
+| --- | --- | --- |
+| 페이징 DTO·Mapper | SavingGroupNoticeSearchCondition, SavingGroupMapper.java/XML | 96c46a7 |
+| 페이징 Service | SavingGroupService/Impl, SavingGroupDetailPageResponse, PagingServiceTest | 894c413 |
+| 페이징 Controller | SavingGroupController, PagingControllerTest | 8fb8c64 |
+| 페이징 프론트 API | front/src/api/savingGroups.js/test.js | b36fdb8 |
+| 페이징 화면 | SavingGroupDetailPage, SavingGroupDetail, API/계산 테스트 | 230dbf6 |
+| 조회 상태 복원 | 홈·상세 페이지, 상세 컴포넌트, 작성 폼, API/테스트 | a64d083 |
+| 고정 DTO·Mapper | SavingGroupNoticePinRequest/Row, SavingGroupMapper.java/XML, PinMapperTest | d7ced79 |
+| 고정 Service | SavingGroupService/Impl, SavingGroupDetailResponse, PinServiceTest | f6b00dc |
+| 고정 Controller | SavingGroupController, PinControllerTest | a12d449 |
+| 고정 프론트 API | front/src/api/savingGroups.js/test.js | 47d4c5a |
+| 고정 화면 | SavingGroupDetailPage, SavingGroupDetail, SavingGroupNoticeCreateForm | a07d2e7 |
+
+### 검증 결과와 후속 수동 검증
+
+- 설치된 Java 17 경로를 Gradle 실행 인자로 지정했다. 운영 코드 컴파일과 공지 관련 Controller/Service/Mapper·가입 제한 테스트 208건이 통과했다. 프로젝트 빌드 설정은 변경하지 않았다.
+- 전체 테스트는 기존 타 기능의 AuthSessionService 등 클래스 누락으로 컴파일이 막히므로 임시 Gradle init script로 compileTestJava 대상을 관련 파일로 제한했다. 전체 테스트 통과를 의미하지 않는다.
+- `node --test src/api/savingGroups.test.js` 47건, 최종 `npm run build`, `git diff --check` 통과. 변경 파일 lint 오류 없음. 기존 ImagePlaceholder·Schedule 미사용 경고 2건과 번들 크기 경고는 유지했다.
+- 임시 Vite SSR 렌더링으로 고정 2개+일반 4개, 운영진/일반회원/비회원 표시 차이, 복귀 링크, 처리 중 비활성, 오류 재조회, 고정만 있는 상태를 확인했다. 이는 실제 브라우저 클릭 검증이 아니다. 임시 파일·실행 설정은 정리한다.
+- 실제 DB 접속·SQL 실행·JWT 필터 포함 HTTP·브라우저/모바일·동시성 검증은 수행하지 않았다. DB 컬럼 반영은 사용자 확인에 근거한다.
+
+수동 확인 순서:
+
+1. 실제 상세 GET에서 일반 공지 최대 4개, 고정 별도 배열, meta의 일반 공지 개수와 양방향 정렬을 확인한다.
+2. 승인 OWNER와 MANAGER로 고정 지정·해제하고 3번째 지정의 409, 동일 상태 재요청의 성공, MEMBER·미승인·타 모임 요청 차단을 확인한다.
+3. 두 운영진이 동시에 마지막 슬롯을 지정해도 결과가 최대 2개인지 실제 MySQL 환경에서 검증한다.
+4. 7페이지 기준 묶음 이동, 한 페이지·빈 목록, 상세 복귀·뒤로 가기·새로고침을 확인한다.
+5. 고정 변경으로 마지막 일반 페이지가 사라질 때 보정, 통신 실패·PATCH 응답 유실 후 조회만 재시도, 계정 변경·빠른 정렬 전환을 확인한다.
+6. 작은 화면의 긴 제목·작성자·날짜와 키보드 초점, 비활성 버튼·고정 배지 구분을 확인한다.
+
+공지 수정·삭제·첨부·예약·알림/SSE 연계는 이번 범위 밖이다. 기존 BIGINT JSON 숫자 정밀도 한계는 별도 작업이다. DB 담당자의 저장소 기준 스키마 공유도 후속 확인 항목이다.
+# 계모임 공지 수정 — 2026-11-04
+
+<!-- AI작성: 사용자 최종 확정인 작성자 본인 수정 정책을 기록한다. -->
+- `PUT /api/saving-groups/{groupId}/notices/{noticeId}` 및 `/saving-groups` 별칭.
+- 첫 경로 ID는 기존 상세·고정 API와 동일한 `groups.group_id`이며 `saving_group_id`가 아니다.
+- JWT `memberId`와 공지 `writer_id`가 일치하는 작성자만 수정한다. 기존 승인 회원·운영진(OWNER 또는 MANAGER)·모임 상태 조건도 적용하며 타 운영진의 수정은 금지한다.
+- 모집중(01)·진행중(02)의 삭제되지 않은 계모임과 미삭제 소속 공지만 수정한다.
+- JSON 본문: `{"title":"제목","content":"내용"}`. 두 필드 필수, 제목 최대 100자·내용 최대 5,000자, 앞뒤 공백 제거. 부분 수정은 지원하지 않는다.
+- 성공: 기존 `ApiResponse<Long>`의 data에 공지 ID. 동일 내용 재요청도 성공.
+- 제목·내용 및 기존 updated_at만 갱신하고 원작성자·작성일·고정 상태는 보존한다. DB 변경 없음.
+- 기존 공통 오류 응답: 400 BAD_REQUEST, 401 UNAUTHORIZED, 404 NOT_FOUND(계모임), 404 SAVING_GROUP_NOTICE_NOT_FOUND(없음·타 모임·삭제 공지), 403 SAVING_GROUP_NOTICE_EDIT_FORBIDDEN, 409 SAVING_GROUP_ACTIVITY_RESTRICTED, 500 SAVING_GROUP_NOTICE_EDIT_FAILED.
+- 상세 내부 수정 폼은 작성자 및 현재 모임 역할·상태를 확인해 표시한다. JWT subject 비교는 버튼 표시용이며 최종 권한은 서버 검증이다.
+- 저장 중 중복 제출 방지, 취소 시 미저장, 실패 시 입력 유지. 권한·상태 제한 응답은 편집을 종료하고 안내한다. 성공 후 정규화된 제목·내용을 상세에 반영하며 목록 복귀 시 기존 페이지·정렬을 유지한다.
+- 검증: 공지 관련 백엔드 244건, 프론트 API 48건, 변경 파일 lint·빌드 통과. 수정 폼은 Vite SSR로 초기값·입력 길이·버튼 렌더링 확인. 기존 번들 크기 경고 존재.
+- 기존 타 도메인 테스트 import 오류로 전체 테스트 컴파일은 불가하여 임시 Gradle init script로 공지 테스트만 분리했다. 저장소 설정·의존성은 변경하지 않았다.
+- 실제 MySQL·Postman·브라우저 클릭·JWT 필터 통합 검증은 미실행. SQL 검증은 실제 XML 파싱·바인딩이며 DB 실행이 아니다.
+- 수동 검증: 작성자 상세→수정→저장·취소, 타 운영진 및 일반 회원 PUT 차단, 삭제·타 모임 공지 404, 공백·길이 오류, 작성자·작성일·고정 보존 확인.
+- TODO: 수정자 기록·수정 이력·첨부파일·알림은 기존 연계가 없어 추가하지 않았다.
+# 계모임 공지 삭제 — 2026-11-04
+
+<!-- AI작성: 수정 완료 efcf44f를 기준으로 구현한 작성자 논리 삭제 계약과 검증 결과다. -->
+- `DELETE /api/saving-groups/{groupId}/notices/{noticeId}`, `/saving-groups` 별칭 유지. 요청 본문 없음.
+- 첫 경로 ID는 공통 groups.group_id. 인증은 JWT 필터의 memberId만 사용하며 성공은 기존 ApiResponse<Void>다.
+- 대상 모임의 APPROVED OWNER·MANAGER인 작성자 본인만 삭제한다. 다른 운영진·일반 회원·비회원·대기·탈퇴·추방 회원은 거절한다. 모임 상태는 모집중(01)·진행중(02)만 허용한다.
+- 모임→회원 관계→미삭제 소속 공지 순으로 잠근 뒤 작성자를 비교한다. 저장 SQL에서도 group_id·notice_id·writer_id·deleted_at IS NULL을 확인한다.
+- group_notice.deleted_at에 CURRENT_TIMESTAMP를 저장한다. 실제 DB DATETIME·NULL 허용·기본값 NULL 준비는 사용자가 확인했다. AI는 스키마·마이그레이션·실제 DB를 변경하지 않았다.
+- 없는 공지·다른 모임 공지·이미 삭제된 공지는 동일한 404 SAVING_GROUP_NOTICE_NOT_FOUND로 처리한다. 삭제 행 수가 1이 아니면 500 SAVING_GROUP_NOTICE_DELETE_FAILED.
+- 나머지 공통 오류: 400 BAD_REQUEST, 401 UNAUTHORIZED, 404 NOT_FOUND(모임), 403 SAVING_GROUP_NOTICE_DELETE_FORBIDDEN, 409 SAVING_GROUP_ACTIVITY_RESTRICTED.
+- 삭제 공지는 최근·일반 목록·전체 개수·고정 영역·상세·수정·고정 변경·고정 개수 산정에서 모두 제외한다. 고정 공지 삭제 후 새 공지를 고정할 자리가 생긴다.
+- 기존 상세 화면에서 작성자 조건으로 삭제 버튼을 노출하고 ConfirmModal 확인 후 요청한다. 취소는 미요청, 진행 중 중복 제출 차단, 실패 시 기존 본문 유지 및 오류 안내. 권한·상태 오류는 변경 버튼을 숨기고 안내한다.
+- 성공 후 기존 공지 페이지·정렬로 복귀해 재조회한다. 마지막 페이지가 없어지면 기존 범위 보정 로직을 사용한다. 삭제 완료 안내와 후속 목록 조회 실패를 분리하며 기존 빈 상태를 재사용한다.
+- 변경 파일: SavingGroupMapper.java/XML, SavingGroupService.java/Impl, SavingGroupController, DeletionService/Controller/MapperTest, savingGroups.js/test, SavingGroupNoticeDeleteButton, SavingGroupNoticeDetailPage, SavingGroupDetailPage, 본 문서·AI 사용 기록.
+- 검증: 전체 공지 관련 백엔드 295건·프론트 API 49건 통과. 수정→삭제→재수정·재삭제 차단은 Service 대역 테스트, 삭제·조회 조건은 실제 MyBatis XML 바인딩 테스트다. 변경 파일 lint·프론트 빌드 및 수정·삭제 컴포넌트 초기 SSR 렌더링 통과.
+- 실제 MySQL·Postman·브라우저 클릭·JWT 필터 통합 검증은 미실행. 기존 다른 도메인 테스트 import 오류 때문에 임시 Gradle init script로 공지 테스트만 분리했다. 저장소 설정·의존성 변경 없음. 기존 번들 크기 경고 존재.
+- 수동 검증: 본인 공지 수정→삭제→목록 제외, 고정 공지 삭제 후 고정 수 복원, 타 작성자 403, 재삭제·재수정 404, 삭제 후 DB deleted_at 저장, 확인 취소·통신 실패·삭제 완료 후 목록 재조회 실패 안내를 확인한다.
+- TODO: 첨부파일·댓글·알림·삭제 이력은 기존 삭제 연계가 없어 추가하지 않았다.
+
+<!-- AI작성: 2026-11-05 사용자 확정 정책에 따른 계원 목록·역할 관리 계약 및 검증 기록. -->
+## 계주 전용 계원 목록 및 역할 관리 (2026-11-05)
+
+### 공통 정책
+
+- 두 API의 첫 경로 ID는 `saving_group.saving_group_id`다. 상세 화면 URL의 공통 `group_id`와 다르므로 프론트는 상세 응답의 `savingGroupId`를 전달한다.
+- 기존 `/saving-groups` 별칭도 동일하게 지원한다. 처리자는 JWT 필터가 설정한 request attribute `memberId`만 사용한다.
+- 해당 모임의 `groups.member_id`가 인증 회원과 일치하고, 그 회원 관계가 `OWNER + APPROVED`여야 한다. MANAGER·MEMBER·비회원·다른 모임 OWNER는 조회·변경할 수 없다.
+- 모임이 미삭제이고 모집중(`01`) 또는 진행중(`02`)일 때만 허용한다. 인증·존재·상태·소속·권한·역할 검증은 Service가 수행한다.
+- 모임→OWNER 관계→대상 관계 순서로 잠근다. 같은 모임 역할 변경은 모임 잠금으로 직렬화하며 회계 제한은 잠금 현재 읽기로 확인한다.
+- DB 스키마·마이그레이션·의존성·보안 설정 변경 없음. OWNER 이전·해제는 지원하지 않는다. 알림을 발송하지 않으며 새 변경 이력·감사 필드는 추가하지 않는다.
+
+### 계원 목록
+
+`GET /api/saving-groups/{savingGroupId}/members?page=1`
+
+| 입력 | 규칙 |
+| --- | --- |
+| savingGroupId | 양수 Long, 계모임 전용 ID |
+| page | int, 기본 1, 1 이상 |
+
+- `APPROVED`이면서 `MEMBER / MANAGER`인 관계만 포함하고 OWNER·삭제 회원·PENDING·REJECTED·LEFT·EXPELLED는 제외한다.
+- `joined_at DESC, crew_member_id DESC` 정렬이다. 한 페이지 10명, 전체 조회 대상은 최대 20명으로 제한한다.
+- meta.total도 최대 20, meta.totalPages는 최대 2다. 3페이지 이상 및 빈 결과는 정상 빈 배열로 반환하고 offset을 계산하지 않는다.
+- 정원 20명에 OWNER가 포함되므로 정상 데이터의 관리 대상은 최대 19명이다. 기존 조회의 방어적 20명 제한은 유지한다. 정원·가입 정책은 이 API에서 변경하지 않는다.
+- 이름·원문 이메일 검색은 아래 검색 확장 계약을 따른다. 역할·상태·크기·정렬 쿼리는 입력에 포함하지 않는다.
+
+HTTP 200, 기존 `ApiResponse`의 data 배열·meta를 사용한다.
+
+```json
+{
+  "success": true,
+  "data": [{
+    "memberId": "50",
+    "name": "테스트계원",
+    "email": "t***@example.com",
+    "role": "MEMBER",
+    "joinedAt": "2026-11-05T10:00:00"
+  }],
+  "meta": {"page": 1, "size": 10, "total": 1, "totalPages": 1}
+}
+```
+
+- memberId는 실제 `members.member_id`이며 BIGINT 정밀도 보호를 위해 문자열로 반환한다.
+- 이름은 사용자의 명시적 정책에 따라 마스킹하지 않는다. 이메일은 SQL에서 로컬 부분 첫 글자 외 마스킹한다. null은 null, 유효한 로컬 부분이 없는 값은 `***`다. 프론트에서 원문을 복원하지 않는다.
+- 가입일은 `group_member.joined_at`이며 서비스 회원가입일로 대체하지 않는다. null이면 화면에 날짜 확인 필요를 표시한다.
+- 닉네임·전화번호·회원 상태·계좌 등 다른 개인정보는 반환하지 않는다. 회원 상태는 조회 조건으로만 사용한다.
+
+### 역할 변경
+
+`PATCH /api/saving-groups/{savingGroupId}/members/{memberId}/role`
+
+- memberId는 양수 Long의 대상 회원 ID다. 관계의 crew_member_id와 구분한다.
+- 요청: `{"role":"MANAGER"}` 또는 `{"role":"MEMBER"}`. 누락·null·빈 값·OWNER·미정의 값·소문자·앞뒤 공백은 400이다.
+- 대상은 이 모임의 현재 APPROVED 관계와 미삭제 회원이어야 한다. 없는 회원과 다른 모임 회원은 같은 404를 반환한다.
+- OWNER 및 계주 본인 변경은 차단한다. 마지막 OWNER를 해제하거나 이전하는 경로는 없다.
+- MANAGER는 모임당 APPROVED 관계 기준 최대 한 명이며 0명인 상태는 허용한다. 이 제한은 목록에 노출된 최대 20명이 아닌 모임 전체 관계에 적용한다.
+- 다른 회계가 있으면 409다. 기존 회계를 MEMBER로 변경한 뒤 새 회계를 지정해야 하며 자동 교체·일괄 저장은 하지 않는다.
+- 이미 같은 역할이면 UPDATE 없이 성공한다. 다만 다른 회계가 존재하는 비정상 데이터에서 MANAGER 재지정은 중복 제한으로 실패한다.
+- UPDATE에서도 group_id·crew_member_id·APPROVED·변경 전 역할·미삭제 회원·허용 목표 역할을 다시 확인한다. 영향 행이 1건이 아니면 409 예외로 롤백한다.
+- 성공은 HTTP 200, 기존 `ApiResponse.ok()` (`success: true`, data는 기존 공통 직렬화 규칙)다.
+- 계정 account_status별 별도 역할 정책은 기존 역할 관리 구현이 없어 새로 만들지 않았다. 미삭제 및 모임 관계 APPROVED를 검증하며 추가 상태 정책은 별도 확정 대상이다.
+
+### 오류
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | BAD_REQUEST | 경로·페이지·요청 본문·역할 Validation 실패 |
+| 401 | LOGIN_REQUIRED / UNAUTHORIZED | 기존 `/api` Security 인증 실패 / Service 인증 속성 없음 |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 해당 모임의 승인된 OWNER 아님 |
+| 404 | SAVING_GROUP_NOT_FOUND | 모임 없음·삭제 |
+| 404 | SAVING_GROUP_APPROVED_MEMBER_NOT_FOUND | 대상 소속 없음·미승인·탈퇴·추방·삭제 회원 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중 외 모임 |
+| 409 | SAVING_GROUP_OWNER_ROLE_CHANGE_NOT_ALLOWED | 계주 본인 또는 OWNER 대상 변경 |
+| 409 | SAVING_GROUP_MANAGER_ALREADY_EXISTS | 다른 승인된 MANAGER가 있음 |
+| 409 | SAVING_GROUP_MEMBER_ROLE_INVALID | 기존 관계의 역할이 허용 코드가 아님 |
+| 409 | SAVING_GROUP_MEMBER_ROLE_UPDATE_FAILED | 조건부 UPDATE 영향 행 불일치 |
+
+### 프론트 화면
+
+- 기존 계원 관리 메뉴·패널·목록을 재사용한다. APPROVED OWNER와 모임 상태 01/02일 때만 패널을 생성하고 모임 변경 시 key로 편집 상태를 초기화한다.
+- Mock 목록을 가져오지 않는다. 현재 모임·페이지의 응답만 표시하고 이전 GET은 취소한다. 오류와 빈 목록을 구분하고 재조회 버튼을 제공한다.
+- 이름 원문·마스킹 이메일·계원/회계·모임 가입일을 표시하며 페이지 번호는 최대 1·2다.
+- 역할 수정 → 회원별 선택 → 해당 회원 저장 → 서버 재조회 순서다. 편집 종료는 미저장 변경을 폐기한다. 저장 중 선택·추가 저장·페이지 이동을 차단한다.
+- 성공·실패·통신 오류 후 모두 서버 상태를 재조회한다. 저장 완료 안내와 후속 조회 오류를 각각 표시하고, 재조회 실패 중에는 이전 목록을 계속 편집하지 않는다.
+- 회계 한 명 제한·교체 순서를 화면에 안내한다. 알림 생성은 하지 않으며 화면의 처리 결과 안내만 표시한다.
+- 검색창은 아래 검색 확장에 따라 실제 목록 API에 연결한다. Mock 검색은 적용하지 않는다.
+
+### 단계별 파일·커밋
+
+Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트 경로는 `back/src/test/java/com/nightstudy/moa/savingGroup/` 기준이다.
+
+| 단계 | 작업 파일 | 커밋 및 작업 내용 |
+| --- | --- | --- |
+| 1 | dto/SavingGroupMemberResponse.java, dto/SavingGroupMemberListResponse.java, mapper/SavingGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml, service/SavingGroupMemberMapperTest.java(테스트) | `4e2de3b` feat: 계모임 계원 목록 DTO와 Mapper 조회 구현 |
+| 2 | service/SavingGroupService.java, service/SavingGroupServiceImpl.java, service/SavingGroupMemberListServiceTest.java(테스트) | `f2a507d` feat: 계모임 계원 목록 서비스 및 계주 권한 검증 추가 |
+| 3 | controller/SavingGroupController.java, controller/SavingGroupMemberListControllerTest.java(테스트) | `e388473` feat: 계모임 계원 목록 조회 API Controller 추가 |
+| 4 | dto/SavingGroupMemberRoleUpdateRequest.java, Mapper Java/XML, service/SavingGroupMemberMapperTest.java(테스트) | `cbbed63` feat: 계모임 계원 역할 변경 DTO와 Mapper 구현 |
+| 5 | Service Java/Impl, service/SavingGroupMemberRoleServiceTest.java(테스트) | `204c02b` feat: 계모임 계원 역할 변경 서비스 및 회계 1명 제한 구현 |
+| 6 | SavingGroupController.java, controller/SavingGroupMemberRoleControllerTest.java(테스트) | `13231e0` feat: 계모임 계원 역할 변경 API Controller 추가 |
+| 7 | front/src/api/savingGroups.js, front/src/api/savingGroupMembers.test.js | `0006031` feat: 계모임 계원 목록 및 역할 변경 요청 API 추가 |
+| 8 | front/src/components/savingGroup/의 SavingGroupDetail.jsx, SavingGroupMembersPanel.jsx, SavingGroupMemberList.jsx, SavingGroupMemberList.test.js | `91a8946` feat: 계모임 계원 관리 화면 및 역할 변경 API 연동 |
+| 9 | service/SavingGroupMemberMySqlIntegrationTest.java(테스트), docs/saving-groups-api.md, docs/ai-usage-log.md | test: 계모임 계원 관리 통합 검증 및 API 문서화 |
+
+기존 `996620e` DTO·Mapper, `2053c81` Service, `27cd546` Controller, `82155a2` 프론트 API, `bf0acdf` 화면, `ae4587e` 문서화 커밋의 작업 단위를 따랐다. 단계마다 검증 후 별도 커밋했으며 원격 push는 수행하지 않는다.
+
+### 검증 결과와 재실행 방법
+
+- Java 17 운영 코드 컴파일 통과. 관련 백엔드 409건 중 406건 통과·선택형 MySQL 3건 건너뜀. 신규 계원 관리 대역/바인딩 테스트는 91건이다.
+- 최초 일반 Gradle test는 기존 다른 도메인 테스트의 누락 import 13건 때문에 compileTestJava에서 실패했다. 해당 파일·설정을 수정하지 않고 임시 init script로 `SavingGroupMember*Test`, `SavingGroupNotice*Test`, `SavingGroupJoinAvailabilityServiceTest`, `SavingGroupJoinRejection*Test` 소스만 컴파일·실행했다. 전체 저장소 테스트 통과를 의미하지 않는다.
+- 프론트 기존 계모임 API 49건 + 신규 API 5건 + SSR 렌더링 1건 = 55건 통과. `node --test src/api/savingGroups.test.js src/api/savingGroupMembers.test.js src/components/savingGroup/SavingGroupMemberList.test.js` (front에서 실행).
+- 변경 파일 oxlint 오류 없음. 기존 SavingGroupDetail의 미사용 스타일 경고 2건 유지. 프로덕션 빌드 통과, 기존 번들 크기 경고 유지. diff 공백 검사 통과.
+- Service는 Mapper 대역, Controller는 JWT 필터 없는 standalone MockMvc, SQL은 MyBatis XML 바인딩, 화면은 SSR 렌더링이다. 실제 브라우저 클릭·Postman·JWT HTTP 통합은 미실행이다.
+- `SavingGroupMemberMySqlIntegrationTest`는 실제 Mapper·트랜잭션 프록시로 20명 제한/마스킹/가입일, 동시 회계 지정, 외부 트랜잭션 롤백/OWNER 보호를 검증하도록 작성했다. 전용 DB가 없어 실행하지 않았으며 컴파일만 확인했다.
+- 선택형 실행: `MOA_MEMBER_TEST_DB_ENABLED=true`, `MOA_MEMBER_TEST_DB_URL`, `MOA_MEMBER_TEST_DB_USER`, `MOA_MEMBER_TEST_DB_PASSWORD`를 로컬 환경에서 제공한다. URL은 MySQL 8 이상, 스키마는 `moa_members_test_`로 시작하는 빈 전용 DB여야 한다. URL에 인증 정보·자동 DB 생성 옵션을 포함하지 않는다. 테스트는 schema.sql의 네 테이블만 생성하고 자신이 만든 테이블만 정리한다. 실제 값은 코드·문서·커밋·로그에 남기지 않는다.
+
+### Postman·브라우저 수동 확인
+
+1. 테스트용 모임의 saving_group_id와 group_id를 다르게 준비한다. 승인된 OWNER로 목록을 요청하고 이름 원문·마스킹 이메일·모임 가입일을 확인한다.
+2. 승인 계원 0명·1명·10명·11명·20명·21명 이상에서 data/meta와 최대 두 페이지를 확인한다. OWNER·삭제·미승인 관계는 목록에서 제외되어야 한다. 3페이지는 빈 배열이다.
+3. MEMBER→MANAGER→MEMBER 변경, 기존 회계가 있는 상태의 추가 지정 409, 기존 회계 해제 후 새 회계 지정 성공을 확인한다.
+4. 서로 다른 계원을 동시에 MANAGER로 지정해 최종 회계가 한 명인지 확인한다. 다른 모임의 회계는 제한에 영향을 주지 않아야 한다.
+5. MANAGER·MEMBER·비회원·다른 모임 OWNER 요청은 403, 비로그인은 기존 인증 오류, OWNER 지정은 400, OWNER 대상 해제는 409인지 확인한다.
+6. 없는 모임·회원·다른 모임 회원·PENDING·REJECTED·LEFT·EXPELLED·삭제 회원·잘못된 역할·활동 제한 모임의 실패 응답을 확인한다.
+7. 화면에서 역할 저장 중 중복 클릭·페이지 이동 차단, 실패 후 재조회, 재조회 실패 시 편집 차단, 모바일 표시, 모임 전환 시 이전 결과 미표시를 확인한다.
+8. 검색창의 이름·이메일 검색과 빈 검색어로 전체 조회 복귀를 확인하고, 역할 저장으로 알림이 생성되지 않는지 확인한다.
+
+### 남은 TODO
+
+- 검색 API·검색창 연결은 아래 검색 확장에서 구현했다. 검색 조건을 먼저 적용한 뒤 결과에 최대 20명 제한을 적용한다.
+- OWNER 이전·해제와 역할 변경 이력은 이번 범위에서 지원하지 않는다. 알림은 확정 정책에 따라 구현하지 않는다.
+- 정상 정원 20명 기준 관리 대상은 최대 19명이다. 비정상 초과 데이터에서도 전체 승인 계원을 검색해 찾을 수 있고, 회계 제한은 검색 결과와 관계없이 모임 전체에 적용한다.
+- 실제 DB 동시성·브라우저 상호작용·인증 통합은 위 절차로 후속 확인해야 한다.
+
+<!-- AI작성: 2026-11-05 사용자 승인에 따른 계원 관리 검색 확장 및 단계별 커밋 기록. -->
+## 계원 관리 이름·이메일 검색 확장 (2026-11-05)
+
+### 요청 및 검색 규칙
+
+`GET /api/saving-groups/{savingGroupId}/members?keyword=검색어&page=1`
+
+기존 `/saving-groups` 별칭, OWNER 전용 권한, APPROVED MEMBER/MANAGER 범위, 모집중·진행중 조건, data/meta 및 오류 형식을 유지한다.
+
+| 입력 | 규칙 |
+| --- | --- |
+| keyword | 선택 문자열. 앞뒤 공백 정리 후 최대 20자. 생략·빈 문자열·공백만 입력하면 전체 조회 |
+| page | 기본 1, 정수 1 이상. 빈 문자열·문자·0·음수는 400 |
+
+- 해당 모임의 전체 승인 계원에서 `members.name` 또는 **마스킹 전 `members.email`** 부분 일치를 검색한다. 이후 기존 가입일·관계 ID 내림차순 정렬과 10명씩 최대 2페이지 제한을 적용한다.
+- 정상 정원 20명에 계주가 포함되므로 OWNER 제외 시 최대 19명이다. 검색 전 상위 20명으로 자르는 방식은 사용하지 않으며, 방어적 조회 상한은 유지한다.
+- 대소문자·문자 비교는 기존 MySQL 컬럼 collation을 따른다. 새 collation·DB 인덱스·마이그레이션을 추가하지 않는다.
+- 기존 Service의 `escapeKeyword`를 재사용한다. `%`, `_`, `!`는 LIKE 와일드카드가 아닌 입력 문자로 검색한다. SQL은 `#{keywordPattern}`과 `ESCAPE '!'`를 사용하고 문자열 SQL 삽입은 하지 않는다.
+- `(이름 조건 OR 이메일 조건)`을 괄호로 묶고, 목록과 전체 개수에 동일한 공통 SQL 조건을 적용한다. 검색어로 다른 모임·OWNER·미승인·탈퇴·추방·삭제 회원이 노출되지 않는다.
+- 검색 결과 수를 meta.total에 반환하며 최대 20이다. 결과 없음은 HTTP 200, data 빈 배열, total/totalPages 0이다. 범위 초과 페이지도 정상 빈 배열이다.
+- 응답 필드 변경 없음. 이름 원문·마스킹 이메일을 유지하고 원문 이메일은 응답이나 로그에 추가하지 않는다. 20자보다 긴 전체 이메일은 20자 이하 부분 문자열로 검색할 수 있다.
+- 기존 검색 없는 Service 호출도 검색어 null로 같은 구현에 연결한다. 역할 변경 API·회계 한 명 제한·알림 정책은 변경하지 않는다.
+
+### 화면 동작
+
+- 기존 검색창과 버튼을 활성화한다. 입력 중인 keyword와 조회에 적용한 submittedKeyword를 분리한다.
+- 검색 버튼 또는 Enter로만 조회한다. 입력 중에는 기존 결과를 유지하며 자동 검색하지 않는다.
+- 검색 실행 시 1페이지로 이동하고 미저장 역할 편집값·편집 모드를 초기화한다. 같은 검색어를 다시 제출해도 재조회한다.
+- 검색어를 비우고 검색하면 전체 계원 조회로 돌아간다. 화면에 20자 제한과 전체 조회 복귀 방법을 안내한다.
+- 페이지 이동·다시 조회·역할 저장 후 재조회는 **적용된 검색어**를 유지한다. 새로 입력만 하고 제출하지 않은 값은 조회에 적용하지 않는다.
+- 검색 조건을 포함한 조회 키로 결과를 구분하고 이전 GET은 취소한다. 검색을 바꾸면 이전 목록·편집값을 현재 결과처럼 표시하지 않는다.
+- 역할 저장 중에는 검색 입력·검색 버튼·추가 제출을 차단한다. 목록 로딩 중 새 검색은 허용해 이전 요청을 취소할 수 있다.
+- 검색 결과는 '검색 결과 N명', 검색 결과 없음은 '검색 조건에 맞는 계원이 없습니다.'로 표시한다. 전체 목록 0명은 기존 '승인된 계원이 없습니다.'로 구분한다. 통신·권한 오류는 빈 결과와 구분하고 다시 조회를 제공한다.
+
+### 단계별 변경 파일·커밋
+
+백엔드 Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트 경로는 `back/src/test/java/com/nightstudy/moa/savingGroup/` 기준이다.
+
+| 단계 | 변경 파일·내용 | 커밋 |
+| --- | --- | --- |
+| 1 | dto/SavingGroupMemberSearchCondition.java, mapper/SavingGroupMapper.java, back/src/main/resources/mappers/SavingGroupMapper.xml, ServiceImpl 기존 호출 인자 정합성 수정, MemberMapperTest/MemberListServiceTest/MemberSearchConditionTest | `c68f786` feat: 계모임 계원 검색 DTO와 Mapper 조건 추가 |
+| 2 | service/SavingGroupService.java, service/SavingGroupServiceImpl.java, service/SavingGroupMemberListServiceTest.java | `ce07205` feat: 계모임 계원 검색 서비스 및 페이징 처리 추가 |
+| 3 | controller/SavingGroupController.java, controller/SavingGroupMemberListControllerTest.java | `13897a3` feat: 계모임 계원 목록 API 검색 조건 연결 |
+| 4 | front/src/api/savingGroups.js, front/src/api/savingGroupMembers.test.js | `6025b39` feat: 계모임 계원 조회 요청에 검색어 전달 추가 |
+| 5 | front/src/components/savingGroup/SavingGroupMembersPanel.jsx, SavingGroupMemberList.jsx, SavingGroupMemberList.test.js | `5a5b41c` feat: 계모임 계원 관리 검색창 및 결과 화면 연동 |
+| 6 | service/SavingGroupMemberMySqlIntegrationTest.java, docs/saving-groups-api.md, docs/ai-usage-log.md | test: 계모임 계원 검색 검증 및 API 문서화 |
+
+### 검증 결과
+
+- Java 17 컴파일·관련 백엔드 총 437건 중 432건 통과, 선택형 MySQL 5건 건너뜀. 검색 추가분은 실행 테스트 26건과 선택형 MySQL 2건이다.
+- 이전 작업에서 확인한 타 도메인 테스트 누락 import 오류로 전체 test 소스는 컴파일되지 않으므로, 임시 Gradle init script로 `SavingGroupMember*Test`, `SavingGroupNotice*Test`, `SavingGroupJoinAvailabilityServiceTest`, `SavingGroupJoinRejection*Test`만 분리 실행했다. 프로젝트 빌드·의존성·설정 변경은 없다.
+- 프론트 기존 API·신규 검색 API·SSR 렌더링 총 57건 통과. 명령: front에서 `node --test src/api/savingGroups.test.js src/api/savingGroupMembers.test.js src/components/savingGroup/SavingGroupMemberList.test.js`.
+- 변경 프론트 파일 oxlint 오류·경고 없음. 프로덕션 빌드 및 diff 공백 검사 통과. 기존 번들 크기 경고는 유지한다.
+- 실제 DB 검색은 전용 환경이 없어 미실행이다. 선택형 테스트에 원문 이메일 검색/마스킹 응답, 이름 부분 일치, 검색 후 제한·페이지, 공백 해제, 특수문자, 따옴표, 권한 범위의 실제 SQL 검증을 추가했고 컴파일만 확인했다. 기존 전용 DB 활성화·안전 조건을 유지한다.
+- Service는 Mapper 대역, Controller는 standalone MockMvc, SQL은 MyBatis 바인딩, 프론트 API는 client 대역, 화면은 SSR 검증이다. 검색 버튼·Enter·페이지 이동·저장 후 재조회·빠른 검색 변경의 실제 브라우저 상호작용과 JWT HTTP 통합은 후속 수동 검증 대상이다.
+- 정원보다 많은 기존 합성 DB fixture는 검색 전 제한을 잘못 적용하는 구현을 잡는 경계 테스트이며, 실제 모임 정원을 늘리는 변경이 아니다.
+
+### Postman·브라우저 수동 확인
+
+1. 승인 OWNER로 이름 일부·원문 이메일 일부를 keyword에 전달하고 해당 계원만 반환되는지, 응답 이메일은 마스킹되어 있는지 확인한다.
+2. keyword 생략·빈 값·공백에서 전체 목록으로 복귀하고, 앞뒤 공백은 제거되는지 확인한다. 20자 허용·21자 400을 확인한다.
+3. `%`, `_`, `!`, 따옴표가 포함된 합성 회원명으로 해당 문자 자체가 검색되는지 확인한다. 실제 개인정보를 테스트 데이터·로그에 넣지 않는다.
+4. 검색 결과 0명·10명·11명·19명에서 개수·페이지를 확인하고, 검색 중 2페이지에 있다가 새 검색을 실행하면 1페이지로 돌아오는지 확인한다.
+5. 같은 검색어로 OWNER·MANAGER·MEMBER·비회원·타 모임 OWNER 요청을 비교하고 기존 조회 권한이 유지되는지 확인한다. OWNER·미승인·삭제 관계는 검색 결과에서도 제외되어야 한다.
+6. 검색 결과에서 역할을 저장한 뒤 검색 조건과 페이지가 유지되는지, 저장 중 검색이 차단되는지 확인한다. 검색 시 미저장 역할 변경은 폐기되어야 한다.
+7. 빠르게 다른 검색을 제출해 이전 응답이 현재 결과를 덮어쓰지 않는지 확인한다. 검색 결과 없음·통신 오류·재조회 안내도 구분한다.
+
+# 2026-11-05 계금 요청 API
+
+<!-- AI작성: 실제 금융 호출 없이 내부 요청과 증빙만 저장한다. DB 담당자의 신규 컬럼 적용이 선행되어야 한다. -->
+
+기본 경로 `/saving-groups`와 `/api/saving-groups`는 동일하다. `{groupId}`는 `groups.group_id`다. 인증 사용자 ID는 JWT 속성에서만 사용한다.
+
+| 메서드·경로 | 입력 | 결과 |
+|---|---|---|
+| GET `/{groupId}/payout-requests/options` | 없음 | 현재 사용자의 유형·현재 회차·확정 금액·증빙 필요 여부 |
+| POST `/{groupId}/payout-requests` | multipart/form-data | 요청 ID·유형·금액·PENDING |
+| GET `/{groupId}/payout-requests/expenses/{expenseId}/receipt` | 없음, OWNER 전용 | 증빙 파일 다운로드, no-store |
+
+POST는 순번계의 경우 빈 multipart를 보내고, 친목계는 `amount`(1원 이상·13자리 이하 정수), `title`(공백 제외 필수·최대 100자), `receipt`(JPG/PNG·5MB 이하·각 변 4096픽셀 이하)를 보낸다. 사용자·상태·계좌·이체 정보는 입력하지 않는다. 순번계 금액·제목·증빙 입력은 거절한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "groupType": "순번계",
+    "roundNumber": 3,
+    "amount": 502000,
+    "receiptRequired": false,
+    "requestId": 10,
+    "status": "PENDING"
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+options에서는 requestId·status가 null이다. 친목계 options에서는 roundNumber·amount도 null이며 receiptRequired는 true다. 생성 후 친목계 amount는 입력한 금액이다. requestId는 유형에 따라 payout_request_id 또는 expense_id다. 큰 ID 직렬화는 기존 Java Long 계약을 따른다.
+
+대표 오류: 401 UNAUTHORIZED, 404 NOT_FOUND, 403 PAYOUT_FORBIDDEN / PAYOUT_NOT_YOUR_TURN / RECEIPT_FORBIDDEN, 409 PAYOUT_INACTIVE / PAYOUT_NOT_STARTED / PAYOUT_ROUND_MISSING / PAYOUT_SNAPSHOT_MISSING / PAYOUT_DUPLICATE / PAYOUT_INVALID_TYPE, 400 PAYOUT_INVALID_INPUT / INVALID_RECEIPT / 기존 Validation 오류. 인증 필터에서 차단되는 `/api` 미인증 응답은 기존 LOGIN_REQUIRED 정책을 따른다.
+
+진행중 APPROVED 회원만 요청 가능하다. 친목계 OWNER·MANAGER, 순번계 현재 순번 본인만 허용한다. 미납·잔액·예산은 접수 차단 조건이 아니다. 승인·거절·지급 완료·요청 목록 API는 이번에 추가하지 않았다.
+
+회차 금액 보존, 중복·증빙 접근 정책, 필요한 DB 컬럼과 검증 절차는 [계금 요청 설계·검증 기록](saving-group-payout-request-design.md)을 참고한다. 회차 생성과 추가 회비 부과 기능은 별도 구현이 필요하다.
+
+## 계주 계금·지출 요청 목록 조회 (2026-11-05)
+
+<!-- AI작성: 사용자 확정 정책과 기존 내부 테이블을 기준으로 한 조회 전용 API다. -->
+
+### 경로·인증·권한
+
+`GET /api/saving-groups/{savingGroupId}/payout-requests`
+
+기존 Controller 별칭 `/saving-groups/{savingGroupId}/payout-requests`도 지원한다.
+경로의 ID는 `saving_group.saving_group_id`이며 공통 `groups.group_id`가 아니다.
+서버 인증 처리에서 설정한 `memberId`만 사용한다. 개설자 `groups.member_id` 일치와 해당 모임의
+`OWNER + APPROVED` 관계를 모두 검증한다. MANAGER·MEMBER·비회원·가입 대기·거절·탈퇴·추방 회원과
+다른 모임의 OWNER는 조회할 수 없다. 모집중(01)·진행중(02)에서만 조회한다.
+`/api/**`의 기존 Spring Security 인증 정책을 유지하고, Service에서도 인증 회원 누락을 차단한다.
+
+### 조회 조건
+
+| 파라미터 | 기본값 | 규칙 |
+|---|---|---|
+| status | 미지정(전체 상태) | PENDING / APPROVED / REJECTED / COMPLETED |
+| page | 1 | 1 이상인 int, 페이지 크기는 10 고정 |
+
+친목계에는 COMPLETED가 없으므로 해당 필터는 400이다. 빈 문자열·미정의 상태와 잘못된 페이지는 400이다.
+사용자 지정 정렬은 받지 않으며 요청일 내림차순·식별자 내림차순으로 안정 정렬한다.
+요청 유형은 클라이언트에서 받지 않고 DB의 `saving_group_type`으로 결정한다.
+순번계는 `payout_request` → `meeting_round.group_id`, 친목계는 `expenses.group_id`로 범위를 제한한다.
+전체 개수와 목록에 동일한 상태·요청자 조건을 사용한다.
+
+### 응답과 개인정보
+
+기존 `{ success, data: [], meta: { page, size, total, totalPages }, error }` 구조를 사용한다.
+결과 없음과 범위 초과 페이지도 200·빈 배열이며, 요청 페이지를 임의로 변경하지 않는다.
+식별자는 BIGINT 정밀도 손실을 막기 위해 문자열로 제공하고, 금액은 BigDecimal을 사용한다.
+화면에서 천 단위 콤마와 원 단위를 적용한다.
+
+| 응답 필드 | 공통/순번계/친목계 | 의미 |
+|---|---|---|
+| requestId | 공통 | 해당 유형 테이블의 요청 식별자(문자열) |
+| requesterName | 공통 | 요청자 실명(사용자 확정으로 마스킹하지 않음) |
+| amount | 공통 | 요청 금액 |
+| status | 공통 | 해당 요청 테이블의 기존 상태 |
+| requestedAt | 공통 | 계금 requested_at / 지출 created_at |
+| roundNumber | 순번계 | meeting_round.round_number(회차) |
+| reviewerName | 순번계 | 현재 승인 관계를 유지하는 미삭제 처리자의 실명 |
+| reviewedAt | 순번계 | 검토일이며 지급 완료일과 다름 |
+| title | 친목계 | 기존 지출 제목, 별도 사용처로 해석하지 않음 |
+| hasEvidence | 친목계 | 증빙 경로가 null·공백이 아닌지에 따른 첨부 여부 |
+
+적용되지 않거나 null인 필드는 응답에서 생략한다. 순번계 미검토는 reviewedAt 부재로 판단한다.
+계좌번호·거래 식별자·증빙 URL·원본·요청 사유·지급 완료일·회원 순번은 제공하지 않는다.
+요청자는 서비스 미삭제 및 해당 모임 APPROVED 관계를 유지하는 경우에만 목록과 개수에 포함한다.
+모임 탈퇴·추방·서비스 탈퇴 요청자의 원본 요청은 삭제하지 않고 조회에서 제외한다.
+처리자만 탈퇴하면 요청과 검토일은 유지하고 이름을 생략한다. 화면은 `이름 비공개`로 표시한다.
+이는 현재 관계 기준이다. 탈퇴 후 재가입하여 APPROVED로 바뀌면 기존 요청도 다시 포함된다.
+과거 탈퇴 이력을 계속 숨기는 별도 이력 정책·테이블은 이번 범위에서 추가하지 않는다.
+
+### 예외
+
+| HTTP | 코드 | 조건 |
+|---|---|---|
+| 400 | BAD_REQUEST | 잘못된 ID·페이지·상태 또는 친목계 COMPLETED 필터 |
+| 401 | LOGIN_REQUIRED / UNAUTHORIZED | 기존 보안 필터 또는 Service에서 미인증 판단 |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 대상 모임 개설자·승인 OWNER 조건 불충족 |
+| 404 | SAVING_GROUP_NOT_FOUND | 계모임 없음 또는 공통 모임 삭제 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중 외 상태 |
+| 409 | SAVING_GROUP_TYPE_INVALID | 미정의/누락된 모임 유형(임의 추정 차단) |
+
+### 프론트 연결·검증
+
+기존 가입 신청 관리의 `계금 요청` 탭에서 조회한다. 목록·페이지는 서버 결과를 사용하고 기존 금융 Mock은 참조하지 않는다.
+친목계에는 지출 제목·증빙 여부, 순번계에는 회차·검토일·검토자를 표시한다.
+상태 변경은 1페이지로 돌아가며 이전 요청 취소·오래된 응답 차단·재시도를 지원한다.
+승인·거절·지급 버튼은 제공하지 않는다. 기존 가입 신청 승인·거절 흐름은 유지한다.
+
+Postman에서 테스트 계정의 기존 인증을 사용해 순번계·친목계 각각
+`GET /api/saving-groups/{savingGroupId}/payout-requests?status=PENDING&page=1`을 호출한다.
+계주 정상 조회, MANAGER/MEMBER 등 권한 거절, 01/02 외 상태, page=0, 친목계 COMPLETED,
+빈 결과·2페이지·탈퇴 요청자 제외·탈퇴 처리자 이름 부재를 확인한다.
+브라우저에서는 계주 로그인 → 계모임 상세 → 가입 신청 관리 → 계금 요청 탭에서
+상태 필터·페이지·빈 결과·재시도·모바일 배치와 실명 표시를 확인한다.
+
+선택 MySQL 테스트는 기존 `MOA_TEST_DB_ENABLED=true`와 `MOA_TEST_DB_URL`, `MOA_TEST_DB_USER`,
+`MOA_TEST_DB_PASSWORD` 환경변수를 사용한다. 자격증명은 파일·명령 기록에 작성하지 않는다.
+반드시 비어 있는 `moa_join_test_*` 전용 테스트 DB가 필요하며 테스트가 만든 테이블만 종료 시 정리한다.
+일반 프로젝트 DB와 실제 금융 서비스는 사용하지 않는다.
+
+### 남은 TODO
+
+- 기간·요청자 검색·사용자 지정 정렬·증빙 원본 열람은 정책 확정 후 별도 작업.
+- 탈퇴 후 재가입한 회원의 과거 요청을 영구 제외하려면 별도 이력 정책 검토 필요.
+- 실제 MySQL 실행, 인증된 브라우저·Postman 상호작용은 별도 검증 필요.
+- 승인·거절·수정·취소·실제 지급·이체와 요청 등록 화면의 금융 Mock 교체는 범위 밖.
+
+### 실행 결과 (2026-11-05)
+
+- 신규 백엔드 테스트: 42건 통과, 전용 MySQL 테스트 1건은 환경변수 미설정으로 생략.
+- 계모임 회귀: 403건 중 393 통과·8 생략·2 실패(마지막 응답 테스트 추가 전 실행). 실패한 기존 SavingGroupDeletionApplicationServiceTest 2건은 승인 OWNER 관계 Mock 누락이다. 이번 변경에서는 해당 테스트·삭제 로직을 수정하지 않았다.
+- 일반 Gradle test는 기존 다른 도메인의 import 13건으로 테스트 전체 컴파일이 막힌다. 추적하지 않는 임시 init script에서 sourceSets.test.java.setIncludes(['com/nightstudy/moa/savingGroup/**'])로 계모임만 분리했다. 본문 컴파일은 통과했다.
+- 실행 명령(back 폴더): gradlew.bat -I build/payout-tests.init.gradle -Dorg.gradle.java.installations.paths=C:/dev/jdk-17.0.12_windows-x64_bin/jdk-17.0.12 test --tests '*SavingGroupPayoutRequest*' --offline. 임시 init script의 내용은 allprojects { plugins.withId('java') { sourceSets.test.java.setIncludes(['com/nightstudy/moa/savingGroup/**']) } } 이다. 전체 계모임 회귀는 --tests 옵션 없이 실행했다.
+- 프론트(front 폴더): node --test src/api/*.test.js src/components/savingGroup/SavingGroupPayoutApprovalList.test.js — 111건 통과. npm run build 통과(번들 크기 경고). 변경 파일 oxlint 오류 없음, 기존 상세 화면 미사용 변수 2건 경고 유지.
+- 실제 MySQL·인증 브라우저·Postman·JWT 필터 통합 검증은 실행하지 않았다. XML 바인딩·Mock Service·MVC·SSR 테스트 결과와 구분한다.
+
+
+### 2026-11-05 병합 호환성 확인
+
+<!-- AI작성: 계원 관리·계금 요청 등록·목록 조회를 모두 보존하여 충돌을 해결했다. -->
+
+- 등록 POST 및 options·영수증 GET은 기존 공통 groupId 계약을 유지한다. 목록 GET의 경로 ID는 savingGroupId다. 프론트는 각각 group.groupId / group.savingGroupId를 전달한다. HTTP 메서드와 하위 경로가 달라 별도의 핸들러로 유지한다.
+- 기준 브랜치의 계금 산정·지출 검토 컬럼을 유지한다. 목록 응답은 사용자 확정 범위대로 유지하며 새 컬럼을 자동 노출하지 않는다.
+- 충돌 해결 후 프론트 테스트 121건·빌드 통과. 백엔드 계모임 회귀 581건 중 566 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 계원 관리 및 계금 등록·목록 테스트에는 실패 없음. 일반 전체 테스트 컴파일의 기존 import 오류 13건·실제 DB/브라우저 미검증은 AI 사용 기록에 별도 기재했다.
+
+## 계금 요청 승인·거절 (2026-11-05)
+
+<!-- AI작성: 사용자 확정 정책과 feature/apply-request-savinggroup-thepool 구현을 반영한다. 실제 지급 API가 아니다. -->
+
+### 경로와 데이터 계약
+
+- `PATCH /api/saving-groups/{savingGroupId}/payout-requests/{payoutRequestId}/approve`
+- `PATCH /api/saving-groups/{savingGroupId}/payout-requests/{payoutRequestId}/reject`
+- 기존 Controller의 `/saving-groups` 별칭도 지원한다. 인증은 기존 JWT Authorization Bearer 방식이다.
+- savingGroupId는 `saving_group.saving_group_id`이며 공통 `groups.group_id`가 아니다. 서버가 내부 group_id로 변환한다.
+- 모임 유형은 DB의 saving_group_type으로 판별한다. 순번계 요청 ID는 payout_request.payout_request_id, 친목계 요청 ID는 expenses.expense_id다. 클라이언트가 유형·처리자·처리 상태를 지정하지 않는다.
+- 요청 생성 작업 a2c30ef 및 목록 조회 작업 5709a5f/e6e967d의 유형별 저장 테이블·목록 ID 계약을 확인했다. 다른 브랜치의 코드는 병합하지 않았다.
+
+### 요청·응답
+
+승인은 요청 본문이 없다. 거절은 JSON `{ "rejectReason": "증빙을 다시 확인해 주세요." }`를 보낸다. 사유는 공백만 있는 값 불가, 입력 문자열 최대 500자이며 저장 시 앞뒤 공백을 제거한다.
+성공은 HTTP 200 및 기존 ApiResponse.ok() 봉투(`success=true`, `data=null`, `meta=null`, `error=null`)다. 실패는 기존 ApiResponse.fail의 `error.code`와 `error.message`를 따른다.
+
+### 권한·상태·검증
+
+| 항목 | 정책 |
+|---|---|
+| 처리자 | 로그인한 해당 모임의 APPROVED OWNER이며 groups.member_id와 일치해야 함 |
+| 본인 심사 | OWNER 자신의 요청 승인·거절 허용 |
+| 모임 | 삭제되지 않은 모집중(01)·진행중(02)만 허용 |
+| 요청 | 해당 모임에 속하는 PENDING 한 건만 처리 |
+| 순번계 요청자 | 현재 APPROVED OWNER·MANAGER·MEMBER |
+| 친목계 요청자 | 현재 APPROVED OWNER·MANAGER |
+| 탈퇴·추방·대기·회원 삭제 | 요청자 처리 불가. 처리자의 회원 자체 상태는 기존 JWT 세션 정책을 따름 |
+| 순번계 승인 | 현재 요청자 sequence_number가 양수이고 요청 meeting_round.round_number와 동일 |
+| 친목계 승인 | receipt_img_url이 NULL·빈 문자열이 아닌 요청만 허용. 영수증 내용은 계주가 판단 |
+| 거절 | 순번 일치·영수증 첨부 조건 미적용. 나머지 인증·권한·모임·소속·상태·요청자 자격은 유지 |
+
+별도의 현재 회차 자동 판정, 약정 금액 재계산, 금액 한도·예산·잔액·증빙 진위 판단 정책은 추가하지 않았다. receipt_sha256은 요청 생성에서의 중복 판별이며 심사에서 파일을 다시 업로드하거나 해시를 계산하지 않는다.
+
+### 저장과 트랜잭션
+
+Service의 승인·거절 진입점에 @Transactional을 적용한다. 공통 모임을 먼저 잠그고 계주 관계, 대상 요청·회차, 요청자 관계와 회원 행을 확인한다. 순번은 잠근 요청자 관계에서 확인되는 현재 값을 사용한다. 변경 SQL은 요청 ID·모임 소속·PENDING을 다시 제한하고 변경 행 수가 1이 아니면 409로 롤백한다.
+
+- 승인: status=APPROVED, reviewer_id=인증 계주, reviewed_at=DB CURRENT_TIMESTAMP, reject_reason=NULL.
+- 거절: status=REJECTED, reviewer_id=인증 계주, reviewed_at=DB CURRENT_TIMESTAMP, reject_reason=검증한 사유.
+- 실제 이체·출금·금융 API·자동 지급 호출 없음. completed_at·transaction_id·순번·잔액·거래·승인 이력·알림은 변경하거나 생성하지 않는다.
+- 친목계 UPDATE는 DB 담당자가 제안서의 expenses.reviewer_id BIGINT NULL, reviewed_at DATETIME NULL, reject_reason VARCHAR(500) NULL을 적용한 후 사용해야 한다. 운영 DB에서 적용 여부를 확인하지 않았다.
+- schema.sql·마이그레이션은 변경하지 않았다. 회차 산정 5개 컬럼과 영수증 해시 컬럼은 이번 심사 SQL에서 참조하지 않는다. 회차 생성 및 요청 생성 작업과의 연결은 별도다.
+
+### 오류
+
+| HTTP | 코드 | 조건 |
+|---|---|---|
+| 400 | BAD_REQUEST | 잘못된 경로·거절 사유; 세부 입력 예외 봉투는 기존 공통 처리 적용 |
+| 401 | 기존 JWT 오류 / UNAUTHORIZED | 토큰·세션 오류 또는 인증 회원 없음 |
+| 403 | SAVING_GROUP_OWNER_REQUIRED | 해당 모임의 승인된 계주가 아님 |
+| 404 | NOT_FOUND | 계모임 없음·삭제됨 |
+| 404 | PAYOUT_REQUEST_NOT_FOUND | 요청 없음 또는 다른 모임에 속함 |
+| 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중이 아님 |
+| 409 | PAYOUT_GROUP_TYPE_UNSUPPORTED | 지원하지 않는 모임 유형 |
+| 409 | PAYOUT_REQUEST_ALREADY_PROCESSED | 이미 처리됐거나 조건부 UPDATE 실패 |
+| 409 | PAYOUT_REQUESTER_INELIGIBLE | 요청자의 현재 회원 상태·역할 부적합 또는 회원 삭제 |
+| 409 | PAYOUT_SEQUENCE_MISMATCH | 승인 시 순번 미지정·불일치 |
+| 409 | PAYOUT_EVIDENCE_REQUIRED | 승인 시 영수증 미첨부 |
+
+### 검증 및 Postman 확인 방법
+
+1. 테스트 DB에 승인된 OWNER와 유형별 적격 요청자, 모집중 또는 진행중 모임, PENDING 요청을 준비한다. 순번계는 sequence_number=round_number, 친목계는 접근 정책에 맞는 영수증을 준비한다.
+2. OWNER의 유효한 JWT로 approve를 호출하고 200 및 대상 테이블의 status/reviewer_id/reviewed_at/reject_reason을 확인한다. transaction_id/completed_at과 잔액·거래·순번은 변경되지 않아야 한다.
+3. 별도 대기 요청에 rejectReason JSON으로 reject를 호출한다. 사유 앞뒤 공백 제거와 처리 기록을 확인한다.
+4. 같은 요청 재처리는 409, 다른 모임 요청은 404, 회계·일반회원·비회원·대기·탈퇴 계주의 처리는 403 또는 기존 인증 정책의 401인지 확인한다.
+5. 순번 불일치·영수증 누락은 승인 409, 거절은 다른 자격 조건 충족 시 200인지 확인한다. 요청자 탈퇴·추방은 승인·거절 모두 409다.
+6. 모든 확인은 내부 테스트 데이터만 사용하며 실제 자금 이동은 수행하지 않는다. Postman·브라우저 검증은 이번 작업에서 실행하지 않았다.
+
+내부 테스트는 Mapper XML 바인딩, Service 정책, Controller 입력·응답, 실제 JWT 필터 연결(서명 파서·세션 대역), 실제 Spring/JDBC 트랜잭션 경계(commit/rollback)를 검증한다. 전체 SecurityFilterChain·서명 파서·실제 DB 잠금 경합 검증과 구분한다.
+선택 실행 SavingGroupPayoutDecisionMySqlTest는 MOA_PAYOUT_TEST_DB_ENABLED=true 및 MOA_TEST_DB_URL/USER/PASSWORD가 필요하다. moa_payout_test_* 테스트 카탈로그에서만 실행하며 연결 전용 임시 테이블로 실제 MySQL의 저장·소속 제한·중복 UPDATE·롤백·커밋을 확인한다. 이 테스트의 임시 테이블은 운영 스키마 적용 여부를 증명하지 않는다.
+
+로컬 JDK 17이 없어 저장소 설정을 바꾸지 않고 JDK 21 임시 Gradle init을 사용했다. 기존 타 도메인 테스트의 import 오류 때문에 테스트 소스 컴파일 범위는 savingGroup으로 제한했다. JDK 17 및 전체 저장소 테스트는 별도 확인이 필요하다. 실제 DB 정보가 없어 MySQL 테스트는 건너뛰었다.
+
+재현용 임시 Gradle init 내용(저장소 설정에 반영하지 않음):
+
+```groovy
+allprojects {
+    afterEvaluate {
+        plugins.withId('java') {
+            java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+            sourceSets.test.java.setIncludes(['**/savingGroup/**/*Test.java'])
+        }
+    }
+}
+```
+
+back 폴더에서 `gradlew.bat -I <임시-init-절대경로> test --tests '*SavingGroupPayoutDecision*Test' --tests '*SavingGroupNotice*Test' --tests '*SavingGroupJoinRejection*Test' --console=plain`으로 실행한다. DB 테스트 환경변수는 자격 증명을 문서·명령 이력·코드에 직접 쓰지 않고 별도로 주입한다.
+
+남은 TODO: DB 담당자의 친목계 심사 기록 컬럼 적용 확인, 실제 MySQL 동시 승인·거절 잠금 검증, JDK 17 재검증, 요청 생성·조회 브랜치 통합 시 충돌 및 계약 확인, 계주 전용 영수증 열람·프론트 승인 UI 연결. 이번 범위는 승인·거절 백엔드 API다.
+
+최종 회귀 검증 결과: 계금 심사·기존 공지·가입 거절 관련 373건 통과, 실패 0건, MySQL 테스트 클래스 1개 건너뜀(2026-11-05, JDK 21 임시 설정). 신규 심사 테스트만은 68건 통과다. `git diff --check` 통과.
+
+## 승인·거절 병합 확인 (2026-11-05)
+
+<!-- AI작성: 위 개별 브랜치 작업 당시의 미검증 사항과 구분하여 현재 병합 검증 결과를 기록한다. -->
+
+- feature/savinggroup(9dbd9ae)에 승인·거절 작업(86a3d6b)을 병합하면서 계원관리·요청 등록·목록·승인·거절 API와 SQL을 모두 보존했다. 등록/options/영수증은 groupId, 목록과 승인·거절은 savingGroupId 계약을 유지한다. 승인·거절의 requestId는 해당 유형의 목록 응답 request_id와 같다.
+- 기준 schema.sql에 expenses.reviewer_id/reviewed_at/reject_reason이 반영되어 있음을 확인했다. 위 심사 브랜치 작성 당시의 컬럼 적용 대기 기록은 이 스키마 정의 확인으로 보완되지만, 운영·개발 DB에 실제 적용됐는지는 별도 확인이 필요하다.
+- 이번에는 설치된 JDK 17 경로를 명시하여 본문·테스트를 컴파일했다. 계모임 회귀 649건 중 634 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 신규 승인·거절 내부 테스트 68건은 전부 통과했다. 기존 두 실패는 승인 OWNER 관계 Mock 누락이며 이전 병합 기록과 동일하다.
+- 실제 MySQL 저장·동시 잠금·브라우저·Postman 검증은 실행하지 않았다. 계주 전용 영수증 조회는 기존 등록 작업의 구현을 보존했으며 이번에 API를 새로 만들거나 프론트 승인 버튼을 연결하지 않았다. 커밋은 사용자 진행 예정이다.
+
+## 계금 요청 심사 프론트 연결·검증 (2026-11-05)
+
+<!-- AI작성: 기존 병합 시점의 프론트 미연결 기록 이후 수행한 프론트 작업과 검증 범위를 기록한다. -->
+- 기존 계주 전용 신청 목록 > 계금 요청에서 대기 요청에 승인·거절 버튼을 제공한다. 실제 심사에는 기존 PATCH API와 savingGroupId·목록 요청 ID를 사용한다.
+- 승인 확인창은 신청자·금액과 실제 지급 별도 안내를 표시한다. 거절은 필수 사유·공백 검증·최대 500자·글자 수를 제공한다. 거절 실패 시 입력 사유를 유지한다.
+- 처리 중 승인·거절·필터·페이지 이동을 막는다. 성공 후 현재 필터로 서버 목록을 재조회하고 페이지 범위 초과 시 마지막 유효 페이지(전체 0건이면 1페이지)로 이동한다.
+- 인증·권한·대상 없음, 이미 처리됨, 모임 제한·유형 오류·요청자 자격 변경 오류는 목록 재조회를 유도한다. 거절창은 이 오류에서 사유를 유지하고 확인 버튼을 목록 확인으로 바꿔 동일 요청 재심사를 막는다. 일반 통신 오류는 오류 안내 후 재시도할 수 있다.
+- 현재 화면은 API가 변환한 한글 상태 '대기'로 처리 버튼을 표시한다. 기존 상위 화면의 계주 전용 진입을 재사용하며, 역할·모임 상태를 별도 props로 전달하는 보강과 원본 상태 코드 필드 분리는 이번 작업에 포함하지 않았다. 최종 권한·상태·소속·순번·증빙 검증은 서버가 수행한다.
+- 계주 전용 영수증 원본 열람 버튼은 연결하지 않았다. 현재 증빙 표시는 첨부 유무만 제공하므로 증빙 내용을 확인하는 심사 흐름은 후속 작업이다.
+
+### 자동 검증과 한계
+
+- front에서 `node --test src/api/savingGroups.test.js src/api/savingGroupPayout.test.js src/api/savingGroupPayoutRequests.test.js src/components/savingGroup/SavingGroupPayoutApprovalList.test.js`: 55개 통과.
+- API 대역 테스트: 승인 본문 없음, 큰 ID 보존, 거절 사유만 전송, 500자 허용·501자 및 공백 차단, 잘못된 ID 차단, HTTP 오류·실패 봉투·통신 오류·취소 보존.
+- SSR 화면 테스트: 순번계·친목계의 대기 전용 버튼, 처리 완료·미정의 상태에서 버튼 미표시, 처리 중 버튼·필터·페이지 비활성, 로딩·실패 상태에서 심사 버튼 미표시.
+- SSR 테스트는 실제 모달 클릭·비동기 상태 전이·중복 클릭·페이지 재조회·실패 시 사유 유지 동작을 실행하지 않는다. 해당 항목은 아래 브라우저 검증이 필요하다.
+
+### 브라우저·Postman 수동 검증 (미실행)
+
+1. 테스트용 승인 계주와 순번계·친목계의 대기 요청을 준비한다. 승인 확인 취소 시 PATCH가 없고, 확인 시 한 번 호출되는지 Network로 확인한다.
+2. 거절 사유 빈 값·공백 제출이 차단되고 500자 사유가 전송되는지 확인한다. 실패 응답 후 사유 유지·재시도, 취소 시 미요청을 확인한다.
+3. 대기 필터에서 성공 요청이 사라지고 전체 필터에서는 새 상태가 표시되는지 확인한다. 마지막 페이지의 마지막 요청 처리 후 유효 페이지 이동을 확인한다.
+4. 지연 응답 중 연속 클릭과 승인·거절 중복 실행이 차단되는지 확인한다. 다른 창에서 먼저 처리한 요청은 409 안내와 목록 갱신을 확인한다.
+5. 비계주·로그아웃·모임 상태 변경·요청자 탈퇴·순번 불일치·증빙 누락의 서버 오류를 확인한다. 거절 사유 유지와 목록 확인 동작을 확인한다.
+6. Postman과 테스트 DB에서 처리 상태·검토자·검토일·거절 사유를 확인하고 실제 지급·잔액·거래가 변경되지 않는지 확인한다. 실제 금융 API를 호출하지 않는다.
+
+<!-- AI작성: 진행 전 계원 추방 프론트 4단계 구현과 검증 범위를 기록한다. -->
+## 진행 전 계원 추방 프론트 연결
+
+- 기존 계원 관리 화면을 재사용한다. APPROVED OWNER이고 모임 상태가 01일 때 MEMBER·MANAGER에 추방 버튼이 보인다. 역할 편집 중에는 추방 버튼을 비활성화한다. 진행중·종료 및 비OWNER는 추방 UI를 제공하지 않으며 최종 권한은 서버가 판단한다.
+- 회원 조회·역할 변경에는 savingGroupId, 추방에는 공통 groupId를 사용한다. 상세 응답의 두 ID를 분리하여 전달한다. 추방은 기존 JWT client의 /api 기본 경로와 PATCH /saving-groups/{groupId}/members/{memberId}/expel을 사용하고 본문은 보내지 않는다.
+- 기존 ConfirmModal에서 '추방된 계원은 이 계모임에 다시 가입할 수 없습니다.'를 안내한다. 취소는 요청 없이 닫는다. 확인 중 검색·페이지·역할 변경·추방·확인창 닫기를 차단하고 ref 잠금으로 중복 요청을 방지한다.
+- 성공 시 안내 후 현재 검색과 페이지로 재조회하고 마지막 페이지가 사라지면 남은 페이지를 조회한다. 실패 시 목록을 유지하고 확인창 안에 오류를 표시한다. 다시 열면 이전 오류를 지운다. 모임·역할·회원 상태·진행 상태 변경 시 패널을 재생성하여 이전 상태를 폐기한다.
+- 자동 검증: 계모임 API·회원 관리·계금 요청 API·목록 SSR 테스트 61건 통과, 프론트 빌드 성공 및 대상 lint 오류 없음(기존 경고 2건). 브라우저 클릭 검증은 앱 내 브라우저의 로컬 서버 연결 시간 초과 및 Windows URL 확인 정책으로 수행하지 못했다. 실제 JWT·MySQL 연동 및 모바일 브라우저도 미검증이다.
+- 수동 확인: 서로 다른 groupId/savingGroupId를 가진 모집중 모임의 OWNER로 계원 관리 진입 → MEMBER·MANAGER 추방 버튼 확인 → 취소 시 PATCH 없음 → 재가입 불가 문구 확인 후 추방 → 해당 회원 제외 및 성공 안내 확인. 마지막 페이지 1명을 추방한 경우 이전 페이지 이동을 확인한다. 403/404/409/통신 실패 시 목록 유지·확인창 오류, 빠른 연속 클릭 시 PATCH 1건, 진행중·비OWNER의 버튼 미노출, 검색·역할 변경 회귀도 확인한다.

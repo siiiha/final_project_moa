@@ -13,6 +13,8 @@ import lombok.Setter;
 public class SavingGroupCreationApplicationDetailResponse {
     private Long approvalId;
     private Long groupId;
+    private Long savingGroupId;
+    private Long applicantMemberId;
     private String groupName;
     private String applicantName;
     private String regionName;
