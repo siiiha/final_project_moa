@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
 import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
@@ -59,6 +60,12 @@ class SavingGroupDepositServiceTest {
                 && r.getAmount().compareTo(new BigDecimal("1000")) == 0 && r.getCompletedAt().equals(now)
                 && r.getBalanceAfter().compareTo(new BigDecimal("11000")) == 0));
         verify(mapper).insertDepositRequest(argThat(r -> "COMPLETED".equals(r.getStatus()) && r.getTransactionId().equals(40L)));
+        // AI작성: 신규 입금 완료 시 본인에게 금액·계모임 이동 경로가 포함된 확인 알림을 한 번만 보낸다.
+        verify(notificationService).send(
+                20L,
+                NotificationType.DUES_PAYMENT_CONFIRMED,
+                "회비 납부가 확인되었습니다. 납부 금액: 1,000원",
+                "/saving-groups/10?menu=dues");
     }
     @ParameterizedTest @ValueSource(strings = {"LEFT", "PENDING", "EXPELLED", "REJECTED"})
     void rejectsNonCurrentMembers(String status) {
@@ -108,6 +115,12 @@ class SavingGroupDepositServiceTest {
         row.setStatus("COMPLETED"); row.setConfirmationTokenHash(null);
         service.confirm(10L, 20L, confirm);
         verify(mapper, times(1)).insertDepositTransaction(any());
+        // AI작성: 이미 완료된 확인 요청을 재호출해도 납부 확인 알림은 중복 발송하지 않는다.
+        verify(notificationService, times(1)).send(
+                20L,
+                NotificationType.DUES_PAYMENT_CONFIRMED,
+                "회비 납부가 확인되었습니다. 납부 금액: 1,000원",
+                "/saving-groups/10?menu=dues");
         assertThat(row.getWindowAnchorRequestId()).isEqualTo(1L);
     }
     @Test void invalidExpiredAndCrossAccountConfirmCannotSave() {
