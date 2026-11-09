@@ -28,15 +28,24 @@ public class SavingGroupDuesNotificationScheduler {
         this.notificationService = notificationService;
     }
 
-    // AI작성: 한국 시간 기준 납부일 3일 전과 당일 오전 9시에 각 알림 대상을 확인한다.
+    // AI작성: 한국 시간 기준 납부일 3일 전·당일·납부일 경과 미납 대상을 매일 오전 9시에 확인한다.
     @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
     public void sendDuesPaymentReminders() {
         LocalDate today = LocalDate.now(SEOUL_ZONE);
-        sendReminder(today.plusDays(3), ADVANCE_REMINDER, "회비 납부일이 3일 남았습니다.");
-        sendReminder(today, DUE_TODAY_REMINDER, "오늘은 회비 납부일입니다.");
+        sendReminder(today.plusDays(3), ADVANCE_REMINDER, "회비 납부일이 3일 남았습니다.",
+                NotificationType.DUES_PAYMENT_DUE);
+        sendReminder(today, DUE_TODAY_REMINDER, "오늘은 회비 납부일입니다.",
+                NotificationType.DUES_PAYMENT_DUE);
+        // AI작성: 날짜를 포함한 키로 같은 날에는 한 번만, 납부 전까지는 매일 미납 알림을 발송한다.
+        sendReminder(today, "OVERDUE_" + today, "회비가 미납 상태입니다.",
+                NotificationType.DUES_PAYMENT_OVERDUE);
     }
 
-    private void sendReminder(LocalDate paymentDate, String reminderKey, String messagePrefix) {
+    private void sendReminder(
+            LocalDate paymentDate,
+            String reminderKey,
+            String messagePrefix,
+            NotificationType notificationType) {
         YearMonth paymentMonth = YearMonth.from(paymentDate);
         LocalDateTime start = paymentMonth.atDay(1).atStartOfDay();
         LocalDateTime end = paymentMonth.plusMonths(1).atDay(1).atStartOfDay();
@@ -53,7 +62,7 @@ public class SavingGroupDuesNotificationScheduler {
                             + NumberFormat.getNumberInstance(Locale.KOREA).format(target.duesAmount()) + "원";
                     notificationService.send(
                             target.receiverId(),
-                            NotificationType.DUES_PAYMENT_DUE,
+                            notificationType,
                             message,
                             targetUrl
                     );
