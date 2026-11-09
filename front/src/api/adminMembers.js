@@ -25,21 +25,6 @@ function formatRestrictionScope(scope) {
   }[scope] || '확인 필요';
 }
 
-// AI작성: 관리자 화면에서도 개인정보 노출을 줄이기 위해 표시 직전에 마스킹한다.
-function maskName(value) {
-  const name = String(value || '');
-  if (!name) return '-';
-  if (name.length === 1) return '*';
-  if (name.length === 2) return `${name[0]}*`;
-  return `${name[0]}${'*'.repeat(name.length - 2)}${name.at(-1)}`;
-}
-
-function maskEmail(value) {
-  const [localPart, domain] = String(value || '').split('@');
-  if (!localPart || !domain) return '-';
-  return `${localPart[0]}***@${domain}`;
-}
-
 function maskPhone(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length < 7) return '-';
@@ -55,14 +40,17 @@ function mapMember(member) {
 
   return {
     id: member.memberId,
-    name: maskName(member.name),
-    email: maskEmail(member.email),
+    // AI작성: 관리자 회원 식별을 위해 서버가 반환한 이름과 이메일 원문을 그대로 표시한다.
+    name: member.name || '-',
+    email: member.email || '-',
     region: member.regionName,
     verified: member.identityVerifiedAt && member.regionVerifiedAt ? '인증 완료' : '인증 필요',
     joinedAt: formatAdminDate(member.createdAt, { fallback: '-', compact: false }),
     // AI작성: 계정 이용 정지를 우선 표시하고 ACTIVE 회원의 기능 제한은 제재로 구분한다.
     status: formatStatus(member.accountStatus, restrictionScopes.length > 0),
     accountStatus: member.accountStatus,
+    // AI작성: 관리자 계정의 이용 제한 UI를 비활성화할 수 있도록 시스템 역할을 보존한다.
+    systemRole: member.systemRole,
     restrictionScopes,
   };
 }

@@ -20,4 +20,6 @@ public class SmallGroupVoteDetailResponse {
     private final long participantCount;
     private final SmallGroupVoteMyParticipationResponse myParticipation;
     private final List<SmallGroupVoteOptionDetailResponse> options;
+    // AI작성: 서버가 작성자·현재 개설자·승인 OWNER·진행 상태를 확인한 종료 버튼 표시 여부다.
+    private final boolean canClose;
 }

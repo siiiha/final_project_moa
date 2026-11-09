@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinApprovalTargetRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinMemberRow;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow;
@@ -31,6 +33,9 @@ class SavingGroupJoinRejectionServiceTest {
     @Mock
     private SavingGroupMapper savingGroupMapper;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private SavingGroupServiceImpl savingGroupService;
 
@@ -42,14 +47,20 @@ class SavingGroupJoinRejectionServiceTest {
         savingGroupService.rejectSavingGroupJoin(SAVING_GROUP_ID, REQUEST_ID, OWNER_ID);
 
         verify(savingGroupMapper).rejectSavingGroupJoinRequest(REQUEST_ID, GROUP_ID);
+        verify(notificationService).send(
+                APPLICANT_ID,
+                NotificationType.SAVING_GROUP_JOIN_REJECTED,
+                "계모임 가입 신청이 거절되었습니다.",
+                null
+        );
     }
 
     @Test
     void rejectSavingGroupJoinRejectsNonOwner() {
-        mockJoinRequest(OWNER_ID, "PENDING", GROUP_ID);
+        mockJoinRequest(OWNER_ID + 1, "PENDING", GROUP_ID);
 
         ApiException exception = catchThrowableOfType(
-                () -> savingGroupService.rejectSavingGroupJoin(SAVING_GROUP_ID, REQUEST_ID, OWNER_ID + 1),
+                () -> savingGroupService.rejectSavingGroupJoin(SAVING_GROUP_ID, REQUEST_ID, OWNER_ID),
                 ApiException.class);
 
         assertThat(exception.getCode()).isEqualTo("SAVING_GROUP_OWNER_REQUIRED");
@@ -99,7 +110,10 @@ class SavingGroupJoinRejectionServiceTest {
         when(savingGroupMapper.selectSavingGroupJoinMemberForUpdate(APPLICANT_ID)).thenReturn(applicant());
         when(savingGroupMapper.selectSavingGroupJoinTargetForUpdate(SAVING_GROUP_ID)).thenReturn(target(ownerId));
         when(savingGroupMapper.selectSavingGroupJoinApprovalTargetForUpdate(REQUEST_ID)).thenReturn(locked);
-        when(savingGroupMapper.selectSavingGroupMembershipForUpdate(GROUP_ID, ownerId)).thenReturn(owner());
+        // AI작성: 소속·계주 검사에서 차단되면 사용하지 않는 관계 조회 stub은 만들지 않는다.
+        if (ownerId == OWNER_ID && requestGroupId == GROUP_ID) {
+            when(savingGroupMapper.selectSavingGroupMembershipForUpdate(GROUP_ID, ownerId)).thenReturn(owner());
+        }
     }
 
     private SavingGroupJoinApprovalTargetRow request(long groupId, String status) {

@@ -2,6 +2,63 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- AI작성: 기존 생성과 전체 목록 조회에 필요한 SQL을 함께 관리한다. -->
 <mapper namespace="com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper">
+    <!-- AI작성: 목록·건수는 같은 소모임 조건을 사용한다. 삭제 컬럼이 없으므로 최종 DB 삭제 정책 확정 후 제외 조건을 반영한다. -->
+    <sql id="smallGroupReviewListWhere">
+        WHERE review.small_group_id = #{smallGroupId}
+    </sql>
+
+    <!-- AI작성: 작성자 회원 상태나 가입 상태로 공개 후기의 건수를 제한하지 않는다. -->
+    <select id="selectSmallGroupReviewCount" resultType="int">
+        SELECT COUNT(*)
+        FROM small_group_review review
+        <include refid="smallGroupReviewListWhere"/>
+    </select>
+
+    <!-- AI작성: 작성자 ID는 반환하지 않고 닉네임만 조회하며 작성 시각이 같으면 후기 ID로 순서를 고정한다. -->
+    <select id="selectSmallGroupReviewList"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupReviewListItemResponse">
+        SELECT review.small_group_review_id,
+               writer.nickname AS writer_nickname,
+               review.content,
+               review.created_at,
+               review.rating
+        FROM small_group_review review
+        LEFT JOIN members writer ON writer.member_id = review.writer_id
+        <include refid="smallGroupReviewListWhere"/>
+        ORDER BY review.created_at DESC, review.small_group_review_id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- AI작성: 회원 상태와 날짜 판단은 Service에 맡기고 삭제되지 않은 소모임·개설자 및 모임 날짜를 잠금 조회한다. -->
+    <select id="selectSmallGroupReviewCreateTargetForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupReviewCreateTargetRow">
+        SELECT sg.small_group_id,
+               sg.group_id,
+               g.member_id AS creator_member_id,
+               sg.meet_date
+        FROM small_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN members creator ON creator.member_id = g.member_id
+        WHERE sg.small_group_id = #{smallGroupId}
+          AND g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 같은 소모임·작성자의 기존 후기 ID를 조회하며 동시 중복 저장은 DB UNIQUE로도 방지한다. -->
+    <select id="selectSmallGroupReviewId" resultType="long">
+        SELECT small_group_review_id
+        FROM small_group_review
+        WHERE small_group_id = #{smallGroupId}
+          AND writer_id = #{writerId}
+    </select>
+
+    <!-- AI작성: 작성일은 DB 기본값을 사용하고 생성된 후기 ID를 내부 저장 객체에 반환한다. -->
+    <insert id="insertSmallGroupReview" useGeneratedKeys="true" keyProperty="command.smallGroupReviewId">
+        INSERT INTO small_group_review (small_group_id, writer_id, rating, content)
+        VALUES (#{command.smallGroupId}, #{command.writerId}, #{command.rating}, #{command.content})
+    </insert>
+
     <!-- AI작성: 지역 ID 순서로 반환해 DB에서 관리하는 선택 순서를 보존한다. -->
     <select id="selectSmallGroupRegions"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupRegionResponse">
@@ -106,6 +163,10 @@
         <if test="regionName != null">
             AND r.region_name = #{regionName}
         </if>
+        <!-- AI작성: 선택한 상위 지역 조건만 적용해 소속 구·동을 모두 포함한다. -->
+        <if test="provinceName != null">AND r.province_name = #{provinceName}</if>
+        <if test="districtName != null">AND r.district_name = #{districtName}</if>
+        <if test="townName != null">AND r.town_name = #{townName}</if>
         <if test="likeCategory != null">
             AND sg.like_category = #{likeCategory}
         </if>
@@ -156,6 +217,7 @@
     <select id="selectSmallGroupDetail" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupDetailRow">
         SELECT sg.small_group_id,
                g.group_id,
+               g.member_id AS creator_member_id,
                g.group_name,
                g.description,
                r.region_name,
@@ -193,7 +255,28 @@
           AND member_role IN ('OWNER', 'MEMBER')
     </select>
 
+    <!-- AI작성: 투표 생성 알림 대상인 승인 OWNER·MEMBER의 회원 번호만 중복 없이 조회한다. -->
+    <select id="selectApprovedSmallGroupMemberIds" resultType="long">
+        SELECT DISTINCT member_id
+        FROM group_member
+        WHERE group_id = #{groupId}
+          AND membership_status = 'APPROVED'
+          AND member_role IN ('OWNER', 'MEMBER')
+    </select>
+
     <!-- AI작성: 가입 신청 중 회원 계정·본인 인증·시스템 권한 변경과 경합하지 않도록 회원 행을 잠가 조회한다. -->
+    <!-- AI작성: 상세 화면의 본인 신청 자격은 읽기 전용으로 조회한다. -->
+    <select id="selectSmallGroupJoinMember"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow">
+        SELECT member_id,
+               account_status,
+               identity_verified_at,
+               system_role
+        FROM members
+        WHERE member_id = #{memberId}
+          AND deleted_at IS NULL
+    </select>
+
     <select id="selectSmallGroupJoinMemberForUpdate"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinMemberRow">
         SELECT member_id,
@@ -212,7 +295,8 @@
         SELECT sg.small_group_id,
                sg.group_id,
                g.member_id AS creator_member_id,
-               g.max_members
+               g.max_members,
+               sg.meet_date
         FROM small_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.small_group_id = #{smallGroupId}
@@ -490,12 +574,15 @@
         </foreach>
     </insert>
 
-    <!-- AI작성: closed_at이 없는 진행 중 투표만 잠가 최대 5개 제한을 동시 생성 요청에도 일관되게 적용한다. -->
+    <!-- AI작성: 삭제·종료·시간 만료 투표를 제외하고 소모임별 진행 중 투표의 최대 5개 제한에 사용할 개수를 조회한다. -->
     <select id="selectOpenSmallGroupVoteCountForUpdate" resultType="long">
         SELECT COUNT(*)
         FROM small_group_vote
         WHERE small_group_id = #{smallGroupId}
+          AND status = 'OPEN'
           AND closed_at IS NULL
+          AND deleted_at IS NULL
+          AND (ends_at IS NULL OR ends_at > CURRENT_TIMESTAMP())
         FOR UPDATE
     </select>
 
@@ -503,26 +590,37 @@
     <select id="selectSmallGroupVoteListTarget"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow">
         SELECT sg.small_group_id,
-               sg.group_id
+               sg.group_id,
+               g.member_id AS creator_member_id
         FROM small_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.small_group_id = #{smallGroupId}
           AND g.deleted_at IS NULL
     </select>
 
-    <!-- AI작성: 투표 목록은 상세 이동용 식별자와 제목·상태·마감 시각을 등록 최신순으로 반환한다. -->
+    <!-- AI작성: 실제 마감 여부를 상태에 반영하며 종료 기준 시각(closed_at 우선, 없으면 ends_at)부터 24시간 초과 시 숨긴다.
+         종료 시각이 모두 없는 CLOSED 투표는 제외하고, 정확히 24시간인 투표는 유지한다. -->
     <select id="selectSmallGroupVoteList"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse">
         SELECT small_group_vote_id,
                title,
-               status,
+               CASE
+                   WHEN status = 'CLOSED'
+                     OR closed_at IS NOT NULL
+                     OR ends_at &lt;= CURRENT_TIMESTAMP()
+                   THEN 'CLOSED'
+                   ELSE 'OPEN'
+               END AS status,
                ends_at
         FROM small_group_vote
         WHERE small_group_id = #{smallGroupId}
-        AND (
-            closed_at IS NULL
-            OR closed_at >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
-        )
+          AND deleted_at IS NULL
+          AND (
+              (status = 'OPEN'
+               AND closed_at IS NULL
+               AND (ends_at IS NULL OR ends_at > CURRENT_TIMESTAMP()))
+              OR COALESCE(closed_at, ends_at) >= DATE_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
+          )
         ORDER BY created_at DESC, small_group_vote_id DESC
     </select>
 
@@ -550,6 +648,64 @@
           AND sgv.deleted_at IS NULL
           AND g.deleted_at IS NULL
           AND creator.deleted_at IS NULL
+    </select>
+
+    <!-- AI작성: 참여 처리에서는 동일 투표 행을 잠가 마감 시각 검증과 선택 이력 변경을 한 트랜잭션 기준으로 수행한다. -->
+    <select id="selectSmallGroupVoteDetailForUpdate"
+            resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupVoteDetailRow">
+        SELECT sgv.small_group_vote_id,
+               sgv.small_group_id,
+               sgv.creator_member_id,
+               creator.nickname AS creator_nickname,
+               sgv.title,
+               sgv.is_multiple_choice,
+               sgv.is_anonymous,
+               sgv.ends_at,
+               sgv.status,
+               sgv.closed_at,
+               sgv.created_at,
+               sgv.updated_at
+        FROM small_group_vote sgv
+        JOIN small_group sg ON sg.small_group_id = sgv.small_group_id
+        JOIN `groups` g ON g.group_id = sg.group_id
+        JOIN members creator ON creator.member_id = sgv.creator_member_id
+        WHERE sgv.small_group_id = #{smallGroupId}
+          AND sgv.small_group_vote_id = #{smallGroupVoteId}
+          AND sgv.deleted_at IS NULL
+          AND g.deleted_at IS NULL
+          AND creator.deleted_at IS NULL
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 삭제되지 않은 마감 전·마감 미설정 OPEN 투표만 닫고 DB 시각을 기록한다.
+         중복 종료·시간 만료 요청은 갱신하지 않아 closed_at과 기존 결과 노출 기간을 보존한다. -->
+    <update id="closeSmallGroupVote">
+        UPDATE small_group_vote
+        SET status = 'CLOSED',
+            closed_at = CURRENT_TIMESTAMP()
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+          AND small_group_id = #{smallGroupId}
+          AND deleted_at IS NULL
+          AND status = 'OPEN'
+          AND closed_at IS NULL
+          AND (ends_at IS NULL OR ends_at > CURRENT_TIMESTAMP())
+    </update>
+
+    <!-- AI작성: 투표 기본 행만 논리 삭제해 보기·참여·선택 이력은 외래키 관계 그대로 보존한다. -->
+    <update id="softDeleteSmallGroupVote">
+        UPDATE small_group_vote
+        SET deleted_at = CURRENT_TIMESTAMP()
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+          AND small_group_id = #{smallGroupId}
+          AND deleted_at IS NULL
+    </update>
+
+    <!-- AI작성: 선택 수와 해당 투표 소속 여부 검증을 위해 보기 ID만 표시 순서대로 조회한다. -->
+    <select id="selectSmallGroupVoteOptionIds" resultType="long">
+        SELECT small_group_vote_option_id
+        FROM small_group_vote_option
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+        ORDER BY display_order ASC, small_group_vote_option_id ASC
     </select>
 
     <!-- AI작성: 보기별 선택 행을 집계하되 선택 행이 없는 보기도 0표로 상세에 포함한다. -->
@@ -584,6 +740,50 @@
           AND member_id = #{memberId}
     </select>
 
+    <!-- AI작성: 기존 참여 행을 잠가 같은 회원의 동시에 들어온 선택 변경 요청을 직렬화한다. -->
+    <select id="selectSmallGroupVoteParticipationIdForUpdate" resultType="long">
+        SELECT small_group_vote_participation_id
+        FROM small_group_vote_participation
+        WHERE small_group_vote_id = #{smallGroupVoteId}
+          AND member_id = #{memberId}
+        FOR UPDATE
+    </select>
+
+    <!-- AI작성: 참여 시각은 DB 현재 시각으로 기록하며, 동일 투표·회원 유니크 제약은 최종 중복 방어로 유지한다. -->
+    <insert id="insertSmallGroupVoteParticipation">
+        INSERT INTO small_group_vote_participation (
+            small_group_vote_id,
+            member_id
+        ) VALUES (
+            #{smallGroupVoteId},
+            #{memberId}
+        )
+    </insert>
+
+    <!-- AI작성: Service가 소속과 중복을 검증한 보기 ID만 참여 이력과 일괄 연결한다. -->
+    <insert id="insertSmallGroupVoteSelections">
+        INSERT INTO small_group_vote_selection (
+            small_group_vote_participation_id,
+            small_group_vote_option_id
+        ) VALUES
+        <foreach collection="selectedOptionIds" item="selectedOptionId" separator=",">
+            (#{smallGroupVoteParticipationId}, #{selectedOptionId})
+        </foreach>
+    </insert>
+
+    <!-- AI작성: 선택 변경일 때만 이전 선택 연결 전체를 제거하고 같은 참여 이력에 새 선택을 저장한다. -->
+    <delete id="deleteSmallGroupVoteSelections">
+        DELETE FROM small_group_vote_selection
+        WHERE small_group_vote_participation_id = #{smallGroupVoteParticipationId}
+    </delete>
+
+    <!-- AI작성: 같은 선택을 다시 제출한 경우에는 호출하지 않아 최초 참여 시각을 보존한다. -->
+    <update id="updateSmallGroupVoteParticipationTime">
+        UPDATE small_group_vote_participation
+        SET participated_at = CURRENT_TIMESTAMP
+        WHERE small_group_vote_participation_id = #{smallGroupVoteParticipationId}
+    </update>
+
     <!-- AI작성: 로그인 회원의 참여 이력에 연결된 보기 ID만 조회해 다른 회원의 선택을 노출하지 않는다. -->
     <select id="selectSmallGroupVoteSelectedOptionIds" resultType="long">
         SELECT small_group_vote_option_id
@@ -617,8 +817,65 @@
                gn.created_at
         FROM group_notice gn
         JOIN members writer ON writer.member_id = gn.writer_id
-        WHERE gn.group_id = #{groupId}
-        ORDER BY gn.created_at DESC
+        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
         LIMIT 4
     </select>
+    <!-- AI작성: 작성자는 인증 정보에서 결정하고 생성 키를 DTO에 설정한다. -->
+    <insert id="insertSmallGroupNotice" useGeneratedKeys="true" keyProperty="noticeId">
+        INSERT INTO group_notice (group_id, writer_id, title, content)
+        VALUES (#{groupId}, #{writerId}, #{title}, #{content})
+    </insert>
+    <!-- AI작성: 삭제된 공지는 집계·목록에서 제외하고 시각이 같으면 ID로 정렬한다. -->
+    <select id="countSmallGroupNotices" resultType="int">
+        SELECT COUNT(*) FROM group_notice WHERE group_id = #{groupId} AND deleted_at IS NULL AND is_pinned = 0
+    </select>
+    <select id="selectSmallGroupNoticePage" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.deleted_at IS NULL AND gn.is_pinned = 0
+        <choose><when test="sort == 'OLDEST'">ORDER BY gn.created_at ASC, gn.notice_id ASC</when>
+        <otherwise>ORDER BY gn.created_at DESC, gn.notice_id DESC</otherwise></choose>
+        LIMIT 4 OFFSET #{offset}
+    </select>
+    <!-- AI작성: 모임과 공지 식별자를 함께 제한해 타 모임 공지는 조회되지 않는다. -->
+    <select id="selectSmallGroupNoticeDetail" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse">
+        SELECT gn.notice_id, gn.title, gn.content, gn.writer_id, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL
+    </select>
+    <!-- AI작성: 작성자를 SQL에서도 제한하고 원작성자·작성일·고정 여부는 보존한다. -->
+    <select id="selectSmallGroupNoticeForUpdate" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeDetailResponse">
+        SELECT gn.notice_id, gn.title, gn.content, gn.writer_id, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.notice_id = #{noticeId} AND gn.deleted_at IS NULL FOR UPDATE
+    </select>
+    <update id="updateSmallGroupNotice">
+        UPDATE group_notice SET title = #{title}, content = #{content}, updated_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
+    </update>
+    <!-- AI작성: 물리 삭제 없이 이력을 보존하고 재요청은 조회에서 제외한다. -->
+    <update id="deleteSmallGroupNotice">
+        UPDATE group_notice SET deleted_at = CURRENT_TIMESTAMP
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND writer_id = #{writerId} AND deleted_at IS NULL
+    </update>
+    <!-- AI작성: 고정 공지는 일반 네 건과 별도로 최신순 표시하고 삭제 공지는 제외한다. -->
+    <select id="selectSmallGroupPinnedNotices" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeSummaryResponse">
+        SELECT gn.notice_id, gn.title, writer.nickname AS writer_nickname, gn.created_at
+        FROM group_notice gn LEFT JOIN members writer ON writer.member_id = gn.writer_id
+        WHERE gn.group_id = #{groupId} AND gn.is_pinned = 1 AND gn.deleted_at IS NULL
+        ORDER BY gn.created_at DESC, gn.notice_id DESC
+    </select>
+    <select id="selectSmallGroupNoticePinForUpdate" resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupNoticePinRow">
+        SELECT notice_id, is_pinned AS pinned FROM group_notice
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL FOR UPDATE
+    </select>
+    <select id="selectSmallGroupPinnedNoticeIdsForUpdate" resultType="java.lang.Long">
+        SELECT notice_id FROM group_notice
+        WHERE group_id = #{groupId} AND is_pinned = 1 AND deleted_at IS NULL ORDER BY notice_id FOR UPDATE
+    </select>
+    <update id="updateSmallGroupNoticePinned">
+        UPDATE group_notice SET is_pinned = #{pinned}
+        WHERE group_id = #{groupId} AND notice_id = #{noticeId} AND deleted_at IS NULL AND is_pinned != #{pinned}
+    </update>
 </mapper>

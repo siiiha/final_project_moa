@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import {
@@ -13,7 +13,9 @@ import {
 import PostDetail from '../components/post/PostDetail';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
+import ReportModal from '../components/common/ReportModal';
 import useAuthStore from '../store/authStore';
+import { createReport } from '../api/reports';
 
 const COMMENTS_PER_PAGE = 20;
 
@@ -141,6 +143,11 @@ function PostDetailPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [commentErrorMessage, setCommentErrorMessage] = useState('');
   const [deleteErrorMessage, setDeleteErrorMessage] = useState('');
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportErrorMessage, setReportErrorMessage] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportNotice, setReportNotice] = useState('');
+  const postDetailRequestRef = useRef(null);
   const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
   const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
 
@@ -204,8 +211,15 @@ function PostDetailPage() {
       setErrorMessage('');
 
       try {
+        // AI작성: 개발 모드의 중복 Effect가 같은 상세 API를 두 번 호출하지 않도록 진행 중인 요청을 공유한다.
+        let request = postDetailRequestRef.current;
+        if (!request || request.postId !== id) {
+          request = { postId: id, promise: getPostDetail(id) };
+          postDetailRequestRef.current = request;
+        }
+
         // AI작성: 상세 API 응답을 기존 PostDetail 컴포넌트의 표시 형식으로 변환합니다.
-        const response = await getPostDetail(id);
+        const response = await request.promise;
         if (!response.success) {
           throw new Error(response.error?.message || '게시글을 불러오지 못했습니다.');
         }
@@ -218,6 +232,8 @@ function PostDetailPage() {
           category: detail.categoryName || '기타',
           title: detail.title,
           content: detail.content,
+          // AI작성: 상세 API의 표시 순서대로 첨부를 전달합니다.
+          images: detail.images || [],
           author: detail.writerNickname || '알 수 없음',
           writerId: detail.writerId,
           date: detail.createdAtStr || '',
@@ -230,6 +246,9 @@ function PostDetailPage() {
           error.response?.data?.error?.message || error.message || '게시글을 불러오지 못했습니다.'
         );
       } finally {
+        if (postDetailRequestRef.current?.postId === id) {
+          postDetailRequestRef.current = null;
+        }
         if (isActive) setIsLoading(false);
       }
     }
@@ -350,6 +369,19 @@ function PostDetailPage() {
     }
   };
 
+  // AI작성: 댓글 등록 후 서버의 최신 댓글 목록과 전체 개수를 다시 동기화합니다.
+  const refreshComments = async () => {
+    const response = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
+    if (!response.success) {
+      throw new Error(response.error?.message || '최신 댓글을 불러오지 못했습니다.');
+    }
+
+    setComments((response.data?.comments || []).map(mapComment));
+    setCommentPage(response.meta?.page || 1);
+    setCommentTotal(response.data?.totalCommentCount || 0);
+    setCommentTotalPages(response.meta?.totalPages || 0);
+  };
+
   const handleCommentSubmit = async (event) => {
     event.preventDefault();
     if (!token) {
@@ -386,6 +418,16 @@ function PostDetailPage() {
       setCommentText('');
       if (commentDraftKey) sessionStorage.removeItem(commentDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
+
+      try {
+        await refreshComments();
+      } catch (refreshError) {
+        setCommentErrorMessage(
+          refreshError.response?.data?.error?.message ||
+            refreshError.message ||
+            '댓글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
+        );
+      }
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '댓글 등록에 실패했습니다.'
@@ -461,6 +503,16 @@ function PostDetailPage() {
       setReplyText('');
       if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
       setCommentTotal((currentTotal) => currentTotal + 1);
+
+      try {
+        await refreshComments();
+      } catch (refreshError) {
+        setCommentErrorMessage(
+          refreshError.response?.data?.error?.message ||
+            refreshError.message ||
+            '답글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
+        );
+      }
     } catch (error) {
       setCommentErrorMessage(
         error.response?.data?.error?.message || error.message || '답글 등록에 실패했습니다.'
@@ -583,6 +635,42 @@ function PostDetailPage() {
     }
   };
 
+  // AI작성: 비로그인 회원은 현재 게시글로 돌아올 수 있도록 로그인 화면으로 이동한다.
+  const handleReportStart = (contentReportType, contentTargetId, memberTargetId, contentLabel) => {
+    if (!token) {
+      goToLogin();
+      return;
+    }
+    setReportErrorMessage('');
+    // AI작성: 하나의 신고 모달에서 콘텐츠와 작성자 중 한 대상을 선택할 수 있도록 두 후보를 함께 저장한다.
+    setReportTarget({
+      targets: [
+        { reportType: contentReportType, targetId: contentTargetId, label: `${contentLabel} 신고` },
+        { reportType: 'MEMBER', targetId: memberTargetId, label: '작성자 신고' },
+      ],
+    });
+  };
+
+  const handleReportSubmit = async (reason, selectedTarget) => {
+    if (!reportTarget || !selectedTarget || isSubmittingReport) return;
+    setIsSubmittingReport(true);
+    setReportErrorMessage('');
+    try {
+      await createReport({
+        // AI작성: 모달에서 사용자가 선택한 신고 유형과 대상 ID 한 건만 서버로 전송한다.
+        reportType: selectedTarget.reportType,
+        targetId: selectedTarget.targetId,
+        reason,
+      });
+      setReportTarget(null);
+      setReportNotice('신고가 접수되었습니다. 관리자가 내용을 확인합니다.');
+    } catch (error) {
+      setReportErrorMessage(error.message || '신고를 접수하지 못했습니다.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   if (isLoading || !post) {
     return (
       <Page>
@@ -634,6 +722,7 @@ function PostDetailPage() {
           onLoadMoreComments={handleLoadMoreComments}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onReport={handleReportStart}
           onBack={() => navigate('/post/list')}
         />
       </Content>
@@ -663,6 +752,27 @@ function PostDetailPage() {
           onCancel={() => {
             if (!isDeletingComment) setDeletingCommentId(null);
           }}
+        />
+      )}
+      {reportTarget && (
+        <ReportModal
+          targets={reportTarget.targets}
+          submitting={isSubmittingReport}
+          errorMessage={reportErrorMessage}
+          onSubmit={handleReportSubmit}
+          onCancel={() => {
+            if (!isSubmittingReport) setReportTarget(null);
+          }}
+        />
+      )}
+      {reportNotice && (
+        <ConfirmModal
+          title="신고 접수 완료"
+          description={reportNotice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setReportNotice('')}
+          onCancel={() => setReportNotice('')}
         />
       )}
     </Page>

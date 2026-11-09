@@ -19,14 +19,19 @@ repositories {
 }
 
 dependencies {
+    implementation platform('org.springframework.ai:spring-ai-bom:2.0.2')
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:4.0.1'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    // AI작성: Aiven Valkey(Redis 호환)로 인증 상태 캐시를 연결한다.
+    // AI작성: 계모임 채팅의 WebSocket 연결과 STOMP 브로커를 사용한다.
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.security:spring-security-crypto'
+    // AI작성: 카드사 HTML 형식 .xls 명세서의 표를 안전하게 읽기 위한 파서다.
+    implementation 'org.jsoup:jsoup:1.18.3'
 
     implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'

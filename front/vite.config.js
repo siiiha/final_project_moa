@@ -10,6 +10,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // AI작성: 개발 환경에서도 같은 출처의 /ws로 채팅 서버에 연결한다.
+      '/ws': { target: API_TARGET, ws: true },
       '/api': {
         target: API_TARGET,
         changeOrigin: true,

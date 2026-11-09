@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.inOrder;
 
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupDetailResponse;
@@ -22,6 +26,8 @@ import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsPatchRequest;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupSettingsResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListItemResponse;
 import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteListTargetRow;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateCommand;
+import com.nightstudy.moa.smallGroup.dto.SmallGroupVoteCreateRequest;
 import com.nightstudy.moa.smallGroup.mapper.SmallGroupMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,6 +54,82 @@ class SmallGroupServiceImplTest {
 
     @InjectMocks
     private SmallGroupServiceImpl smallGroupService;
+
+    @Test
+    // AI작성: 네 개일 때 다섯 번째 생성을 허용하고 모임 잠금→개수 조회→저장 순서를 유지한다.
+    void createSmallGroupVoteAllowsFifthVoteAfterLockingSmallGroup() {
+        mockVoteCreator();
+        when(smallGroupMapper.selectOpenSmallGroupVoteCountForUpdate(SMALL_GROUP_ID)).thenReturn(4L);
+        when(smallGroupMapper.insertSmallGroupVote(any())).thenAnswer(invocation -> {
+            SmallGroupVoteCreateCommand command = invocation.getArgument(0);
+            assertThat(command.getSmallGroupId()).isEqualTo(SMALL_GROUP_ID);
+            command.setSmallGroupVoteId(101L);
+            return 1;
+        });
+        when(smallGroupMapper.insertSmallGroupVoteOptions(101L, List.of("오전 모임", "오후 모임")))
+                .thenReturn(2);
+
+        assertThat(smallGroupService.createSmallGroupVote(SMALL_GROUP_ID, MEMBER_ID, voteCreateRequest())
+                .getSmallGroupVoteId()).isEqualTo(101L);
+
+        var order = inOrder(smallGroupMapper);
+        order.verify(smallGroupMapper).selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID);
+        order.verify(smallGroupMapper).selectOpenSmallGroupVoteCountForUpdate(SMALL_GROUP_ID);
+        order.verify(smallGroupMapper).insertSmallGroupVote(any());
+        order.verify(smallGroupMapper).insertSmallGroupVoteOptions(101L, List.of("오전 모임", "오후 모임"));
+    }
+
+    @Test
+    // AI작성: 다섯 개 이상이면 기존 오류를 반환하고 투표와 보기를 모두 저장하지 않는다.
+    void createSmallGroupVoteRejectsSixthVoteAndAlreadyExceededCount() {
+        mockVoteCreator();
+        for (long count : new long[] {5L, 6L}) {
+            when(smallGroupMapper.selectOpenSmallGroupVoteCountForUpdate(SMALL_GROUP_ID)).thenReturn(count);
+            ApiException exception = catchThrowableOfType(
+                    () -> smallGroupService.createSmallGroupVote(SMALL_GROUP_ID, MEMBER_ID, voteCreateRequest()),
+                    ApiException.class);
+            assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_OPEN_VOTE_LIMIT_EXCEEDED");
+        }
+        verify(smallGroupMapper, never()).insertSmallGroupVote(any());
+        verify(smallGroupMapper, never()).insertSmallGroupVoteOptions(anyLong(), anyList());
+    }
+
+    @Test
+    // AI작성: 승인된 OWNER라도 실제 개설자가 아니면 한도 조회 전에 생성 권한을 거절한다.
+    void createSmallGroupVoteRejectsMemberWhoIsNotCreator() {
+        SmallGroupJoinTargetRow target = new SmallGroupJoinTargetRow();
+        target.setGroupId(GROUP_ID);
+        target.setCreatorMemberId(CREATOR_MEMBER_ID);
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID)).thenReturn(target);
+
+        ApiException exception = catchThrowableOfType(
+                () -> smallGroupService.createSmallGroupVote(SMALL_GROUP_ID, MEMBER_ID, voteCreateRequest()),
+                ApiException.class);
+        assertThat(exception.getCode()).isEqualTo("SMALL_GROUP_VOTE_CREATE_FORBIDDEN");
+        verify(smallGroupMapper, never()).selectOpenSmallGroupVoteCountForUpdate(anyLong());
+        verify(smallGroupMapper, never()).insertSmallGroupVote(any());
+    }
+
+    // AI작성: 생성 한도 테스트는 승인된 소모임 개설자의 기존 권한 경로를 사용한다.
+    private void mockVoteCreator() {
+        SmallGroupJoinTargetRow target = new SmallGroupJoinTargetRow();
+        target.setSmallGroupId(SMALL_GROUP_ID);
+        target.setGroupId(GROUP_ID);
+        target.setCreatorMemberId(MEMBER_ID);
+        when(smallGroupMapper.selectSmallGroupJoinTargetForUpdate(SMALL_GROUP_ID)).thenReturn(target);
+        when(smallGroupMapper.selectSmallGroupMembershipForUpdate(GROUP_ID, MEMBER_ID))
+                .thenReturn(relation("OWNER", "APPROVED"));
+    }
+
+    // AI작성: 개수 제한 검증에 필요한 최소 유효 입력을 사용한다.
+    private SmallGroupVoteCreateRequest voteCreateRequest() {
+        SmallGroupVoteCreateRequest request = new SmallGroupVoteCreateRequest();
+        request.setTitle("모임 시간");
+        request.setOptions(List.of("오전 모임", "오후 모임"));
+        request.setMultipleChoice(false);
+        request.setAnonymous(false);
+        return request;
+    }
 
     @Test
     void getSmallGroupVotesReturnsRowsForApprovedOwner() {
@@ -749,6 +831,8 @@ class SmallGroupServiceImplTest {
         row.setSmallGroupId(SMALL_GROUP_ID);
         row.setGroupId(GROUP_ID);
         row.setCreatorMemberId(creatorMemberId);
+        // AI작성: 기본 가입 대상은 한국 날짜 기준 내일로 두어 실행일에 영향받지 않는다.
+        row.setMeetDate(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(1));
         row.setMaxMembers(maxMembers);
         return row;
     }

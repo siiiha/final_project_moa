@@ -9,6 +9,12 @@ import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.service.PostService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,13 +43,23 @@ public class PostController {
         this.postService = postService;
     }
 
-    @PostMapping("/write")
+    @PostMapping(value = "/write", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Long> write(
             @RequestAttribute("memberId") Long loginMemberId,
             @Valid @RequestBody PostCreateRequest request
     ) {
         Long postId = postService.writePost(loginMemberId, request);
         return ApiResponse.ok(postId);
+    }
+
+    // AI작성: 게시글과 첨부 이미지를 함께 받습니다.
+    @PostMapping(value = "/write", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Long> writeWithImages(
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestPart("post") PostCreateRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
+    ) {
+        return ApiResponse.ok(postService.writePost(loginMemberId, request, images == null ? List.of() : images));
     }
 
     @GetMapping("/list")
@@ -63,18 +79,30 @@ public class PostController {
         return ApiResponse.ok(postService.getPostCategories());
     }
 
+    // AI작성: 공개 상세는 비로그인 요청에도 회원 번호 없이 조회할 수 있습니다.
     @GetMapping("/detail/{postId}")
     public ApiResponse<PostDto> detail(
             @PathVariable
             @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
             Long postId,
-            @RequestAttribute("memberId") Long loginMemberId
+            @RequestAttribute(value = "memberId", required = false) Long loginMemberId
     ) {
         PostDto post = postService.getPostDetail(postId, loginMemberId);
         return ApiResponse.ok(post);
     }
 
-    @PutMapping("/edit/{postId}")
+    // AI작성: 첨부 파일의 접근 권한을 요청마다 검사할 수 있도록 캐시를 사용하지 않습니다.
+    @GetMapping("/{postId}/images/{fileName}")
+    public ResponseEntity<Resource> getImage(@PathVariable @Positive Long postId, @PathVariable String fileName) {
+        Resource image = postService.getPostImage(postId, fileName);
+        return ResponseEntity.ok()
+                .contentType(fileName.endsWith(".png") ? MediaType.IMAGE_PNG : MediaType.IMAGE_JPEG)
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(image);
+    }
+
+    @PutMapping(value = "/edit/{postId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Long> editPost(
             @PathVariable
             @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
@@ -84,6 +112,18 @@ public class PostController {
         Long editPostId = postService.editPost(postId, loginMemberId, request);
 
         return ApiResponse.ok(editPostId);
+    }
+
+    // AI작성: 기존 첨부의 유지 목록과 새 파일을 함께 받습니다.
+    @PutMapping(value = "/edit/{postId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Long> editWithImages(
+            @PathVariable @Positive Long postId,
+            @RequestAttribute("memberId") Long loginMemberId,
+            @Valid @RequestPart("post") PostEditRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images
+    ) {
+        return ApiResponse.ok(postService.editPost(postId, loginMemberId, request,
+                images == null ? List.of() : images));
     }
 
     @DeleteMapping("/{postId}")

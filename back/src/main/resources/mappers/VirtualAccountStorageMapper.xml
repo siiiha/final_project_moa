@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- AI작성: DB 담당자가 전달받은 테이블·UNIQUE 제약을 적용한 뒤 사용한다. -->
+<mapper namespace="com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper">
+    <select id="selectIssue" resultType="com.nightstudy.moa.savingGroup.dto.VirtualAccountIssueRecord">
+        SELECT issue_id, approval_id, group_id, order_id, status, account_id, error_code
+        FROM saving_group_account_issue WHERE approval_id = #{approvalId}
+    </select>
+    <insert id="insertIssue" useGeneratedKeys="true" keyProperty="issueId">
+        INSERT INTO saving_group_account_issue (approval_id, group_id, order_id, status)
+        VALUES (#{approvalId}, #{groupId}, #{orderId}, 'REQUESTED')
+    </insert>
+    <update id="completeIssue">
+        UPDATE saving_group_account_issue SET status = 'COMPLETED', account_id = #{accountId}, error_code = NULL
+        WHERE approval_id = #{approvalId} AND status = 'REQUESTED'
+    </update>
+    <update id="failIssue">
+        UPDATE saving_group_account_issue SET status = #{status}, error_code = #{errorCode}
+        WHERE approval_id = #{approvalId} AND status = 'REQUESTED'
+    </update>
+    <insert id="insertAccount" useGeneratedKeys="true" keyProperty="accountId">
+        INSERT INTO group_account (group_id, bank_code, account_number, account_holder_name)
+        VALUES (#{groupId}, #{bankCode}, #{accountNumber}, #{accountHolderName})
+    </insert>
+    <select id="selectAccount" resultType="com.nightstudy.moa.savingGroup.dto.EncryptedGroupAccountRow">
+        SELECT account_id, group_id, bank_code, account_number, account_holder_name
+        FROM group_account WHERE group_id = #{groupId}
+    </select>
+</mapper>

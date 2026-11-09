@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
+import PostCategoryBadge from './PostCategoryBadge';
 
 const Card = styled.section`
   margin-top: 12px;
@@ -72,18 +73,6 @@ const Table = styled.table`
   }
 `;
 
-const Category = styled.span`
-  display: inline-flex;
-  max-width: 100%;
-  padding: 4px 7px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-`;
-
 const PostTitle = styled.button`
   width: 100%;
   overflow: hidden;
@@ -146,7 +135,7 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
                 {posts.map((post) => (
                   <tr key={post.id}>
                     <td>
-                      <Category>{post.category}</Category>
+                      <PostCategoryBadge category={post.category} size="list" />
                     </td>
                     <td>
                       <PostTitle type="button" onClick={() => onPostClick(post.id)}>
@@ -154,7 +143,8 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
                       </PostTitle>
                     </td>
                     <td>{post.author}</td>
-                    <td>{post.date.slice(5)}</td>
+                    {/* AI작성: 게시글 상세·댓글과 동일하게 연도를 포함한 전체 작성일을 표시한다. */}
+                    <td>{post.date || '-'}</td>
                     <td>{post.views}</td>
                   </tr>
                 ))}

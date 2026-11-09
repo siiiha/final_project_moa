@@ -1,9 +1,6 @@
-import { FiArrowRight } from 'react-icons/fi';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useEffect, useState } from 'react';
+import { getSavingGroupPaymentStatus, getSavingGroupTransactions } from '../../api/savingGroups';
 import styled from 'styled-components';
-import Button from '../common/Button';
-import { savingGroupTransactions } from '../../mocks/savingGroupTransactions';
-import { savingGroupDashboardSummary, savingGroupMonthlyCashFlow } from '../../mocks/savingGroupDashboard';
 
 const Panel = styled.section`
   margin-top: 22px;
@@ -33,7 +30,7 @@ const Description = styled.p`
 const Summary = styled.div`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -115,19 +112,6 @@ const CardTitle = styled.h3`
   letter-spacing: -0.65px;
 `;
 
-const ViewAllButton = styled(Button)`
-  min-height: 28px;
-  padding: 4px 0;
-  color: ${({ theme }) => theme.colors.primary};
-  border-color: transparent;
-  font-size: 11px;
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.primaryDark};
-    background: transparent;
-  }
-`;
-
 const ChartBox = styled.div`
   height: 234px;
   margin-top: 14px;
@@ -147,61 +131,6 @@ const ChartBox = styled.div`
   }
 `;
 
-const RecentTable = styled.table`
-  width: 100%;
-  margin-top: 14px;
-  overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-collapse: separate;
-  border-spacing: 0;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  table-layout: fixed;
-
-  th,
-  td {
-    padding: 9px 7px;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 11px;
-    text-align: left;
-    vertical-align: middle;
-  }
-
-  th {
-    background: ${({ theme }) => theme.colors.background};
-    color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 10px;
-    font-weight: 700;
-  }
-
-  td:nth-child(3),
-  td:nth-child(4) {
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: 0;
-  }
-
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    th,
-    td {
-      padding: 9px 5px;
-      font-size: 10px;
-    }
-
-    th {
-      font-size: 9px;
-    }
-  }
-`;
-
-const Amount = styled.strong`
-  color: ${({ $type, theme }) => ($type === '출금' ? theme.colors.danger : theme.colors.primary)};
-  font-size: inherit;
-`;
-
 const Note = styled.p`
   margin-top: 14px;
   color: ${({ theme }) => theme.colors.muted};
@@ -209,15 +138,71 @@ const Note = styled.p`
   line-height: 1.6;
 `;
 
-const formatAmount = (amount) => `${amount > 0 ? '+' : '-'}${Math.abs(amount).toLocaleString()}원`;
+const EmptyChart = styled.p`
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 12px;
+  text-align: center;
+`;
 
-function SavingGroupDashboardPanel({ onViewTransactions }) {
-  // TODO: Spring Boot 서버의 계모임 대시보드 API로 요약·추이·최근 거래 mock 데이터를 대체합니다.
-  const recentTransactions = savingGroupTransactions.slice(0, 3);
+const koreanMonth = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit',
+});
 
-  const handleViewTransactions = () => {
-    onViewTransactions();
-  };
+// AI작성: 모든 페이지를 조회하며 회비 기준이 없는 계원이 있으면 합계 표시를 보류한다.
+export async function loadOutstanding(groupId, month, signal, loadPage = getSavingGroupPaymentStatus) {
+  let total = 0;
+  let unknown = false;
+  let pages = 1;
+  for (let page = 1; page <= pages; page += 1) {
+    const { items, meta } = await loadPage(groupId, { month, page, signal });
+    signal.throwIfAborted();
+    pages = meta.totalPages;
+    for (const { remainingAmount } of items) {
+      if (remainingAmount == null) unknown = true;
+      else total += remainingAmount;
+    }
+  }
+  return unknown ? null : total;
+}
+
+async function loadBalance(groupId, _month, signal) {
+  const { items } = await getSavingGroupTransactions(groupId, { signal });
+  return items.length ? items[0].balanceAfter : null;
+}
+
+// AI작성: 모임이나 월이 바뀌면 이전 요청을 취소하고 늦게 도착한 결과를 무시한다.
+function useDashboardResult(groupId, month, load) {
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    if (groupId == null) return;
+    const controller = new AbortController();
+    load(groupId, month, controller.signal).then(
+      (value) => {
+        if (!controller.signal.aborted) setResult({ groupId, month, value });
+      },
+      () => {
+        if (!controller.signal.aborted) setResult({ groupId, month, failed: true });
+      },
+    );
+    return () => controller.abort();
+  }, [groupId, month, load]);
+  return result?.groupId === groupId && result?.month === month ? result : null;
+}
+
+export function SavingGroupDashboardView({ balance, outstanding, canViewOutstanding }) {
+  const format = (value) => value == null ? '—' : value.toLocaleString('ko-KR') + '원';
+  // AI작성: 실제 0원과 미조회·오류를 구분하고 계주에게만 미납을 표시한다.
+  const dashboardSummary = [
+    { id: 'balance', label: '현재 잔액', value: format(balance?.value) },
+    { id: 'income', label: '이번 달 납부', value: '—' },
+    ...(canViewOutstanding ? [{ id: 'overdue', label: '미납', value: format(outstanding?.value) }] : []),
+    { id: 'expense', label: '이번 달 지출', value: '—' },
+    { id: 'reviewRequired', label: '확인 필요 출금', value: '—' },
+    { id: 'payout', label: '계금 지급', value: '—' },
+  ];
 
   return (
     <Panel>
@@ -229,7 +214,7 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
       </Heading>
 
       <Summary>
-        {savingGroupDashboardSummary.map((item) => (
+        {dashboardSummary.map((item) => (
           <SummaryCard key={item.id}>
             <SummaryLabel>{item.label}</SummaryLabel>
             <SummaryValue>{item.value}</SummaryValue>
@@ -237,59 +222,26 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
         ))}
       </Summary>
 
+      {/* AI작성: 잔액과 미납 조회 상태를 독립적으로 안내한다. */}
+      {!balance && <Note role="status">잔액을 불러오는 중입니다.</Note>}
+      {balance?.failed && <Note role="alert">잔액을 불러오지 못했습니다.</Note>}
+      {balance?.value === null && <Note>거래내역이 없습니다.</Note>}
+      {canViewOutstanding && !outstanding && <Note role="status">미납 합계를 불러오는 중입니다.</Note>}
+      {canViewOutstanding && outstanding?.failed && <Note role="alert">미납 합계를 불러오지 못했습니다.</Note>}
+      {canViewOutstanding && outstanding?.value === null && <Note>회비 기준 확인이 필요합니다.</Note>}
+
       <DashboardGrid>
         <Card>
-          <CardHeader>
-            <CardTitle>수입·지출 추이</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>수입·지출 추이</CardTitle></CardHeader>
           <ChartBox aria-label="월별 수입·지출 막대 차트">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={savingGroupMonthlyCashFlow} margin={{ top: 14, right: 4, bottom: 0, left: -20 }} barGap={5}>
-                <CartesianGrid vertical={false} stroke="#e3e8e6" strokeDasharray="3 3" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}만`} />
-                <Tooltip formatter={(value) => `${value.toLocaleString()}만 원`} />
-                <Legend iconType="circle" iconSize={7} />
-                <Bar dataKey="income" name="수입" fill="#176b5b" radius={[3, 3, 0, 0]} maxBarSize={24} />
-                <Bar dataKey="expense" name="지출" fill="#bdcbd0" radius={[3, 3, 0, 0]} maxBarSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
+            <EmptyChart>거래 분류 정보가 필요합니다.</EmptyChart>
           </ChartBox>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle>최근 거래 내역</CardTitle>
-            <ViewAllButton type="button" $variant="secondary" onClick={handleViewTransactions}>
-              전체 거래 보기 <FiArrowRight size={13} aria-hidden="true" />
-            </ViewAllButton>
-          </CardHeader>
-          <RecentTable>
-            <colgroup>
-              <col width="26%" />
-              <col width="30%" />
-              <col width="22%" />
-              <col width="22%" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th scope="col">일시</th>
-                <th scope="col">내용</th>
-                <th scope="col">금액</th>
-                <th scope="col">잔액</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTransactions.map((transaction) => (
-                <tr key={transaction.id}>
-                  <td>{`${transaction.date.slice(5).replace('-', '.')} ${transaction.time}`}</td>
-                  <td>{transaction.description}</td>
-                  <td><Amount $type={transaction.type}>{formatAmount(transaction.amount)}</Amount></td>
-                  <td>{`${transaction.balance.toLocaleString()}원`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </RecentTable>
+          <CardHeader><CardTitle>지출 항목별 비율</CardTitle></CardHeader>
+          <ChartBox aria-label="지출 항목별 파이 차트">
+            <EmptyChart>거래 분류 정보가 필요합니다.</EmptyChart>
+          </ChartBox>
         </Card>
       </DashboardGrid>
 
@@ -298,4 +250,10 @@ function SavingGroupDashboardPanel({ onViewTransactions }) {
   );
 }
 
-export default SavingGroupDashboardPanel;
+// AI작성: 한국 시간의 현재 월로 승인 계주에게만 미납을 요청한다.
+export default function SavingGroupDashboardPanel({ groupId, canViewOutstanding }) {
+  const month = koreanMonth.format(new Date());
+  const balance = useDashboardResult(groupId, null, loadBalance);
+  const outstanding = useDashboardResult(canViewOutstanding ? groupId : null, month, loadOutstanding);
+  return <SavingGroupDashboardView balance={balance} outstanding={outstanding} canViewOutstanding={canViewOutstanding} />;
+}

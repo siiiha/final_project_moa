@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import SavingGroupApplicationForm from '../components/savingGroup/SavingGroupApplicationForm';
-import { createSavingGroupApplication, savingGroupRegionOptions } from '../api/savingGroups';
+import { createSavingGroupApplication } from '../api/savingGroups';
+import { getMemberRegions } from '../api/member';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -41,7 +42,19 @@ function SavingGroupApplicationPage() {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const regions = ['전체', ...savingGroupRegionOptions.map((item) => item.name)];
+  // AI작성: 기존 지역 API를 재사용하고 화면 이탈·재시도 이전의 응답은 반영하지 않는다.
+  const [regionState, setRegionState] = useState({ items: [], loading: true, error: '' });
+  const [regionRetry, setRegionRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    getMemberRegions().then((items) => {
+      if (!Array.isArray(items) || items.length === 0) throw new Error('지역 목록 없음');
+      if (active) setRegionState({ items, loading: false, error: '' });
+    }).catch(() => {
+      if (active) setRegionState({ items: [], loading: false, error: '지역을 불러오지 못했습니다. 다시 시도해 주세요.' });
+    });
+    return () => { active = false; };
+  }, [regionRetry]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -67,7 +80,13 @@ function SavingGroupApplicationPage() {
       </Heading>
       <Content>
         <SavingGroupApplicationForm
-          regions={regions}
+          regions={regionState.items}
+          regionsLoading={regionState.loading}
+          regionsError={regionState.error}
+          onRegionRetry={() => {
+            setRegionState({ items: [], loading: true, error: '' });
+            setRegionRetry((value) => value + 1);
+          }}
           onSubmit={handleSubmit}
           onCancel={() => navigate('/saving-groups')}
           isSubmitting={isSubmitting}

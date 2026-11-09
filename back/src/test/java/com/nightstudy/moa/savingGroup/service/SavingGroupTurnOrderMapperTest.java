@@ -1,0 +1,36 @@
+package com.nightstudy.moa.savingGroup.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
+import java.util.Map;
+import org.apache.ibatis.builder.xml.XMLMapperBuilder;
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.mapping.SqlCommandType;
+import org.junit.jupiter.api.Test;
+
+// AI작성: 실제 MyBatis 바인딩으로 ID 범위·전체 승인 회원·읽기 전용 계약을 확인한다. DB 실행은 별도 검증한다.
+class SavingGroupTurnOrderMapperTest {
+    @Test void recommendationReadsAllApprovedRolesWithoutFinancialOrPersonalPriority() throws Exception {
+        var config = new Configuration();
+        config.getTypeAliasRegistry().registerAlias(SavingGroupCreationRequest.class);
+        try (var reader = Resources.getResourceAsReader("mappers/SavingGroupMapper.xml")) {
+            new XMLMapperBuilder(reader, config, "mappers/SavingGroupMapper.xml", config.getSqlFragments()).parse();
+        }
+        String prefix = "com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper.";
+        // AI작성: 추천 버튼이 의존하는 실제 상세 조회의 유형 전달 누락을 방지한다.
+        assertThat(config.getMappedStatement(prefix + "selectSavingGroupDetail")
+                .getBoundSql(Map.of("groupId", 20L)).getSql()).contains("sg.saving_group_type AS group_type");
+        var context = config.getMappedStatement(prefix + "selectTurnOrderRecommendationContext");
+        assertThat(context.getSqlCommandType()).isEqualTo(SqlCommandType.SELECT);
+        assertThat(context.getBoundSql(Map.of("savingGroupId", 99L)).getSql())
+                .contains("sg.saving_group_id = ?", "g.deleted_at IS NULL");
+        var members = config.getMappedStatement(prefix + "selectTurnOrderRecommendationMembers");
+        assertThat(members.getSqlCommandType()).isEqualTo(SqlCommandType.SELECT);
+        var bound = members.getBoundSql(Map.of("groupId", 20L));
+        assertThat(bound.getSql()).contains("gm.group_id = ?", "gm.membership_status = 'APPROVED'",
+                "'OWNER', 'MANAGER', 'MEMBER'", "m.deleted_at IS NULL", "m.nickname")
+                .doesNotContain("LIMIT", "sequence_number", "payout_request", "fee_payment", "m.name", "m.email");
+        assertThat(bound.getParameterMappings()).extracting(p -> p.getProperty()).containsExactly("groupId");
+    }
+}

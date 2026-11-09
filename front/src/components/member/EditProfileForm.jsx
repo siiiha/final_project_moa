@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { FiCamera } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -6,11 +6,10 @@ import Button from '../common/Button';
 import PasswordInput from '../common/PasswordInput';
 import TextInput from '../common/TextInput';
 import {
-  getMyProfile,
   updateMyProfile,
   memberInterestOptions,
   uploadMyProfileImage,
-    deleteMyProfileImage,
+  deleteMyProfileImage,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 import ProfileImage from './ProfileImage';
@@ -224,15 +223,7 @@ const ActionButton = styled(Button)`
   font-size: 12px;
 `;
 
-// AI작성: Figma의 비밀번호 변경 안내 스타일을 적용합니다.
-const PasswordHint = styled.p`
-  margin-left: 100px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
-  line-height: 1.6;
-`;
 // AI작성: 저장 오류를 눈에 띄는 안내 상자로 보여줍니다.
-
 const ErrorNotice = styled.p`
   display: flex;
   align-items: center;
@@ -246,94 +237,62 @@ const ErrorNotice = styled.p`
   line-height: 1.5;
 `;
 
-function EditProfileForm() {
+// AI작성: 비밀번호 오류를 기존 서비스의 빨간색으로 안내합니다.
+const PasswordFeedback = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 13px;
+  line-height: 1.5;
+`;
+
+function EditProfileForm({ initialProfile }) {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const clearToken = useAuthStore((state) => state.clearToken);
   const photoInputRef = useRef(null);
-  const [profile, setProfile] = useState(null);
-  const [nickname, setNickname] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [selectedInterests, setSelectedInterests] = useState([]);
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  // AI작성: 상위 화면에서 조회한 정보를 사용해 추가 조회 없이 입력칸을 채웁니다.
+  const [profile, setProfile] = useState(initialProfile);
+  const [nickname, setNickname] = useState(initialProfile?.nickname ?? '');
+  const [selectedInterests, setSelectedInterests] = useState(
+    () => (initialProfile?.interests ?? []).map((interest) => interest.interestId),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  // AI작성: 비밀번호를 변경할 때만 입력 조건과 확인값을 검사합니다.
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
+  const [isPasswordConfirmTouched, setIsPasswordConfirmTouched] = useState(false);
+
+  const passwordChangeRequested =
+    newPassword !== '' || confirmNewPassword !== '';
+
+  const passwordError = !passwordChangeRequested
+    ? ''
+    : newPassword.length < 8 || newPassword.length > 20
+      ? '비밀번호는 8~20자로 입력해 주세요.'
+      : !/^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\[-`{-~])[!-~]{8,20}$/.test(newPassword)
+        ? '영문, 숫자, 특수문자를 각각 하나 이상 포함해 주세요.'
+        : '';
   const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
     useState(false);
-  
+
   // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
   const [photoStatus, setPhotoStatus] = useState('');
 
-  // 수정 화면에 현재 회원정보를 채움.
-  useEffect(() => {
-    if (!token) {
-      navigate('/member/login', { replace: true });
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadProfile() {
-      setIsLoading(true);
-      setErrorMessage('');
-      setProfile(null);
-
-      try {
-        const data = await getMyProfile(token);
-
-        if (!data) {
-          throw new Error('회원정보가 없습니다.');
-        }
-
-        if (!cancelled) {
-          setProfile(data);
-          setNickname(data.nickname ?? '');
-          setSelectedInterests(
-            (data.interests ?? []).map((interest) => interest.interestId),
-          );
-          setCurrentPassword('');
-        }
-      } catch (error) {
-        if (cancelled) return;
-
-        if (error.response?.status === 401) {
-          clearToken();
-          navigate('/member/login', { replace: true });
-          return;
-        }
-
-        setErrorMessage(
-          error.response?.data?.error?.message ??
-            '회원정보를 불러오지 못했습니다.',
-        );
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    loadProfile();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token, clearToken, navigate]);
-
   // AI작성: 기존 선택은 해제할 수 있고, 새 선택은 최대 3개로 제한한다.
-const toggleInterest = (interestId) => {
-  setSelectedInterests((current) => {
-    if (current.includes(interestId)) {
-      return current.filter((id) => id !== interestId);
-    }
+  const toggleInterest = (interestId) => {
+    setSelectedInterests((current) => {
+      if (current.includes(interestId)) {
+        return current.filter((id) => id !== interestId);
+      }
 
-    if (current.length >= 3) return current;
+      if (current.length >= 3) return current;
 
-    return [...current, interestId];
-  });
-};
+      return [...current, interestId];
+    });
+  };
 
   // 비밀번호는 저장소에 보관하지 않고 수정 요청에만 사용
   const handleUpdateRequest = async (event) => {
@@ -348,30 +307,16 @@ const toggleInterest = (interestId) => {
       return;
     }
 
-    if (!currentPassword.trim()) {
-      setErrorMessage('현재 비밀번호를 입력해주세요.');
+    // AI작성: 수정 요청 시 입력칸 아래에 오류를 표시합니다.
+    setIsPasswordTouched(true);
+    setIsPasswordConfirmTouched(true);
+
+    if (
+      passwordChangeRequested &&
+      (passwordError || newPassword !== confirmNewPassword)
+    ) {
+      setErrorMessage('');
       return;
-    }
-
-        // AI작성: 비밀번호 변경을 입력한 경우 길이와 확인값을 검사합니다.
-    const passwordChangeRequested =
-      newPassword !== '' || confirmNewPassword !== '';
-
-    if (passwordChangeRequested) {
-      if (!newPassword.trim() || newPassword.length < 8) {
-        setErrorMessage('새 비밀번호는 8자 이상 입력해주세요.');
-        return;
-      }
-
-      if (new TextEncoder().encode(newPassword).length > 72) {
-        setErrorMessage('비밀번호가 너무 깁니다. 더 짧게 입력해주세요.');
-        return;
-      }
-
-      if (newPassword !== confirmNewPassword) {
-        setErrorMessage('새 비밀번호와 확인 입력값이 일치하지 않습니다.');
-        return;
-      }
     }
 
     setIsSaving(true);
@@ -379,7 +324,6 @@ const toggleInterest = (interestId) => {
 
     try {
       const updatedProfile = await updateMyProfile(token, {
-        currentPassword,
         nickname: trimmedNickname,
         interestIds: selectedInterests,
         newPassword,
@@ -390,7 +334,6 @@ const toggleInterest = (interestId) => {
         throw new Error('수정 결과를 확인할 수 없습니다.');
       }
 
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
       navigate('/member/mypage');
@@ -401,12 +344,12 @@ const toggleInterest = (interestId) => {
         return;
       }
 
-            setErrorMessage(
+      setErrorMessage(
         error.response?.data?.error?.code ===
           'NEW_PASSWORD_SAME_AS_CURRENT'
           ? '지금 사용 중인 비밀번호예요. 다른 새 비밀번호를 입력해주세요.'
           : error.response?.data?.error?.message ??
-              '회원정보를 수정하지 못했습니다.',
+          '회원정보를 수정하지 못했습니다.',
       );
 
     } finally {
@@ -445,7 +388,7 @@ const toggleInterest = (interestId) => {
           ? { ...current, profileImageUrl: result.profileImageUrl }
           : current,
       );
-            } catch (error) {
+    } catch (error) {
       setPhotoStatus('error');
 
       if (error.response?.status === 401) {
@@ -456,7 +399,7 @@ const toggleInterest = (interestId) => {
 
       setErrorMessage(
         error.response?.data?.error?.message ??
-          '사진을 저장하지 못했습니다.',
+        '사진을 저장하지 못했습니다.',
       );
     } finally {
       setIsSaving(false);
@@ -488,16 +431,12 @@ const toggleInterest = (interestId) => {
 
       setErrorMessage(
         error.response?.data?.error?.message ??
-          '사진을 삭제하지 못했습니다.',
+        '사진을 삭제하지 못했습니다.',
       );
     } finally {
       setIsSaving(false);
     }
   };
-
-  if (isLoading) {
-    return <p role="status">회원정보를 불러오는 중입니다.</p>;
-  }
 
   if (!profile) {
     return <p role="alert">{errorMessage || '회원정보가 없습니다.'}</p>;
@@ -513,14 +452,14 @@ const toggleInterest = (interestId) => {
             <PhotoStatus
               role={photoStatus === 'error' ? 'alert' : 'status'}
             >
-              {photoStatus === 'uploading' 
-              ? '사진을 준비하고 있어요' 
-              : '사진을 변경하지 못했어요'}
+              {photoStatus === 'uploading'
+                ? '사진을 준비하고 있어요'
+                : '사진을 변경하지 못했어요'}
             </PhotoStatus>
           )}
         </Avatar>
         <AvatarLabel>프로필 사진</AvatarLabel>
-                <input
+        <input
           ref={photoInputRef}
           type="file"
           accept="image/jpeg,image/png"
@@ -535,7 +474,7 @@ const toggleInterest = (interestId) => {
           >
             <FiCamera size={12} aria-hidden="true" /> 사진 변경
           </AvatarButton>
-                    <AvatarButton
+          <AvatarButton
             type="button"
             $danger
             disabled={isSaving || !profile.profileImageUrl}
@@ -596,30 +535,17 @@ const toggleInterest = (interestId) => {
 
         <Divider />
 
-        <PasswordInput
-          id="edit-current-password"
-          label="현재 비밀번호"
-          placeholder="본인 확인을 위해 입력해주세요"
-          autoComplete="current-password"
-          value={currentPassword}
-          onChange={(event) => setCurrentPassword(event.target.value)}
-          required
-          disabled={isSaving}
-          inline
-          compact
-          isVisible={isPasswordVisible}
-          onToggleVisibility={() => setIsPasswordVisible((value) => !value)}
-        />
-
-                {/* AI작성: 새 비밀번호를 입력한 경우에만 변경합니다. */}
+        {/* AI작성: 새 비밀번호를 입력한 경우에만 변경합니다. */}
         <PasswordInput
           id="edit-new-password"
-          label="비밀번호 변경"
-          placeholder="변경할 경우 8자 이상 입력"
+          label="새 비밀번호"
+          placeholder="8~20자, 영문·숫자·특수문자 포함"
           autoComplete="new-password"
           value={newPassword}
           onChange={(event) => setNewPassword(event.target.value)}
-          minLength={8}
+          onBlur={() => setIsPasswordTouched(true)}
+          aria-invalid={isPasswordTouched && Boolean(passwordError)}
+          aria-describedby="edit-password-feedback"
           disabled={isSaving}
           inline
           compact
@@ -628,16 +554,21 @@ const toggleInterest = (interestId) => {
             setIsNewPasswordVisible((value) => !value)
           }
         />
+        <PasswordFeedback id="edit-password-feedback" role="status">
+          {isPasswordTouched ? passwordError : ''}
+        </PasswordFeedback>
 
         <PasswordInput
           id="edit-new-password-confirm"
-          label="비밀번호 변경 확인"
+          label="새 비밀번호 확인"
           placeholder="새 비밀번호를 다시 입력"
           autoComplete="new-password"
           value={confirmNewPassword}
           onChange={(event) =>
             setConfirmNewPassword(event.target.value)
           }
+          onBlur={() => setIsPasswordConfirmTouched(true)}
+          aria-describedby="edit-password-confirm-feedback"
           disabled={isSaving}
           inline
           compact
@@ -646,10 +577,13 @@ const toggleInterest = (interestId) => {
             setIsConfirmPasswordVisible((value) => !value)
           }
         />
-
-        <PasswordHint>
-          비밀번호를 변경하지 않으려면 두 칸 모두 비워두세요.
-        </PasswordHint>
+        <PasswordFeedback id="edit-password-confirm-feedback" role="status">
+          {(confirmNewPassword !== '' || isPasswordConfirmTouched) &&
+            passwordChangeRequested &&
+            newPassword !== confirmNewPassword
+            ? '새 비밀번호가 일치하지 않아요. 다시 확인해 주세요.'
+            : ''}
+        </PasswordFeedback>
 
         <Divider />
 
@@ -657,27 +591,27 @@ const toggleInterest = (interestId) => {
           <Label>관심사</Label>
           <ChipList aria-label="관심사 선택">
             {memberInterestOptions.map((interest) => {
-  const selected = selectedInterests.includes(interest.interestId);
-  const InterestIcon = interestIcons[interest.interestId];
+              const selected = selectedInterests.includes(interest.interestId);
+              const InterestIcon = interestIcons[interest.interestId];
 
-  return (
-    <Chip
-      key={interest.interestId}
-      type="button"
-      disabled={
-        isSaving || (!selected && selectedInterests.length >= 3)
-      }
-      $selected={selected}
-      aria-pressed={selected}
-      onClick={() => toggleInterest(interest.interestId)}
-    >
-      {InterestIcon && (
-        <InterestIcon size={18} aria-hidden="true" />
-      )}
-      <span>{interest.interestName}</span>
-    </Chip>
-  );
-})}
+              return (
+                <Chip
+                  key={interest.interestId}
+                  type="button"
+                  disabled={
+                    isSaving || (!selected && selectedInterests.length >= 3)
+                  }
+                  $selected={selected}
+                  aria-pressed={selected}
+                  onClick={() => toggleInterest(interest.interestId)}
+                >
+                  {InterestIcon && (
+                    <InterestIcon size={18} aria-hidden="true" />
+                  )}
+                  <span>{interest.interestName}</span>
+                </Chip>
+              );
+            })}
           </ChipList>
           <Hint aria-live="polite">
             최대 3개 선택 · 선택 {selectedInterests.length}/3 · 모두 해제하면 관심사 없이 저장됩니다.

@@ -239,6 +239,14 @@
         FOR UPDATE
     </select>
 
+    <!-- AI작성: 처리한 report_id와 같은 사건에 접수된 모든 신고자의 회원 번호를 중복 없이 조회한다. -->
+    <select id="selectReportReporterIds" resultType="long">
+        SELECT DISTINCT reporters.reporter_id
+        FROM member_report selected_report
+        JOIN member_report reporters ON reporters.case_id = selected_report.case_id
+        WHERE selected_report.report_id = #{reportId}
+    </select>
+
     <!-- AI작성: 신고 사건에 저장된 최종 제재 대상 회원을 조회한다. -->
     <select id="selectReportedMemberId" resultType="long">
         SELECT rc.reported_member_id

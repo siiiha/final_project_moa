@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import Button from '../common/Button';
+import PostCategoryBadge from '../post/PostCategoryBadge';
 
 const Card = styled.section`
   margin-top: 24px;
@@ -37,7 +38,8 @@ const Table = styled.table`
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
     font-weight: 700;
-    text-align: left;
+    /* AI작성: 게시글 관리 표의 모든 열 제목을 중앙 정렬한다. */
+    text-align: center;
   }
 
   td {
@@ -45,6 +47,8 @@ const Table = styled.table`
     color: ${({ theme }) => theme.colors.secondaryText};
     border-bottom: 1px solid ${({ theme }) => theme.colors.border};
     font-size: 12px;
+    /* AI작성: 제목을 제외한 게시글 목록의 표시값을 중앙 정렬한다. */
+    text-align: center;
     vertical-align: middle;
   }
 
@@ -66,7 +70,11 @@ const Table = styled.table`
   }
   th:nth-child(5) {
     width: 8%;
-    text-align: right;
+  }
+
+  /* AI작성: 긴 게시글 제목은 내용값만 왼쪽 정렬해 읽기 쉽게 표시한다. */
+  td:nth-child(2) {
+    text-align: left;
   }
 
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -115,17 +123,6 @@ const Table = styled.table`
   }
 `;
 
-const Category = styled.span`
-  display: inline-flex;
-  padding: 4px 8px;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  background: ${({ theme }) => theme.colors.background};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-`;
-
 const PostTitle = styled.strong`
   overflow: hidden;
   display: block;
@@ -137,7 +134,7 @@ const PostTitle = styled.strong`
 
 const ActionArea = styled.div`
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 5px;
 `;
 
@@ -203,7 +200,7 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                 {posts.map((post) => (
                   <tr key={post.id}>
                     <td data-label="분류">
-                      <Category>{post.category}</Category>
+                      <PostCategoryBadge category={post.category} />
                     </td>
                     <td data-label="제목">
                       <PostTitle>{post.title}</PostTitle>

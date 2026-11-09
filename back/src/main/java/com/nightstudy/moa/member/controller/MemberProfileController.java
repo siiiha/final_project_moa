@@ -1,6 +1,7 @@
 package com.nightstudy.moa.member.controller;
 
 import com.nightstudy.moa.common.dto.ApiResponse;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
 import com.nightstudy.moa.member.dto.profile.MemberPasswordUpdateRequest;
 import com.nightstudy.moa.member.dto.profile.MemberProfileResponse;
 import com.nightstudy.moa.member.dto.profile.MemberProfileUpdateRequest;
@@ -14,6 +15,9 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import com.nightstudy.moa.member.dto.region.RegionVerificationRequest;
 import com.nightstudy.moa.member.dto.identity.IdentityVerificationRequest;
 import com.nightstudy.moa.member.dto.identity.IdentityVerificationStartResponse;
+import com.nightstudy.moa.member.dto.profile.MemberJoinedGroupResponse;
+import java.util.List;
+import com.nightstudy.moa.member.dto.profile.MypagePasswordVerificationRequest;
 
 @RestController
 @RequestMapping("/api/members")
@@ -23,6 +27,30 @@ public class MemberProfileController {
 
     public MemberProfileController(MemberService memberService) {
         this.memberService = memberService;
+    }
+
+    @PostMapping("/me/mypage-verification")
+    public ResponseEntity<Void> verifyMypagePassword(
+            @RequestAttribute("memberId") Long memberId,
+            @RequestAttribute(value = "sessionId", required = false) String sessionId,
+            @Valid @RequestBody MypagePasswordVerificationRequest request
+    ) {
+        memberService.verifyMypagePassword(
+                memberId,
+                sessionId,
+                request.currentPassword()
+        );
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/me/mypage-verification")
+    public ResponseEntity<ApiResponse<Boolean>> getMypageVerification(
+            @RequestAttribute("memberId") Long memberId,
+            @RequestAttribute(value = "sessionId", required = false) String sessionId
+    ) {
+        boolean verified = memberService.hasRecentMypageVerification(memberId, sessionId);
+        return ResponseEntity.ok(ApiResponse.ok(verified));
     }
 
     @GetMapping("/me")
@@ -35,6 +63,14 @@ public class MemberProfileController {
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
+    // 로그인한 회원의 참여 모임을 조회
+    @GetMapping("/me/joined-groups")
+    public ResponseEntity<ApiResponse<List<MemberJoinedGroupResponse>>>getMyJoinedGruops(
+            @RequestAttribute("memberId") Long memberId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(memberService.getMyJoinedGroups(memberId))
+                );
+    }
     // 로그인한 회원의 지역 인증 처리
     @PostMapping("/me/region-verification")
     public ResponseEntity<ApiResponse<MemberProfileResponse>> verifyRegion(
@@ -58,16 +94,15 @@ public class MemberProfileController {
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }
 
-    // 로그인한 회원의 비밀번호를 확인하고 회원정보 수정
+    // 현재 로그인 세션으로 회원정보 수정
     @PutMapping("/me")
-    public ResponseEntity<ApiResponse<MemberProfileResponse>>
-    updateMyProfile(
+    public ResponseEntity<ApiResponse<MemberProfileResponse>> updateMyProfile(
             @RequestAttribute("memberId") Long memberId,
-            @Valid @RequestBody MemberProfileUpdateRequest
-                    request
+            @RequestAttribute(value = "sessionId", required = false) String sessionId,
+            @Valid @RequestBody MemberProfileUpdateRequest request
     ) {
         MemberProfileResponse profile =
-                memberService.updateMyProfile(memberId, request);
+                memberService.updateMyProfile(memberId, sessionId, request);
 
         return ResponseEntity.ok(ApiResponse.ok(profile));
     }

@@ -12,10 +12,13 @@ const SummaryGrid = styled.section`
 `;
 
 const SummaryCard = styled.article`
-  min-height: 132px;
+  /* AI작성: 안내 문구를 제거한 카드 내용량에 맞춰 불필요한 세로 여백을 줄인다. */
+  min-height: 104px;
   padding: 16px;
   display: grid;
-  align-content: space-between;
+  /* AI작성: 항목명과 집계 수치가 한 묶음으로 읽히도록 간격을 좁힌다. */
+  align-content: start;
+  gap: 6px;
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -28,7 +31,8 @@ const CardTop = styled.div`
   justify-content: space-between;
   gap: 8px;
   color: ${({ theme }) => theme.colors.secondaryText};
-  font-size: 12px;
+  /* AI작성: 회원 현황 항목명을 더 뚜렷하게 보여 주도록 크기를 키운다. */
+  font-size: 15px;
   font-weight: 700;
 `;
 
@@ -47,16 +51,11 @@ const IconBox = styled.span`
 `;
 
 const Value = styled.strong`
-  margin-top: 12px;
-  color: ${({ theme }) => theme.colors.text};
-  font-size: 23px;
+  margin-top: 0;
+  color: ${({ $tone, theme }) => ($tone === 'danger' ? theme.colors.danger : theme.colors.text)};
+  /* AI작성: 핵심 집계 수치를 빠르게 확인할 수 있도록 강조한다. */
+  font-size: 29px;
   letter-spacing: -1px;
-`;
-
-const Description = styled.p`
-  margin-top: 3px;
-  color: ${({ theme }) => theme.colors.muted};
-  font-size: 10px;
 `;
 
 function AdminDashboard({ stats }) {
@@ -74,8 +73,7 @@ function AdminDashboard({ stats }) {
               </IconBox>
             </CardTop>
             <div>
-              <Value>{stat.value}</Value>
-              <Description>{stat.description}</Description>
+              <Value $tone={stat.tone}>{stat.value}</Value>
             </div>
           </SummaryCard>
         );

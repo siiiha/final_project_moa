@@ -1,8 +1,9 @@
+import SmallGroupNoticeDetailPage from './pages/SmallGroupNoticeDetailPage';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import FindAccountPage from './pages/FindAccountPage';
+import PortOneFindAccountPage from './pages/PortOneFindAccountPage';
 import MyPage from './pages/MyPage';
 import EditProfilePage from './pages/EditProfilePage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
@@ -24,6 +25,7 @@ import AdminReportsPage from './pages/AdminReportsPage';
 import AdminReportDetailPage from './pages/AdminReportDetailPage';
 import SavingGroupsPage from './pages/SavingGroupsPage';
 import SavingGroupDetailPage from './pages/SavingGroupDetailPage';
+import SavingGroupNoticeDetailPage from './pages/SavingGroupNoticeDetailPage';
 import SavingGroupApplicationPage from './pages/SavingGroupApplicationPage';
 import SavingGroupSettingsPage from './pages/SavingGroupSettingsPage';
 import SmallGroupsPage from './pages/SmallGroupsPage';
@@ -51,13 +53,17 @@ function App() {
         <Route path="/saving-groups" element={<SavingGroupsPage />} />
         <Route path="/saving-groups/new" element={<SavingGroupApplicationPage />} />
         <Route path="/saving-groups/:id/settings" element={<SavingGroupSettingsPage />} />
+        {/* AI작성: id는 공통 group_id이며 공지 상세 권한은 서버에서 확인한다. */}
+        <Route path="/saving-groups/:id/notices/:noticeId" element={<SavingGroupNoticeDetailPage />} />
         <Route path="/saving-groups/:id" element={<SavingGroupDetailPage />} />
         <Route path="/small-groups/new" element={<SmallGroupCreatePage />} />
         <Route path="/small-groups/:smallGroupId/votes/:voteId" element={<SmallGroupVoteDetailPage />} />
+        {/* AI작성: 소모임 공지 본문은 별도 경로에서 조회한다. */}
+        <Route path="/small-groups/:id/notices/:noticeId" element={<SmallGroupNoticeDetailPage />} />
         <Route path="/small-groups/:id" element={<SmallGroupDetailPage />} />
         <Route path="/small-groups" element={<SmallGroupsPage />} />
         <Route path="/member/login" element={<LoginPage />} />
-        <Route path="/member/find-account" element={<FindAccountPage />} />
+        <Route path="/member/find-account" element={<PortOneFindAccountPage />} />
         <Route path="/member/reset-password" element={<ResetPasswordPage />} />
 
         {/* AI작성: 카카오 인증 후 로그인 결과를 처리하는 화면 */}

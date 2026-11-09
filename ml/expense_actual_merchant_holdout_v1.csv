@@ -1,0 +1,20 @@
+merchant_name,expected_category,source,source_tag
+북촌게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+골든폰드 게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+남산 게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+비원게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+리앤노 게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+카르페디엠 게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+와우게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+우리집게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+명동게스트하우스,숙박비,OpenStreetMap contributors (ODbL),tourism=guest_house
+국립서울과학관,활동비,OpenStreetMap contributors (ODbL),tourism=museum
+잠실자동차극장,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+CGV 목동,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+롯데시네마극장,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+메가박스 상암,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+상봉시네마,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+시네마로,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+메가박스 센트럴,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+태양극장,활동비,OpenStreetMap contributors (ODbL),amenity=cinema
+꿈나무극장,활동비,OpenStreetMap contributors (ODbL),amenity=cinema

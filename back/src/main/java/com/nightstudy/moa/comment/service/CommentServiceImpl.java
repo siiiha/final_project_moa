@@ -10,12 +10,16 @@ import com.nightstudy.moa.comment.dto.CommentSearchCondition;
 import com.nightstudy.moa.comment.mapper.CommentMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.CommentNotificationEvent;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.post.dto.PostDto;
 import com.nightstudy.moa.post.mapper.PostMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,16 +31,19 @@ public class CommentServiceImpl implements CommentService {
     private final CommentMapper commentMapper;
     private final PostMapper postMapper;
     private final MemberFeatureRestrictionService restrictionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public CommentServiceImpl(
             CommentMapper commentMapper,
             PostMapper postMapper,
-            MemberFeatureRestrictionService restrictionService
+            MemberFeatureRestrictionService restrictionService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.commentMapper = commentMapper;
         this.postMapper = postMapper;
         this.restrictionService = restrictionService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -63,7 +70,13 @@ public class CommentServiceImpl implements CommentService {
             );
         }
 
-        return commentMapper.selectCommentById(comment.getCommentId());
+        CommentDto savedComment = commentMapper.selectCommentById(comment.getCommentId());
+        PostDto post = postMapper.selectPostDetail(postId);
+
+        // AI작성: 자신의 게시글에 직접 작성한 댓글은 제외하고 게시글 작성자에게 알림을 보냅니다.
+        sendCommentNotification(post.getWriterId(), memberId, postId);
+
+        return savedComment;
     }
 
     @Override
@@ -108,7 +121,12 @@ public class CommentServiceImpl implements CommentService {
             );
         }
 
-        return commentMapper.selectCommentById(reply.getCommentId());
+        CommentDto savedReply = commentMapper.selectCommentById(reply.getCommentId());
+
+        // AI작성: 자신의 댓글에 직접 작성한 대댓글은 제외하고 부모 댓글 작성자에게 알림을 보냅니다.
+        sendReplyNotification(parentComment.getMemberId(), memberId, postId);
+
+        return savedReply;
     }
 
 
@@ -270,6 +288,36 @@ public class CommentServiceImpl implements CommentService {
                 memberId,
                 MemberRestrictionScope.CONTENT
         );
+    }
+
+    // AI작성: 게시글 작성자와 댓글 작성자가 다를 때 게시글 상세 화면으로 이동할 수 있는 알림을 생성합니다.
+    private void sendCommentNotification(Long receiverId, Long writerId, Long postId) {
+        if (Objects.equals(receiverId, writerId)) {
+            return;
+        }
+
+        // AI작성: 댓글 트랜잭션이 커밋된 뒤 알림을 저장·전송할 수 있도록 이벤트만 발행합니다.
+        eventPublisher.publishEvent(new CommentNotificationEvent(
+                receiverId,
+                NotificationType.POST_COMMENT_CREATED,
+                "작성하신 게시글에 새로운 댓글이 등록되었습니다.",
+                "/post/" + postId
+        ));
+    }
+
+    // AI작성: 부모 댓글 작성자와 대댓글 작성자가 다를 때 게시글 상세 화면으로 이동할 수 있는 알림을 생성합니다.
+    private void sendReplyNotification(Long receiverId, Long writerId, Long postId) {
+        if (Objects.equals(receiverId, writerId)) {
+            return;
+        }
+
+        // AI작성: 대댓글 알림도 부모 트랜잭션이 커밋된 뒤 처리하도록 이벤트만 발행합니다.
+        eventPublisher.publishEvent(new CommentNotificationEvent(
+                receiverId,
+                NotificationType.COMMENT_REPLY_CREATED,
+                "작성하신 댓글에 새로운 답글이 등록되었습니다.",
+                "/post/" + postId
+        ));
     }
 }
 

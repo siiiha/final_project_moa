@@ -11,6 +11,8 @@ import com.nightstudy.moa.admin.dto.RestrictionAction;
 import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -22,14 +24,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminMemberServiceImpl implements AdminMemberService {
     private final AdminMemberMapper adminMemberMapper;
     private final MemberRestrictionPolicy memberRestrictionPolicy;
+    private final NotificationService notificationService;
 
     // AI작성: 조회·기능별 제한 저장 Mapper와 공통 제한 기간 정책을 재사용한다.
     public AdminMemberServiceImpl(
             AdminMemberMapper adminMemberMapper,
-            MemberRestrictionPolicy memberRestrictionPolicy
+            MemberRestrictionPolicy memberRestrictionPolicy,
+            NotificationService notificationService
     ) {
         this.adminMemberMapper = adminMemberMapper;
         this.memberRestrictionPolicy = memberRestrictionPolicy;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -101,6 +106,14 @@ public class AdminMemberServiceImpl implements AdminMemberService {
         ) != 1) {
             throw restrictionConflict();
         }
+
+        // AI작성: 제한 상태와 이력이 모두 저장된 경우에만 대상 회원에게 결과를 알립니다.
+        notificationService.send(
+                memberId,
+                NotificationType.MEMBER_RESTRICTED,
+                restrictionScopeLabel(restrictionScope) + " 이용이 제한되었습니다.",
+                "/member/mypage"
+        );
     }
 
     @Override
@@ -134,6 +147,23 @@ public class AdminMemberServiceImpl implements AdminMemberService {
                 ) != 1) {
             throw restrictionConflict();
         }
+
+        // AI작성: 제한 해제와 해제 이력이 모두 저장된 경우에만 대상 회원에게 결과를 알립니다.
+        notificationService.send(
+                memberId,
+                NotificationType.MEMBER_RESTRICTION_RELEASED,
+                restrictionScopeLabel(restrictionScope) + " 이용 제한이 해제되었습니다.",
+                "/member/mypage"
+        );
+    }
+
+    // AI작성: 내부 제한 코드를 회원이 이해하기 쉬운 화면 문구로 변환합니다.
+    private String restrictionScopeLabel(MemberRestrictionScope restrictionScope) {
+        return switch (restrictionScope) {
+            case CONTENT -> "게시글·댓글 작성";
+            case CHAT -> "채팅";
+            case REPORT -> "신고";
+        };
     }
 
     // AI작성: 동시 요청에 사용될 잠긴 회원 정보를 조회하고 존재하지 않으면 404로 처리한다.

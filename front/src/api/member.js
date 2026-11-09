@@ -10,15 +10,48 @@ export async function loginMember(email, password) {
     return response.data.data;
 }
 
-export async function getMyProfile(token) {
-    const response = await client.get('/members/me', {
+// AI작성: 같은 로그인 토큰으로 동시에 요청하면 진행 중인 조회를 함께 사용합니다.
+const profileRequests = new Map();
+
+export function getMyProfile(token) {
+    if (profileRequests.has(token)) {
+        return profileRequests.get(token);
+    }
+
+    const request = client.get('/members/me', {
         headers: {
             Authorization: `Bearer ${token}`,
         },
+    })
+        .then((response) => response.data.data)
+        .finally(() => {
+            // AI작성: 완료 후에는 보관하지 않아 다음 조회에서 최신 정보를 받습니다.
+            profileRequests.delete(token);
+        });
+
+    profileRequests.set(token, request);
+    return request;
+}
+
+export async function getMypageVerification({ signal } = {}) {
+    const response = await client.get('/members/me/mypage-verification', {
+        signal,
     });
+
     return response.data.data;
 }
 
+export async function verifyMypagePassword(currentPassword) {
+    await client.post('/members/me/mypage-verification', {
+        currentPassword,
+    });
+}
+
+// AI작성: 로그인한 회원의 참여 모임 목록을 조회한다.
+export async function getMyJoinedGroups({ signal } = {}) {
+    const response = await client.get('/members/me/joined-groups', { signal });
+    return response.data.data;
+}
 
 // AI작성: 현재 좌표와 정확도를 서버에 전달해 지역 인증을 요청한다.
 export async function verifyMyRegion(token, position) {
@@ -150,9 +183,17 @@ export async function signupMember(request) {
     return response.data.data;
 }
 
-// AI작성: 로그인 인증을 포함하여 사진 파일을 가져옵니다.
-export async function getMyProfileImage(token, imageUrl) {
-    const response = await client.get(
+// AI작성: 같은 로그인 토큰과 사진 주소의 동시 조회를 하나로 합칩니다.
+const profileImageRequests = new Map();
+
+export function getMyProfileImage(token, imageUrl) {
+    const requestKey = JSON.stringify([token, imageUrl]);
+
+    if (profileImageRequests.has(requestKey)) {
+        return profileImageRequests.get(requestKey);
+    }
+
+    const request = client.get(
         imageUrl.replace(/^\/api\//, '/'),
         {
             headers: {
@@ -160,9 +201,15 @@ export async function getMyProfileImage(token, imageUrl) {
             },
             responseType: 'blob',
         },
-    );
+    )
+        .then((response) => response.data)
+        .finally(() => {
+            // AI작성: 성공·실패 후 요청을 제거해 다음 조회와 재시도를 허용합니다.
+            profileImageRequests.delete(requestKey);
+        });
 
-    return response.data;
+    profileImageRequests.set(requestKey, request);
+    return request;
 }
 
 // AI작성: 프로필 사진을 삭제합니다.
@@ -225,6 +272,19 @@ export async function findMemberAccount(email, emailVerificationToken) {
     return response.data.data;
 }
 
+export async function startAccountRecovery() {
+    const response = await client.post('/auth/account-recovery/start');
+    return response.data.data;
+}
+
+export async function completeAccountRecovery(identityVerificationId, requestToken) {
+    const response = await client.post('/auth/account-recovery/complete', {
+        identityVerificationId,
+        requestToken,
+    });
+    return response.data.data;
+}
+
 // AI작성: 이메일 인증 완료 토큰과 새 비밀번호로 재설정을 요청한다.
 export async function resetMemberPassword(
     email,
@@ -244,49 +304,49 @@ export async function resetMemberPassword(
 
 // AI작성: 서버에서 로그인 회원의 본인인증 요청 번호를 발급받습니다.
 export async function startMyIdentityVerification(token) {
-  const response = await client.post(
-    '/members/me/identity-verification/start',
-    null,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  );
+    const response = await client.post(
+        '/members/me/identity-verification/start',
+        null,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
 
-  return response.data.data;
+    return response.data.data;
 }
 
 // AI작성: 서버가 포트원 결과를 검증한 뒤 갱신된 회원 정보를 받습니다.
 export async function completeMyIdentityVerification(
-  token,
-  identityVerificationId,
+    token,
+    identityVerificationId,
 ) {
-  const response = await client.post(
-    '/members/me/identity-verification/complete',
-    { identityVerificationId },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      timeout: 20000,
-    },
-  );
+    const response = await client.post(
+        '/members/me/identity-verification/complete',
+        { identityVerificationId },
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+            timeout: 20000,
+        },
+    );
 
-  return response.data.data;
+    return response.data.data;
 }
 
 // AI작성: 활동 지역을 변경하고 갱신된 회원정보를 반환한다.
 export async function updateMyRegion(token, regionId) {
-  const response = await client.put(
-    '/members/me/region',
-    { regionId },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-  );
+    const response = await client.put(
+        '/members/me/region',
+        { regionId },
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
 
-  return response.data.data;
+    return response.data.data;
 }

@@ -5,20 +5,30 @@ import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionSer
 import com.nightstudy.moa.common.dto.PageMeta;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.post.dto.PostDto;
+import com.nightstudy.moa.post.dto.PostImageDto;
 import com.nightstudy.moa.post.dto.PostCategoryDto;
 import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.mapper.PostMapper;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.HashSet;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PostServiceImpl implements PostService {
+    private static final int MAX_IMAGES = 3;
+    private final PostImageStorage imageStorage;
     private final PostMapper postMapper;
     private final MemberFeatureRestrictionService restrictionService;
 
@@ -26,9 +36,11 @@ public class PostServiceImpl implements PostService {
     @Autowired
     public PostServiceImpl(
             PostMapper postMapper,
-            MemberFeatureRestrictionService restrictionService
+            MemberFeatureRestrictionService restrictionService,
+            PostImageStorage imageStorage
     ) {
         this.postMapper = postMapper;
+        this.imageStorage = imageStorage;
         this.restrictionService = restrictionService;
     }
 
@@ -79,11 +91,35 @@ public class PostServiceImpl implements PostService {
         } else {
             System.out.println("작성자 본인이거나 존재하지 않는 게시글입니다.");
         }
+        post.setImages(postMapper.selectPostImages(postId));
         return post;
+    }
+
+    // AI작성: 상세 조회와 같은 게시글 조건을 적용하고 파일의 소속을 확인합니다.
+    @Override
+    public Resource getPostImage(Long postId, String fileName) {
+        String imageUrl = postImagePrefix(postId) + fileName;
+        if (postMapper.selectPostDetail(postId) == null
+                || postMapper.selectPostImages(postId).stream().noneMatch(image -> imageUrl.equals(image.getImageUrl()))) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "POST_IMAGE_NOT_FOUND", "게시글 사진을 찾을 수 없습니다.");
+        }
+        return imageStorage.load(fileName);
+    }
+
+    private String postImagePrefix(Long postId) {
+        return "/api/community/" + postId + "/images/";
     }
 
     @Override
     public Long writePost(Long loginMemberId, PostCreateRequest request) {
+        return writePost(loginMemberId, request, List.of());
+    }
+
+    // AI작성: 게시글과 첨부 DB 작업을 같은 트랜잭션에서 처리합니다.
+    @Override
+    @Transactional
+    public Long writePost(Long loginMemberId, PostCreateRequest request, List<MultipartFile> images) {
+        validateImageCount(images.size());
         validateContentAllowed(loginMemberId);
 
         int categoryCount =
@@ -113,7 +149,40 @@ public class PostServiceImpl implements PostService {
             );
         }
 
+        if (!images.isEmpty()) {
+            saveImages(postDto.getPostId(), images, 0);
+        }
         return postDto.getPostId();
+    }
+
+    private void validateImageCount(int count) {
+        if (count > MAX_IMAGES) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "POST_IMAGE_LIMIT_EXCEEDED",
+                    "게시글에는 사진을 최대 3장 첨부할 수 있습니다.");
+        }
+    }
+
+    private void saveImages(Long postId, List<MultipartFile> images, int sortOrder) {
+        List<String> storedFiles = new ArrayList<>();
+        // AI작성: 후속 파일 저장이나 DB 작업이 실패하면 이번 요청의 파일을 정리합니다.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    storedFiles.forEach(imageStorage::delete);
+                }
+            }
+        });
+
+        for (MultipartFile image : images) {
+            String fileName = imageStorage.store(image);
+            storedFiles.add(fileName);
+            String imageUrl = postImagePrefix(postId) + fileName;
+            if (postMapper.insertPostImage(postId, imageUrl, sortOrder++) != 1) {
+                throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "POST_IMAGE_SAVE_FAILED",
+                        "게시글 사진 저장에 실패했습니다.");
+            }
+        }
     }
 
     @Override
@@ -164,6 +233,60 @@ public class PostServiceImpl implements PostService {
         return postId;
     }
 
+
+    // AI작성: 게시글 행을 잠그고 본문과 첨부 변경을 한 트랜잭션에서 처리합니다.
+    @Override
+    @Transactional
+    public Long editPost(Long postId, Long loginMemberId, PostEditRequest request, List<MultipartFile> images) {
+        if (postMapper.selectActivePostIdForUpdate(postId) == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "게시글을 찾을 수 없습니다.");
+        }
+        editPost(postId, loginMemberId, request);
+
+        List<Long> retainedIds = request.getRetainedImageIds();
+        if (retainedIds == null) {
+            throw invalidImageSelection();
+        }
+        validateImageCount(retainedIds.size() + images.size());
+        List<PostImageDto> existingImages = postMapper.selectPostImages(postId);
+        List<Long> existingIds = existingImages.stream().map(PostImageDto::getImageId).toList();
+        if (new HashSet<>(retainedIds).size() != retainedIds.size() || !existingIds.containsAll(retainedIds)) {
+            throw invalidImageSelection();
+        }
+
+        List<String> removedFiles = new ArrayList<>();
+        String prefix = postImagePrefix(postId);
+        for (PostImageDto image : existingImages) {
+            int sortOrder = retainedIds.indexOf(image.getImageId());
+            if (sortOrder >= 0) {
+                postMapper.updatePostImageOrder(postId, image.getImageId(), sortOrder);
+            } else {
+                postMapper.deletePostImage(postId, image.getImageId());
+                if (image.getImageUrl().startsWith(prefix)) {
+                    removedFiles.add(image.getImageUrl().substring(prefix.length()));
+                }
+            }
+        }
+        if (!images.isEmpty()) {
+            saveImages(postId, images, retainedIds.size());
+        }
+
+        // AI작성: 실패 시 기존 첨부 파일이 유지되도록 커밋 후에만 삭제합니다.
+        if (!removedFiles.isEmpty()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    removedFiles.forEach(imageStorage::delete);
+                }
+            });
+        }
+        return postId;
+    }
+
+    private ApiException invalidImageSelection() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "INVALID_POST_IMAGE_SELECTION",
+                "유지할 게시글 사진 목록을 확인해주세요.");
+    }
 
     @Override
     public void deletePost(Long postId, Long loginMemberId) {

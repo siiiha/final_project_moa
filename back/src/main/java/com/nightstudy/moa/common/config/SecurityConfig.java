@@ -3,6 +3,7 @@ package com.nightstudy.moa.common.config;
 import com.nightstudy.moa.common.auth.JwtAuthenticationFilter;
 import com.nightstudy.moa.common.auth.JwtTokenProvider;
 import com.nightstudy.moa.common.auth.SecurityErrorResponseWriter;
+import com.nightstudy.moa.member.mapper.RevokedTokenMapper;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -35,14 +36,15 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http
-    ) throws Exception {
+            HttpSecurity http,
+            RevokedTokenMapper revokedTokenMapper) throws Exception {
 
         // AI작성: 회원 상태와 로그인 세션을 함께 검증하는 JWT 필터를 등록한다.
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter (
+                new JwtAuthenticationFilter(
                         jwtTokenProvider,
                         errorResponseWriter,
+                        revokedTokenMapper,
                         authSessionService
                 );
 
@@ -68,8 +70,10 @@ public class SecurityConfig {
                 // API 접근 규칙
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(
+                                DispatcherType.ASYNC,
                                 DispatcherType.ERROR
                         ).permitAll()
+
 
                         .requestMatchers(
                                 HttpMethod.OPTIONS, "/**"
@@ -88,7 +92,9 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/auth/email-verifications/verify",
-                                "/api/auth/email-verifications/find-account"
+                                "/api/auth/email-verifications/find-account",
+                                "/api/auth/account-recovery/start",
+                                "/api/auth/account-recovery/complete"
                         ).permitAll()
 
                         // AI작성: 소셜 인증 시작·콜백·결과 조회는 비로그인 상태에서 허용한다.
@@ -120,7 +126,9 @@ public class SecurityConfig {
 
                         // AI작성: 숫자 게시글 ID의 상세 GET 요청은 비로그인 조회를 허용한다.
                         .requestMatchers(
-                                new RegexRequestMatcher("^/api/community/detail/\\d+$", HttpMethod.GET.name())
+                                // AI작성: 공개 게시글 상세와 동일하게 이미지 조회는 비로그인 요청도 받습니다.
+                                new RegexRequestMatcher("^/api/community/detail/\\d+$", HttpMethod.GET.name()),
+                                new RegexRequestMatcher("^/api/community/\\d+/images/[^/]+$", HttpMethod.GET.name())
                         ).permitAll()
 
                         // AI작성: 게시글의 댓글 목록은 작성·수정 권한과 분리해 공개 조회만 허용한다.
@@ -133,9 +141,17 @@ public class SecurityConfig {
                                 new RegexRequestMatcher("^/api/small-groups/\\d+$", HttpMethod.GET.name())
                         ).permitAll()
 
+                        // AI작성: 후기 목록 GET만 공개하며 같은 경로의 POST 등록은 기존 인증 정책을 유지한다.
+                        .requestMatchers(
+                                new RegexRequestMatcher("^/api/small-groups/\\d+/reviews$", HttpMethod.GET.name())
+                        ).permitAll()
+
                         .requestMatchers(
                                 "/api/admin/**"
                         ).hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/chatbot/messages").permitAll()
 
                         .requestMatchers(
                                 "/api/**"

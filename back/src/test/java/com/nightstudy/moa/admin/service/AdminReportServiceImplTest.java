@@ -15,7 +15,10 @@ import com.nightstudy.moa.admin.mapper.AdminMemberMapper;
 import com.nightstudy.moa.admin.mapper.AdminReportMapper;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,6 +36,9 @@ class AdminReportServiceImplTest {
 
     @Mock
     private MemberRestrictionPolicy memberRestrictionPolicy;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private AdminReportServiceImpl adminReportService;
@@ -148,6 +154,51 @@ class AdminReportServiceImplTest {
         adminReportService.processReport(10L, request);
 
         verify(adminReportMapper).deleteReportedPost(10L);
+    }
+
+    @Test
+    // AI작성: 같은 사건의 모든 신고자에게 승인 결과 알림을 발송한다.
+    void confirmedReportNotifiesAllReporters() {
+        LocalDateTime restrictedUntil = LocalDateTime.of(2026, 11, 6, 10, 0);
+        AdminReportProcessRequest request = new AdminReportProcessRequest();
+        request.setStatus("CONFIRMED");
+        request.setRestrictionScope(MemberRestrictionScope.REPORT);
+        request.setRestrictionType("7_DAYS");
+        request.setProcessReason("운영정책 위반");
+        AdminMemberRestrictionTarget target = new AdminMemberRestrictionTarget();
+        target.setMemberId(2L);
+        target.setAccountStatus("ACTIVE");
+        when(adminReportMapper.selectReportForUpdate(10L)).thenReturn(pendingReport("MEMBER"));
+        when(adminReportMapper.selectReportedMemberId(10L)).thenReturn(2L);
+        when(adminMemberMapper.selectRestrictionTargetForUpdate(2L, MemberRestrictionScope.REPORT)).thenReturn(target);
+        when(memberRestrictionPolicy.calculateRestrictedUntil(eq(false), eq(null), eq("7_DAYS"), any()))
+                .thenReturn(restrictedUntil);
+        when(adminMemberMapper.insertRestrictionHistory(any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(adminReportMapper.updateReportProcess(10L, "CONFIRMED", "운영정책 위반", restrictedUntil)).thenReturn(1);
+        when(adminReportMapper.selectReportReporterIds(10L)).thenReturn(List.of(3L, 4L));
+
+        adminReportService.processReport(10L, request);
+
+        verify(notificationService).send(3L, NotificationType.REPORT_PROCESSED,
+                "신고하신 내용이 확인되어 처리되었습니다.", null);
+        verify(notificationService).send(4L, NotificationType.REPORT_PROCESSED,
+                "신고하신 내용이 확인되어 처리되었습니다.", null);
+    }
+
+    @Test
+    // AI작성: 반려 처리에는 제재 없이 신고자에게 반려 결과만 알린다.
+    void rejectedReportNotifiesReporter() {
+        AdminReportProcessRequest request = new AdminReportProcessRequest();
+        request.setStatus("REJECTED");
+        request.setProcessReason("신고 내용 확인 불가");
+        when(adminReportMapper.selectReportForUpdate(10L)).thenReturn(pendingReport("POST"));
+        when(adminReportMapper.updateReportProcess(10L, "REJECTED", "신고 내용 확인 불가", null)).thenReturn(1);
+        when(adminReportMapper.selectReportReporterIds(10L)).thenReturn(List.of(3L));
+
+        adminReportService.processReport(10L, request);
+
+        verify(notificationService).send(3L, NotificationType.REPORT_PROCESSED,
+                "신고하신 내용을 검토했으나 반려되었습니다.", null);
     }
 
     private AdminReportListItemResponse pendingReport(String reportType) {

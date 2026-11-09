@@ -64,6 +64,14 @@
             sg.dues_amount,
             sg.dues_day,
             sg.status,
+            <!-- AI작성: 계모임의 일반 일시정지와 관리자 제재를 구분하기 위해 최신 제한 이력을 확인한다. -->
+            COALESCE((
+                SELECT rh.action = 'RESTRICT'
+                FROM restriction_history rh
+                WHERE rh.saving_group_id = sg.saving_group_id
+                ORDER BY rh.restriction_history_id DESC
+                LIMIT 1
+            ), FALSE) AS admin_restricted,
             g.created_at
         <include refid="adminSavingGroupFromWhere"/>
         ORDER BY g.created_at DESC, sg.saving_group_id DESC
