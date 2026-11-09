@@ -1,6 +1,7 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import static org.assertj.core.api.Assertions.*;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
@@ -67,7 +68,10 @@ class SavingGroupDepositMySqlIntegrationTest {
             }
             var mapper = new SqlSessionTemplate(new SqlSessionFactoryBuilder().build(config)).getMapper(SavingGroupMapper.class);
             var manager = new DataSourceTransactionManager(source);
-            var proxy = new ProxyFactory(new SavingGroupDepositServiceImpl(mapper, () -> {}));
+            // AI작성: MySQL 통합 테스트는 입금 원장에 집중하도록 알림 의존성을 Mock으로 주입한다.
+            NotificationService notificationService = org.mockito.Mockito.mock(NotificationService.class);
+            ProxyFactory proxy = new ProxyFactory(
+                    new SavingGroupDepositServiceImpl(mapper, notificationService, () -> {}));
             proxy.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));
             var service = (SavingGroupDepositService) proxy.getProxy();
             var gate = new CountDownLatch(1);
@@ -91,7 +95,8 @@ class SavingGroupDepositMySqlIntegrationTest {
             // AI작성: 원장 INSERT 뒤 보조 기록 실패를 주입해 실제 DB에 부분 거래가 남지 않는지 검증한다.
             var failing = org.mockito.Mockito.mock(SavingGroupMapper.class, org.mockito.AdditionalAnswers.delegatesTo(mapper));
             org.mockito.Mockito.doReturn(0).when(failing).insertDepositRequest(org.mockito.ArgumentMatchers.any());
-            var failingProxy = new ProxyFactory(new SavingGroupDepositServiceImpl(failing, () -> {}));
+            ProxyFactory failingProxy = new ProxyFactory(
+                    new SavingGroupDepositServiceImpl(failing, notificationService, () -> {}));
             failingProxy.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));
             assertThatThrownBy(() -> ((SavingGroupDepositService) failingProxy.getProxy()).deposit(10L, 20L,
                     new SavingGroupDepositRequest(new BigDecimal("2000"), "mock-rollback-key-0001"))).isInstanceOf(RuntimeException.class);
