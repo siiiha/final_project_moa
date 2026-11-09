@@ -47,6 +47,13 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
     SavingGroupDepositServiceImpl(SavingGroupMapper mapper, Runnable delay) {
         this(mapper, Optional.empty(), delay);
     }
+    // AI작성: 테스트도 실제 서비스와 같이 알림 의존성을 명시적으로 전달하도록 점진적으로 전환한다.
+    SavingGroupDepositServiceImpl(
+            SavingGroupMapper mapper,
+            NotificationService notificationService,
+            Runnable delay) {
+        this(mapper, Optional.of(notificationService), delay);
+    }
     SavingGroupDepositServiceImpl(
             SavingGroupMapper mapper,
             Optional<NotificationService> notificationService,
