@@ -102,6 +102,6 @@ class SmallGroupVoteParticipationControllerTest {
                 LocalDateTime.of(2026, 11, 1, 10, 0), LocalDateTime.of(2026, 11, 2, 18, 0),
                 "OPEN", 2L, new SmallGroupVoteMyParticipationResponse(true, List.of(101L)),
                 List.of(new SmallGroupVoteOptionDetailResponse(
-                        101L, "한강공원", 1, 2L, List.of("걷기좋아"))));
+                        101L, "한강공원", 1, 2L, List.of("걷기좋아"))), false);
     }
 }

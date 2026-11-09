@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -25,6 +26,8 @@ import com.nightstudy.moa.common.dto.PageMeta;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Date;
+import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -178,6 +181,36 @@ class SmallGroupSecurityIntegrationTest {
     void smallGroupVoteDeleteApiRequiresAuthentication() throws Exception {
         mockMvc.perform(delete("/api/small-groups/1/votes/2"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // AI작성: 인증 속성 위조만으로 종료 API에 접근할 수 없고 Service도 호출되지 않는다.
+    @Test
+    void smallGroupVoteCloseApiRequiresAuthentication() throws Exception {
+        mockMvc.perform(patch("/api/small-groups/1/votes/2/close").requestAttr("memberId", 40L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("LOGIN_REQUIRED"));
+        verifyNoInteractions(smallGroupService);
+    }
+
+    // AI작성: 실제 서명 토큰 대신 가상 Claims로 필터를 통과시키고 JWT 회원 ID가 요청 속성을 덮어쓰는지 확인한다.
+    @Test
+    void authenticatedVoteCloseUsesJwtMemberId() throws Exception {
+        Claims claims = mock(Claims.class);
+        Date expiration = new Date(System.currentTimeMillis() + 60000);
+        when(jwtTokenProvider.parseToken("mock-close-request")).thenReturn(claims);
+        when(claims.getSubject()).thenReturn("40");
+        when(claims.get("role", String.class)).thenReturn("USER");
+        when(claims.getId()).thenReturn("mock-close-id");
+        when(claims.get("sid", String.class)).thenReturn("mock-close-session");
+        when(claims.getExpiration()).thenReturn(expiration);
+        when(authSessionService.isAccessAllowed(40L, "USER", "mock-close-session", "mock-close-id", expiration.getTime()))
+                .thenReturn(true);
+        mockMvc.perform(patch("/api/small-groups/1/votes/2/close")
+                        .header("Authorization", "Bearer mock-close-request")
+                        .requestAttr("memberId", 99L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        verify(smallGroupService).closeSmallGroupVote(1L, 2L, 40L);
     }
 
     @Test

@@ -211,6 +211,11 @@ public interface SmallGroupMapper {
             @Param("smallGroupId") Long smallGroupId,
             @Param("smallGroupVoteId") Long smallGroupVoteId);
 
+    // AI작성: Service가 소속·작성자 권한을 검증한 진행 중 투표만 닫고 갱신 건수를 반환한다.
+    int closeSmallGroupVote(
+            @Param("smallGroupId") Long smallGroupId,
+            @Param("smallGroupVoteId") Long smallGroupVoteId);
+
     // AI작성: 삭제 검증을 통과한 소속 투표 한 건만 논리 삭제하고 보기·참여·선택 이력은 보존한다.
     int softDeleteSmallGroupVote(
             @Param("smallGroupId") Long smallGroupId,

@@ -12,9 +12,17 @@ const Card = styled.section`
   box-shadow: ${({ theme }) => theme.shadow.card};
 `;
 
-const BackButton = styled(Button)`
+// AI작성: 목록 복귀와 관리 버튼을 카드 전체 너비의 상단 행에 배치한다.
+const TopBar = styled.div`
   margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 `;
+
+const BackButton = Button;
 
 const VoteLayout = styled.div`
   display: grid;
@@ -63,13 +71,11 @@ const HeaderActions = styled.div`
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+  margin-left: auto;
 `;
 
-const DeleteButton = styled(Button)`
-  min-height: 30px;
-  padding: 5px 9px;
-  font-size: 11px;
-`;
+// AI작성: 닫기·삭제·투표 수정·현황 보기 버튼이 공통 Button의 기본 크기를 함께 사용한다.
+const DeleteButton = Button;
 
 const Meta = styled.div`
   margin-top: 10px;
@@ -277,36 +283,43 @@ function SmallGroupVoteDetail({
   vote, onBack, selectedOptionIds, onSelectOption, onSubmit, isSubmitting,
   isResultOpen, resultVote, isStatusLoading, statusError, onShowResults, actionError,
   canDelete, onDelete, isDeleting,
+  canClose, onClose, isClosing,
 }) {
   const isClosed = vote.status === 'CLOSED';
   const selectedOptionIdSet = new Set(selectedOptionIds);
   const result = resultVote || vote;
   const resultSelectedOptionIdSet = new Set(result.myParticipation.selectedOptionIds);
   const canShowVoterNicknames = !result.anonymous && result.myParticipation.participated;
-  const choiceDisabled = isClosed || isSubmitting;
+  const choiceDisabled = isClosed || isSubmitting || isClosing || isDeleting;
 
   return (
     <Card>
-      <BackButton type="button" $variant="secondary" $size="small" onClick={onBack}>
-        <FiArrowLeft size={14} aria-hidden="true" /> 투표 목록으로
-      </BackButton>
+      <TopBar>
+        <BackButton type="button" $variant="secondary" $size="small" onClick={onBack}>
+          <FiArrowLeft size={14} aria-hidden="true" /> 투표 목록으로
+        </BackButton>
+        {/* AI작성: 닫기·삭제 버튼을 결과 패널 위 카드 오른쪽 상단에 모은다. */}
+        {(canClose && !isClosed || canDelete) && (
+          <HeaderActions>
+            {canClose && !isClosed && (
+              <Button type="button" onClick={onClose} disabled={isClosing || isSubmitting || isDeleting}>
+                {isClosing ? '종료 중...' : '투표 닫기'}
+              </Button>
+            )}
+            {canDelete && (
+              <DeleteButton type="button" $variant="danger" onClick={onDelete}
+                disabled={isDeleting || isClosing || isSubmitting}>
+                {isDeleting ? '삭제 중...' : '투표 삭제'}
+              </DeleteButton>
+            )}
+          </HeaderActions>
+        )}
+      </TopBar>
       <VoteLayout>
         <VotePanel>
           <Header>
             <Title>{vote.title}</Title>
-            <HeaderActions>
-              <Status $closed={isClosed}>{isClosed ? '마감' : '진행 중'}</Status>
-              {canDelete && (
-                <DeleteButton
-                  type="button"
-                  $variant="danger"
-                  onClick={onDelete}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? '삭제 중...' : '투표 삭제'}
-                </DeleteButton>
-              )}
-            </HeaderActions>
+            <Status $closed={isClosed}>{isClosed ? '마감' : '진행 중'}</Status>
           </Header>
           <Meta>
             <span><FiUsers size={13} aria-hidden="true" /> 작성자 {vote.creatorNickname}</span>
@@ -347,7 +360,7 @@ function SmallGroupVoteDetail({
             ) : (
               <Button
                 type="button"
-                disabled={selectedOptionIds.length === 0 || isSubmitting}
+                disabled={selectedOptionIds.length === 0 || isSubmitting || isClosing || isDeleting}
                 onClick={onSubmit}
               >
                 {isSubmitting ? '처리 중...' : vote.myParticipation.participated ? '투표 수정' : '투표하기'}
@@ -356,7 +369,7 @@ function SmallGroupVoteDetail({
             <Button
               type="button"
               $variant="secondary"
-              disabled={!vote.myParticipation.participated || isStatusLoading}
+              disabled={!vote.myParticipation.participated || isStatusLoading || isClosing || isDeleting}
               onClick={onShowResults}
             >
               {isStatusLoading ? '불러오는 중...' : isClosed ? '결과 보기' : '현황 보기'}
