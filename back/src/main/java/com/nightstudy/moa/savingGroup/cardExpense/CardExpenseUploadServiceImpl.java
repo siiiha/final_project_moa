@@ -63,6 +63,38 @@ public class CardExpenseUploadServiceImpl implements CardExpenseUploadService {
         }
     }
 
+    // AI작성: 금융 관리 권한과 양쪽 기록의 소속을 확인한 뒤 연결한다.
+    @Override
+    @Transactional
+    public void linkTransaction(Long groupId, Long cardExpenseId, Long transactionId, Long memberId) {
+        validateFinancialManager(groupId, memberId);
+        if (cardExpenseId <= 0 || transactionId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TRANSACTION_LINK", "연결할 거래 ID를 확인해 주세요.");
+        }
+        CardExpenseConfirmationTarget target = cardExpenseMapper
+                .selectCardExpenseConfirmationTargetForUpdate(cardExpenseId);
+        if (target == null || !groupId.equals(target.getGroupId())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "CARD_EXPENSE_NOT_FOUND", "카드 지출을 찾을 수 없습니다.");
+        }
+        if (target.getApprovalStatus() != CardExpenseApprovalStatus.APPROVED) {
+            throw new ApiException(HttpStatus.CONFLICT, "CARD_EXPENSE_NOT_APPROVED", "승인된 카드 지출만 연결할 수 있습니다.");
+        }
+        if (cardExpenseMapper.selectWithdrawal(groupId, transactionId) == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "WITHDRAWAL_NOT_FOUND", "모임의 출금 거래를 찾을 수 없습니다.");
+        }
+        if (transactionId.equals(target.getTransactionId())) {
+            return;
+        }
+        if (target.getTransactionId() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "CARD_EXPENSE_ALREADY_LINKED", "이미 다른 거래에 연결된 카드 지출입니다.");
+        }
+        try {
+            cardExpenseMapper.linkTransaction(cardExpenseId, transactionId);
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "TRANSACTION_ALREADY_LINKED", "이미 카드 지출에 연결된 출금 거래입니다.");
+        }
+    }
+
     private CardExpenseClassificationConfirmRequest toConfirmationRequest(CardExpenseCategory finalCategory) {
         CardExpenseClassificationConfirmRequest request = new CardExpenseClassificationConfirmRequest();
         request.setFinalCategory(finalCategory);

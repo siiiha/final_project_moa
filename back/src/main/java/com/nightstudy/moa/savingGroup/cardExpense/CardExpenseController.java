@@ -50,6 +50,16 @@ public class CardExpenseController {
         return ApiResponse.ok(cardExpenseUploadService.uploadAndClassify(groupId, memberId, file));
     }
 
+    // AI작성: 선택한 계좌 출금을 카드 지출에 연결한다.
+    @PatchMapping("/{groupId}/card-expenses/{cardExpenseId}/transactions/{transactionId}")
+    public ApiResponse<Void> linkTransaction(
+            @PathVariable Long groupId, @PathVariable Long cardExpenseId, @PathVariable Long transactionId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId
+    ) {
+        cardExpenseUploadService.linkTransaction(groupId, cardExpenseId, transactionId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 최종 항목은 계주·회계가 직접 선택한 값으로만 확정한다.
     @PatchMapping("/{groupId}/card-expenses/{cardExpenseId}/classification")
     public ApiResponse<Void> confirmCategory(

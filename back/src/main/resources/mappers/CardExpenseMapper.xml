@@ -23,6 +23,7 @@
     <select id="selectCardExpenseConfirmationTargetForUpdate"
             resultType="com.nightstudy.moa.savingGroup.cardExpense.CardExpenseConfirmationTarget">
         SELECT ce.card_expense_id,
+               ce.transaction_id,
                ce.approval_status,
                ce.classification_status,
                ceu.group_id
@@ -33,6 +34,23 @@
     </select>
 
     <!-- AI작성: 취소·다른 모임·중복 확정은 Service의 잠금 검증 후에만 최종 항목으로 갱신한다. -->
+    <!-- AI작성: 연결할 출금이 해당 모임의 계좌에 속하는지 확인한다. -->
+    <select id="selectWithdrawal" resultType="java.lang.Long">
+        SELECT gt.transaction_id
+        FROM group_transaction gt
+        JOIN group_account ga ON ga.account_id = gt.account_id
+        WHERE ga.group_id = #{groupId}
+          AND gt.transaction_id = #{transactionId}
+          AND gt.transaction_type = 'WITHDRAWAL'
+        FOR UPDATE
+    </select>
+
+    <update id="linkTransaction">
+        UPDATE card_expense
+        SET transaction_id = #{transactionId}
+        WHERE card_expense_id = #{cardExpenseId}
+    </update>
+
     <update id="confirmCardExpenseCategory">
         UPDATE card_expense
         SET final_category = #{finalCategory},

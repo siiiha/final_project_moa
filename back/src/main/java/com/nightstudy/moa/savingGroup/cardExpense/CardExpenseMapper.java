@@ -14,6 +14,11 @@ public interface CardExpenseMapper {
             @Param("cardExpenseId") Long cardExpenseId
     );
 
+    // AI작성: 같은 모임의 출금을 카드 지출에 연결한다.
+    Long selectWithdrawal(@Param("groupId") Long groupId, @Param("transactionId") Long transactionId);
+
+    int linkTransaction(@Param("cardExpenseId") Long cardExpenseId, @Param("transactionId") Long transactionId);
+
     int confirmCardExpenseCategory(
             @Param("cardExpenseId") Long cardExpenseId,
             @Param("finalCategory") CardExpenseCategory finalCategory,

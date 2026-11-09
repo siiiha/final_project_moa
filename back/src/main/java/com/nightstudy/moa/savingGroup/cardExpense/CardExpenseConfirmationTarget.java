@@ -10,6 +10,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CardExpenseConfirmationTarget {
     private Long cardExpenseId;
+    // AI작성: 기존에 연결된 계좌 거래를 확인한다.
+    private Long transactionId;
     private Long groupId;
     private CardExpenseApprovalStatus approvalStatus;
     private CardExpenseClassificationStatus classificationStatus;

@@ -6,6 +6,9 @@ import org.springframework.web.multipart.MultipartFile;
 public interface CardExpenseUploadService {
     List<CardExpensePreview> uploadAndClassify(Long groupId, Long memberId, MultipartFile file);
 
+    // AI작성: 카드 지출에 계좌 출금을 연결한다.
+    void linkTransaction(Long groupId, Long cardExpenseId, Long transactionId, Long memberId);
+
     void confirmCategory(Long groupId, Long cardExpenseId, Long memberId,
                          CardExpenseClassificationConfirmRequest request);
 
