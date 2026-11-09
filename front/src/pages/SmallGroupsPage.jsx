@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FiPlus } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../store/authStore';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import SmallGroupFilterBar from '../components/smallGroup/SmallGroupFilterBar';
@@ -79,6 +80,7 @@ const Result = styled.p`
 
 function SmallGroupsPage() {
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   // AI작성: 구·동은 선택 사항이며 회원가입·지역 인증의 조회 함수를 재사용한다.
@@ -194,9 +196,12 @@ function SmallGroupsPage() {
           <h1>우리 동네 소모임</h1>
           <p>취미가 같은 이웃과 즐거운 일상을 함께해요.</p>
         </div>
-        <CreateButton type="button" onClick={handleCreate}>
-          <FiPlus size={15} aria-hidden="true" /> 소모임 만들기
-        </CreateButton>
+        {/* AI작성: 소모임 만들기 버튼은 로그인한 사용자에게만 표시한다. */}
+        {token && (
+          <CreateButton type="button" onClick={handleCreate}>
+            <FiPlus size={15} aria-hidden="true" /> 소모임 만들기
+          </CreateButton>
+        )}
       </Heading>
 
       <Content>
