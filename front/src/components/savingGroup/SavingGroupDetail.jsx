@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
+import SavingGroupChatPanel from './SavingGroupChatPanel.jsx';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 // AI작성: 기존 react-icons 패키지의 테두리·채움 핀으로 일반·고정 상태를 구분한다.
 import { BsPinAngle, BsPinAngleFill } from 'react-icons/bs';
@@ -348,7 +349,9 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ))}
     </NoticeTable>
   );
-  const allowedMenus = getSavingGroupMenus(group.myRole);
+  // AI작성: 가입 승인 상태가 확인된 회원에게 채팅방 탭을 연다.
+  const baseMenus = getSavingGroupMenus(group.myRole);
+  const allowedMenus = group.membershipStatus === 'APPROVED' ? [...baseMenus, 'chat'] : baseMenus;
   // AI작성: 허용되지 않은 탭 상태가 남아 있어도 공지로 되돌려 계주 전용 패널을 렌더링하지 않는다.
   const currentMenu = allowedMenus.includes(activeMenu) ? activeMenu : 'notice';
   const paymentDay = group.duesDay == null ? '납부일 미정'
@@ -389,7 +392,9 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         />
       </HeaderCard>
 
-      {currentMenu === 'members' ? (
+      {currentMenu === 'chat' ? (
+        <SavingGroupChatPanel key={group.savingGroupId} group={group} />
+      ) : currentMenu === 'members' ? (
         <MembersContent>
           {/* AI작성: 승인 계주와 운영 가능한 모임 상태에서만 관리 API를 요청하고 모임 변경 시 편집 상태를 초기화한다. */}
           {group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' && ['01', '02'].includes(group.status)
