@@ -2313,3 +2313,26 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 - 캘린더 MockMvc 8건과 프런트 빌드, 기존 계모임 API 회귀 테스트 50건이 통과했다. 실제 행 삭제와 한도 회복을 다루는 MySQL 테스트 2건은 전용 DB 설정이 없어 건너뛰었다.
 - 브라우저 수동 검증은 계주·회계로 제목과 시각 확인, 취소, 삭제 성공, 새로고침 후 유지, 한도 회복을 확인하고 계원 화면의 삭제 버튼 노출 여부를 확인한다.
 - Postman 수동 검증은 정상 삭제 200, 일반 계원·비회원 403, 타 모임 일정 ID 및 재삭제 404를 확인한다. 실제 계정으로 브라우저와 Postman을 사용한 검증은 미실행이다.
+
+## 계모임 채팅 (2026-11-09)
+
+승인된 계모임 회원은 계모임 상세의 **채팅방** 탭에서 텍스트를 주고받는다. 화면은 날짜별로 대화를 구분하고, 내 메시지는 오른쪽에 표시한다. 채팅방에 접속하면 최근 대화를 불러오고 실시간 메시지와 메시지 ID 기준으로 합친다.
+
+| 구분 | 경로 | 동작 |
+|---|---|---|
+| REST GET | `/api/saving-groups/{savingGroupId}/chat-room` | 계모임 상세 ID로 채팅방 ID를 조회한다. 응답의 `data`는 방 ID다. |
+| REST GET | `/api/v1/chat/rooms/{roomId}/messages` | 이전 대화를 조회한다. `size` 기본값은 30, 허용 범위는 1~100이다. `beforeId`를 지정하면 해당 ID보다 앞선 메시지를 조회한다. 결과는 메시지 ID 오름차순이다. |
+| WebSocket | `/ws` | STOMP CONNECT의 `Authorization: Bearer <accessToken>` 헤더로 인증한다. |
+| STOMP SEND | `/app/chat/rooms/{roomId}` | JSON 본문 `{"content":"안녕하세요"}`를 전송한다. 공백만 있는 본문과 1,000자 초과 본문을 거절한다. |
+| STOMP SUBSCRIBE | `/topic/chat/rooms/{roomId}` | 저장된 메시지를 받는다. |
+| STOMP SUBSCRIBE | `/user/queue/errors` | 메시지 처리 실패 시 공통 오류 응답을 받는다. |
+
+메시지에는 `messageId`, `roomId`, `senderId`, `senderName`, `content`, `createdAt`이 포함된다. REST는 공통 응답 봉투의 `data`에 메시지 배열을 반환하고, 방 구독은 메시지 객체를 전달한다. 인증 실패는 STOMP 오류 프레임의 `AUTH_REQUIRED`, `TOKEN_EXPIRED`, `TOKEN_INVALID`로 구분한다. 허용되지 않은 방 또는 경로에는 `CHAT_FORBIDDEN`을 사용한다.
+
+채팅방과 참여자 저장은 DB 담당자가 적용하는 `chat_room`, `chat_room_member`, `chat_message`를 전제로 한다. 개설 신청에서 방을 만들고, 개설·가입 승인 시 참여 권한을 등록한다. 탈퇴·제외 시 권한을 회수한다. 기존 계모임의 방과 승인 회원 데이터 반영은 DB 담당자 적용 범위다.
+
+### 검증과 재현
+
+- JavaScript 문법 검사와 `git diff --check`는 통과했다. 프론트 빌드는 `@stomp/stompjs` 미설치로 실패했고, 백엔드 테스트는 Gradle이 JDK 17을 찾지 못해 실행되지 않았다.
+- DB 반영, 의존성 설치 및 JDK 17 설정 후 서로 다른 브라우저 프로필에서 같은 계모임의 승인 회원 두 명으로 접속한다. 메시지가 양쪽에 한 번씩 도착하고 새로고침 후에도 조회되는지 확인한다.
+- 비회원 계정으로 방 ID·대화 조회와 직접 구독·전송이 거절되는지 확인한다. 방 이동과 재연결 시 메시지 혼입이나 중복이 없는지도 확인한다. 브라우저와 실제 DB 검증은 미실행이다.
