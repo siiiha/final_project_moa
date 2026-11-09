@@ -49,6 +49,51 @@
         LIMIT 1
     </select>
 
+    <!-- AI작성: 대상 월의 누적 입금액이 현재 회비보다 적은 승인 회원만 알림 대상으로 조회한다. -->
+    <select id="selectDuesNotificationTargets"
+            resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupDuesNotificationTarget">
+        SELECT gm.member_id AS receiver_id,
+               sg.saving_group_id,
+               sg.dues_amount
+        FROM saving_group sg
+        JOIN `groups` g ON g.group_id = sg.group_id AND g.deleted_at IS NULL
+        JOIN group_member gm ON gm.group_id = sg.group_id
+            AND gm.membership_status = 'APPROVED'
+        JOIN members m ON m.member_id = gm.member_id AND m.deleted_at IS NULL
+        LEFT JOIN (
+            SELECT ga.group_id, dr.member_id, SUM(gt.amount) AS total
+            FROM group_account ga
+            JOIN group_transaction gt ON gt.account_id = ga.account_id
+                AND gt.transaction_type = 'DEPOSIT'
+                AND gt.transacted_at &gt;= #{start}
+                AND gt.transacted_at &lt; #{end}
+            JOIN saving_group_mock_deposit_request dr ON dr.transaction_id = gt.transaction_id
+                AND dr.account_id = ga.account_id
+                AND dr.status = 'COMPLETED'
+            GROUP BY ga.group_id, dr.member_id
+        ) deposits ON deposits.group_id = sg.group_id AND deposits.member_id = gm.member_id
+        WHERE sg.status = '02'
+          AND sg.dues_day = #{duesDay}
+          AND sg.dues_amount IS NOT NULL
+          AND sg.dues_amount &gt; 0
+          AND (sg.start_date IS NULL OR sg.start_date &lt; #{end})
+          AND (sg.end_date IS NULL OR sg.end_date &gt;= #{start})
+          AND COALESCE(deposits.total, 0) &lt; sg.dues_amount
+          <!-- AI작성: 회원·계모임·대상 월·알림 시점이 같은 기존 알림은 재발송하지 않는다. -->
+          AND NOT EXISTS (
+              SELECT 1
+              FROM notification n
+              WHERE n.receiver_id = gm.member_id
+                AND n.type = 'DUES_PAYMENT_DUE'
+                AND n.target_url = CONCAT(
+                    '/saving-groups/', sg.saving_group_id,
+                    '?menu=dues&amp;paymentMonth=', #{paymentMonth},
+                    '&amp;reminder=', #{reminderKey}
+                )
+          )
+        ORDER BY sg.saving_group_id, gm.crew_member_id
+    </select>
+
     <!-- AI작성: 동일 시각의 거래도 페이지별 순서를 고정한다. -->
     <select id="selectSavingGroupTransactionCount" resultType="int">
         SELECT COUNT(*) FROM group_transaction WHERE account_id = #{accountId}
