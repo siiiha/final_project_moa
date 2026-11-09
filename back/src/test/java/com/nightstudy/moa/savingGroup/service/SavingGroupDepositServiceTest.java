@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
@@ -16,12 +17,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 // AI작성: 실제 금융 객체 없이 인증·상태·최초 기준·확인 소비·저장 실패를 검증한다.
 class SavingGroupDepositServiceTest {
     SavingGroupMapper mapper;
+    NotificationService notificationService;
     SavingGroupDepositServiceImpl service;
     final LocalDateTime now = LocalDateTime.of(2026, 11, 6, 12, 0);
     final String key = "mock-request-key-0001";
     @BeforeEach void setup() {
         mapper = mock(SavingGroupMapper.class);
-        service = new SavingGroupDepositServiceImpl(mapper, () -> {});
+        notificationService = mock(NotificationService.class);
+        // AI작성: 실제 서비스와 같은 필수 알림 의존성을 Mock으로 명시한다.
+        service = new SavingGroupDepositServiceImpl(mapper, notificationService, () -> {});
         var group = new SavingGroupPayoutTargetRow(); group.setStatus("02"); group.setGroupId(10L);
         when(mapper.selectPayoutTargetForUpdate(10L)).thenReturn(group);
         relation("APPROVED", "MEMBER");
