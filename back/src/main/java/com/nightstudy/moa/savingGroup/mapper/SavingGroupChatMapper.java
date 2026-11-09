@@ -5,6 +5,7 @@ import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
@@ -12,6 +13,21 @@ public interface SavingGroupChatMapper {
     // AI작성: 계모임 상세의 ID로 STOMP 방 번호를 찾는다.
     @Select("SELECT room_id FROM chat_room WHERE saving_group_id = #{savingGroupId}")
     Long findRoomId(long savingGroupId);
+
+    // AI작성: 채팅 알림에서 계모임 상세 화면으로 이동할 수 있도록 방의 계모임 ID를 조회한다.
+    @Select("SELECT saving_group_id FROM chat_room WHERE room_id = #{roomId}")
+    Long findSavingGroupId(long roomId);
+
+    // AI작성: 새 메시지 알림을 받을 채팅방 참여자를 발신자를 제외하고 조회한다.
+    @Select("""
+            SELECT member_id
+            FROM chat_room_member
+            WHERE room_id = #{roomId}
+              AND member_id != #{senderId}
+            """)
+    List<Long> findNotificationReceiverIds(
+            @Param("roomId") long roomId,
+            @Param("senderId") Long senderId);
 
     @Insert("INSERT INTO chat_message (room_id, sender_id, content) VALUES (#{roomId}, #{senderId}, #{content})")
     @Options(useGeneratedKeys = true, keyProperty = "messageId")
@@ -40,7 +56,7 @@ public interface SavingGroupChatMapper {
             </script>
             """)
     List<SavingGroupChatMessage> findHistory(
-            @org.apache.ibatis.annotations.Param("roomId") long roomId,
-            @org.apache.ibatis.annotations.Param("beforeId") Long beforeId,
-            @org.apache.ibatis.annotations.Param("size") int size);
+            @Param("roomId") long roomId,
+            @Param("beforeId") Long beforeId,
+            @Param("size") int size);
 }
