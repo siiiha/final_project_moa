@@ -2,8 +2,11 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCalendarDto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,9 +17,13 @@ import com.nightstudy.moa.common.exception.ApiException;
 public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarService {
     private static final int DAILY_EVENT_LIMIT = 10;
     private final SavingGroupMapper mapper;
+    private final NotificationService notificationService;
 
-    public SavingGroupCalendarServiceImpl(SavingGroupMapper mapper) {
+    public SavingGroupCalendarServiceImpl(
+            SavingGroupMapper mapper,
+            NotificationService notificationService) {
         this.mapper = mapper;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -52,6 +59,15 @@ public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarServic
         if (mapper.insertCalendarEvent(row) != 1 || row.scheduleId == null) {
             throw new IllegalStateException("일정 등록 결과를 확인할 수 없습니다.");
         }
+        // AI작성: 일정 저장 성공 후 작성자를 제외한 승인 계모임 회원에게 새 일정 알림을 보낸다.
+        mapper.selectApprovedSavingGroupMemberIds(groupId).stream()
+                .filter(receiverId -> !Objects.equals(receiverId, memberId))
+                .forEach(receiverId -> notificationService.send(
+                        receiverId,
+                        NotificationType.SCHEDULE_CREATED,
+                        "계모임에 새 일정이 등록되었습니다.",
+                        "/saving-groups/" + groupId + "/calendar"
+                ));
         return toEvent(row.scheduleId, row.title, row.eventDate);
     }
 
