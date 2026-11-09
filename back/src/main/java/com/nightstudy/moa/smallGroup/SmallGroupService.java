@@ -83,6 +83,9 @@ public interface SmallGroupService {
     SmallGroupVoteDetailResponse getSmallGroupVoteDetail(
             Long smallGroupId, Long smallGroupVoteId, Long memberId);
 
+    // AI작성: 투표 작성자이면서 개설자·승인 OWNER인 회원만 닫고, 이미 종료·마감된 투표는 무변경 성공 처리한다.
+    void closeSmallGroupVote(Long smallGroupId, Long smallGroupVoteId, Long memberId);
+
     // AI작성: 투표 작성자이면서 개설자·승인 OWNER인 회원만 OPEN·CLOSED 투표를 논리 삭제한다.
     void deleteSmallGroupVote(Long smallGroupId, Long smallGroupVoteId, Long memberId);
 

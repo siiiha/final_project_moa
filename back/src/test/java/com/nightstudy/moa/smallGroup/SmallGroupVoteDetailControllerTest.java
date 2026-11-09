@@ -53,6 +53,8 @@ class SmallGroupVoteDetailControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.smallGroupVoteId").value(21))
                 .andExpect(jsonPath("$.data.status").value("OPEN"))
+                // AI작성: Lombok boolean 접근자의 JSON 이름이 canClose로 유지되는지 검증한다.
+                .andExpect(jsonPath("$.data.canClose").value(false))
                 .andExpect(jsonPath("$.data.participantCount").value(2))
                 .andExpect(jsonPath("$.data.myParticipation.participated").value(true))
                 .andExpect(jsonPath("$.data.options[0].content").value("한강공원"));
@@ -100,6 +102,6 @@ class SmallGroupVoteDetailControllerTest {
                 2L,
                 new SmallGroupVoteMyParticipationResponse(true, List.of(101L)),
                 List.of(new SmallGroupVoteOptionDetailResponse(
-                        101L, "한강공원", 1, 2L, List.of("걷기좋아", "모아회원"))));
+                        101L, "한강공원", 1, 2L, List.of("걷기좋아", "모아회원"))), false);
     }
 }

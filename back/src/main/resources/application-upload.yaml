@@ -1,10 +1,11 @@
-# 프로필 사진 업로드 크기와 로컬 저장 위치입니다.
+# AI작성: 게시글 사진 3장과 본문을 포함할 수 있도록 요청 크기를 설정합니다.
 spring:
   servlet:
     multipart:
       max-file-size: 5MB
-      max-request-size: 6MB
+      max-request-size: 16MB
 
 moa:
   upload:
     profile-dir: ./uploads/profiles
+    post-dir: ./uploads/posts

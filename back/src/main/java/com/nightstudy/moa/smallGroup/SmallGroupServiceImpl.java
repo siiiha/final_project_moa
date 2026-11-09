@@ -375,7 +375,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
     }
 
     // AI작성: 탈퇴·대기·추방 관계와 OWNER·MEMBER 이외의 역할은 투표 목록·상세를 볼 수 없다.
-    private void validateSmallGroupVoteMember(
+    private SmallGroupMemberRelationRow validateSmallGroupVoteMember(
             Long groupId, Long memberId, String errorCode, String errorMessage) {
         List<SmallGroupMemberRelationRow> relations =
                 smallGroupMapper.selectSmallGroupMemberRelations(groupId, memberId);
@@ -385,6 +385,8 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (!isApprovedMember) {
             throw new ApiException(HttpStatus.FORBIDDEN, errorCode, errorMessage);
         }
+        // AI작성: 이미 검증한 관계를 상세 응답의 종료 권한 판단에도 재사용한다.
+        return relations.get(0);
     }
 
     // AI작성: 소속·권한·마감 공개 범위를 검증한 뒤 익명 여부와 참여 여부에 맞는 상세 정보만 조합한다.
@@ -417,7 +419,7 @@ public class SmallGroupServiceImpl implements SmallGroupService {
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
         }
-        validateSmallGroupVoteMember(
+        SmallGroupMemberRelationRow relation = validateSmallGroupVoteMember(
                 target.getGroupId(), memberId, "SMALL_GROUP_VOTE_DETAIL_FORBIDDEN",
                 "승인된 소모임 회원만 투표 상세를 조회할 수 있습니다.");
 
@@ -449,6 +451,13 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                         .map(option -> toSmallGroupVoteOptionDetailResponse(option, voterNicknamesByOptionId))
                         .toList();
 
+        // AI작성: 버튼 표시는 안내용이며 실제 종료 시에는 변경 API에서 권한·상태를 다시 검증한다.
+        LocalDateTime now = LocalDateTime.now(KOREA_ZONE_ID);
+        boolean canClose = "OWNER".equals(relation.getMemberRole())
+                && Objects.equals(memberId, vote.getCreatorMemberId())
+                && Objects.equals(memberId, target.getCreatorMemberId())
+                && "OPEN".equals(vote.getStatus()) && vote.getClosedAt() == null
+                && !isVoteClosed(vote, now);
         return new SmallGroupVoteDetailResponse(
                 vote.getSmallGroupVoteId(),
                 vote.getTitle(),
@@ -457,10 +466,65 @@ public class SmallGroupServiceImpl implements SmallGroupService {
                 vote.isAnonymous(),
                 vote.getCreatedAt(),
                 vote.getEndsAt(),
-                isVoteClosed(vote, LocalDateTime.now(KOREA_ZONE_ID)) ? "CLOSED" : "OPEN",
+                isVoteClosed(vote, now) ? "CLOSED" : "OPEN",
                 smallGroupMapper.selectSmallGroupVoteParticipantCount(smallGroupVoteId),
                 new SmallGroupVoteMyParticipationResponse(participated, selectedOptionIds),
-                options);
+                options,
+                canClose);
+    }
+
+    // AI작성: 기존 변경 경로처럼 소모임을 먼저 잠그고 작성자·개설자·승인 OWNER를 검증한 뒤 종료한다.
+    @Override
+    @Transactional
+    public void closeSmallGroupVote(Long smallGroupId, Long smallGroupVoteId, Long memberId) {
+        if (smallGroupId == null || smallGroupId <= 0 || smallGroupVoteId == null || smallGroupVoteId <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "소모임 또는 투표 번호가 올바르지 않습니다.");
+        }
+        if (memberId == null || memberId <= 0) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
+        }
+
+        SmallGroupJoinTargetRow target = smallGroupMapper.selectSmallGroupJoinTargetForUpdate(smallGroupId);
+        if (target == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_NOT_FOUND", "소모임을 찾을 수 없습니다.");
+        }
+        SmallGroupVoteDetailRow vote =
+                smallGroupMapper.selectSmallGroupVoteDetailForUpdate(smallGroupId, smallGroupVoteId);
+        if (vote == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SMALL_GROUP_VOTE_NOT_FOUND", "투표를 찾을 수 없습니다.");
+        }
+        validateSmallGroupVoteCloseAuthority(target, vote, memberId);
+
+        // AI작성: 권한을 먼저 확인하며 재요청·시간 만료로 기존 closed_at과 결과 노출 기간을 연장하지 않는다.
+        if (vote.getClosedAt() != null || isVoteClosed(vote, LocalDateTime.now(KOREA_ZONE_ID))) {
+            return;
+        }
+        int updatedCount = smallGroupMapper.closeSmallGroupVote(smallGroupId, smallGroupVoteId);
+        // AI작성: 검증 직후 마감시각을 지나 SQL이 갱신하지 않은 경우에도 이미 마감된 요청으로 성공 처리한다.
+        if (updatedCount == 0 && isVoteClosed(vote, LocalDateTime.now(KOREA_ZONE_ID))) {
+            return;
+        }
+        if (updatedCount != 1) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SMALL_GROUP_VOTE_CLOSE_FAILED",
+                    "투표 종료 처리에 실패했습니다.");
+        }
+    }
+
+    // AI작성: 삭제와 같은 권한 기준을 유지하되 종료 전용 오류 코드로 반환한다.
+    private void validateSmallGroupVoteCloseAuthority(
+            SmallGroupJoinTargetRow target, SmallGroupVoteDetailRow vote, Long memberId) {
+        if (!Objects.equals(memberId, vote.getCreatorMemberId())
+                || !Objects.equals(memberId, target.getCreatorMemberId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_CLOSE_FORBIDDEN",
+                    "투표 작성자인 소모임 개설자만 투표를 종료할 수 있습니다.");
+        }
+        SmallGroupMemberRelationRow relation =
+                smallGroupMapper.selectSmallGroupMembershipForUpdate(target.getGroupId(), memberId);
+        if (relation == null || !"OWNER".equals(relation.getMemberRole())
+                || !"APPROVED".equals(relation.getMembershipStatus())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SMALL_GROUP_VOTE_CLOSE_FORBIDDEN",
+                    "승인된 소모임 개설자만 투표를 종료할 수 있습니다.");
+        }
     }
 
     // AI작성: 소모임·투표·OWNER 관계를 잠근 뒤 투표 기본 행만 논리 삭제해 참여·선택 이력을 보존한다.

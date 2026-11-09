@@ -11,4 +11,6 @@ import lombok.Setter;
 public class SmallGroupVoteListTargetRow {
     private Long smallGroupId;
     private Long groupId;
+    // AI작성: 종료 버튼 권한 판단에만 사용하는 현재 소모임 개설자 식별자다.
+    private Long creatorMemberId;
 }

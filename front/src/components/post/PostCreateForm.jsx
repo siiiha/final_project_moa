@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { FiImage } from 'react-icons/fi';
 import styled, { css } from 'styled-components';
 import Button from '../common/Button';
@@ -156,12 +157,47 @@ const Actions = styled.div`
   }
 `;
 
+// AI작성: 미리보기가 사라질 때 브라우저의 임시 이미지 URL을 해제합니다.
+const PreviewImage = styled.img`
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+`;
+
+const ImageList = styled.ul`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    gap: 4px;
+  }
+`;
+
+function SelectedImagePreview({ file }) {
+  const imageRef = useRef(null);
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    imageRef.current.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  return <PreviewImage ref={imageRef} alt={file.name} />;
+}
+
 function PostCreateForm({
   categories,
   category,
   title,
   content,
-  imageName,
+  existingImages,
+  selectedFiles,
+  isSubmitting,
+  onRemoveExisting,
+  onRemoveSelected,
   onCategoryChange,
   onTitleChange,
   onContentChange,
@@ -211,11 +247,36 @@ function PostCreateForm({
           <FiImage size={15} aria-hidden="true" />
           이미지 첨부
         </UploadLabel>
-        <FileInput id="post-image" type="file" accept="image/*" onChange={onImageChange} />
-        <FileName>{imageName || '첨부할 이미지 파일을 선택하세요. (선택)'}</FileName>
+        <FileInput
+          id="post-image"
+          type="file"
+          accept="image/jpeg,image/png"
+          multiple
+          disabled={isSubmitting}
+          onChange={onImageChange}
+        />
+        <FileName>선택 첨부 · 최대 3장 · JPG 또는 PNG · 장당 5MB 이하</FileName>
       </Attachment>
+      <ImageList>
+        {existingImages.map((image, index) => (
+          <li key={image.imageId}>
+            <PreviewImage src={image.imageUrl} alt={`기존 첨부 사진 ${index + 1}`} />
+            <Button type="button" disabled={isSubmitting} onClick={() => onRemoveExisting(image.imageId)}>
+              삭제
+            </Button>
+          </li>
+        ))}
+        {selectedFiles.map((file, index) => (
+          <li key={`${file.name}-${file.lastModified}-${index}`}>
+            <SelectedImagePreview file={file} />
+            <Button type="button" disabled={isSubmitting} onClick={() => onRemoveSelected(index)}>
+              선택 해제
+            </Button>
+          </li>
+        ))}
+      </ImageList>
       <Actions>
-        <Button type="submit">{submitLabel}</Button>
+        <Button type="submit" disabled={isSubmitting}>{submitLabel}</Button>
         <Button type="button" $variant="secondary" onClick={onCancel}>
           취소
         </Button>

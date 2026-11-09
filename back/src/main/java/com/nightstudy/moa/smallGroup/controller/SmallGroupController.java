@@ -228,6 +228,16 @@ public class SmallGroupController {
                 smallGroupService.getSmallGroupVoteStatus(smallGroupId, smallGroupVoteId, memberId));
     }
 
+    // AI작성: 종료 요청은 본문 없이 JWT 회원 ID와 경로 식별자만 전달하고 권한·재요청 정책은 Service가 처리한다.
+    @PatchMapping("/{smallGroupId}/votes/{smallGroupVoteId}/close")
+    public ApiResponse<Void> closeVote(
+            @PathVariable("smallGroupId") @Positive(message = "소모임 ID는 1 이상이어야 합니다.") Long smallGroupId,
+            @PathVariable("smallGroupVoteId") @Positive(message = "투표 ID는 1 이상이어야 합니다.") Long smallGroupVoteId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId) {
+        smallGroupService.closeSmallGroupVote(smallGroupId, smallGroupVoteId, memberId);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 삭제 요청은 JWT 회원 ID와 경로 식별자만 Service에 전달하고 소속·권한·삭제 상태 판단은 Service가 처리한다.
     @DeleteMapping("/{smallGroupId}/votes/{smallGroupVoteId}")
     public ApiResponse<Void> deleteVote(
