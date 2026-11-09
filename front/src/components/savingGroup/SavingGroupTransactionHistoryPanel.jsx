@@ -161,6 +161,20 @@ const PageButton = styled(Button)`
 
 const formatWon = (amount) => `${amount.toLocaleString('ko-KR')}원`;
 
+// AI작성: 장부 목적과 카드 분류 코드에 표시용 이름을 적용한다.
+const purposeLabels = { DUES: '회비', PAYOUT: '계금 지급', EXPENSE: '일반 지출' };
+const categoryLabels = {
+  FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비',
+  ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타',
+  NEEDS_REVIEW: '확인 필요',
+};
+
+function getCategoryLabel({ purposeType, category, classificationStatus, transactionType }) {
+  if (purposeType === 'DUES' || purposeType === 'PAYOUT') return purposeLabels[purposeType];
+  if (classificationStatus === 'REVIEW_REQUIRED') return '확인 필요';
+  return categoryLabels[category] ?? (transactionType === 'WITHDRAWAL' ? '미분류' : '—');
+}
+
 // AI작성: 서버 페이지를 표시하고 이전 모임·페이지의 응답은 취소한다.
 function SavingGroupTransactionHistoryPanel({ groupId }) {
   const [page, setPage] = useState(1);
@@ -194,6 +208,8 @@ export function SavingGroupTransactionHistoryView({ result, failed, page, loadPa
     type: row.transactionType === 'WITHDRAWAL' ? '출금' : '입금',
     amount: formatWon(row.transactionType === 'WITHDRAWAL' ? -Math.abs(row.amount) : row.amount),
     balance: formatWon(row.balanceAfter),
+    purpose: purposeLabels[row.purposeType] ?? '목적 미확인',
+    category: getCategoryLabel(row),
   }));
   const totalPages = result?.meta.totalPages ?? 0;
 
@@ -230,8 +246,8 @@ export function SavingGroupTransactionHistoryView({ result, failed, page, loadPa
                     <tr key={index}>
                       <td>{transaction.date}</td>
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
-                      <td>—</td>
-                      <td>—</td>
+                      <td>{transaction.purpose}</td>
+                      <td>{transaction.category}</td>
                       <td><Amount $type={transaction.type}>{transaction.amount}</Amount></td>
                       <td>{transaction.balance}</td>
                     </tr>
@@ -249,8 +265,8 @@ export function SavingGroupTransactionHistoryView({ result, failed, page, loadPa
                   </MobileTop>
                   <MobileInfo>
                     <dt>일시</dt><dd>{transaction.date}</dd>
-                    <dt>거래 목적</dt><dd>—</dd>
-                    <dt>분류 항목</dt><dd>—</dd>
+                    <dt>거래 목적</dt><dd>{transaction.purpose}</dd>
+                    <dt>분류 항목</dt><dd>{transaction.category}</dd>
                     <dt>거래 후 잔액</dt><dd>{transaction.balance}</dd>
                   </MobileInfo>
                 </MobileItem>
