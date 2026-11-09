@@ -16,7 +16,6 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -27,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SavingGroupDepositServiceImpl implements SavingGroupDepositService {
     private final SavingGroupMapper mapper;
-    private final Optional<NotificationService> notificationService;
+    private final NotificationService notificationService;
     private final Runnable delay;
     private final SecureRandom random = new SecureRandom();
 
@@ -35,7 +34,7 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
     public SavingGroupDepositServiceImpl(
             SavingGroupMapper mapper,
             NotificationService notificationService) {
-        this(mapper, Optional.of(notificationService), () -> {
+        this(mapper, notificationService, () -> {
             try { Thread.sleep(ThreadLocalRandom.current().nextInt(300, 801)); }
             catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -43,20 +42,10 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
             }
         });
     }
-    // AI작성: 테스트에서는 지연만 대체하고 검증·거래 처리 로직은 그대로 실행한다.
-    SavingGroupDepositServiceImpl(SavingGroupMapper mapper, Runnable delay) {
-        this(mapper, Optional.empty(), delay);
-    }
-    // AI작성: 테스트도 실제 서비스와 같이 알림 의존성을 명시적으로 전달하도록 점진적으로 전환한다.
+    // AI작성: 테스트는 지연과 필수 알림 의존성을 모두 명시적으로 전달한다.
     SavingGroupDepositServiceImpl(
             SavingGroupMapper mapper,
             NotificationService notificationService,
-            Runnable delay) {
-        this(mapper, Optional.of(notificationService), delay);
-    }
-    SavingGroupDepositServiceImpl(
-            SavingGroupMapper mapper,
-            Optional<NotificationService> notificationService,
             Runnable delay) {
         this.mapper = mapper;
         this.notificationService = notificationService;
@@ -166,12 +155,12 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
     private void sendPaymentConfirmed(Long savingGroupId, Long memberId, BigDecimal amount) {
         String message = "회비 납부가 확인되었습니다. 납부 금액: "
                 + NumberFormat.getNumberInstance(Locale.KOREA).format(amount) + "원";
-        notificationService.ifPresent(service -> service.send(
+        notificationService.send(
                 memberId,
                 NotificationType.DUES_PAYMENT_CONFIRMED,
                 message,
                 "/saving-groups/" + savingGroupId + "?menu=dues"
-        ));
+        );
     }
     private void requireOne(int count) {
         if (count != 1) throw error(HttpStatus.CONFLICT, "DEPOSIT_SAVE_CONFLICT", "입금 처리 상태가 변경되었습니다. 같은 요청으로 다시 확인해주세요.");
