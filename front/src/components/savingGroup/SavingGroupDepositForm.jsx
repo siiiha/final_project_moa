@@ -107,7 +107,7 @@ function trapTab(event, root) {
   }
 }
 
-export default function SavingGroupDepositForm({ groupId, account, onCompleted, onClose }) {
+export default function SavingGroupDepositForm({ savingGroupId, account, onCompleted, onClose }) {
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null);
@@ -156,8 +156,8 @@ export default function SavingGroupDepositForm({ groupId, account, onCompleted, 
       // AI작성: 통신 결과가 불확실하면 동일 키·금액을 보존해 재전송에 의한 이중 등록을 막는다.
       if (!attempt.current) attempt.current = { amount: Number(amount), requestKey: crypto.randomUUID() };
       const data = confirming
-        ? await confirmSavingGroupDeposit(groupId, { requestKey: attempt.current.requestKey, confirmationToken: pending.confirmationToken })
-        : await requestSavingGroupDeposit(groupId, attempt.current);
+        ? await confirmSavingGroupDeposit(savingGroupId, { requestKey: attempt.current.requestKey, confirmationToken: pending.confirmationToken })
+        : await requestSavingGroupDeposit(savingGroupId, attempt.current);
       if (!alive.current) return;
       setUncertain(false);
       if (data.status === 'PENDING_CONFIRMATION') setPending(data);

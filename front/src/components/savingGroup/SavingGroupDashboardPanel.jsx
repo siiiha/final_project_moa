@@ -152,12 +152,12 @@ const koreanMonth = new Intl.DateTimeFormat('sv-SE', {
 });
 
 // AI작성: 모든 페이지를 조회하며 회비 기준이 없는 계원이 있으면 합계 표시를 보류한다.
-export async function loadOutstanding(groupId, month, signal, loadPage = getSavingGroupPaymentStatus) {
+export async function loadOutstanding(savingGroupId, month, signal, loadPage = getSavingGroupPaymentStatus) {
   let total = 0;
   let unknown = false;
   let pages = 1;
   for (let page = 1; page <= pages; page += 1) {
-    const { items, meta } = await loadPage(groupId, { month, page, signal });
+    const { items, meta } = await loadPage(savingGroupId, { month, page, signal });
     signal.throwIfAborted();
     pages = meta.totalPages;
     for (const { remainingAmount } of items) {
@@ -168,28 +168,28 @@ export async function loadOutstanding(groupId, month, signal, loadPage = getSavi
   return unknown ? null : total;
 }
 
-async function loadBalance(groupId, _month, signal) {
-  const { items } = await getSavingGroupTransactions(groupId, { signal });
+async function loadBalance(savingGroupId, _month, signal) {
+  const { items } = await getSavingGroupTransactions(savingGroupId, { signal });
   return items.length ? items[0].balanceAfter : null;
 }
 
 // AI작성: 모임이나 월이 바뀌면 이전 요청을 취소하고 늦게 도착한 결과를 무시한다.
-function useDashboardResult(groupId, month, load) {
+function useDashboardResult(savingGroupId, month, load) {
   const [result, setResult] = useState(null);
   useEffect(() => {
-    if (groupId == null) return;
+    if (savingGroupId == null) return;
     const controller = new AbortController();
-    load(groupId, month, controller.signal).then(
+    load(savingGroupId, month, controller.signal).then(
       (value) => {
-        if (!controller.signal.aborted) setResult({ groupId, month, value });
+        if (!controller.signal.aborted) setResult({ savingGroupId, month, value });
       },
       () => {
-        if (!controller.signal.aborted) setResult({ groupId, month, failed: true });
+        if (!controller.signal.aborted) setResult({ savingGroupId, month, failed: true });
       },
     );
     return () => controller.abort();
-  }, [groupId, month, load]);
-  return result?.groupId === groupId && result?.month === month ? result : null;
+  }, [savingGroupId, month, load]);
+  return result?.savingGroupId === savingGroupId && result?.month === month ? result : null;
 }
 
 export function SavingGroupDashboardView({ balance, outstanding, canViewOutstanding }) {
@@ -251,9 +251,9 @@ export function SavingGroupDashboardView({ balance, outstanding, canViewOutstand
 }
 
 // AI작성: 한국 시간의 현재 월로 승인 계주에게만 미납을 요청한다.
-export default function SavingGroupDashboardPanel({ groupId, canViewOutstanding }) {
+export default function SavingGroupDashboardPanel({ savingGroupId, canViewOutstanding }) {
   const month = koreanMonth.format(new Date());
-  const balance = useDashboardResult(groupId, null, loadBalance);
-  const outstanding = useDashboardResult(canViewOutstanding ? groupId : null, month, loadOutstanding);
+  const balance = useDashboardResult(savingGroupId, null, loadBalance);
+  const outstanding = useDashboardResult(canViewOutstanding ? savingGroupId : null, month, loadOutstanding);
   return <SavingGroupDashboardView balance={balance} outstanding={outstanding} canViewOutstanding={canViewOutstanding} />;
 }

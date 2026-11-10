@@ -41,14 +41,14 @@ class SavingGroupJoinAvailabilityServiceTest {
         member.setIdentityVerifiedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
         
         // AI작성: 제한 우선순위에 따라 일부 조회는 생략되므로 공통 기본값만 lenient로 설정한다.
-        lenient().when(mapper.selectSavingGroupDetail(20L)).thenReturn(row);
+        lenient().when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(row);
         lenient().when(mapper.selectDetailMemberCount(20L)).thenReturn(2L);
         lenient().when(mapper.selectSavingGroupJoinMember(30L)).thenReturn(member);
     }
 
     @Test
     void anonymousDetailRemainsPublicButCannotApply() {
-        SavingGroupDetailResponse response = service.getSavingGroupDetail(20L, null);
+        SavingGroupDetailResponse response = service.getSavingGroupDetail(10L, null);
         assertThat(response.isCanApply()).isFalse();
         assertThat(response.getMembershipStatus()).isNull();
         assertThat(response.getJoinRestrictionCode()).isEqualTo("UNAUTHORIZED");
@@ -179,7 +179,7 @@ class SavingGroupJoinAvailabilityServiceTest {
         }
     }
 
-    private SavingGroupDetailResponse detail() { return service.getSavingGroupDetail(20L, 30L); }
+    private SavingGroupDetailResponse detail() { return service.getSavingGroupDetail(10L, 30L); }
 
     private void setRelation(String status) {
         SavingGroupMembershipRelationRow relation = new SavingGroupMembershipRelationRow();

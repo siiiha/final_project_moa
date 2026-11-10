@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
-import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
+// AI작성: 공지 상세 링크에 현재 페이지와 정렬 조건을 전달하는 함수를 가져온다.
+import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination, toSavingGroupNoticeSearch } from '../../api/savingGroups.js';
 import SavingGroupChatPanel from './SavingGroupChatPanel.jsx';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 // AI작성: 기존 react-icons 패키지의 테두리·채움 핀으로 일반·고정 상태를 구분한다.
@@ -330,7 +331,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         <NoticeRow role="row" $pinned={pinned} $withPin={canPinNotice} key={notice.noticeId}>
           <span role="cell">
             {pinned && <PinnedNoticeBadge>고정</PinnedNoticeBadge>}{' '}
-            {canReadNotice ? <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
+            {canReadNotice ? <NoticeLink to={`/saving-groups/${group.savingGroupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
               {notice.title}</NoticeLink> : notice.title}
           </span>
           <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
@@ -388,7 +389,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           activeMenu={currentMenu}
           onMenuChange={onMenuChange}
           allowedMenus={allowedMenus}
-          settingsPath={`/saving-groups/${group.groupId}/settings`}
+          settingsPath={`/saving-groups/${group.savingGroupId}/settings`}
         />
       </HeaderCard>
 
@@ -400,32 +401,32 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           {group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' && ['01', '02'].includes(group.status)
             ? <SavingGroupMembersPanel
                 /* AI작성: ID 종류를 구분하고 모임·권한 변경 시 이전 편집/요청 상태를 폐기한다. */
-                key={JSON.stringify([group.savingGroupId, group.groupId, group.myRole, group.membershipStatus, group.status])}
-                savingGroupId={String(group.savingGroupId)} groupId={group.groupId} groupType={group.groupType}
+                key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus, group.status])}
+                savingGroupId={String(group.savingGroupId)} groupType={group.groupType}
                 myRole={group.myRole} membershipStatus={group.membershipStatus} status={group.status} />
             : <p>모집중 또는 진행중인 계모임의 계주만 계원을 관리할 수 있습니다.</p>}
         </MembersContent>
       ) : currentMenu === 'payment' && group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' ? (
-        <SavingGroupPaymentStatusPanel key={group.groupId} groupId={group.groupId} />
+        <SavingGroupPaymentStatusPanel key={group.savingGroupId} savingGroupId={group.savingGroupId} />
       ) : currentMenu === 'calendar' ? (
         /* AI작성: 다른 계모임이나 역할로 전환하면 이전 캘린더 조회 상태를 폐기한다. */
         <SavingGroupCalendarPanel
-          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
-          groupId={group.groupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
+          key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus])}
+          savingGroupId={group.savingGroupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
           deleteEvent={deleteSavingGroupCalendarEvent}
         />
       ) : currentMenu === 'dues' ? (
         /* AI작성: 모임이나 권한이 바뀌면 대시보드 조회 상태를 초기화한다. */
         <SavingGroupDashboardPanel
-          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
-          groupId={group.groupId}
+          key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus])}
+          savingGroupId={group.savingGroupId}
           canViewOutstanding={group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED'}
         />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel key={group.groupId} groupId={group.groupId} />
+        <SavingGroupTransactionHistoryPanel key={group.savingGroupId} savingGroupId={group.savingGroupId} />
       ) : currentMenu === 'payoutRequest' ? (
-        /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
-        <SavingGroupPayoutRequestPanel groupId={group.groupId} />
+        /* AI작성: 공개 상세의 유형 추정 대신 서버가 savingGroupId로 계모임을 찾고 권한과 회차를 판단한다. */
+        <SavingGroupPayoutRequestPanel savingGroupId={group.savingGroupId} />
       ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
           {/* AI작성: 화면 모임이 바뀌면 요청·승인 상태를 초기화하고 API가 요구하는 savingGroupId로 실제 신청만 조회한다. */}

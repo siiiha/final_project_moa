@@ -178,7 +178,7 @@ function monthDate(month, offset = 0, day = 1) {
 }
 
 // AI작성: 한국 날짜를 기준으로 월을 조회하고, 같은 응답에서 날짜별 상세를 보여 준다.
-export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEvent, deleteEvent }) {
+export default function SavingGroupCalendarPanel({ savingGroupId, loadMonth, createEvent, deleteEvent }) {
   const [selected, setSelected] = useState(() => seoulDate.format(new Date()));
   const month = selected.slice(0, 7);
   const [result, setResult] = useState(null);
@@ -197,7 +197,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
 
   useEffect(() => {
     const controller = new AbortController();
-    loadMonth(groupId, { month, signal: controller.signal })
+    loadMonth(savingGroupId, { month, signal: controller.signal })
       .then(data => {
         if (!controller.signal.aborted) setResult({ month, retry, data });
       })
@@ -207,7 +207,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
         }
       });
     return () => controller.abort();
-  }, [groupId, loadMonth, month, retry]);
+  }, [savingGroupId, loadMonth, month, retry]);
 
   const current = result?.month === month && result.retry === retry ? result : null;
   // AI작성: 달력의 배지와 선택일 목록이 같은 일정 배열을 사용한다.
@@ -267,7 +267,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
     setSaving(true);
     setSaveError('');
     try {
-      const created = await createEvent(groupId, { date: selected, title: title.trim(), time });
+      const created = await createEvent(savingGroupId, { date: selected, title: title.trim(), time });
       setResult(previous => ({
         ...previous,
         data: {
@@ -294,7 +294,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
     setDeletingId(item.id);
     setDeleteError('');
     try {
-      await deleteEvent(groupId, item.id);
+      await deleteEvent(savingGroupId, item.id);
       setResult(previous => ({
         ...previous,
         data: { ...previous.data, events: previous.data.events.filter(event => event.id !== item.id) },

@@ -271,20 +271,22 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
     @Override
     @Transactional
-    public void deleteSavingGroupNotice(Long groupId, Long noticeId, Long memberId) {
+    public void deleteSavingGroupNotice(Long savingGroupId, Long noticeId, Long memberId) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
         }
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
         }
+        // AI작성: 잠근 계모임의 공통 ID로 회원과 공지의 소속을 확인한다.
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
@@ -305,20 +307,22 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 기존 고정 변경과 같은 모임→회원 관계→공지 잠금 순서로 권한과 소속을 검증한다.
     @Override
     @Transactional
-    public Long updateSavingGroupNotice(Long groupId, Long noticeId, Long memberId, String title, String content) {
+    public Long updateSavingGroupNotice(Long savingGroupId, Long noticeId, Long memberId, String title, String content) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
         }
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
         }
+        // AI작성: 잠근 계모임의 공통 ID로 회원과 공지의 소속을 확인한다.
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
@@ -361,9 +365,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     @Override
     @Transactional(readOnly = true)
     public com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(
-            Long groupId, Long memberId, java.time.YearMonth month, int page) {
-        var relation = requireSavingGroupAccountMember(groupId, memberId);
-        if (!"OWNER".equals(relation.getMemberRole())) {
+            Long savingGroupId, Long memberId, java.time.YearMonth month, int page) {
+        var access = requireSavingGroupAccountMember(savingGroupId, memberId);
+        Long groupId = access.groupId();
+        if (!"OWNER".equals(access.role())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_PAYMENT_STATUS_FORBIDDEN",
                     "계주만 회비 납부 현황을 확인할 수 있습니다.");
         }
@@ -391,22 +396,27 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     }
 
     // AI작성: 계좌 조회와 거래내역 조회에 동일한 현재 모임원 권한을 적용한다.
-    private com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow requireSavingGroupAccountMember(Long groupId, Long memberId) {
+    private AccountAccess requireSavingGroupAccountMember(Long savingGroupId, Long memberId) {
         if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
-        if (groupId == null || groupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
-        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
+        if (savingGroupId == null || savingGroupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
+        // AI작성: 계모임 ID를 확인한 뒤 기존 계좌와 소속의 공통 모임 ID를 사용한다.
+        var target = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+        if (target == null)
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        Long groupId = target.getGroupId();
         var relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 계좌 정보를 확인할 수 있습니다.");
-        return relation;
+        return new AccountAccess(groupId, relation.getMemberRole());
     }
+
+    private record AccountAccess(Long groupId, String role) {}
 
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long groupId, Long memberId, int page) {
-        requireSavingGroupAccountMember(groupId, memberId);
+    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long savingGroupId, Long memberId, int page) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
         if (page < 1)
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
         var account = accountMapper.selectAccount(groupId);
@@ -433,8 +443,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
 
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId) {
-        requireSavingGroupAccountMember(groupId, memberId);
+    public SavingGroupAccountResponse getSavingGroupAccount(Long savingGroupId, Long memberId) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
         var account = accountMapper.selectAccount(groupId);
         if (account == null) return new SavingGroupAccountResponse(false, null, null, BigDecimal.ZERO, true);
         BigDecimal balance = savingGroupMapper.selectSavingGroupBalance(groupId);
@@ -446,20 +456,22 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 모임 → 승인 관계 → 공지 순서로 잠그고 현재 고정 목록으로 동시 지정의 두 개 제한을 검증한다.
     @Override
     @Transactional
-    public void updateSavingGroupNoticePinned(Long groupId, Long noticeId, Long memberId, Boolean pinned) {
+    public void updateSavingGroupNoticePinned(Long savingGroupId, Long noticeId, Long memberId, Boolean pinned) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0 || pinned == null) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0 || pinned == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 공지 번호 또는 고정 여부가 올바르지 않습니다.");
         }
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
         }
+        // AI작성: 잠근 계모임의 공통 ID로 회원과 공지의 소속을 확인한다.
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
@@ -485,17 +497,19 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 공개 상세와 동일한 모임 조건을 적용한 뒤 승인 관계를 확인하고 본문을 조회한다.
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupNoticeDetailResponse getSavingGroupNoticeDetail(Long groupId, Long noticeId, Long memberId) {
+    public SavingGroupNoticeDetailResponse getSavingGroupNoticeDetail(Long savingGroupId, Long noticeId, Long memberId) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
         }
         // AI작성: 기존 Mapper가 삭제된 모임과 상태 01·02 외의 계모임을 제외한다.
-        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null) {
+        var target = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+        if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_READ_FORBIDDEN",
@@ -652,15 +666,16 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 계주 권한과 대상의 승인 관계를 같은 트랜잭션에서 잠가 확인한 뒤 추방 상태로 변경한다.
     @Override
     @Transactional
-    public void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId) {
-        if (groupId == null || groupId <= 0 || targetMemberId == null || targetMemberId <= 0) {
+    public void expelApprovedSavingGroupMember(Long savingGroupId, Long targetMemberId, Long memberId) {
+        if (savingGroupId == null || savingGroupId <= 0 || targetMemberId == null || targetMemberId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 또는 추방 대상 회원 번호가 올바르지 않습니다.");
         }
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
 
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(groupId);
+        // AI작성: 계모임 ID로 대상을 잠근 뒤 기존 회원 소속 검증을 수행한다.
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
         }
@@ -920,27 +935,29 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupDetailResponse getSavingGroupDetail(Long groupId, Long memberId) {
+    public SavingGroupDetailResponse getSavingGroupDetail(Long savingGroupId, Long memberId) {
         // AI작성: 기존 Controller와 호출자는 최신순 1페이지로 동작하도록 기존 메서드를 유지한다.
-        return getSavingGroupDetail(groupId, memberId, new SavingGroupNoticeSearchCondition()).getDetail();
+        return getSavingGroupDetail(savingGroupId, memberId, new SavingGroupNoticeSearchCondition()).getDetail();
     }
 
     // AI작성: 개수와 목록을 같은 읽기 트랜잭션에서 조회하고 기존 상세의 역할·가입 제한 처리를 유지한다.
     @Override
     @Transactional(readOnly = true)
     public SavingGroupDetailPageResponse getSavingGroupDetail(
-            Long groupId, Long memberId, SavingGroupNoticeSearchCondition condition) {
+            Long savingGroupId, Long memberId, SavingGroupNoticeSearchCondition condition) {
         // AI작성: Controller를 거치지 않는 호출에서도 잘못된 조건과 경로 ID를 차단한다.
-        if (groupId == null || groupId <= 0 || condition == null
+        if (savingGroupId == null || savingGroupId <= 0 || condition == null
                 || condition.getNoticePage() == null || condition.getNoticePage() < 1
                 || condition.getNoticeSort() == null
                 || !List.of("LATEST", "OLDEST").contains(condition.getNoticeSort())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 공지 페이지 또는 정렬이 올바르지 않습니다.");
         }
-        SavingGroupRow row = savingGroupMapper.selectSavingGroupDetail(groupId);
+        SavingGroupRow row = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
         if (row == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
+        // AI작성: 계모임 ID로 찾은 공통 모임 ID를 소속과 공지 조회에 사용한다.
+        Long groupId = row.getGroupId();
         long count = savingGroupMapper.selectDetailMemberCount(groupId);
         int noticeTotal = savingGroupMapper.selectSavingGroupNoticeCount(groupId);
         PageMeta pageMeta = PageMeta.of(condition.getNoticePage(), NOTICE_PAGE_SIZE, noticeTotal);
