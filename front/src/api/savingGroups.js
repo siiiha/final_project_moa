@@ -62,8 +62,8 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
 }
 
 // AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.
-export async function requestSavingGroupDeposit(groupId, { amount, requestKey }, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function requestSavingGroupDeposit(savingGroupId, { amount, requestKey }, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   if (!Number.isSafeInteger(amount) || amount < 1 || amount > 9999999999999) {
     throw new Error('금액은 1원 이상의 원 단위 정수로 입력해주세요.');
   }
@@ -76,8 +76,8 @@ export async function requestSavingGroupDeposit(groupId, { amount, requestKey },
 }
 
 // AI작성: 확인값은 메모리에서만 전달하며 재시도는 동일한 요청·확인값을 사용한다.
-export async function confirmSavingGroupDeposit(groupId, { requestKey, confirmationToken }, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function confirmSavingGroupDeposit(savingGroupId, { requestKey, confirmationToken }, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   validateDepositKey(requestKey);
   if (typeof confirmationToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(confirmationToken)) {
     throw new Error('입금 확인 정보를 다시 확인해주세요.');
@@ -459,8 +459,8 @@ export async function deleteSavingGroupCalendarEvent(savingGroupId, scheduleId) 
 }
 
 // AI작성: 선택 월과 페이지를 계주 전용 납부 현황 API에 전달한다.
-export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, signal }) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupPaymentStatus(savingGroupId, { month, page = 1, signal }) {
+  const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/dues/payment-status`, {
     params: { month, page }, signal,
   });
@@ -471,8 +471,8 @@ export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, si
 }
 
 /** AI작성: 공용 계좌 장부의 공개 필드와 서버 페이지 정보만 화면에 전달한다. */
-export async function getSavingGroupTransactions(groupId, { page = 1, signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupTransactions(savingGroupId, { page = 1, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/account/transactions`, {
     params: { page }, signal,
   });
@@ -488,8 +488,8 @@ export async function getSavingGroupTransactions(groupId, { page = 1, signal } =
 }
 
 // AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
-export async function getSavingGroupAccount(groupId, { signal } = {}) {
-  const pathId = savingGroupPathId(groupId);
+export async function getSavingGroupAccount(savingGroupId, { signal } = {}) {
+  const pathId = savingGroupPathId(savingGroupId);
   const failure = (detail, status) => Object.assign(new Error(detail?.message || '계좌 정보를 불러오지 못했습니다.'), {
     name: 'SavingGroupAccountError', code: detail?.code || 'SAVING_GROUP_ACCOUNT_READ_FAILED', status,
   });

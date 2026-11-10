@@ -16,15 +16,15 @@ public interface SavingGroupService {
     // AI작성: 승인된 모임원의 공용 계좌 거래내역을 페이지로 조회한다.
     // AI작성: 선택한 월의 입금 합계로 회비 납부 상태를 조회한다.
     com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(
-            Long groupId, Long memberId, java.time.YearMonth month, int page);
+            Long savingGroupId, Long memberId, java.time.YearMonth month, int page);
 
     com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionListResponse getSavingGroupTransactions(
-            Long groupId, Long memberId, int page);
+            Long savingGroupId, Long memberId, int page);
     // AI작성: 승인 계주에게 전체 승인 회원의 무작위 모의 순번을 제안하며 저장하지 않는다.
     java.util.List<com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderRecommendationResponse>
             getTurnOrderRecommendations(Long savingGroupId, Long memberId);
     // AI작성: 승인 모임원에게만 계좌 마스킹 정보와 내부 장부 잔액을 제공한다.
-    com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId);
+    com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse getSavingGroupAccount(Long savingGroupId, Long memberId);
     // AI작성: 승인 계주만 기존 계원의 MEMBER·MANAGER 역할을 변경하며 회계는 최대 한 명이다.
     void updateSavingGroupMemberRole(Long savingGroupId, Long targetMemberId, Long memberId, String role);
     // AI작성: 승인 계주에게만 최대 20명의 계원을 10명 단위로 제공한다.

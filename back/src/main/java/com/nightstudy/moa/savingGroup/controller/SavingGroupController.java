@@ -80,11 +80,11 @@ public class SavingGroupController {
     }
 
     // AI작성: 계좌 원문 없이 회원 전용 정보를 반환하며 모임 소속 검증은 Service에서 수행한다.
-    @GetMapping("/{groupId}/account")
+    @GetMapping("/{savingGroupId}/account")
     public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse> account(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupAccount(groupId, memberId));
+        return ApiResponse.ok(savingGroupService.getSavingGroupAccount(savingGroupId, memberId));
     }
     // AI작성: 기존 추방 경로를 연결하고 인증 사용자·소속·권한·상태 판단은 Service에 위임한다.
     @PatchMapping("/{savingGroupId}/members/{memberId}/expel")

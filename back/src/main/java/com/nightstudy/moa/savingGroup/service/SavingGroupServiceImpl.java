@@ -365,9 +365,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     @Override
     @Transactional(readOnly = true)
     public com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(
-            Long groupId, Long memberId, java.time.YearMonth month, int page) {
-        var relation = requireSavingGroupAccountMember(groupId, memberId);
-        if (!"OWNER".equals(relation.getMemberRole())) {
+            Long savingGroupId, Long memberId, java.time.YearMonth month, int page) {
+        var access = requireSavingGroupAccountMember(savingGroupId, memberId);
+        Long groupId = access.groupId();
+        if (!"OWNER".equals(access.role())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_PAYMENT_STATUS_FORBIDDEN",
                     "계주만 회비 납부 현황을 확인할 수 있습니다.");
         }
@@ -395,22 +396,27 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     }
 
     // AI작성: 계좌 조회와 거래내역 조회에 동일한 현재 모임원 권한을 적용한다.
-    private com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow requireSavingGroupAccountMember(Long groupId, Long memberId) {
+    private AccountAccess requireSavingGroupAccountMember(Long savingGroupId, Long memberId) {
         if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
-        if (groupId == null || groupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
-        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
+        if (savingGroupId == null || savingGroupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
+        // AI작성: 계모임 ID를 확인한 뒤 기존 계좌와 소속의 공통 모임 ID를 사용한다.
+        var target = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+        if (target == null)
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        Long groupId = target.getGroupId();
         var relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 계좌 정보를 확인할 수 있습니다.");
-        return relation;
+        return new AccountAccess(groupId, relation.getMemberRole());
     }
+
+    private record AccountAccess(Long groupId, String role) {}
 
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long groupId, Long memberId, int page) {
-        requireSavingGroupAccountMember(groupId, memberId);
+    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long savingGroupId, Long memberId, int page) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
         if (page < 1)
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
         var account = accountMapper.selectAccount(groupId);
@@ -437,8 +443,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
 
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId) {
-        requireSavingGroupAccountMember(groupId, memberId);
+    public SavingGroupAccountResponse getSavingGroupAccount(Long savingGroupId, Long memberId) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
         var account = accountMapper.selectAccount(groupId);
         if (account == null) return new SavingGroupAccountResponse(false, null, null, BigDecimal.ZERO, true);
         BigDecimal balance = savingGroupMapper.selectSavingGroupBalance(groupId);

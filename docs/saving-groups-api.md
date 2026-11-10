@@ -1316,10 +1316,10 @@ CREATE TABLE saving_group_account_issue (
 ### 승인 모임원 계좌 조회와 React 화면
 
 ```http
-GET /api/saving-groups/{groupId}/account
+GET /api/saving-groups/{savingGroupId}/account
 ```
 
-- `groupId`는 공통 모임 번호다. 기존 Controller 규칙에 따라 `/saving-groups/{groupId}/account` 별칭도 제공한다.
+- `savingGroupId`는 계모임 고유 번호다. 기존 Controller 규칙에 따라 `/saving-groups/{savingGroupId}/account` 별칭도 제공한다.
 - 로그인한 해당 모임의 APPROVED OWNER·MANAGER·MEMBER만 조회한다. JWT의 회원 번호만 사용하고 요청의 memberId는 신뢰하지 않는다.
 - 기존 상세 조회가 허용하는 상태 01·02 및 미삭제 모임을 따른다. 미조회 모임은 404, 비로그인은 401, 승인 모임원이 아니면 `403 SAVING_GROUP_ACCOUNT_FORBIDDEN`이다.
 - 성공 data: `issued`, `bankCode`, `maskedAccountNumber`, `balance`, `testAccount`.
@@ -1935,7 +1935,7 @@ AI작성: 실제 돈 이동·입금 확인·금융 API·발급·웹훅 없이 �
 - POST /api/saving-groups/{savingGroupId}/account/deposits
 - POST /api/saving-groups/{savingGroupId}/account/deposits/confirm
 - 기존 /saving-groups 별칭도 지원한다.
-- 경로 ID는 기존 계좌 API와 같은 공통 groupId다. saving_group_id가 아니다.
+- 경로 ID는 계좌 조회 API와 같은 saving_group_id다.
 - JWT 필터의 memberId 속성을 사용한다. 입력 회원 ID·역할·계좌번호는 신뢰하거나 사용하지 않는다.
 - APPROVED인 현재 OWNER/MANAGER/MEMBER, 미삭제 회원, 삭제되지 않은 진행중 상태 02 계모임, 존재하는 공용 계좌가 필요하다.
 
@@ -2183,7 +2183,7 @@ AI작성: 사용자 승인 A안에 따라 GET/PUT /api/saving-groups/{savingGrou
 
 `GET /api/saving-groups/{savingGroupId}/account/transactions?page=1`
 
-- 경로의 `savingGroupId`에는 기존 공용 계좌 조회와 같은 공통 `group_id`를 사용한다.
+- 경로에는 공용 계좌 조회와 같은 `saving_group_id`를 사용한다.
 - 로그인한 사용자 중 해당 모임의 현재 `APPROVED` 관계가 있는 `OWNER`, `MANAGER`, `MEMBER`가 조회할 수 있다.
 - `page`는 1부터 시작하며 기본값은 1이다. 페이지 크기는 10건이다. 거래일시 최신순, 동일 시각은 내부 거래 PK 내림차순이다.
 - 해당 공용 계좌 ID의 내부 `group_transaction`만 조회한다. 실제 금융 호출은 없다.

@@ -173,12 +173,12 @@ function SavingGroupDetailPage() {
     if (!canReadAccount) return undefined;
     const controller = new AbortController();
     let active = true;
-    getSavingGroupAccount(visibleGroup.groupId, { signal: controller.signal })
+    getSavingGroupAccount(id, { signal: controller.signal })
       .then((data) => { if (active) setAccountResult({ id, authVersion, accountRetry, status: 'success', data }); })
       .catch((error) => { if (active && error.code !== 'ERR_CANCELED')
         setAccountResult({ id, authVersion, accountRetry, status: 'error', message: error.message }); });
     return () => { active = false; controller.abort(); };
-  }, [id, authVersion, accountRetry, canReadAccount, visibleGroup?.groupId]);
+  }, [id, authVersion, accountRetry, canReadAccount]);
   const currentAccount = canReadAccount && accountResult?.id === id && accountResult?.authVersion === authVersion
     && accountResult?.accountRetry === accountRetry ? accountResult : null;
   // AI작성: 등록 후 조회만 갱신해 실패 시 폼 상태를 보존하고 모임·계정 변경 뒤 이전 응답은 반영하지 않는다.
@@ -277,7 +277,7 @@ function SavingGroupDetailPage() {
               accountPanel={canReadAccount ? <SavingGroupAccountCard state={currentAccount}
                 depositMessage={depositResult?.id === id && depositResult?.authVersion === authVersion ? depositResult.message : null}
                 canDeposit={visibleGroup.status === '02'}
-                onDeposit={() => setDepositDialog({ id, authVersion, groupId: visibleGroup.groupId, account: currentAccount.data })}
+                onDeposit={() => setDepositDialog({ id, authVersion, savingGroupId: visibleGroup.savingGroupId, account: currentAccount.data })}
                 onRetry={() => setAccountRetry((value) => value + 1)} /> : null}
               /* AI작성: 알림 URL의 menu를 우선 반영하고, 사용자가 탭을 바꾸면 알림용 조회 조건을 제거한다. */
               activeMenu={requestedMenu || (menu.id === id ? menu.value : 'notice')}
@@ -317,7 +317,7 @@ function SavingGroupDetailPage() {
         </ConfirmModal>
       )}
       {depositDialog?.id === id && depositDialog?.authVersion === authVersion && canReadAccount && visibleGroup?.status === '02' && (
-        <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={depositDialog.groupId} account={depositDialog.account}
+        <SavingGroupDepositForm key={`${id}-${authVersion}`} savingGroupId={depositDialog.savingGroupId} account={depositDialog.account}
           onClose={() => setDepositDialog(null)} onCompleted={data => {
             setDepositDialog(null);
             setDepositResult({ id, authVersion, ...data });

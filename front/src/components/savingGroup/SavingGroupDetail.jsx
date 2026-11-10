@@ -406,7 +406,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
             : <p>모집중 또는 진행중인 계모임의 계주만 계원을 관리할 수 있습니다.</p>}
         </MembersContent>
       ) : currentMenu === 'payment' && group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' ? (
-        <SavingGroupPaymentStatusPanel key={group.groupId} groupId={group.groupId} />
+        <SavingGroupPaymentStatusPanel key={group.savingGroupId} savingGroupId={group.savingGroupId} />
       ) : currentMenu === 'calendar' ? (
         /* AI작성: 다른 계모임이나 역할로 전환하면 이전 캘린더 조회 상태를 폐기한다. */
         <SavingGroupCalendarPanel
@@ -417,12 +417,12 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'dues' ? (
         /* AI작성: 모임이나 권한이 바뀌면 대시보드 조회 상태를 초기화한다. */
         <SavingGroupDashboardPanel
-          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
-          groupId={group.groupId}
+          key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus])}
+          savingGroupId={group.savingGroupId}
           canViewOutstanding={group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED'}
         />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel key={group.groupId} groupId={group.groupId} />
+        <SavingGroupTransactionHistoryPanel key={group.savingGroupId} savingGroupId={group.savingGroupId} />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel groupId={group.groupId} />

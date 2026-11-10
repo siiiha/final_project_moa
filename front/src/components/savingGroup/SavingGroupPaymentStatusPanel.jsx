@@ -221,18 +221,18 @@ function currentMonth() {
   return `${parts.find((part) => part.type === 'year').value}-${parts.find((part) => part.type === 'month').value}`;
 }
 
-export default function SavingGroupPaymentStatusPanel({ groupId }) {
+export default function SavingGroupPaymentStatusPanel({ savingGroupId }) {
   const [month, setMonth] = useState(currentMonth);
   const [page, setPage] = useState(1);
   const [request, setRequest] = useState(null);
   const [retry, setRetry] = useState(0);
-  const key = `${groupId}/${month}/${page}/${retry}`;
+  const key = `${savingGroupId}/${month}/${page}/${retry}`;
 
   // AI작성: 월이나 페이지가 바뀌면 이전 요청을 취소하고 이전 결과를 숨긴다.
   useEffect(() => {
     if (!month) return undefined;
     const controller = new AbortController();
-    getSavingGroupPaymentStatus(groupId, { month, page, signal: controller.signal })
+    getSavingGroupPaymentStatus(savingGroupId, { month, page, signal: controller.signal })
       .then((result) => {
         if (!controller.signal.aborted) setRequest({ key, result });
       })
@@ -240,7 +240,7 @@ export default function SavingGroupPaymentStatusPanel({ groupId }) {
         if (!controller.signal.aborted) setRequest({ key, error: true });
       });
     return () => controller.abort();
-  }, [groupId, key, month, page]);
+  }, [savingGroupId, key, month, page]);
 
   const current = request?.key === key ? request : null;
   const items = current?.result?.items ?? [];
