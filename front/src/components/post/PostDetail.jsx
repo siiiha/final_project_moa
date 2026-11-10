@@ -459,6 +459,13 @@ function PostDetail({
           <CommentInput
             value={commentText}
             onChange={(event) => onCommentChange(event.target.value)}
+            // AI작성: 일반 Enter는 줄바꿈으로 남기고 Ctrl/Cmd+Enter만 등록 동작으로 처리합니다.
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                event.preventDefault();
+                onCommentSubmit(event);
+              }
+            }}
             maxLength={500}
             placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
           />
