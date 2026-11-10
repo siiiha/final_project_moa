@@ -162,14 +162,14 @@ const PageButton = styled(Button)`
 const formatWon = (amount) => `${amount.toLocaleString('ko-KR')}원`;
 
 // AI작성: 서버 페이지를 표시하고 이전 모임·페이지의 응답은 취소한다.
-function SavingGroupTransactionHistoryPanel({ groupId }) {
+function SavingGroupTransactionHistoryPanel({ savingGroupId }) {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    getSavingGroupTransactions(groupId, { page, signal: controller.signal })
+    getSavingGroupTransactions(savingGroupId, { page, signal: controller.signal })
       .then((data) => {
         if (!controller.signal.aborted) setResult(data);
       })
@@ -177,7 +177,7 @@ function SavingGroupTransactionHistoryPanel({ groupId }) {
         if (!controller.signal.aborted) setFailed(true);
       });
     return () => controller.abort();
-  }, [groupId, page]);
+  }, [savingGroupId, page]);
 
   const loadPage = (nextPage) => {
     setResult(null);

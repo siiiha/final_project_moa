@@ -279,7 +279,7 @@ function SavingGroupDetailPage() {
               accountPanel={canReadAccount ? <SavingGroupAccountCard state={currentAccount}
                 depositMessage={depositResult?.id === id && depositResult?.authVersion === authVersion ? depositResult.message : null}
                 canDeposit={visibleGroup.status === '02'}
-                onDeposit={() => setDepositDialog({ id, authVersion, groupId: visibleGroup.groupId, account: currentAccount.data })}
+                onDeposit={() => setDepositDialog({ id, authVersion, savingGroupId: visibleGroup.savingGroupId, account: currentAccount.data })}
                 onRetry={() => setAccountRetry((value) => value + 1)} /> : null}
               /* AI작성: 알림 URL의 menu를 우선 반영하고, 사용자가 탭을 바꾸면 알림용 조회 조건을 제거한다. */
               activeMenu={requestedMenu || (menu.id === id ? menu.value : 'notice')}
@@ -319,7 +319,7 @@ function SavingGroupDetailPage() {
         </ConfirmModal>
       )}
       {depositDialog?.id === id && depositDialog?.authVersion === authVersion && canReadAccount && visibleGroup?.status === '02' && (
-        <SavingGroupDepositForm key={`${id}-${authVersion}`} groupId={depositDialog.groupId} account={depositDialog.account}
+        <SavingGroupDepositForm key={`${id}-${authVersion}`} savingGroupId={depositDialog.savingGroupId} account={depositDialog.account}
           onClose={() => setDepositDialog(null)} onCompleted={data => {
             setDepositDialog(null);
             setDepositResult({ id, authVersion, ...data });

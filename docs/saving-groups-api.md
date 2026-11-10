@@ -5,6 +5,15 @@
 <!-- AI작성: 공지 페이징·고정의 현재 계약을 과거 단계별 기록과 구분한다. -->
 > 공지 목록·고정 기능은 문서 하단의 [2026-11-04 페이징·고정 최신 계약](#notice-pagination-and-pin)을 우선한다. 아래 기존 기록의 최신 4건·meta 없음·고정 제외는 당시 구현 범위다.
 
+## 2026-11-10 계모임 경로 식별값
+
+<!-- AI작성: 계모임 전용 경로와 공통 모임 신고의 식별값을 구분한다. -->
+- 브라우저 상세·설정·공지 URL과 계모임 전용 API의 첫 경로 변수는 `saving_group.saving_group_id`다.
+- 서비스는 이 ID로 계모임을 확인한 후 회원 소속·공지·일정·계좌 등 기존 내부 조회에 연결된 `groups.group_id`를 사용한다. 모임 신고는 공통 API의 `targetId`에 `groups.group_id`를 보낸다.
+- 설정 조회 `GET /api/saving-groups/{savingGroupId}/settings`와 수정 `PATCH /api/saving-groups/{savingGroupId}`는 모두 계모임 고유 ID로 대상을 조회한다. 수정 시 해당 행을 잠그고, 조회한 공통 모임 ID로 승인 계주 소속과 기본 정보 저장 대상을 확인한다.
+- 목록·설정·공지 화면 및 새 알림 링크는 계모임 ID로 상세에 진입한다. 예전에 공통 모임 ID로 저장된 주소는 현재 상세 경로의 식별값 계약과 다르다.
+- 브라우저 또는 Postman에서는 계모임 A의 계모임 ID와 B의 공통 모임 ID가 같은 데이터로 확인한다. 각 탭은 A를 조회하고 A에 등록해야 한다. B 소속 공지·일정의 수정·삭제는 차단돼야 하며 모임 신고는 A의 공통 모임 ID를 사용한다.
+
 ## 2026-10-20 상세 조회 확장 — 최신 계약
 
 <!-- AI작성: 구현 중 사용자 정정 사항을 반영한다. 아래 기존 목록 구현 기록보다 이 절을 우선한다. -->
@@ -20,7 +29,7 @@
 
 `GET /saving-groups/{id}` / 프록시 별칭 `GET /api/saving-groups/{id}`
 
-- id는 groups.group_id이며 Controller에서 Long + @Positive로 검증한다.
+- id는 saving_group.saving_group_id이며 Controller에서 Long + @Positive로 검증한다.
 - 타입 오류·Long 범위 초과·0·음수는 400 BAD_REQUEST다.
 - groups.deleted_at IS NULL, saving_group.status IN ('01','02')만 허용한다.
 - 없는 모임·삭제·그 외 상태는 모두 404 NOT_FOUND, 메시지는 '조회할 수 있는 계모임이 없습니다.'다.
@@ -30,6 +39,7 @@
 {
   "success": true,
   "data": {
+    "savingGroupId": 101,
     "groupId": 42,
     "groupName": "테스트 모임",
     "description": null,
@@ -69,7 +79,7 @@ Number로 변환하지 않는다. 응답 BIGINT가 JavaScript 안전 정수 범�
 ### 프론트 연결
 
 - SavingGroupDetailPage는 URL ID로 조회하므로 직접 접근과 새로고침을 지원한다.
-- 목록 응답에 groupId를 추가하고 기존 savingGroupId는 유지한다. 카드 URL은 groupId를 사용한다.
+- 목록 응답에 groupId를 추가하고 기존 savingGroupId는 유지한다. 카드 URL은 savingGroupId를 사용한다.
 - 로딩·400·401·403·404·서버/네트워크 오류, 재시도, 빈 공지를 구분한다.
 - 요청 취소와 응답 ID·재시도 회차 비교로 이전 응답이 새 화면을 덮어쓰지 않게 한다.
 - 소개·공지·회비·납부일·정원·인원수·상태는 실제 상세 응답만 사용한다.
@@ -339,9 +349,9 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 | groupName | String | 예 | 1~100자 |
 | groupType | String | 예 | 친목계 또는 순번계 |
 | regionName | String | 예 | `region` 테이블의 지역명 |
-| duesAmount | BigDecimal | 예 | 1원 이상의 원 단위 정수 |
+| duesAmount | BigDecimal | 예 | 10,000원~1,000,000원의 원 단위 정수 |
 | duesDay | Integer | 예 | 1~28 |
-| maxMembers | Integer | 예 | 1~999 |
+| maxMembers | Integer | 예 | 4~20 |
 | description | String | 예 | 1~50자(현재 스키마 기준) |
 | groupImage | File | 아니오 | JPG/PNG/WEBP, 5MB 이하 |
 | memberId | Long | 예 | 인증 연동 전의 임시 신청자 ID |
@@ -477,13 +487,13 @@ back 폴더에서 실행한다.
 ### 경로와 요청
 
 ```http
-PATCH /api/saving-groups/{groupId}/members/{memberId}/expel
+PATCH /api/saving-groups/{savingGroupId}/members/{memberId}/expel
 ```
 
 기존 Controller 별칭도 유지한다.
 
 ```http
-PATCH /saving-groups/{groupId}/members/{memberId}/expel
+PATCH /saving-groups/{savingGroupId}/members/{memberId}/expel
 ```
 
 - groupId: 양수 Long, `groups.group_id`이면서 삭제되지 않은 계모임이어야 한다.
@@ -740,9 +750,9 @@ HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
 - 신청·승인 인원 집계 및 중복 방지 구조는 유지한다. 상세 응답은 조회 시점의 안내이므로 신청 또는 승인 성공을 보장하지 않는다.
 - 3단계에서 서버 조건과 응답을 구현했고, 5단계에서 아래와 같이 기존 버튼 크기를 유지하며 화면에 연결했다.
 
-계모임은 기존과 같이 status=01일 때만 신규 신청할 수 있다. 정원 미설정·정원 도달과 최대 5개 가입 제한을 동일하게 반영한다. 상세 URL은 groupId, 가입 신청 URL은 savingGroupId를 사용하므로 두 식별자를 혼용하지 않는다.
+계모임은 기존과 같이 status=01일 때만 신규 신청할 수 있다. 정원 미설정·정원 도달과 최대 5개 가입 제한을 동일하게 반영한다. 상세 URL과 가입 신청 URL은 savingGroupId를 사용한다.
 
-수동 확인: GET /api/saving-groups/{groupId}를 비로그인·가입·심사 대기·거절·추방·탈퇴·관계 없음으로 각각 조회한다. POST /api/saving-groups/{savingGroupId}/join-requests에서도 같은 제한이 유지되는지 확인한다.
+수동 확인: GET /api/saving-groups/{savingGroupId}를 비로그인·가입·심사 대기·거절·추방·탈퇴·관계 없음으로 각각 조회한다. POST /api/saving-groups/{savingGroupId}/join-requests에서도 같은 제한이 유지되는지 확인한다.
 
 <!-- AI작성: 버튼 크기 변경 없이 재적용한 5단계 화면 동작입니다. -->
 ## 2026-11-03 가입 신청 화면 연결 — 기존 버튼 크기 유지
@@ -776,7 +786,7 @@ HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
 
 - `POST /api/saving-groups/{savingGroupId}/notices`
 - 기존 Controller 별칭인 `POST /saving-groups/{savingGroupId}/notices`도 지원한다.
-- `savingGroupId`는 양수 BIGINT인 계모임 식별자다. 상세 화면 URL의 공통 `groupId`와 구분한다.
+- `savingGroupId`는 양수 BIGINT인 계모임 식별자다. 상세 화면 URL도 같은 식별자를 사용한다.
 - `Authorization: Bearer <로그인 토큰>`, `Content-Type: application/json`을 사용한다. JWT 필터가 설정한 요청 속성 `memberId`만 작성자로 사용한다.
 
 | 요청 필드 | 타입 | 필수·검증 |
@@ -889,7 +899,7 @@ TODO·제외 범위:
 <!-- AI작성: 계모임 공지 요약에 소모임과 같은 작성자·작성일을 추가한 현재 응답 계약입니다. -->
 ## 계모임 최근 공지 작성자·작성일 표시 (2026-11-04)
 
-기존 계모임 상세 조회 `GET /api/saving-groups/{id}`의 `data.notices` 항목에 다음 두 필드를 추가했다. 여기서 상세 URL의 id는 공통 groupId이며 공지 작성 URL의 savingGroupId와 다르다. 초기의 공지 ID·제목 전용 응답을 확장한 것으로 기존 필드는 유지한다.
+기존 계모임 상세 조회 `GET /api/saving-groups/{id}`의 `data.notices` 항목에 다음 두 필드를 추가했다. 상세 URL과 공지 작성 URL은 savingGroupId를 사용한다. 초기의 공지 ID·제목 전용 응답을 확장한 것으로 기존 필드는 유지한다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
@@ -912,9 +922,9 @@ TODO·제외 범위:
 
 ### 요청·식별자·권한
 
-- `GET /api/saving-groups/{groupId}/notices/{noticeId}`
-- 기존 Controller 별칭 `GET /saving-groups/{groupId}/notices/{noticeId}`도 지원한다.
-- 두 경로 변수는 양수 Long이다. `groupId`는 `groups.group_id`이며 공지 작성 POST의 `savingGroupId` (`saving_group_id`)와 다르다. 요청 본문은 없다.
+- `GET /api/saving-groups/{savingGroupId}/notices/{noticeId}`
+- 기존 Controller 별칭 `GET /saving-groups/{savingGroupId}/notices/{noticeId}`도 지원한다.
+- 두 경로 변수는 양수 Long이며 공지 API의 첫 ID는 `saving_group.saving_group_id`다. 요청 본문은 없다.
 - 인증은 기존 JWT·세션 검증과 서버 요청 속성 `memberId`를 사용한다. 쿼리의 회원 ID는 사용하지 않는다.
 - 해당 계모임의 `APPROVED` 관계를 가진 `OWNER / MANAGER / MEMBER`만 본문을 조회할 수 있다. 작성은 OWNER·MANAGER만 가능하지만 상세 조회는 MEMBER도 가능하다.
 - 관계 없음과 `PENDING / REJECTED / LEFT / EXPELLED`는 403이다. 공개 계모임 상세의 최근 공지 요약 공개 정책은 유지하며 본문 조회 권한과 구분한다.
@@ -970,9 +980,9 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 
 ### React 화면·요청
 
-- `getSavingGroupNoticeDetail(groupId, noticeId, { signal })`는 기존 공통 client의 `/api` baseURL·인증을 재사용한다. 두 ID는 기존 양수 BIGINT 검증을 통과해야 하며 큰 문자열 ID를 Number로 변환하지 않는다.
+- `getSavingGroupNoticeDetail(savingGroupId, noticeId, { signal })`는 기존 공통 client의 `/api` baseURL·인증을 재사용한다. 두 ID는 기존 양수 BIGINT 검증을 통과해야 하며 큰 문자열 ID를 Number로 변환하지 않는다.
 - 서버 코드·메시지·HTTP 상태를 보존하고 `ERR_CANCELED`는 원본 그대로 전달한다. 통신·실패 봉투의 기본 오류는 `SAVING_GROUP_NOTICE_READ_FAILED`, 본문 객체가 없는 성공 응답은 `INVALID_RESPONSE`다.
-- 화면 경로는 `/saving-groups/:id/notices/:noticeId`이며 id는 공통 group_id다. 승인된 OWNER·MANAGER·MEMBER이고 모임 상태가 01/02이면 기존 최근 공지 제목이 링크로 표시된다. 그 외에는 제목 텍스트를 유지한다. 서버가 실제 권한을 다시 검사한다.
+- 화면 경로는 `/saving-groups/:id/notices/:noticeId`이며 id는 saving_group_id다. 승인된 OWNER·MANAGER·MEMBER이고 모임 상태가 01/02이면 기존 최근 공지 제목이 링크로 표시된다. 그 외에는 제목 텍스트를 유지한다. 서버가 실제 권한을 다시 검사한다.
 - 페이지가 URL·요청·로딩·오류·재시도를 관리하고 별도 표시 컴포넌트가 제목·작성자 닉네임·한국어 작성일·본문을 렌더링한다. 본문은 일반 텍스트로 표시하며 줄바꿈을 유지한다. 닉네임·날짜 누락 안내는 기존 목록 관례를 따른다.
 - URL·계정(authVersion)·재시도 회차가 바뀌면 이전 본문을 숨기고 이탈한 요청을 취소한다. 통신·서버 오류와 INVALID_RESPONSE에는 재시도를 제공한다. 400·401·403·404는 원인별 안내를 표시한다.
 - '계모임 공지로 돌아가기'는 같은 groupId의 계모임 기본 공지 탭으로 이동한다. 직접 URL 접근·새로고침도 URL 기반 GET으로 처리한다.
@@ -1000,7 +1010,7 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 후속 수동 검증:
 
 1. Java 17 환경에서 신규 상세 Service·Controller 및 기존 작성 테스트를 실행한다. 기존 다른 테스트의 컴파일 문제 여부도 확인한다.
-2. 테스트용 계모임의 group_id와 saving_group_id가 다른 데이터로 GET 경로가 group_id를 사용하는지 확인한다. 승인 OWNER·MANAGER·MEMBER와 모임 상태 01/02에서 200 및 6개 필드를 확인한다.
+2. 테스트용 계모임의 group_id와 saving_group_id가 다른 데이터로 GET 경로가 saving_group_id를 사용하는지 확인한다. 승인 OWNER·MANAGER·MEMBER와 모임 상태 01/02에서 200 및 6개 필드를 확인한다.
 3. 미인증 401, 관계 없음·PENDING·REJECTED·LEFT·EXPELLED 403, 모임 없음·삭제·상태 00/03/04의 404, 공지 없음·다른 모임 공지의 404, 두 ID 각각 타입·범위·양수 오류 400을 확인한다.
 4. 실제 DB에서 공지·작성자 매핑, 닉네임 누락, 같은 공지 반복 조회 시 조회 데이터 변경 없음과 소속 조건을 확인한다.
 5. 브라우저에서 승인 역할별 제목 링크, 직접 접근·새로고침·돌아가기, 오류 안내·재시도, URL·계정 변경·로그아웃 뒤 이전 본문 숨김을 확인한다. 작성·취소·등록 성공 후 최근 공지 갱신도 회귀 확인한다.
@@ -1024,7 +1034,7 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 
 `GET /saving-groups/{id}?noticePage=1&noticeSort=LATEST`
 
-`/api/saving-groups/{id}` 별칭도 동일하다. id는 saving_group_id가 아닌 공통 groups.group_id다. 별도 공지 목록 GET 경로는 추가하지 않았다.
+`/api/saving-groups/{id}` 별칭도 동일하다. id는 saving_group.saving_group_id다. 별도 공지 목록 GET 경로는 추가하지 않았다.
 
 | 항목 | 규칙 |
 | --- | --- |
@@ -1058,9 +1068,9 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 
 ### 고정 지정·해제 PATCH
 
-`PATCH /saving-groups/{groupId}/notices/{noticeId}/pin`
+`PATCH /saving-groups/{savingGroupId}/notices/{noticeId}/pin`
 
-`/api/saving-groups/{groupId}/notices/{noticeId}/pin` 별칭도 지원한다. 두 ID는 양수 Long이다. JWT 인증 계층이 전달하는 요청 속성 memberId만 사용하며 쿼리·본문의 처리자 ID는 권한 근거로 사용하지 않는다.
+`/api/saving-groups/{savingGroupId}/notices/{noticeId}/pin` 별칭도 지원한다. 두 ID는 양수 Long이다. JWT 인증 계층이 전달하는 요청 속성 memberId만 사용하며 쿼리·본문의 처리자 ID는 권한 근거로 사용하지 않는다.
 
 ```json
 { "pinned": true }
@@ -1132,8 +1142,8 @@ Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서
 # 계모임 공지 수정 — 2026-11-04
 
 <!-- AI작성: 사용자 최종 확정인 작성자 본인 수정 정책을 기록한다. -->
-- `PUT /api/saving-groups/{groupId}/notices/{noticeId}` 및 `/saving-groups` 별칭.
-- 첫 경로 ID는 기존 상세·고정 API와 동일한 `groups.group_id`이며 `saving_group_id`가 아니다.
+- `PUT /api/saving-groups/{savingGroupId}/notices/{noticeId}` 및 `/saving-groups` 별칭.
+- 첫 경로 ID는 `saving_group.saving_group_id`다.
 - JWT `memberId`와 공지 `writer_id`가 일치하는 작성자만 수정한다. 기존 승인 회원·운영진(OWNER 또는 MANAGER)·모임 상태 조건도 적용하며 타 운영진의 수정은 금지한다.
 - 모집중(01)·진행중(02)의 삭제되지 않은 계모임과 미삭제 소속 공지만 수정한다.
 - JSON 본문: `{"title":"제목","content":"내용"}`. 두 필드 필수, 제목 최대 100자·내용 최대 5,000자, 앞뒤 공백 제거. 부분 수정은 지원하지 않는다.
@@ -1150,8 +1160,8 @@ Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서
 # 계모임 공지 삭제 — 2026-11-04
 
 <!-- AI작성: 수정 완료 efcf44f를 기준으로 구현한 작성자 논리 삭제 계약과 검증 결과다. -->
-- `DELETE /api/saving-groups/{groupId}/notices/{noticeId}`, `/saving-groups` 별칭 유지. 요청 본문 없음.
-- 첫 경로 ID는 공통 groups.group_id. 인증은 JWT 필터의 memberId만 사용하며 성공은 기존 ApiResponse<Void>다.
+- `DELETE /api/saving-groups/{savingGroupId}/notices/{noticeId}`, `/saving-groups` 별칭 유지. 요청 본문 없음.
+- 첫 경로 ID는 saving_group.saving_group_id. 인증은 JWT 필터의 memberId만 사용하며 성공은 기존 ApiResponse<Void>다.
 - 대상 모임의 APPROVED OWNER·MANAGER인 작성자 본인만 삭제한다. 다른 운영진·일반 회원·비회원·대기·탈퇴·추방 회원은 거절한다. 모임 상태는 모집중(01)·진행중(02)만 허용한다.
 - 모임→회원 관계→미삭제 소속 공지 순으로 잠근 뒤 작성자를 비교한다. 저장 SQL에서도 group_id·notice_id·writer_id·deleted_at IS NULL을 확인한다.
 - group_notice.deleted_at에 CURRENT_TIMESTAMP를 저장한다. 실제 DB DATETIME·NULL 허용·기본값 NULL 준비는 사용자가 확인했다. AI는 스키마·마이그레이션·실제 DB를 변경하지 않았다.
@@ -1316,10 +1326,10 @@ CREATE TABLE saving_group_account_issue (
 ### 승인 모임원 계좌 조회와 React 화면
 
 ```http
-GET /api/saving-groups/{groupId}/account
+GET /api/saving-groups/{savingGroupId}/account
 ```
 
-- `groupId`는 공통 모임 번호다. 기존 Controller 규칙에 따라 `/saving-groups/{groupId}/account` 별칭도 제공한다.
+- `savingGroupId`는 계모임 고유 번호다. 기존 Controller 규칙에 따라 `/saving-groups/{savingGroupId}/account` 별칭도 제공한다.
 - 로그인한 해당 모임의 APPROVED OWNER·MANAGER·MEMBER만 조회한다. JWT의 회원 번호만 사용하고 요청의 memberId는 신뢰하지 않는다.
 - 기존 상세 조회가 허용하는 상태 01·02 및 미삭제 모임을 따른다. 미조회 모임은 404, 비로그인은 401, 승인 모임원이 아니면 `403 SAVING_GROUP_ACCOUNT_FORBIDDEN`이다.
 - 성공 data: `issued`, `bankCode`, `maskedAccountNumber`, `balance`, `testAccount`.
@@ -1441,7 +1451,7 @@ WHERE ma.approval_id = @approval_id;
 
 ### 공통 정책
 
-- 두 API의 첫 경로 ID는 `saving_group.saving_group_id`다. 상세 화면 URL의 공통 `group_id`와 다르므로 프론트는 상세 응답의 `savingGroupId`를 전달한다.
+- 두 API의 첫 경로 ID는 `saving_group.saving_group_id`다. 상세 화면 URL과 같은 식별자를 사용한다.
 - 기존 `/saving-groups` 별칭도 동일하게 지원한다. 처리자는 JWT 필터가 설정한 request attribute `memberId`만 사용한다.
 - 해당 모임의 `groups.member_id`가 인증 회원과 일치하고, 그 회원 관계가 `OWNER + APPROVED`여야 한다. MANAGER·MEMBER·비회원·다른 모임 OWNER는 조회·변경할 수 없다.
 - 모임이 미삭제이고 모집중(`01`) 또는 진행중(`02`)일 때만 허용한다. 인증·존재·상태·소속·권한·역할 검증은 Service가 수행한다.
@@ -1641,13 +1651,13 @@ Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트 �
 
 <!-- AI작성: 실제 금융 호출 없이 내부 요청과 증빙만 저장한다. DB 담당자의 신규 컬럼 적용이 선행되어야 한다. -->
 
-기본 경로 `/saving-groups`와 `/api/saving-groups`는 동일하다. `{groupId}`는 `groups.group_id`다. 인증 사용자 ID는 JWT 속성에서만 사용한다.
+기본 경로 `/saving-groups`와 `/api/saving-groups`는 동일하다. `{savingGroupId}`는 `saving_group.saving_group_id`다. 인증 사용자 ID는 JWT 속성에서만 사용한다.
 
 | 메서드·경로 | 입력 | 결과 |
 |---|---|---|
-| GET `/{groupId}/payout-requests/options` | 없음 | 현재 사용자의 유형·현재 회차·확정 금액·증빙 필요 여부 |
-| POST `/{groupId}/payout-requests` | multipart/form-data | 요청 ID·유형·금액·PENDING |
-| GET `/{groupId}/payout-requests/expenses/{expenseId}/receipt` | 없음, OWNER 전용 | 증빙 파일 다운로드, no-store |
+| GET `/{savingGroupId}/payout-requests/options` | 없음 | 현재 사용자의 유형·현재 회차·확정 금액·증빙 필요 여부 |
+| POST `/{savingGroupId}/payout-requests` | multipart/form-data | 요청 ID·유형·금액·PENDING |
+| GET `/{savingGroupId}/payout-requests/expenses/{expenseId}/receipt` | 없음, OWNER 전용 | 증빙 파일 다운로드, no-store |
 
 POST는 순번계의 경우 빈 multipart를 보내고, 친목계는 `amount`(1원 이상·13자리 이하 정수), `title`(공백 제외 필수·최대 100자), `receipt`(JPG/PNG·5MB 이하·각 변 4096픽셀 이하)를 보낸다. 사용자·상태·계좌·이체 정보는 입력하지 않는다. 순번계 금액·제목·증빙 입력은 거절한다.
 
@@ -1782,7 +1792,7 @@ Postman에서 테스트 계정의 기존 인증을 사용해 순번계·친목�
 
 <!-- AI작성: 계원 관리·계금 요청 등록·목록 조회를 모두 보존하여 충돌을 해결했다. -->
 
-- 등록 POST 및 options·영수증 GET은 기존 공통 groupId 계약을 유지한다. 목록 GET의 경로 ID는 savingGroupId다. 프론트는 각각 group.groupId / group.savingGroupId를 전달한다. HTTP 메서드와 하위 경로가 달라 별도의 핸들러로 유지한다.
+- 등록 POST와 options·영수증·목록 GET은 savingGroupId를 사용한다. HTTP 메서드와 하위 경로가 달라 별도의 핸들러로 유지한다.
 - 기준 브랜치의 계금 산정·지출 검토 컬럼을 유지한다. 목록 응답은 사용자 확정 범위대로 유지하며 새 컬럼을 자동 노출하지 않는다.
 - 충돌 해결 후 프론트 테스트 121건·빌드 통과. 백엔드 계모임 회귀 581건 중 566 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 계원 관리 및 계금 등록·목록 테스트에는 실패 없음. 일반 전체 테스트 컴파일의 기존 import 오류 13건·실제 DB/브라우저 미검증은 AI 사용 기록에 별도 기재했다.
 
@@ -1884,7 +1894,7 @@ back 폴더에서 `gradlew.bat -I <임시-init-절대경로> test --tests '*Savi
 
 <!-- AI작성: 위 개별 브랜치 작업 당시의 미검증 사항과 구분하여 현재 병합 검증 결과를 기록한다. -->
 
-- feature/savinggroup(9dbd9ae)에 승인·거절 작업(86a3d6b)을 병합하면서 계원관리·요청 등록·목록·승인·거절 API와 SQL을 모두 보존했다. 등록/options/영수증은 groupId, 목록과 승인·거절은 savingGroupId 계약을 유지한다. 승인·거절의 requestId는 해당 유형의 목록 응답 request_id와 같다.
+- feature/savinggroup(9dbd9ae)에 승인·거절 작업(86a3d6b)을 병합하면서 계원관리·요청 등록·목록·승인·거절 API와 SQL을 모두 보존했다. 등록·옵션·증빙·목록·승인·거절은 savingGroupId를 사용한다. 승인·거절의 requestId는 해당 유형의 목록 응답 request_id와 같다.
 - 기준 schema.sql에 expenses.reviewer_id/reviewed_at/reject_reason이 반영되어 있음을 확인했다. 위 심사 브랜치 작성 당시의 컬럼 적용 대기 기록은 이 스키마 정의 확인으로 보완되지만, 운영·개발 DB에 실제 적용됐는지는 별도 확인이 필요하다.
 - 이번에는 설치된 JDK 17 경로를 명시하여 본문·테스트를 컴파일했다. 계모임 회귀 649건 중 634 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 신규 승인·거절 내부 테스트 68건은 전부 통과했다. 기존 두 실패는 승인 OWNER 관계 Mock 누락이며 이전 병합 기록과 동일하다.
 - 실제 MySQL 저장·동시 잠금·브라우저·Postman 검증은 실행하지 않았다. 계주 전용 영수증 조회는 기존 등록 작업의 구현을 보존했으며 이번에 API를 새로 만들거나 프론트 승인 버튼을 연결하지 않았다. 커밋은 사용자 진행 예정이다.
@@ -1919,7 +1929,7 @@ back 폴더에서 `gradlew.bat -I <임시-init-절대경로> test --tests '*Savi
 ## 진행 전 계원 추방 프론트 연결
 
 - 기존 계원 관리 화면을 재사용한다. APPROVED OWNER이고 모임 상태가 01일 때 MEMBER·MANAGER에 추방 버튼이 보인다. 역할 편집 중에는 추방 버튼을 비활성화한다. 진행중·종료 및 비OWNER는 추방 UI를 제공하지 않으며 최종 권한은 서버가 판단한다.
-- 회원 조회·역할 변경에는 savingGroupId, 추방에는 공통 groupId를 사용한다. 상세 응답의 두 ID를 분리하여 전달한다. 추방은 기존 JWT client의 /api 기본 경로와 PATCH /saving-groups/{groupId}/members/{memberId}/expel을 사용하고 본문은 보내지 않는다.
+- 회원 조회·역할 변경·추방은 savingGroupId를 사용한다. 추방은 기존 JWT client의 /api 기본 경로와 PATCH /saving-groups/{savingGroupId}/members/{memberId}/expel을 사용하고 본문은 보내지 않는다.
 - 기존 ConfirmModal에서 '추방된 계원은 이 계모임에 다시 가입할 수 없습니다.'를 안내한다. 취소는 요청 없이 닫는다. 확인 중 검색·페이지·역할 변경·추방·확인창 닫기를 차단하고 ref 잠금으로 중복 요청을 방지한다.
 - 성공 시 안내 후 현재 검색과 페이지로 재조회하고 마지막 페이지가 사라지면 남은 페이지를 조회한다. 실패 시 목록을 유지하고 확인창 안에 오류를 표시한다. 다시 열면 이전 오류를 지운다. 모임·역할·회원 상태·진행 상태 변경 시 패널을 재생성하여 이전 상태를 폐기한다.
 - 자동 검증: 계모임 API·회원 관리·계금 요청 API·목록 SSR 테스트 61건 통과, 프론트 빌드 성공 및 대상 lint 오류 없음(기존 경고 2건). 브라우저 클릭 검증은 앱 내 브라우저의 로컬 서버 연결 시간 초과 및 Windows URL 확인 정책으로 수행하지 못했다. 실제 JWT·MySQL 연동 및 모바일 브라우저도 미검증이다.
@@ -1935,7 +1945,7 @@ AI작성: 실제 돈 이동·입금 확인·금융 API·발급·웹훅 없이 �
 - POST /api/saving-groups/{savingGroupId}/account/deposits
 - POST /api/saving-groups/{savingGroupId}/account/deposits/confirm
 - 기존 /saving-groups 별칭도 지원한다.
-- 경로 ID는 기존 계좌 API와 같은 공통 groupId다. saving_group_id가 아니다.
+- 경로 ID는 계좌 조회 API와 같은 saving_group_id다.
 - JWT 필터의 memberId 속성을 사용한다. 입력 회원 ID·역할·계좌번호는 신뢰하거나 사용하지 않는다.
 - APPROVED인 현재 OWNER/MANAGER/MEMBER, 미삭제 회원, 삭제되지 않은 진행중 상태 02 계모임, 존재하는 공용 계좌가 필요하다.
 
@@ -2185,7 +2195,7 @@ AI작성: 사용자 승인 A안에 따라 GET/PUT /api/saving-groups/{savingGrou
 
 `GET /api/saving-groups/{savingGroupId}/account/transactions?page=1`
 
-- 경로의 `savingGroupId`에는 기존 공용 계좌 조회와 같은 공통 `group_id`를 사용한다.
+- 경로에는 공용 계좌 조회와 같은 `saving_group_id`를 사용한다.
 - 로그인한 사용자 중 해당 모임의 현재 `APPROVED` 관계가 있는 `OWNER`, `MANAGER`, `MEMBER`가 조회할 수 있다.
 - `page`는 1부터 시작하며 기본값은 1이다. 페이지 크기는 10건이다. 거래일시 최신순, 동일 시각은 내부 거래 PK 내림차순이다.
 - 해당 공용 계좌 ID의 내부 `group_transaction`만 조회한다. 실제 금융 호출은 없다.
@@ -2240,12 +2250,12 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 
 <!-- AI작성: 공유 일정의 API 계약과 검증 결과를 기록한다. -->
 
-승인된 계주(OWNER), 회계(MANAGER), 계원(MEMBER)이 같은 계모임의 일정을 조회한다. 등록은 승인된 계주와 회계만 가능하다. 경로의 groupId는 공통 모임 ID다. 실제 로그인 회원은 서버 인증 속성에서 가져온다.
+승인된 계주(OWNER), 회계(MANAGER), 계원(MEMBER)이 같은 계모임의 일정을 조회한다. 등록은 승인된 계주와 회계만 가능하다. 경로의 savingGroupId는 계모임 고유 ID다. 실제 로그인 회원은 서버 인증 속성에서 가져온다.
 
 | 동작 | 메서드와 경로 | 성공 |
 | --- | --- | --- |
-| 월간 일정 조회 | GET /api/saving-groups/{groupId}/calendar?month=2026-11 | 200 |
-| 선택일에 일정 추가 | POST /api/saving-groups/{groupId}/calendar/events | 201 |
+| 월간 일정 조회 | GET /api/saving-groups/{savingGroupId}/calendar?month=2026-11 | 200 |
+| 선택일에 일정 추가 | POST /api/saving-groups/{savingGroupId}/calendar/events | 201 |
 
 조회 응답 예시
 
@@ -2301,7 +2311,7 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 
 <!-- AI작성: 계모임 일정 삭제 API와 검증 결과를 기록한다. -->
 
-`DELETE /api/saving-groups/{groupId}/calendar/events/{scheduleId}`에 기존 Bearer 인증을 사용한다. 요청 본문은 없다. 승인된 계주·회계가 작성자에 관계없이 해당 모임의 일정을 삭제할 수 있다. 예를 들어 `DELETE /api/saving-groups/10/calendar/events/42`가 성공하면 HTTP 200과 공통 응답 `{"success":true}`를 반환한다.
+`DELETE /api/saving-groups/{savingGroupId}/calendar/events/{scheduleId}`에 기존 Bearer 인증을 사용한다. 요청 본문은 없다. 승인된 계주·회계가 작성자에 관계없이 해당 모임의 일정을 삭제할 수 있다. 예를 들어 `DELETE /api/saving-groups/10/calendar/events/42`가 성공하면 HTTP 200과 공통 응답 `{"success":true}`를 반환한다.
 
 | 상태 | 조건 |
 | --- | --- |

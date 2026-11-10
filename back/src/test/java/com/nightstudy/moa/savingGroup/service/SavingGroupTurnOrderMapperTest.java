@@ -20,8 +20,9 @@ class SavingGroupTurnOrderMapperTest {
         }
         String prefix = "com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper.";
         // AI작성: 추천 버튼이 의존하는 실제 상세 조회의 유형 전달 누락을 방지한다.
-        assertThat(config.getMappedStatement(prefix + "selectSavingGroupDetail")
-                .getBoundSql(Map.of("groupId", 20L)).getSql()).contains("sg.saving_group_type AS group_type");
+        assertThat(config.getMappedStatement(prefix + "selectSavingGroupDetailBySavingGroupId")
+                .getBoundSql(Map.of("savingGroupId", 99L)).getSql())
+                .contains("sg.saving_group_id = ?", "sg.saving_group_type AS group_type");
         var context = config.getMappedStatement(prefix + "selectTurnOrderRecommendationContext");
         assertThat(context.getSqlCommandType()).isEqualTo(SqlCommandType.SELECT);
         assertThat(context.getBoundSql(Map.of("savingGroupId", 99L)).getSql())

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 // AI작성: 월간 조회와 등록 요청을 검증하고 로그인 회원 정보를 서비스로 전달한다.
 @RestController
-@RequestMapping({"/saving-groups/{groupId}/calendar", "/api/saving-groups/{groupId}/calendar"})
+@RequestMapping({"/saving-groups/{savingGroupId}/calendar", "/api/saving-groups/{savingGroupId}/calendar"})
 public class SavingGroupCalendarController {
     private final SavingGroupCalendarService service;
 
@@ -21,28 +21,28 @@ public class SavingGroupCalendarController {
     }
 
     @GetMapping
-    public ApiResponse<Month> getMonth(@PathVariable @Positive Long groupId,
+    public ApiResponse<Month> getMonth(@PathVariable @Positive Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @RequestParam @DateTimeFormat(pattern = "uuuu-MM") YearMonth month,
             jakarta.servlet.http.HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store");
-        return ApiResponse.ok(service.getMonth(groupId, memberId, month));
+        return ApiResponse.ok(service.getMonth(savingGroupId, memberId, month));
     }
 
     @PostMapping("/events")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<Event> create(@PathVariable @Positive Long groupId,
+    public ApiResponse<Event> create(@PathVariable @Positive Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @Valid @RequestBody CreateRequest request) {
-        return ApiResponse.ok(service.create(groupId, memberId, request));
+        return ApiResponse.ok(service.create(savingGroupId, memberId, request));
     }
 
     // AI작성: 검증한 모임·일정 ID와 로그인 회원을 삭제 서비스에 전달한다.
     @DeleteMapping("/events/{scheduleId}")
-    public ApiResponse<Void> delete(@PathVariable @Positive Long groupId,
+    public ApiResponse<Void> delete(@PathVariable @Positive Long savingGroupId,
             @PathVariable @Positive Long scheduleId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        service.delete(groupId, memberId, scheduleId);
+        service.delete(savingGroupId, memberId, scheduleId);
         return ApiResponse.ok();
     }
 }

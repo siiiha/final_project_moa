@@ -23,7 +23,7 @@ const Form = styled.form`
 const Actions = styled.div`display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px;`;
 
 // AI작성: 부모의 계정·URL 키 변경 시 폼을 해제하며 중복 제출은 동기 잠금으로 차단한다.
-export default function SavingGroupNoticeEditForm({ groupId, notice, onSaved, onCancel, onBlocked }) {
+export default function SavingGroupNoticeEditForm({ savingGroupId, notice, onSaved, onCancel, onBlocked }) {
   const fieldId = useId();
   const lock = useRef(false);
   const active = useRef(false);
@@ -46,7 +46,7 @@ export default function SavingGroupNoticeEditForm({ groupId, notice, onSaved, on
     setBusy(true);
     setError('');
     try {
-      await updateSavingGroupNotice(groupId, notice.noticeId, { title, content });
+      await updateSavingGroupNotice(savingGroupId, notice.noticeId, { title, content });
       if (!active.current) return;
       onSaved({ ...notice, title: title.trim(), content: content.trim() });
     } catch (failure) {

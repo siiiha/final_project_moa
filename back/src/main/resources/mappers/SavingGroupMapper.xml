@@ -253,7 +253,7 @@
     <select id="selectPayoutTargetForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutTargetRow">
         SELECT g.group_id, sg.saving_group_type AS group_type, sg.status, sg.start_date
         FROM `groups` g JOIN saving_group sg ON sg.group_id = g.group_id
-        WHERE g.group_id = #{groupId} AND g.deleted_at IS NULL FOR UPDATE
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL FOR UPDATE
     </select>
     <!-- AI작성: 현재 심사 권한과 동일하게 승인 상태인 계주의 회원 번호만 알림 대상으로 조회한다. -->
     <select id="selectSavingGroupPayoutReviewerIds" resultType="long">
@@ -718,6 +718,7 @@
 
 
     <!-- AI작성: 설정 화면 URL은 groups.group_id를 사용하므로 조회·수정 권한 확인도 같은 식별자로 찾는다. -->
+    <!-- AI작성: 설정 경로의 계모임 ID로 권한과 설정 대상을 조회한다. -->
     <select id="selectSavingGroupSettingsAuthority" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow">
         SELECT sg.saving_group_id,
         sg.group_id,
@@ -733,7 +734,7 @@
         AND membership_status = 'APPROVED'
         GROUP BY group_id
         ) owner ON owner.group_id = g.group_id
-        WHERE sg.group_id = #{savingGroupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -752,7 +753,7 @@
         WHERE membership_status = 'APPROVED'
         GROUP BY group_id
         ) approved ON approved.group_id = g.group_id
-        WHERE sg.group_id = #{savingGroupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -763,7 +764,7 @@
         sg.status
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.group_id = #{savingGroupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
         FOR UPDATE
     </select>
@@ -945,14 +946,14 @@
         </foreach>
         GROUP BY group_id
     </select>
-    <!-- AI작성: URL ID는 saving_group_id가 아닌 groups.group_id다. -->
-    <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
+    <!-- AI작성: 계모임 상세는 계모임 고유 ID로 조회한다. -->
+    <select id="selectSavingGroupDetailBySavingGroupId" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
         SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,
         <!-- AI작성: 순번 추천 버튼이 실제 상세 응답의 유형으로 표시되도록 조회한다. -->
         sg.saving_group_type AS group_type,
         r.region_name, g.max_members, sg.dues_amount, sg.dues_day, sg.status
         <include refid="listFrom"/>
-        WHERE g.group_id = #{groupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL AND sg.status IN ('01', '02')
     </select>
 
@@ -1021,7 +1022,7 @@
         SELECT sg.saving_group_id, sg.group_id, sg.status, g.max_members, g.member_id AS owner_member_id
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.group_id = #{groupId} AND g.deleted_at IS NULL
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL
         FOR UPDATE
     </select>
 
@@ -1176,7 +1177,7 @@
         g.member_id AS owner_member_id
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.group_id = #{groupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
         FOR UPDATE
     </select>

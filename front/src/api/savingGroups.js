@@ -71,8 +71,8 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
 }
 
 // AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.
-export async function requestSavingGroupDeposit(groupId, { amount, requestKey }, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function requestSavingGroupDeposit(savingGroupId, { amount, requestKey }, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   if (!Number.isSafeInteger(amount) || amount < 1 || amount > 9999999999999) {
     throw new Error('금액은 1원 이상의 원 단위 정수로 입력해주세요.');
   }
@@ -85,8 +85,8 @@ export async function requestSavingGroupDeposit(groupId, { amount, requestKey },
 }
 
 // AI작성: 확인값은 메모리에서만 전달하며 재시도는 동일한 요청·확인값을 사용한다.
-export async function confirmSavingGroupDeposit(groupId, { requestKey, confirmationToken }, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function confirmSavingGroupDeposit(savingGroupId, { requestKey, confirmationToken }, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   validateDepositKey(requestKey);
   if (typeof confirmationToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(confirmationToken)) {
     throw new Error('입금 확인 정보를 다시 확인해주세요.');
@@ -194,9 +194,9 @@ export async function leaveSavingGroup(savingGroupId) {
   );
 }
 
-// AI작성: 추방은 공통 groupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
-export async function expelSavingGroupMember(groupId, memberId, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+// AI작성: 추방은 savingGroupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
+export async function expelSavingGroupMember(savingGroupId, memberId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const targetId = savingGroupPathId(memberId);
   const result = await savingGroupMemberResponse(
     () => client.patch(`/saving-groups/${id}/members/${targetId}/expel`, undefined, { signal }),
@@ -221,14 +221,14 @@ async function payoutCall(operation) {
   }
 }
 
-export async function getSavingGroupPayoutOptions(groupId, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupPayoutOptions(savingGroupId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   return payoutCall(() => client.get(`/saving-groups/${id}/payout-requests/options`, { signal }));
 }
 
 // AI작성: 순번계는 빈 폼을 보내고 친목계만 금액·제목·영수증을 전달한다. multipart 경계는 브라우저가 생성한다.
-export async function createSavingGroupPayout(groupId, { amount, title, receipt } = {}, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function createSavingGroupPayout(savingGroupId, { amount, title, receipt } = {}, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const body = new FormData();
   if (amount != null) body.append('amount', String(amount));
   if (title != null) body.append('title', title);
@@ -429,8 +429,8 @@ export async function approveSavingGroupCreationApplication(approvalId) {
 }
 
 // AI작성: 계모임 공유 일정은 기존 인증 클라이언트로 조회하고 등록한다.
-export async function getSavingGroupCalendar(groupId, { month, signal }) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupCalendar(savingGroupId, { month, signal }) {
+  const id = savingGroupPathId(savingGroupId);
   try {
     const { data: response } = await client.get(`/saving-groups/${id}/calendar`, { params: { month }, signal });
     if (response?.success !== true || !Array.isArray(response.data?.events)) {
@@ -442,8 +442,8 @@ export async function getSavingGroupCalendar(groupId, { month, signal }) {
   }
 }
 
-export async function createSavingGroupCalendarEvent(groupId, event) {
-  const id = savingGroupPathId(groupId);
+export async function createSavingGroupCalendarEvent(savingGroupId, event) {
+  const id = savingGroupPathId(savingGroupId);
   try {
     const { data: response } = await client.post(`/saving-groups/${id}/calendar/events`, event);
     if (response?.success !== true || !response.data?.id) {
@@ -456,8 +456,8 @@ export async function createSavingGroupCalendarEvent(groupId, event) {
 }
 
 // AI작성: 일정 ID를 문자열로 유지하고 모임 범위 삭제 API를 호출한다.
-export async function deleteSavingGroupCalendarEvent(groupId, scheduleId) {
-  const id = savingGroupPathId(groupId);
+export async function deleteSavingGroupCalendarEvent(savingGroupId, scheduleId) {
+  const id = savingGroupPathId(savingGroupId);
   const eventId = savingGroupPathId(scheduleId);
   try {
     const { data: response } = await client.delete(`/saving-groups/${id}/calendar/events/${eventId}`);
@@ -468,8 +468,8 @@ export async function deleteSavingGroupCalendarEvent(groupId, scheduleId) {
 }
 
 // AI작성: 선택 월과 페이지를 계주 전용 납부 현황 API에 전달한다.
-export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, signal }) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupPaymentStatus(savingGroupId, { month, page = 1, signal }) {
+  const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/dues/payment-status`, {
     params: { month, page }, signal,
   });
@@ -480,8 +480,8 @@ export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, si
 }
 
 /** AI작성: 공용 계좌 장부의 공개 필드와 서버 페이지 정보만 화면에 전달한다. */
-export async function getSavingGroupTransactions(groupId, { page = 1, signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupTransactions(savingGroupId, { page = 1, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/account/transactions`, {
     params: { page }, signal,
   });
@@ -497,8 +497,8 @@ export async function getSavingGroupTransactions(groupId, { page = 1, signal } =
 }
 
 // AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
-export async function getSavingGroupAccount(groupId, { signal } = {}) {
-  const pathId = savingGroupPathId(groupId);
+export async function getSavingGroupAccount(savingGroupId, { signal } = {}) {
+  const pathId = savingGroupPathId(savingGroupId);
   const failure = (detail, status) => Object.assign(new Error(detail?.message || '계좌 정보를 불러오지 못했습니다.'), {
     name: 'SavingGroupAccountError', code: detail?.code || 'SAVING_GROUP_ACCOUNT_READ_FAILED', status,
   });
@@ -592,11 +592,11 @@ export async function createSavingGroupNotice(savingGroupId, { title, content },
 
 // AI작성: 고정 변경 오류의 서버 코드·문구·상태를 유지해 권한 변경과 최대 개수 초과를 안내한다.
 // AI작성: 수정 오류를 작성·고정 오류와 구분하고 서버 코드·상태 및 취소 원본을 유지한다.
-export async function updateSavingGroupNotice(groupId, noticeId, { title, content }, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function updateSavingGroupNotice(savingGroupId, noticeId, { title, content }, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.put(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { title, content }, { signal });
+    const response = await client.put(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { title, content }, { signal });
     if (response.data?.success !== true) throw { response };
     return response.data.data;
   } catch (error) {
@@ -610,11 +610,11 @@ export async function updateSavingGroupNotice(groupId, noticeId, { title, conten
 }
 
 // AI작성: 작성자는 요청으로 받지 않고 공통 인증 client로 삭제하며 오류·취소를 보존한다.
-export async function deleteSavingGroupNotice(groupId, noticeId, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function deleteSavingGroupNotice(savingGroupId, noticeId, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.delete(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    const response = await client.delete(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { signal });
     if (response.data?.success !== true) throw { response };
     return response.data.data;
   } catch (error) {
@@ -636,12 +636,12 @@ function toSavingGroupNoticePinError(error, status) {
 }
 
 // AI작성: 토글 대신 목표 상태를 전달해 응답 유실 후 재요청에서도 상태가 뒤집히지 않게 한다.
-export async function updateSavingGroupNoticePinned(groupId, noticeId, pinned, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function updateSavingGroupNoticePinned(savingGroupId, noticeId, pinned, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   if (typeof pinned !== 'boolean') throw toSavingGroupNoticePinError({ code: 'BAD_REQUEST', message: '고정 여부를 확인해 주세요.' }, 400);
   try {
-    const response = await client.patch(`/saving-groups/${groupPathId}/notices/${noticePathId}/pin`, { pinned }, { signal });
+    const response = await client.patch(`/saving-groups/${savingGroupPath}/notices/${noticePathId}/pin`, { pinned }, { signal });
     if (response.data?.success !== true) throw toSavingGroupNoticePinError(response.data?.error, response.status);
     return response.data.data;
   } catch (error) {
@@ -660,11 +660,11 @@ function toSavingGroupNoticeDetailError(error, status) {
 }
 
 // AI작성: 공통 groupId와 공지 ID를 문자열로 유지하며 인증·요청 취소는 기존 client를 재사용한다.
-export async function getSavingGroupNoticeDetail(groupId, noticeId, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function getSavingGroupNoticeDetail(savingGroupId, noticeId, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.get(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    const response = await client.get(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { signal });
     if (response.data?.success !== true) {
       throw toSavingGroupNoticeDetailError(response.data?.error, response.status);
     }
@@ -790,7 +790,8 @@ export function toSavingGroupCard(item) {
         ? '회비 확인 필요'
         : `월 ${amount.toLocaleString('ko-KR')}원`;
   return {
-    id: item.groupId,
+    // AI작성: 상세 주소는 계모임 고유 ID로 이동한다.
+    id: item.savingGroupId,
     name: item.groupName,
     description: item.description?.trim() || '소개글이 없습니다.',
     region: item.regionName,

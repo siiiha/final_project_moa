@@ -24,22 +24,31 @@ class SavingGroupCalendarControllerTest {
             """;
     private final SavingGroupMapper mapper = mock(SavingGroupMapper.class);
     private final org.springframework.test.web.servlet.MockMvc mvc =
-            MockMvcBuilders.standaloneSetup(new SavingGroupCalendarController(new SavingGroupCalendarServiceImpl(mapper)))
+            MockMvcBuilders.standaloneSetup(new SavingGroupCalendarController(new SavingGroupCalendarServiceImpl(mapper, mock(com.nightstudy.moa.notification.service.NotificationService.class))))
                     .setControllerAdvice(new GlobalExceptionHandler()).build();
 
+    // AI작성: 요청 ID와 DB 공통 모임 ID를 다르게 설정한다.
+    private void calendarTarget(long savingGroupId, long groupId) {
+        var row = new SavingGroupRow();
+        row.setGroupId(groupId);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(savingGroupId)).thenReturn(row);
+        var target = new com.nightstudy.moa.savingGroup.dto.SavingGroupJoinTargetRow();
+        target.setGroupId(groupId);
+        when(mapper.selectSavingGroupJoinTargetForUpdate(savingGroupId)).thenReturn(target);
+    }
+
     private void membership(String role) {
-        when(mapper.selectSavingGroupDetail(10L)).thenReturn(mock(SavingGroupRow.class));
-        when(mapper.selectSavingGroupStatusForUpdate(10L)).thenReturn("02");
+        calendarTarget(10L, 20L);
         var member = new SavingGroupMembershipRelationRow();
         member.setMembershipStatus("APPROVED");
         member.setMemberRole(role);
-        when(mapper.selectSavingGroupMembership(10L, 30L)).thenReturn(member);
+        when(mapper.selectSavingGroupMembership(20L, 30L)).thenReturn(member);
     }
 
     @Test void memberReadsButCannotCreate() throws Exception {
         membership("MEMBER");
         var start = LocalDateTime.of(2026, 11, 1, 0, 0);
-        when(mapper.selectCalendarEvents(10L, start, start.plusMonths(1))).thenReturn(List.of(
+        when(mapper.selectCalendarEvents(20L, start, start.plusMonths(1))).thenReturn(List.of(
                 new SavingGroupCalendarDto.EventRow(42L, "정기 모임", start.plusDays(19).plusHours(19))));
         mvc.perform(get(CALENDAR).requestAttr("memberId", 30L).param("month", "2026-11"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.canCreate").value(false))
@@ -58,11 +67,11 @@ class SavingGroupCalendarControllerTest {
         membership(role);
         // AI작성: 9건이 저장된 날짜의 10번째 등록을 허용한다.
         var start = LocalDateTime.of(2026, 11, 20, 0, 0);
-        when(mapper.countCalendarEvents(10L, start, start.plusDays(1))).thenReturn(9);
+        when(mapper.countCalendarEvents(20L, start, start.plusDays(1))).thenReturn(9);
         when(mapper.insertCalendarEvent(any())).thenAnswer(invocation -> {
             SavingGroupCalendarDto.Insert row = invocation.getArgument(0);
             org.assertj.core.api.Assertions.assertThat(row.writerId).isEqualTo(30L);
-            org.assertj.core.api.Assertions.assertThat(row.groupId).isEqualTo(10L);
+            org.assertj.core.api.Assertions.assertThat(row.groupId).isEqualTo(20L);
             row.scheduleId = 42L;
             return 1;
         });
@@ -74,7 +83,7 @@ class SavingGroupCalendarControllerTest {
     @Test void rejectsEleventhEventWithLimitCode() throws Exception {
         membership("OWNER");
         var start = LocalDateTime.of(2026, 11, 20, 0, 0);
-        when(mapper.countCalendarEvents(10L, start, start.plusDays(1))).thenReturn(10);
+        when(mapper.countCalendarEvents(20L, start, start.plusDays(1))).thenReturn(10);
         mvc.perform(post(CALENDAR + "/events").requestAttr("memberId", 30L)
                         .contentType(MediaType.APPLICATION_JSON).content(EVENT))
                 .andExpect(status().isConflict())
@@ -87,7 +96,7 @@ class SavingGroupCalendarControllerTest {
     @ValueSource(strings = {"OWNER", "MANAGER"})
     void organizerDeletesOnlyMatchingEvent(String role) throws Exception {
         membership(role);
-        when(mapper.deleteCalendarEvent(10L, 42L)).thenReturn(1, 0);
+        when(mapper.deleteCalendarEvent(20L, 42L)).thenReturn(1, 0);
         var path = CALENDAR + "/events/42";
         mvc.perform(delete(path).requestAttr("memberId", 30L))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
@@ -110,8 +119,7 @@ class SavingGroupCalendarControllerTest {
 
     @Test void rejectsInvalidInputsAndCrossGroupAccess() throws Exception {
         membership("OWNER");
-        when(mapper.selectSavingGroupDetail(11L)).thenReturn(mock(SavingGroupRow.class));
-        when(mapper.selectSavingGroupStatusForUpdate(11L)).thenReturn("02");
+        calendarTarget(11L, 21L);
         var other = "/api/saving-groups/11/calendar";
         mvc.perform(get(other).requestAttr("memberId", 30L).param("month", "2026-11"))
                 .andExpect(status().isForbidden());
