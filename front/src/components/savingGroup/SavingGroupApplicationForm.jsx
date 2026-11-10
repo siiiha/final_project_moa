@@ -234,7 +234,27 @@ const ActionButton = styled(Button)`
   font-size: 13px;
 `;
 
+// AI작성: 원 단위를 입력칸에 고정해 숫자 편집과 분리한다.
+const DuesInput = styled.span`
+  position: relative;
+  display: block;
+
+  input {
+    padding-right: 32px;
+  }
+
+  > span {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: ${({ theme }) => theme.colors.muted};
+  }
+`;
+
 function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onRegionRetry, onSubmit, onCancel, isSubmitting }) {
+  const [duesAmount, setDuesAmount] = useState('');
   const [imageName, setImageName] = useState('선택된 이미지가 없습니다.');
   const [groupType, setGroupType] = useState('');
   // AI작성: 시·구는 필수, 동은 선택이며 현재 상위 지역에 속한 항목만 제출한다.
@@ -358,7 +378,21 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
           </Field>
           <Field>
             월 회비
-            <Input name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000" />
+            <DuesInput>
+              <Input
+                required
+                inputMode="numeric"
+                value={duesAmount.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/,/g, '');
+                  if (/^\d*$/.test(digits)) setDuesAmount(digits);
+                }}
+                placeholder="예: 30,000"
+              />
+              <span aria-hidden="true">원</span>
+            </DuesInput>
+            {/* AI작성: 개설 요청에는 기존처럼 숫자 문자열만 담는다. */}
+            <input type="hidden" name="duesAmount" value={duesAmount} />
           </Field>
         </FieldGrid>
         {/* AI작성: 지역 조회 상태를 안내하고 입력한 다른 내용을 유지한 채 재시도한다. */}

@@ -223,6 +223,25 @@ const formatEffectiveAt = (effectiveAt) => {
   return `${date.replaceAll('-', '.')} ${time?.slice(0, 5) || ''}부터 적용됩니다.`;
 };
 
+// AI작성: 원 단위를 입력칸에 고정해 숫자 편집과 분리한다.
+const DuesInput = styled.span`
+  position: relative;
+  display: block;
+
+  input {
+    padding-right: 32px;
+  }
+
+  > span {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: ${({ theme }) => theme.colors.muted};
+  }
+`;
+
 function SavingGroupSettingsForm({
   current, pending, canEditSettings, status, isSaving, submitErrorMessage, onSubmit, onCancel, onDeleteRequest,
 }) {
@@ -255,7 +274,12 @@ function SavingGroupSettingsForm({
     if (name !== initialValues.groupName) changedFields.groupName = name;
     if (description !== initialValues.description) changedFields.description = description;
     if (capacity !== initialValues.maxMembers) changedFields.maxMembers = toNumber(capacity);
-    if (monthlyDues !== initialValues.duesAmount) changedFields.duesAmount = toNumber(monthlyDues);
+    // AI작성: 같은 금액을 다시 입력하면 회비 변경 요청에 포함하지 않는다.
+    if (monthlyDues !== initialValues.duesAmount
+      && (monthlyDues === '' || initialValues.duesAmount === ''
+        || toNumber(monthlyDues) !== toNumber(initialValues.duesAmount))) {
+      changedFields.duesAmount = toNumber(monthlyDues);
+    }
     if (paymentDate !== initialValues.duesDay) changedFields.duesDay = toNumber(paymentDate);
     return changedFields;
   };
@@ -344,16 +368,22 @@ function SavingGroupSettingsForm({
           </Field>
           <Field>
             월 회비금액
-            <Input
-              name="monthlyDues"
-              disabled={isReadOnly}
-              inputMode="numeric"
-              value={monthlyDues}
-              onChange={(event) => {
-                setMonthlyDues(event.target.value);
-                clearFormError();
-              }}
-            />
+            <DuesInput>
+              <Input
+                name="monthlyDues"
+                disabled={isReadOnly}
+                inputMode="numeric"
+                value={monthlyDues.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/,/g, '');
+                  if (/^\d*$/.test(digits)) {
+                    setMonthlyDues(digits);
+                    clearFormError();
+                  }
+                }}
+              />
+              <span aria-hidden="true">원</span>
+            </DuesInput>
             <CurrentValue>현재 적용: {formatDuesAmount(current.duesAmount)}</CurrentValue>
             {pending?.duesAmount != null && (
               <PendingValue>다음 회차 적용 예정: {formatDuesAmount(pending.duesAmount)}</PendingValue>
