@@ -1,8 +1,6 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.notification.dto.NotificationType;
-import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupChatMessage;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupChatMapper;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
