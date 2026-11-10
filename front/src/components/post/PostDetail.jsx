@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
-import PostCategoryBadge from './PostCategoryBadge';
 
 const ArticleCard = styled.article`
   padding: 22px 18px 14px;
@@ -98,14 +97,27 @@ const CommentsTitle = styled.h2`
   font-weight: 800;
 `;
 
+const CommentsLoading = styled.p`
+  margin-top: 14px;
+  padding: 20px 0;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 14px;
+  text-align: center;
+`;
+
 const CommentList = styled.div`
   margin-top: 10px;
 `;
 
-const LoadMoreActions = styled.div`
+const CommentPagination = styled.nav`
   margin-top: 14px;
   display: flex;
   justify-content: center;
+  gap: 4px;
+`;
+
+const CommentPageButton = styled(Button)`
+  min-width: 30px;
 `;
 
 const Comment = styled.article`
@@ -256,8 +268,10 @@ function PostDetail({
   memberId,
   comments,
   commentTotal,
-  hasMoreComments,
-  isLoadingMoreComments,
+  isLoadingComments,
+  commentPage,
+  commentPageNumbers,
+  commentTotalPages,
   isSubmittingComment,
   replyingCommentId,
   replyText,
@@ -277,7 +291,7 @@ function PostDetail({
   onCommentEditSubmit,
   onCommentEditCancel,
   onCommentDelete,
-  onLoadMoreComments,
+  onCommentPageChange,
   onEdit,
   onDelete,
   onReport,
@@ -286,7 +300,6 @@ function PostDetail({
   return (
     <>
       <ArticleCard>
-        <PostCategoryBadge category={post.category} size="detail" />
         <Meta>
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>
@@ -316,10 +329,14 @@ function PostDetail({
         </Button>
       </ListActions>
       <Comments>
-        <CommentsTitle>
-          댓글 {commentTotal}개
-        </CommentsTitle>
-        <CommentList>
+        {isLoadingComments ? (
+          // AI작성: 댓글 개수 0개를 먼저 노출하지 않고 조회 완료 후 실제 목록을 표시합니다.
+          <CommentsLoading role="status">댓글을 불러오는 중입니다.</CommentsLoading>
+        ) : <>
+          <CommentsTitle>
+            댓글 {commentTotal}개
+          </CommentsTitle>
+          <CommentList>
           {comments.map((comment) => (
             <Comment key={comment.id}>
               <CommentHeader>
@@ -440,27 +457,55 @@ function PostDetail({
               ))}
             </Comment>
           ))}
-        </CommentList>
-        {hasMoreComments && (
-          <LoadMoreActions>
-            {/* AI작성: 숫자 페이징보다 읽던 흐름을 유지하고 모바일에서 누르기 쉬운 더보기 방식을 사용합니다. */}
-            <Button
+          </CommentList>
+          {commentTotalPages > 1 && (
+          <CommentPagination aria-label="댓글 페이지 이동">
+            <CommentPageButton
               type="button"
               $variant="secondary"
               $size="small"
-              disabled={isLoadingMoreComments}
-              onClick={onLoadMoreComments}
+              disabled={commentPage === 1}
+              onClick={() => onCommentPageChange(commentPage - 1)}
             >
-              {isLoadingMoreComments ? '댓글 불러오는 중...' : '댓글 더보기'}
-            </Button>
-          </LoadMoreActions>
-        )}
+              이전
+            </CommentPageButton>
+            {commentPageNumbers.map((page) => (
+              <CommentPageButton
+                key={page}
+                type="button"
+                $variant={page === commentPage ? 'primary' : 'secondary'}
+                $size="small"
+                aria-current={page === commentPage ? 'page' : undefined}
+                onClick={() => onCommentPageChange(page)}
+              >
+                {page}
+              </CommentPageButton>
+            ))}
+            <CommentPageButton
+              type="button"
+              $variant="secondary"
+              $size="small"
+              disabled={commentPage === commentTotalPages}
+              onClick={() => onCommentPageChange(commentPage + 1)}
+            >
+              다음
+            </CommentPageButton>
+          </CommentPagination>
+          )}
+        </>}
         <CommentForm onSubmit={onCommentSubmit}>
           <CommentInput
             value={commentText}
             onChange={(event) => onCommentChange(event.target.value)}
+            // AI작성: 일반 Enter는 줄바꿈으로 남기고 Ctrl/Cmd+Enter만 등록 동작으로 처리합니다.
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                event.preventDefault();
+                onCommentSubmit(event);
+              }
+            }}
             maxLength={500}
-            placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
+            placeholder="댓글은 ctrl+enter로 등록이 가능합니다."
           />
           <CommentSubmitButton type="submit" $size="small" disabled={isSubmittingComment}>
             {isSubmittingComment ? '등록 중...' : '등록'}

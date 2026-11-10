@@ -27,6 +27,11 @@ public interface PostService {
 
     PostDto getPostDetail(Long postId, Long loginMemberId);
 
+    // AI작성: 비로그인 방문자의 Redis 조회수 중복 방지를 위해 익명 방문자 식별값을 함께 전달합니다.
+    default PostDto getPostDetail(Long postId, Long loginMemberId, String visitorId) {
+        return getPostDetail(postId, loginMemberId);
+    }
+
     Resource getPostImage(Long postId, String fileName);
 
     void deletePost (Long postId, Long loginMemberId);
