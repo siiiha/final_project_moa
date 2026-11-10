@@ -139,7 +139,7 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
                     </td>
                     <td>
                       <PostTitle type="button" onClick={() => onPostClick(post.id)}>
-                        {post.title}
+                        {post.title}{post.commentCount > 0 ? ` [${post.commentCount}]` : ''}
                       </PostTitle>
                     </td>
                     <td>{post.author}</td>

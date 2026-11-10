@@ -172,6 +172,7 @@ function PostListPage() {
             author: post.writerNickname || '알 수 없음',
             date: post.createdAtStr || '',
             views: post.viewCount,
+            commentCount: post.commentCount || 0,
           }))
         );
         setTotalCount(response.meta?.total || 0);
