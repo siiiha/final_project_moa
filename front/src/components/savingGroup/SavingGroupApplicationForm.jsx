@@ -36,6 +36,8 @@ const Form = styled.form`
 const FieldGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* AI작성: 오류 문구 공간이 있는 필드와 같은 줄의 입력칸을 위쪽에 맞춘다. */
+  align-items: start;
   gap: 16px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.laptop}) {
@@ -46,6 +48,14 @@ const FieldGrid = styled.div`
     grid-template-columns: 1fr;
   }
 `;
+
+// AI작성: 오류가 없을 때도 같은 문구의 줄바꿈 높이를 확보한다.
+const ValidationMessage = styled.small`
+  visibility: ${({ $visible }) => ($visible ? 'visible' : 'hidden')};
+`;
+
+const memberRangeMessage = '모집 인원은 4~20명의 정수로 입력해 주세요.';
+const duesRangeMessage = '월 회비는 10,000원~1,000,000원의 정수로 입력해 주세요.';
 
 const Field = styled.label`
   display: grid;
@@ -249,8 +259,25 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
   const town = towns.find((item) => String(item.regionId) === townId);
   const selectedRegion = townId ? town : district;
   const regionUnavailable = regionsLoading || Boolean(regionsError);
+  const [amountErrors, setAmountErrors] = useState({});
   const handleSubmit = (event) => {
     if (regionUnavailable || !selectedRegion?.regionName) {
+      event.preventDefault();
+      return;
+    }
+    // AI작성: 개설 요청에 담기는 원본 숫자값으로 범위를 검증한다.
+    const fields = new FormData(event.currentTarget);
+    const maxMembers = Number(fields.get('maxMembers'));
+    const duesAmount = Number(fields.get('duesAmount'));
+    const nextErrors = {};
+    if (!Number.isInteger(maxMembers) || maxMembers < 4 || maxMembers > 20) {
+      nextErrors.maxMembers = memberRangeMessage;
+    }
+    if (!Number.isInteger(duesAmount) || duesAmount < 10_000 || duesAmount > 1_000_000) {
+      nextErrors.duesAmount = duesRangeMessage;
+    }
+    setAmountErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
       event.preventDefault();
       return;
     }
@@ -306,7 +333,24 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
           {/* AI작성: 첫 줄은 이름·종류·모집 인원, 둘째 줄은 시·구·동 순서로 배치한다. */}
           <Field>
             모집 인원
-            <Input name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명" />
+            <Input
+              name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명"
+              aria-invalid={Boolean(amountErrors.maxMembers)}
+              aria-describedby={amountErrors.maxMembers ? 'creation-member-range' : undefined}
+              onChange={(event) => {
+                // AI작성: 정원 값이 입력된 상태에서 범위를 벗어날 때만 오류를 표시한다.
+                const value = event.target.value;
+                const count = Number(value);
+                const error = value !== '' && (!/^[0-9]+$/.test(value) || count < 4 || count > 20)
+                  ? memberRangeMessage
+                  : undefined;
+                setAmountErrors((previous) => ({ ...previous, maxMembers: error }));
+              }}
+            />
+            <ValidationMessage id="creation-member-range" $visible={Boolean(amountErrors.maxMembers)}
+              role={amountErrors.maxMembers ? 'alert' : undefined}>
+              {memberRangeMessage}
+            </ValidationMessage>
           </Field>
           <Field>
             활동 지역 시·도 (필수)
@@ -358,7 +402,24 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
           </Field>
           <Field>
             월 회비
-            <Input name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000" />
+            <Input
+              name="duesAmount" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 30000"
+              aria-invalid={Boolean(amountErrors.duesAmount)}
+              aria-describedby={amountErrors.duesAmount ? 'creation-dues-range' : undefined}
+              onChange={(event) => {
+                // AI작성: 입력한 회비가 허용 범위를 벗어날 때만 오류를 표시한다.
+                const value = event.target.value;
+                const amount = Number(value);
+                const error = value !== '' && (!/^[0-9]+$/.test(value) || amount < 10_000 || amount > 1_000_000)
+                  ? duesRangeMessage
+                  : undefined;
+                setAmountErrors((previous) => ({ ...previous, duesAmount: error }));
+              }}
+            />
+            <ValidationMessage id="creation-dues-range" $visible={Boolean(amountErrors.duesAmount)}
+              role={amountErrors.duesAmount ? 'alert' : undefined}>
+              {duesRangeMessage}
+            </ValidationMessage>
           </Field>
         </FieldGrid>
         {/* AI작성: 지역 조회 상태를 안내하고 입력한 다른 내용을 유지한 채 재시도한다. */}

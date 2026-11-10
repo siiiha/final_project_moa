@@ -339,9 +339,9 @@ TEMPORARY TABLE 권한이 필요하며 실제 매퍼를 연결별 임시 테이�
 | groupName | String | 예 | 1~100자 |
 | groupType | String | 예 | 친목계 또는 순번계 |
 | regionName | String | 예 | `region` 테이블의 지역명 |
-| duesAmount | BigDecimal | 예 | 1원 이상의 원 단위 정수 |
+| duesAmount | BigDecimal | 예 | 10,000원~1,000,000원의 원 단위 정수 |
 | duesDay | Integer | 예 | 1~28 |
-| maxMembers | Integer | 예 | 1~999 |
+| maxMembers | Integer | 예 | 4~20 |
 | description | String | 예 | 1~50자(현재 스키마 기준) |
 | groupImage | File | 아니오 | JPG/PNG/WEBP, 5MB 이하 |
 | memberId | Long | 예 | 인증 연동 전의 임시 신청자 ID |

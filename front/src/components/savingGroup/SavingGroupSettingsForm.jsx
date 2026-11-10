@@ -284,6 +284,13 @@ function SavingGroupSettingsForm({
       nextErrors.maxMembers = '정원은 4~20명의 정수로 입력해주세요.';
     }
 
+    // AI작성: 기존 금액을 유지하는 수정 요청에는 회비 범위 검증을 적용하지 않는다.
+    if (changedFields.duesAmount !== undefined
+      && (!/^[0-9]+$/.test(monthlyDues)
+        || changedFields.duesAmount < 10_000 || changedFields.duesAmount > 1_000_000)) {
+      nextErrors.duesAmount = '월 회비는 10,000원~1,000,000원의 정수로 입력해 주세요.';
+    }
+
     return nextErrors;
   };
 
@@ -346,14 +353,23 @@ function SavingGroupSettingsForm({
             월 회비금액
             <Input
               name="monthlyDues"
+              aria-invalid={Boolean(errors.duesAmount)}
+              aria-describedby={errors.duesAmount ? 'settings-dues-error' : undefined}
               disabled={isReadOnly}
               inputMode="numeric"
               value={monthlyDues}
               onChange={(event) => {
-                setMonthlyDues(event.target.value);
-                clearFormError();
+                // AI작성: 회비 오류는 입력 중 갱신하고 정상 범위로 고치면 즉시 숨긴다.
+                const value = event.target.value;
+                const amount = Number(value);
+                const error = value !== '' && (!/^[0-9]+$/.test(value) || amount < 10_000 || amount > 1_000_000)
+                  ? '월 회비는 10,000원~1,000,000원의 정수로 입력해 주세요.'
+                  : undefined;
+                setMonthlyDues(value);
+                setErrors((previous) => ({ ...previous, duesAmount: error, form: undefined }));
               }}
             />
+            {errors.duesAmount && <FieldError id="settings-dues-error" role="alert">{errors.duesAmount}</FieldError>}
             <CurrentValue>현재 적용: {formatDuesAmount(current.duesAmount)}</CurrentValue>
             {pending?.duesAmount != null && (
               <PendingValue>다음 회차 적용 예정: {formatDuesAmount(pending.duesAmount)}</PendingValue>
