@@ -34,6 +34,8 @@ const Form = styled.form`
 
 const FieldGrid = styled.div`
   display: grid;
+  /* AI작성: 같은 줄의 입력칸을 위쪽에 맞춘다. */
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 
@@ -81,6 +83,13 @@ const FieldError = styled.p`
   font-size: 11px;
   font-weight: 600;
 `;
+
+// AI작성: 오류가 숨겨져도 줄바꿈에 필요한 공간을 유지한다.
+const ValidationMessage = styled(FieldError)`
+  visibility: ${({ $visible }) => ($visible ? 'visible' : 'hidden')};
+`;
+
+const duesRangeMessage = '월 회비는 10,000원~1,000,000원의 정수로 입력해 주세요.';
 
 const FormError = styled.p`
   margin-top: 16px;
@@ -256,6 +265,15 @@ function SavingGroupSettingsForm({
   };
   const [name, setName] = useState(initialValues.groupName);
   const [capacity, setCapacity] = useState(initialValues.maxMembers);
+  const approvedMemberCount = current.approvedMemberCount ?? 0;
+  const memberRangeMessage = '정원은 4~20명의 정수로 입력해 주세요.';
+  const approvedMemberMessage = `정원은 현재 승인 계원 ${approvedMemberCount}명보다 적을 수 없습니다.`;
+  // AI작성: 입력과 저장에 동일한 정원 검증을 적용한다.
+  const getCapacityError = (value) => {
+    const count = Number(value);
+    if (!/^[0-9]+$/.test(value) || count < 4 || count > 20) return memberRangeMessage;
+    return count < approvedMemberCount ? approvedMemberMessage : undefined;
+  };
   const [description, setDescription] = useState(initialValues.description);
   const [monthlyDues, setMonthlyDues] = useState(initialValues.duesAmount);
   const [paymentDate, setPaymentDate] = useState(initialValues.duesDay);
@@ -302,10 +320,16 @@ function SavingGroupSettingsForm({
       nextErrors.description = '소개글은 공백을 제외하고 40자 이하로 입력해주세요.';
     }
 
-    if (changedFields.maxMembers !== undefined
-      && (!Number.isInteger(changedFields.maxMembers)
-        || changedFields.maxMembers < 4 || changedFields.maxMembers > 20)) {
-      nextErrors.maxMembers = '정원은 4~20명의 정수로 입력해주세요.';
+    if (changedFields.maxMembers !== undefined) {
+      const error = getCapacityError(capacity);
+      if (error) nextErrors.maxMembers = error;
+    }
+
+    // AI작성: 기존 금액을 유지하는 수정 요청에는 회비 범위 검증을 적용하지 않는다.
+    if (changedFields.duesAmount !== undefined
+      && (!/^[0-9]+$/.test(monthlyDues)
+        || changedFields.duesAmount < 10_000 || changedFields.duesAmount > 1_000_000)) {
+      nextErrors.duesAmount = duesRangeMessage;
     }
 
     return nextErrors;
@@ -359,12 +383,27 @@ function SavingGroupSettingsForm({
               aria-invalid={Boolean(errors.maxMembers)}
               aria-describedby={errors.maxMembers ? 'max-members-error' : undefined}
               onChange={(event) => {
-                setCapacity(event.target.value);
-                clearError('maxMembers');
+                const value = event.target.value;
+                const error = value === '' ? undefined : getCapacityError(value);
+                setCapacity(value);
+                setErrors((previous) => ({ ...previous, maxMembers: error, form: undefined }));
               }}
             />
-            <CurrentValue>현재 적용: 승인 계원 {current.approvedMemberCount ?? 0}명 / 정원 {current.maxMembers ?? '미정'}명</CurrentValue>
-            {errors.maxMembers && <FieldError id="max-members-error">{errors.maxMembers}</FieldError>}
+            <CurrentValue>현재 적용: 승인 계원 {approvedMemberCount}명 / 정원 {current.maxMembers ?? '미정'}명</CurrentValue>
+            {/* AI작성: 두 오류 문구 중 더 많은 줄이 필요한 높이를 확보한다. */}
+            <span style={{ display: 'grid' }}>
+              {[memberRangeMessage, approvedMemberMessage].map((message) => (
+                <ValidationMessage
+                  key={message}
+                  id={errors.maxMembers === message ? 'max-members-error' : undefined}
+                  $visible={errors.maxMembers === message}
+                  role={errors.maxMembers === message ? 'alert' : undefined}
+                  style={{ gridArea: '1 / 1' }}
+                >
+                  {message}
+                </ValidationMessage>
+              ))}
+            </span>
           </Field>
           <Field>
             월 회비금액
@@ -372,19 +411,32 @@ function SavingGroupSettingsForm({
               <Input
                 name="monthlyDues"
                 disabled={isReadOnly}
+                aria-invalid={Boolean(errors.duesAmount)}
+                aria-describedby={errors.duesAmount ? 'settings-dues-error' : undefined}
                 inputMode="numeric"
                 value={monthlyDues.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 onChange={(event) => {
                   const digits = event.target.value.replace(/,/g, '');
-                  if (/^\d*$/.test(digits)) {
-                    setMonthlyDues(digits);
-                    clearFormError();
-                  }
+                  // AI작성: 표시용 쉼표를 뺀 숫자로 회비를 검증한다.
+                  if (!/^\d*$/.test(digits)) return;
+                  const amount = Number(digits);
+                  const error = digits !== '' && (amount < 10_000 || amount > 1_000_000)
+                    ? duesRangeMessage
+                    : undefined;
+                  setMonthlyDues(digits);
+                  setErrors((previous) => ({ ...previous, duesAmount: error, form: undefined }));
                 }}
               />
               <span aria-hidden="true">원</span>
             </DuesInput>
             <CurrentValue>현재 적용: {formatDuesAmount(current.duesAmount)}</CurrentValue>
+            <ValidationMessage
+              id="settings-dues-error"
+              $visible={Boolean(errors.duesAmount)}
+              role={errors.duesAmount ? 'alert' : undefined}
+            >
+              {duesRangeMessage}
+            </ValidationMessage>
             {pending?.duesAmount != null && (
               <PendingValue>다음 회차 적용 예정: {formatDuesAmount(pending.duesAmount)}</PendingValue>
             )}
