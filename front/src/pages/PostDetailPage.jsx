@@ -396,24 +396,12 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '댓글 등록에 실패했습니다.');
       }
 
-      setComments((currentComments) => [
-        ...currentComments,
-        {
-          id: response.data.commentId,
-          // AI작성: 등록 직후에도 본인 댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
-          memberId: response.data.memberId,
-          // AI작성: 등록 응답의 닉네임을 즉시 표시해 목록 재조회 전후의 작성자 표기를 일치시킵니다.
-          author: response.data.writerNickname || '알 수 없음',
-          content: response.data.content,
-          createdAt: response.data.createdAt,
-          replies: [],
-        },
-      ]);
       setCommentText('');
       if (commentDraftKey) sessionStorage.removeItem(commentDraftKey);
-      setCommentTotal((currentTotal) => currentTotal + 1);
 
       try {
+        // AI작성: 현재 페이지에 임시 댓글을 붙이지 않고 마지막 페이지의 서버 결과만 표시합니다.
+        setIsLoadingComments(true);
         await refreshComments({ moveToLastPage: true });
       } catch (refreshError) {
         setCommentErrorMessage(
@@ -421,6 +409,8 @@ function PostDetailPage() {
             refreshError.message ||
             '댓글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
         );
+      } finally {
+        setIsLoadingComments(false);
       }
     } catch (error) {
       setCommentErrorMessage(
