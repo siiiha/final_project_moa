@@ -410,8 +410,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
       ) : currentMenu === 'calendar' ? (
         /* AI작성: 다른 계모임이나 역할로 전환하면 이전 캘린더 조회 상태를 폐기한다. */
         <SavingGroupCalendarPanel
-          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
-          groupId={group.groupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
+          key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus])}
+          savingGroupId={group.savingGroupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
           deleteEvent={deleteSavingGroupCalendarEvent}
         />
       ) : currentMenu === 'dues' ? (

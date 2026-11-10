@@ -420,8 +420,8 @@ export async function approveSavingGroupCreationApplication(approvalId) {
 }
 
 // AI작성: 계모임 공유 일정은 기존 인증 클라이언트로 조회하고 등록한다.
-export async function getSavingGroupCalendar(groupId, { month, signal }) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupCalendar(savingGroupId, { month, signal }) {
+  const id = savingGroupPathId(savingGroupId);
   try {
     const { data: response } = await client.get(`/saving-groups/${id}/calendar`, { params: { month }, signal });
     if (response?.success !== true || !Array.isArray(response.data?.events)) {
@@ -433,8 +433,8 @@ export async function getSavingGroupCalendar(groupId, { month, signal }) {
   }
 }
 
-export async function createSavingGroupCalendarEvent(groupId, event) {
-  const id = savingGroupPathId(groupId);
+export async function createSavingGroupCalendarEvent(savingGroupId, event) {
+  const id = savingGroupPathId(savingGroupId);
   try {
     const { data: response } = await client.post(`/saving-groups/${id}/calendar/events`, event);
     if (response?.success !== true || !response.data?.id) {
@@ -447,8 +447,8 @@ export async function createSavingGroupCalendarEvent(groupId, event) {
 }
 
 // AI작성: 일정 ID를 문자열로 유지하고 모임 범위 삭제 API를 호출한다.
-export async function deleteSavingGroupCalendarEvent(groupId, scheduleId) {
-  const id = savingGroupPathId(groupId);
+export async function deleteSavingGroupCalendarEvent(savingGroupId, scheduleId) {
+  const id = savingGroupPathId(savingGroupId);
   const eventId = savingGroupPathId(scheduleId);
   try {
     const { data: response } = await client.delete(`/saving-groups/${id}/calendar/events/${eventId}`);

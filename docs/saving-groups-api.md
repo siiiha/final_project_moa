@@ -2242,8 +2242,8 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 
 | 동작 | 메서드와 경로 | 성공 |
 | --- | --- | --- |
-| 월간 일정 조회 | GET /api/saving-groups/{groupId}/calendar?month=2026-11 | 200 |
-| 선택일에 일정 추가 | POST /api/saving-groups/{groupId}/calendar/events | 201 |
+| 월간 일정 조회 | GET /api/saving-groups/{savingGroupId}/calendar?month=2026-11 | 200 |
+| 선택일에 일정 추가 | POST /api/saving-groups/{savingGroupId}/calendar/events | 201 |
 
 조회 응답 예시
 
@@ -2299,7 +2299,7 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 
 <!-- AI작성: 계모임 일정 삭제 API와 검증 결과를 기록한다. -->
 
-`DELETE /api/saving-groups/{groupId}/calendar/events/{scheduleId}`에 기존 Bearer 인증을 사용한다. 요청 본문은 없다. 승인된 계주·회계가 작성자에 관계없이 해당 모임의 일정을 삭제할 수 있다. 예를 들어 `DELETE /api/saving-groups/10/calendar/events/42`가 성공하면 HTTP 200과 공통 응답 `{"success":true}`를 반환한다.
+`DELETE /api/saving-groups/{savingGroupId}/calendar/events/{scheduleId}`에 기존 Bearer 인증을 사용한다. 요청 본문은 없다. 승인된 계주·회계가 작성자에 관계없이 해당 모임의 일정을 삭제할 수 있다. 예를 들어 `DELETE /api/saving-groups/10/calendar/events/42`가 성공하면 HTTP 200과 공통 응답 `{"success":true}`를 반환한다.
 
 | 상태 | 조건 |
 | --- | --- |
