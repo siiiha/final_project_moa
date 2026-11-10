@@ -37,10 +37,7 @@ public class SavingGroupChatServiceImpl implements SavingGroupChatService {
         message.setSenderId(memberId);
         message.setContent(content.strip());
         chatMapper.insert(message);
-        Long savingGroupId = chatMapper.findSavingGroupId(roomId);
-        if (savingGroupId == null) {
-            throw new IllegalStateException("채팅방의 계모임 정보를 확인할 수 없습니다.");
-        }
+        
         return chatMapper.findMessage(message.getMessageId());
     }
 
