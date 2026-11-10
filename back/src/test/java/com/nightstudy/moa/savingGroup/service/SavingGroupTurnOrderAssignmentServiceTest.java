@@ -40,6 +40,10 @@ class SavingGroupTurnOrderAssignmentServiceTest {
     }
     @Test void schedulesNextMonthAndReplacesWholePlanWithoutChangingCurrentOrder() {
         group.setStatus("02");
+        var current = member("50", false);
+        current.setSequenceNumber(2);
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(
+                List.of(member("30", false), member("40", false), current));
         doAnswer(call -> { ((SavingGroupTurnOrderPlanRow) call.getArgument(0)).setTurnOrderPlanId(99L); return 1; }).when(mapper).insertTurnOrderPlan(any());
         when(mapper.insertTurnOrderPlanMember(anyLong(), anyLong(), anyInt())).thenReturn(1);
         service.update(10L, 30L, request(30, 3, 40, 4));
@@ -47,6 +51,19 @@ class SavingGroupTurnOrderAssignmentServiceTest {
         var order = inOrder(mapper); order.verify(mapper).deleteTurnOrderPlanMembers(99L);
         order.verify(mapper).insertTurnOrderPlanMember(99L, 30L, 3); order.verify(mapper).insertTurnOrderPlanMember(99L, 40L, 4);
         verify(mapper, never()).updateTurnOrderSequence(anyLong(), anyLong(), anyInt());
+    }
+    // AI작성: 4인 순번계의 3회차에서는 남은 한 명의 순번을 변경할 수 없다.
+    @Test void rejectsReassignmentWhenOnlyOneMemberRemains() {
+        group.setStatus("02");
+        group.setStartDate(LocalDate.of(2026, 9, 1));
+        var current = member("50", false);
+        current.setSequenceNumber(3);
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(
+                List.of(member("30", true), member("40", true), current, member("60", false)));
+        assertThatThrownBy(() -> service.update(10L, 30L,
+                new SavingGroupTurnOrderUpdateRequest(List.of(new SavingGroupTurnOrderUpdateRequest.Entry(60L, 4)))))
+                .isInstanceOf(ApiException.class).hasMessage("변경할 수 있는 순번이 없습니다.");
+        verify(mapper, never()).insertTurnOrderPlan(any());
     }
     @ParameterizedTest @ValueSource(strings = {"MANAGER", "MEMBER"})
     void rejectsNonOwnerRoles(String role) {

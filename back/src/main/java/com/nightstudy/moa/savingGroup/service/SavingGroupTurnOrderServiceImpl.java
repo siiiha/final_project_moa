@@ -49,8 +49,14 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
     public SavingGroupTurnOrderResponse update(Long id, Long user, SavingGroupTurnOrderUpdateRequest request) {
         var group = authorize(id, user);
         var members = mapper.selectTurnOrderAssignmentMembers(group.getGroupId());
-        var eligible = members.stream().filter(m -> !m.isPaid()).map(SavingGroupTurnOrderAssignmentRow::getMemberId).collect(Collectors.toSet());
         int start = nextRound(group);
+        var currentPlan = mapper.selectTurnOrderPlan(id, YearMonth.now(clock).atDay(1));
+        var current = currentAssignments(members, currentPlan);
+        var fixed = fixedMembers(members, current, start);
+        var eligible = members.stream().map(SavingGroupTurnOrderAssignmentRow::getMemberId)
+                .filter(memberId -> !fixed.contains(memberId)).collect(Collectors.toSet());
+        if (start > 1 && eligible.size() < 2)
+            throw conflict("변경할 수 있는 순번이 없습니다.");
         if (request == null || request.turnOrders() == null || request.turnOrders().isEmpty()) throw badRequest();
         var ids = new HashSet<String>(); var rounds = new HashSet<Integer>();
         for (var entry : request.turnOrders()) {
@@ -84,7 +90,28 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
         }
         return response(group);
     }
-    private static ApiException badRequest() { return new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TURN_ORDER_INVALID", "미지급 승인 회원 전원에게 중복 없이 남은 회차를 배정해주세요."); }
+    // AI작성: 이번 달 예약이 있으면 해당 예약에서 현재 지급 회차의 계원을 찾는다.
+    private Map<String, Integer> currentAssignments(List<SavingGroupTurnOrderAssignmentRow> members,
+            SavingGroupTurnOrderPlanRow plan) {
+        if (plan != null) return assignments(plan);
+        return members.stream().filter(member -> member.getSequenceNumber() != null).collect(Collectors.toMap(
+                SavingGroupTurnOrderAssignmentRow::getMemberId, SavingGroupTurnOrderAssignmentRow::getSequenceNumber));
+    }
+
+    private Set<String> fixedMembers(List<SavingGroupTurnOrderAssignmentRow> members,
+            Map<String, Integer> current, int start) {
+        var fixed = members.stream().filter(SavingGroupTurnOrderAssignmentRow::isPaid)
+                .map(SavingGroupTurnOrderAssignmentRow::getMemberId).collect(Collectors.toSet());
+        if (start > 1) {
+            var recipients = members.stream().map(SavingGroupTurnOrderAssignmentRow::getMemberId)
+                    .filter(memberId -> Objects.equals(current.get(memberId), start - 1)).toList();
+            if (recipients.size() != 1) throw conflict("현재 회차의 지급 계원을 확인해주세요.");
+            fixed.add(recipients.get(0));
+        }
+        return fixed;
+    }
+
+    private static ApiException badRequest() { return new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TURN_ORDER_INVALID", "재배정 대상 계원 전원에게 중복 없이 남은 회차를 배정해주세요."); }
     private SavingGroupTurnOrderResponse response(SavingGroupTurnOrderPlanRow group) {
         var members = mapper.selectTurnOrderAssignmentMembers(group.getGroupId());
         var currentPlan = mapper.selectTurnOrderPlan(group.getSavingGroupId(), YearMonth.now(clock).atDay(1));
