@@ -122,7 +122,7 @@ function AdminPostsPage() {
           description={
             deleteErrorMessage
               ? `삭제하지 못했습니다. ${deleteErrorMessage} 다시 시도하거나 취소하세요.`
-              : '이 게시글을 삭제하시겠습니까? 삭제된 게시글은 복구할 수 없습니다.'
+              : '이 게시글을 삭제하시겠습니까?'
           }
           confirmLabel={deleting ? '삭제 중...' : '게시글 삭제'}
           confirmVariant="danger"
