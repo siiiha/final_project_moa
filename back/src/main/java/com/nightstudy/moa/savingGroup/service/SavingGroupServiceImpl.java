@@ -1337,7 +1337,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 target.getOwnerMemberId(),
                 NotificationType.SAVING_GROUP_JOIN_REQUEST,
                 "새로운 계모임 가입 신청이 접수되었습니다.",
-                "/saving-groups/" + savingGroupId
+                "/saving-groups/" + savingGroupId + "?menu=members"
         );
     }
 

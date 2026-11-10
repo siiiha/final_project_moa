@@ -8,19 +8,22 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
-import com.nightstudy.moa.member.service.MemberFeatureRestrictionService;
+import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionService;
 import com.nightstudy.moa.post.dto.PostDto;
 import com.nightstudy.moa.post.dto.PostCreateRequest;
 import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.mapper.PostMapper;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 @ExtendWith(MockitoExtension.class)
 // AI작성: 일반 게시글 목록·상세·작성·수정·본인 삭제 규칙을 DB 없이 검증한다.
@@ -32,6 +35,15 @@ class PostServiceImplTest {
     // AI작성: 게시글 변경 전에 수행되는 CONTENT 이용 제한 검사를 Mock으로 주입한다.
     @Mock
     private MemberFeatureRestrictionService restrictionService;
+
+    @Mock
+    private PostImageStorage imageStorage;
+
+    @Mock
+    private StringRedisTemplate redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
 
     @InjectMocks
     private PostServiceImpl postService;
@@ -69,6 +81,10 @@ class PostServiceImplTest {
     // AI작성: 작성자가 아닌 회원의 일반 상세 조회는 조회수를 증가시킨 뒤 게시글을 반환하는지 확인한다.
     void getPostDetailIncreasesViewCountForDifferentMember() {
         PostDto post = post(1L, 10L);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(
+                "post:view:1:member:20", "1", Duration.ofMinutes(30)))
+                .thenReturn(true);
         when(postMapper.increaseViewCount(1L, 20L)).thenReturn(1);
         when(postMapper.selectPostDetail(1L)).thenReturn(post);
 
@@ -77,6 +93,53 @@ class PostServiceImplTest {
         assertThat(result).isSameAs(post);
         verify(postMapper).increaseViewCount(1L, 20L);
         verify(postMapper).selectPostDetail(1L);
+    }
+
+    @Test
+    // AI작성: 같은 회원이 30분 안에 같은 게시글을 다시 조회하면 조회수를 중복 집계하지 않는다.
+    void getPostDetailSkipsDuplicateMemberView() {
+        PostDto post = post(1L, 10L);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(
+                "post:view:1:member:20", "1", Duration.ofMinutes(30)))
+                .thenReturn(false);
+        when(postMapper.selectPostDetail(1L)).thenReturn(post);
+
+        PostDto result = postService.getPostDetail(1L, 20L);
+
+        assertThat(result).isSameAs(post);
+        verify(postMapper, never()).increaseViewCount(1L, 20L);
+    }
+
+    @Test
+    // AI작성: 비로그인 사용자는 서버가 발급한 방문자 UUID를 기준으로 최초 조회만 집계한다.
+    void getPostDetailIncreasesFirstGuestView() {
+        String visitorId = "123e4567-e89b-12d3-a456-426614174000";
+        PostDto post = post(1L, 10L);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(
+                "post:view:1:guest:" + visitorId, "1", Duration.ofMinutes(30)))
+                .thenReturn(true);
+        when(postMapper.increaseViewCount(1L, null)).thenReturn(1);
+        when(postMapper.selectPostDetail(1L)).thenReturn(post);
+
+        PostDto result = postService.getPostDetail(1L, null, visitorId);
+
+        assertThat(result).isSameAs(post);
+        verify(postMapper).increaseViewCount(1L, null);
+    }
+
+    @Test
+    // AI작성: Redis 장애가 발생해도 게시글은 반환하고 신뢰할 수 없는 조회수 집계는 생략한다.
+    void getPostDetailReturnsPostWhenRedisIsUnavailable() {
+        PostDto post = post(1L, 10L);
+        when(redisTemplate.opsForValue()).thenThrow(new RuntimeException("Redis 연결 실패"));
+        when(postMapper.selectPostDetail(1L)).thenReturn(post);
+
+        PostDto result = postService.getPostDetail(1L, 20L);
+
+        assertThat(result).isSameAs(post);
+        verify(postMapper, never()).increaseViewCount(1L, 20L);
     }
 
     @Test

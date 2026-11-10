@@ -3,6 +3,8 @@ export default function formatNotificationDate(createdAt, { includeYear = false 
   if (!createdAt) return '';
 
   return new Intl.DateTimeFormat('ko-KR', {
+    // AI작성: 접속 기기의 시간대와 관계없이 알림 시각을 한국 표준시로 표시합니다.
+    timeZone: 'Asia/Seoul',
     ...(includeYear ? { year: 'numeric' } : {}),
     month: 'long',
     day: 'numeric',

@@ -50,6 +50,8 @@ function SavingGroupDetailPage() {
   const [retry, setRetry] = useState(0);
   // AI작성: URL을 조회 조건의 기준으로 삼아 상세 복귀·뒤로 가기·새로고침 때 같은 조건을 복원한다.
   const [searchParams, setSearchParams] = useSearchParams();
+  // AI작성: 목록 경로에 전달받은 검색 조건을 복원한다.
+  const goToList = () => navigate({ pathname: '/saving-groups', search: searchParams.get('listSearch') ?? '' });
   const requestedMenu = searchParams.get('menu');
   const [menu, setMenu] = useState({ id, value: 'notice' });
   const { page: noticePage, sort: noticeSort } = readSavingGroupNoticeQuery(searchParams);
@@ -270,7 +272,7 @@ function SavingGroupDetailPage() {
               {(!errorStatus || errorStatus >= 500) && (
                 <Button type="button" onClick={() => setRetry((value) => value + 1)}>다시 시도</Button>
               )}
-              <Button type="button" $variant="secondary" onClick={() => navigate('/saving-groups')}>계모임 목록으로</Button>
+              <Button type="button" $variant="secondary" onClick={goToList}>계모임 목록으로</Button>
             </EmptyCard>
           ) : (
             <SavingGroupDetail key={`${id}-${authVersion}`} group={visibleGroup}
@@ -303,7 +305,7 @@ function SavingGroupDetailPage() {
               onNoticeRetry={handleNoticeRetry}
               noticePinState={currentPin} onNoticePinChange={handleNoticePinChange}
               onLeave={canLeave ? () => setLeaveDialog({ id, authVersion }) : undefined}
-              onBack={() => navigate('/saving-groups')} />
+              onBack={goToList} />
           )}
       </Content>
       {/* AI작성: 탈퇴를 확인한 뒤 요청하며 실패 사유는 같은 확인창에 표시한다. */}
