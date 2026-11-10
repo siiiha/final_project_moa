@@ -37,7 +37,6 @@ public class SavingGroupChatServiceImpl implements SavingGroupChatService {
         message.setSenderId(memberId);
         message.setContent(content.strip());
         chatMapper.insert(message);
-        
         return chatMapper.findMessage(message.getMessageId());
     }
 

@@ -14,9 +14,7 @@ public interface SavingGroupChatMapper {
     @Select("SELECT room_id FROM chat_room WHERE saving_group_id = #{savingGroupId}")
     Long findRoomId(long savingGroupId);
 
-    // AI작성: 채팅 알림에서 계모임 상세 화면으로 이동할 수 있도록 방의 계모임 ID를 조회한다.
-    @Select("SELECT saving_group_id FROM chat_room WHERE room_id = #{roomId}")
-    Long findSavingGroupId(long roomId);
+
 
     // AI작성: 새 메시지 알림을 받을 채팅방 참여자를 발신자를 제외하고 조회한다.
     @Select("""
