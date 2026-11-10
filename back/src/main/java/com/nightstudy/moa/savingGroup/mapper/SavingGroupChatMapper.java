@@ -14,7 +14,6 @@ public interface SavingGroupChatMapper {
     @Select("SELECT room_id FROM chat_room WHERE saving_group_id = #{savingGroupId}")
     Long findRoomId(long savingGroupId);
 
-
     @Insert("INSERT INTO chat_message (room_id, sender_id, content) VALUES (#{roomId}, #{senderId}, #{content})")
     @Options(useGeneratedKeys = true, keyProperty = "messageId")
     void insert(SavingGroupChatMessage message);
