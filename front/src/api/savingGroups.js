@@ -55,7 +55,7 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
     let memberId;
     try { memberId = savingGroupPathId(row?.memberId); } catch { throw invalid(); }
     if (ids.has(memberId) || !Number.isSafeInteger(row.recommendedTurnOrder)
-      || row.recommendedTurnOrder < 1 || row.recommendedTurnOrder > rows.length
+      || row.recommendedTurnOrder < 1
       || orders.has(row.recommendedTurnOrder) || typeof row.nickname !== 'string' || !row.nickname.trim()
       || !Number.isSafeInteger(row.expectedPayoutAmount) || row.expectedPayoutAmount < 1
       || row.expectedPayoutAmount > 9999999999999) throw invalid();
@@ -63,7 +63,11 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
     return { memberId, nickname: row.nickname, recommendedTurnOrder: row.recommendedTurnOrder,
       expectedPayoutAmount: row.expectedPayoutAmount };
   });
-  return items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+  // AI작성: 진행 중에는 다음 회차부터 시작하므로 정렬한 실제 회차의 연속성을 확인한다.
+  items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+  if (items.some((item, index) => index > 0
+    && item.recommendedTurnOrder !== items[index - 1].recommendedTurnOrder + 1)) throw invalid();
+  return items;
 }
 
 // AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.

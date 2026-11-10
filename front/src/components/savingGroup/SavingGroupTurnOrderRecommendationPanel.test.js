@@ -27,9 +27,9 @@ test('추천 패널 상태·금액·권한별 진입점을 표시하고 저장·
     let html = render(View, { phase: 'loading' });
     assert.match(html, /추천 중…/); assert.match(html, /<button[^>]*disabled/);
     html = render(View, { phase: 'success', items: [{ memberId: '50', nickname: '테스트계원', recommendedTurnOrder: 1, expectedPayoutAmount: 3297 }] });
-    assert.match(html, /테스트계원/); assert.match(html, /1번/); assert.match(html, /3,297원/);
+    assert.match(html, /테스트계원/); assert.match(html, /1회차/); assert.match(html, /3,297원/);
     assert.match(html, /다시 추천받기/); assert.doesNotMatch(html, /<button[^>]*>[^<]*(저장|적용|확정)/);
-    assert.match(render(View, { phase: 'success', items: [] }), /추천할 승인 모임원이 없습니다/);
+    assert.match(render(View, { phase: 'success', items: [] }), /추천할 수 있는 순번이 없습니다/);
     html = render(View, { phase: 'error', error: '권한 없음', items: [{ memberId: '50', nickname: '이전결과' }] });
     assert.match(html, /role="alert"/); assert.match(html, /권한 없음/); assert.doesNotMatch(html, /이전결과/);
     const props = { savingGroupId: '10', groupId: '20', myRole: 'OWNER', membershipStatus: 'APPROVED', status: '01', groupType: '순번계' };

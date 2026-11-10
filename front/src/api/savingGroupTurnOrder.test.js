@@ -52,7 +52,9 @@ test('추천 조회는 GET과 취소 신호를 전달하고 허용 필드만 반
 test('중복 회원·순번, 누락 순번, 잘못된 금액·닉네임·목록을 거절한다', async () => {
   const original = client.get;
   try {
-    for (const data of [null, [row, row], [{ ...row, recommendedTurnOrder: 2 }],
+    // AI작성: 시작 회차는 1보다 클 수 있지만 추천된 회차 사이에는 누락이 없어야 한다.
+    for (const data of [null, [row, row], [{ ...row, recommendedTurnOrder: 0 }],
+      [{ ...row, recommendedTurnOrder: 3 }, { ...row, memberId: '50', recommendedTurnOrder: 5 }],
       [{ ...row, expectedPayoutAmount: -1 }], [{ ...row, expectedPayoutAmount: 1.5 }],
       [{ ...row, nickname: '' }], [{ ...row, memberId: Number.MAX_SAFE_INTEGER + 1 }],
       [row, { ...row, memberId: '50' }]]) {
@@ -60,8 +62,8 @@ test('중복 회원·순번, 누락 순번, 잘못된 금액·닉네임·목록�
       await assert.rejects(() => getRecommendations(10), (e) => e.code === 'INVALID_RESPONSE');
     }
     client.get = async () => ({ data: { success: true, data: [
-      { ...row, recommendedTurnOrder: 2 }, { ...row, memberId: '50' }] } });
-    assert.deepEqual((await getRecommendations(10)).map((item) => item.recommendedTurnOrder), [1, 2]);
+      { ...row, recommendedTurnOrder: 4 }, { ...row, memberId: '50', recommendedTurnOrder: 3 }] } });
+    assert.deepEqual((await getRecommendations(10)).map((item) => item.recommendedTurnOrder), [3, 4]);
   } finally { client.get = original; }
 });
 test('잘못된 ID는 요청 전에 거절하고 서버 오류·취소를 유지한다', async () => {
