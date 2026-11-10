@@ -123,7 +123,7 @@ function ResetPasswordPage() {
             <Description>
               이메일 인증이 완료됐습니다.
               <br />
-              5분 안에 새 비밀번호를 설정해주세요.
+              새롭게 사용할 비밀번호를 입력해 주세요.
             </Description>
 
             <Form onSubmit={handleSubmit} noValidate>
