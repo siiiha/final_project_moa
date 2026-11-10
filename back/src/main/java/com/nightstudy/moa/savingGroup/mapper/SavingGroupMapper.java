@@ -54,7 +54,9 @@ public interface SavingGroupMapper {
     boolean existsUpcomingTurnOrderPayout(@Param("groupId") Long groupId, @Param("startRound") int startRound);
     // AI작성: 추천에는 현재 승인된 모든 역할을 포함하며 저장 SQL은 추가하지 않는다.
     SavingGroupTurnOrderContextRow selectTurnOrderRecommendationContext(@Param("savingGroupId") Long savingGroupId);
-    List<SavingGroupTurnOrderMemberRow> selectTurnOrderRecommendationMembers(@Param("groupId") Long groupId);
+    // AI작성: 진행 중에는 서울 기준 적용월까지의 예약을 읽기 잠금 없이 조회한다.
+    List<SavingGroupTurnOrderMemberRow> selectTurnOrderRecommendationMembers(@Param("groupId") Long groupId,
+            @Param("savingGroupId") Long savingGroupId, @Param("month") java.time.LocalDate month);
     // AI작성: 모임 잠금 후 현재 읽기로 재전송·최초 5분 기준·확인 소비를 직렬화한다.
     Long selectDepositAccountForUpdate(@Param("groupId") Long groupId);
     LocalDateTime selectDepositNow();

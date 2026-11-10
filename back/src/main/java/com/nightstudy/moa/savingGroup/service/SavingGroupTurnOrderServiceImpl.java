@@ -4,7 +4,6 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.time.*;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -34,11 +33,6 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
         if (!List.of("01", "02").contains(group.getStatus())) throw conflict("모집중 또는 진행중에만 순번을 지정할 수 있습니다.");
         return group;
     }
-    private int nextRound(SavingGroupTurnOrderPlanRow group, LocalDate today) {
-        if ("01".equals(group.getStatus())) return 1;
-        if (group.getStartDate() == null || today.isBefore(group.getStartDate())) throw conflict("계모임 시작일을 확인해주세요.");
-        return Math.toIntExact(ChronoUnit.MONTHS.between(YearMonth.from(group.getStartDate()), YearMonth.from(today)) + 2);
-    }
     private LocalDate effectiveMonth(SavingGroupTurnOrderPlanRow group, LocalDate today) {
         return YearMonth.from(today).plusMonths("02".equals(group.getStatus()) ? 1 : 0).atDay(1);
     }
@@ -51,7 +45,7 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
         var members = mapper.selectTurnOrderAssignmentMembers(group.getGroupId());
         // AI작성: 잠금 후 한 번 읽은 날짜로 회차와 적용월을 함께 계산한다.
         var today = LocalDate.now(clock);
-        int start = nextRound(group, today);
+        int start = SavingGroupTurnOrderPolicy.nextRound(group.getStatus(), group.getStartDate(), today);
         if (request == null || request.turnOrders() == null || request.turnOrders().isEmpty()) throw badRequest();
         if (start > 1 && !Objects.equals(request.currentRoundNumber(), start - 1))
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TURN_ORDER_ROUND_CHANGED", "현재 회차가 변경되었습니다. 최신 순번을 확인해주세요.");
@@ -120,20 +114,13 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
 
     private Set<String> fixedMembers(List<SavingGroupTurnOrderAssignmentRow> members,
             Map<String, Integer> current, int start) {
-        var fixed = members.stream().filter(SavingGroupTurnOrderAssignmentRow::isPaid)
-                .map(SavingGroupTurnOrderAssignmentRow::getMemberId).collect(Collectors.toSet());
-        if (start > 1) {
-            var recipients = members.stream().map(SavingGroupTurnOrderAssignmentRow::getMemberId)
-                    .filter(memberId -> Objects.equals(current.get(memberId), start - 1)).toList();
-            if (recipients.size() != 1) throw conflict("현재 회차의 지급 계원을 확인해주세요.");
-            fixed.add(recipients.get(0));
-        }
-        return fixed;
+        return SavingGroupTurnOrderPolicy.fixedMembers(members, SavingGroupTurnOrderAssignmentRow::getMemberId,
+                SavingGroupTurnOrderAssignmentRow::isPaid, member -> current.get(member.getMemberId()), start);
     }
 
     private static ApiException badRequest() { return new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TURN_ORDER_INVALID", "재배정 대상 계원 전원에게 중복 없이 남은 회차를 배정해주세요."); }
     private SavingGroupTurnOrderResponse response(SavingGroupTurnOrderPlanRow group, LocalDate today) {
-        int start = nextRound(group, today);
+        int start = SavingGroupTurnOrderPolicy.nextRound(group.getStatus(), group.getStartDate(), today);
         var effectiveMonth = effectiveMonth(group, today);
         var members = mapper.selectTurnOrderAssignmentMembers(group.getGroupId());
         var currentPlan = mapper.selectTurnOrderPlan(group.getSavingGroupId(), today.withDayOfMonth(1));

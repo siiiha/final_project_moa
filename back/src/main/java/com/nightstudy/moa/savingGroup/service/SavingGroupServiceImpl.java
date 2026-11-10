@@ -8,6 +8,7 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.notification.dto.NotificationType;
 import com.nightstudy.moa.notification.service.NotificationService;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
@@ -43,23 +44,35 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TYPE_INVALID", "순번계에서만 순번을 추천받을 수 있습니다.");
         if (!"01".equals(group.getStatus()) && !"02".equals(group.getStatus()))
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "모집중 또는 진행중인 계모임에서만 이용할 수 있습니다.");
-        var members = new java.util.ArrayList<>(savingGroupMapper.selectTurnOrderRecommendationMembers(group.getGroupId()));
+        // AI작성: 실제 적용 순번으로 고정 계원을 판별하되 예상액은 전체 승인 인원을 기준으로 계산한다.
+        var today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        int startRound = SavingGroupTurnOrderPolicy.nextRound(group.getStatus(), group.getStartDate(), today);
+        var approved = savingGroupMapper.selectTurnOrderRecommendationMembers(group.getGroupId(), savingGroupId,
+                startRound > 1 ? today.withDayOfMonth(1) : null);
+        var members = new java.util.ArrayList<>(approved);
+        if (startRound > 1) {
+            var fixed = SavingGroupTurnOrderPolicy.fixedMembers(approved, SavingGroupTurnOrderMemberRow::getMemberId,
+                    SavingGroupTurnOrderMemberRow::isPaid, SavingGroupTurnOrderMemberRow::getSequenceNumber, startRound);
+            members.removeIf(member -> fixed.contains(member.getMemberId()));
+            if (members.size() < 2) return List.of();
+        }
         if (members.isEmpty()) return List.of();
         BigDecimal dues = group.getDuesAmount();
         if (dues == null || dues.signum() <= 0 || dues.stripTrailingZeros().scale() > 0)
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DUES_INVALID", "원 단위 기본 회비를 확인해주세요.");
-        // AI작성: 사용자 승인 정책이다. 모든 회원을 동등하게 섞으며 이전 순번·개인정보·납부 이력은 사용하지 않는다.
+        // AI작성: 추천 대상에게 우선순위를 부여하지 않고 무작위로 섞는다.
         java.util.Collections.shuffle(members);
         BigDecimal extra = dues.multiply(new BigDecimal("0.01")).setScale(0, java.math.RoundingMode.DOWN);
-        BigDecimal base = dues.multiply(BigDecimal.valueOf(members.size()));
+        BigDecimal base = dues.multiply(BigDecimal.valueOf(approved.size()));
         var result = new java.util.ArrayList<SavingGroupTurnOrderRecommendationResponse>();
         for (int i = 0; i < members.size(); i++) {
             var member = members.get(i);
             // AI작성: 인원·회비 유지 및 앞 순번 전원 지급을 가정한 예상액이며 확정 회차 금액과 무관하다.
-            BigDecimal expected = base.add(extra.multiply(BigDecimal.valueOf(i)));
+            int round = startRound + i;
+            BigDecimal expected = base.add(extra.multiply(BigDecimal.valueOf(round - 1L)));
             if (expected.compareTo(new BigDecimal("9999999999999")) > 0)
                 throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DUES_INVALID", "예상 지급 금액의 허용 범위를 확인해주세요.");
-            result.add(new SavingGroupTurnOrderRecommendationResponse(member.getMemberId(), member.getNickname(), i + 1, expected));
+            result.add(new SavingGroupTurnOrderRecommendationResponse(member.getMemberId(), member.getNickname(), round, expected));
         }
         return List.copyOf(result);
     }

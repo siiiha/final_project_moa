@@ -3,6 +3,7 @@ package com.nightstudy.moa.savingGroup.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupCreationRequest;
 import java.util.Map;
+import java.time.LocalDate;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.session.Configuration;
@@ -33,5 +34,12 @@ class SavingGroupTurnOrderMapperTest {
                 "gm.sequence_number", "pr.status = 'COMPLETED'")
                 .doesNotContain("FOR UPDATE", "fee_payment", "m.name", "m.email");
         assertThat(bound.getParameterMappings()).extracting(p -> p.getProperty()).containsExactly("groupId");
+        // AI작성: 현재 월 이하의 최신 예약을 쓰며 예약이 있으면 기본 순번으로 되돌리지 않는다.
+        var running = members.getBoundSql(Map.of("groupId", 20L, "savingGroupId", 99L, "month", LocalDate.of(2026, 11, 1)));
+        assertThat(running.getSql()).contains("effective_month <= ?", "ORDER BY effective_month DESC LIMIT 1",
+                "THEN gm.sequence_number ELSE planned.round_number END", "planned.member_id = gm.member_id")
+                .doesNotContain("FOR UPDATE");
+        assertThat(running.getParameterMappings()).extracting(p -> p.getProperty())
+                .containsExactly("savingGroupId", "month", "groupId");
     }
 }

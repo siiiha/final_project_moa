@@ -74,16 +74,16 @@ class SavingGroupTurnOrderSecurityTest {
     @Test void validJwtOwnerReceivesSimulationWithoutWrites() throws Exception {
         token(true);
         var group = new SavingGroupTurnOrderContextRow(); group.setGroupId(20L); group.setGroupType("순번계");
-        group.setStatus("02"); group.setDuesAmount(new BigDecimal("10000"));
+        group.setStatus("01"); group.setDuesAmount(new BigDecimal("10000"));
         when(mapper.selectTurnOrderRecommendationContext(10L)).thenReturn(group);
         var owner = new SavingGroupMembershipRelationRow(); owner.setMemberRole("OWNER"); owner.setMembershipStatus("APPROVED");
         when(mapper.selectSavingGroupMembership(20L, 30L)).thenReturn(owner); when(mapper.existsMember(30L)).thenReturn(true);
         var row = new SavingGroupTurnOrderMemberRow(); row.setMemberId("30"); row.setNickname("테스트계주");
-        when(mapper.selectTurnOrderRecommendationMembers(20L)).thenReturn(List.of(row));
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, null)).thenReturn(List.of(row));
         mvc.perform(get("/api/saving-groups/10/turn-orders/recommendations").header("Authorization", "Bearer test-token").param("memberId", "999"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].memberId").value("30"))
                 .andExpect(jsonPath("$.data[0].expectedPayoutAmount").value(10000));
         verify(mapper).selectTurnOrderRecommendationContext(10L); verify(mapper).selectSavingGroupMembership(20L, 30L);
-        verify(mapper).existsMember(30L); verify(mapper).selectTurnOrderRecommendationMembers(20L); verifyNoMoreInteractions(mapper);
+        verify(mapper).existsMember(30L); verify(mapper).selectTurnOrderRecommendationMembers(20L, 10L, null); verifyNoMoreInteractions(mapper);
     }
 }
