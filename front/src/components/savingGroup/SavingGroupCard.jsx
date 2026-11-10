@@ -1,5 +1,5 @@
 import { FiCalendar, FiMapPin, FiUsers } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 
@@ -91,10 +91,13 @@ const Meta = styled.p`
 `;
 
 function SavingGroupCard({ group }) {
+  // AI작성: 상세 공지 쿼리와 목록 복귀 조건을 분리한다.
+  const { search } = useLocation();
+  const detailSearch = search ? new URLSearchParams({ listSearch: search }).toString() : '';
   const isOngoing = group.status === '진행중';
 
   return (
-    <Card to={`/saving-groups/${group.id}`} aria-label={`${group.name} 상세 보기`}>
+    <Card to={{ pathname: `/saving-groups/${group.id}`, search: detailSearch }} aria-label={`${group.name} 상세 보기`}>
       <ImagePlaceholder role="img" aria-label={`${group.name} 대표 이미지 영역`} />
       <Body>
         <TopLine>

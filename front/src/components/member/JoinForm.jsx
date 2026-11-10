@@ -375,6 +375,66 @@ const SignupFieldGroup = styled.div`
   }
 `;
 
+// AI작성: 마지막 단계에서는 이전 입력 정보를 접어 관심사 선택에 집중하도록 합니다.
+const PreviousInformation = styled.details`
+  margin-top: 4px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px;
+
+  > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 72px;
+    padding: 16px;
+    box-sizing: border-box;
+    list-style: none;
+    cursor: pointer;
+    color: ${({ theme }) => theme.colors.text};
+
+    &::-webkit-details-marker { display: none; }
+    &:focus-visible {
+      outline: 2px solid ${({ theme }) => theme.colors.primary};
+      outline-offset: 3px;
+      border-radius: 12px;
+    }
+    strong { display: block; font-size: 15px; }
+    small {
+      display: block;
+      margin-top: 5px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: ${({ theme }) => theme.colors.secondaryText};
+    }
+  }
+
+  .review-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: ${({ theme }) => theme.colors.primary};
+  }
+  .review-action::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+  }
+  .review-close { display: none; }
+  &[open] .review-open { display: none; }
+  &[open] .review-close { display: inline; }
+  &[open] .review-action::after { transform: rotate(225deg); }
+  > div {
+    padding: 20px 16px 0;
+    border-top: 1px solid ${({ theme }) => theme.colors.border};
+  }
+`;
+
 const SignupInputCard = styled.section`
   box-sizing: border-box;
   width: 100%;
@@ -479,6 +539,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [gender, setGender] = useState('');
   const genderDialogRef = useRef(null);
   const signupCardRef = useRef(null);
+  // AI작성: 검증 오류가 있으면 접힌 입력 정보를 펼칩니다.
+  const previousInformationRef = useRef(null);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [agreements, setAgreements] = useState({});
   const [signupStep, setSignupStep] = useState('terms');
@@ -1038,14 +1100,34 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     if (!message) setSignupStep(steps[stepIndex + 1]);
   };
 
+  // AI작성: 숨겨진 입력칸의 오류를 사용자가 확인하고 수정할 수 있도록 합니다.
+  const revealPreviousInformation = () => {
+    const review = previousInformationRef.current;
+    if (!review) return;
+    review.open = true;
+    window.requestAnimationFrame(() => {
+      const invalidInput = review.querySelector(':invalid, [aria-invalid="true"]');
+      if (invalidInput) {
+        invalidInput.focus();
+        invalidInput.scrollIntoView({ block: 'center' });
+      } else {
+        review.scrollIntoView({ block: 'start' });
+      }
+    });
+  };
+
   const submitSignup = (event) => {
     event.preventDefault();
     if (signupStep !== 'details') return;
-    if (!validatePasswordFields()) return;
+    if (!validatePasswordFields()) {
+      revealPreviousInformation();
+      return;
+    }
 
     const message = getStepError();
     if (message) {
       setSignupError(message);
+      revealPreviousInformation();
       return;
     }
 
@@ -1597,15 +1679,50 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             aria-labelledby="signup-current-title"
           >
             <h2 id="signup-current-title">{titles[signupStep]}</h2>
-            {steps.slice(0, stepIndex + 1).reverse().map((step) => (
-              <SignupFieldGroup key={step}>{fields[step]}</SignupFieldGroup>
-            ))}
+
+            {/* AI작성: 마지막 단계에서만 이전 입력 정보를 접고, 기존 입력칸을 그대로 재사용합니다. */}
+            {signupStep === 'details' ? (
+              <>
+                <SignupFieldGroup key="details">{fields.details}</SignupFieldGroup>
+                <PreviousInformation
+                  ref={previousInformationRef}
+                  onInvalidCapture={revealPreviousInformation}
+                >
+                  <summary>
+                    <span>
+                      <strong>입력한 정보 확인</strong>
+                      <small>이름·연락처·활동 지역</small>
+                    </span>
+                    <span className="review-action">
+                      <span className="review-open">펼치기</span>
+                      <span className="review-close">접기</span>
+                    </span>
+                  </summary>
+                  <div>
+                    {steps.slice(0, stepIndex).reverse().map((step) => (
+                      <SignupFieldGroup key={step}>
+                        {fields[step]}
+                      </SignupFieldGroup>
+                    ))}
+                  </div>
+                </PreviousInformation>
+              </>
+            ) : (
+              steps.slice(0, stepIndex + 1).reverse().map((step) => (
+                <SignupFieldGroup key={step}>
+                  {fields[step]}
+                </SignupFieldGroup>
+              ))
+            )}
 
             {signupError && <p role="alert">{signupError}</p>}
+
+            {/* AI작성: 관심사를 선택하고 입력 정보를 확인한 뒤 가입하도록 버튼을 아래에 배치합니다. */}
             {signupStep === 'details' ? (
               <SubmitButton
                 key="signup-submit"
                 type="submit"
+                style={{ marginTop: 24 }}
                 disabled={
                   isSubmitting ||
                   isEmailBusy ||
@@ -1615,13 +1732,16 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                   memberTermOptions.length === 0
                 }
               >
-                {isSubmitting ? '가입 처리 중…' : '회원가입'}
+                {isSubmitting ? '가입 처리 중…' : '가입 완료'}
               </SubmitButton>
             ) : (
               <SubmitButton
                 key="signup-next"
                 type="button"
-                disabled={isEmailBusy || (signupStep === 'email' && !emailVerificationToken)}
+                disabled={
+                  isEmailBusy ||
+                  (signupStep === 'email' && !emailVerificationToken)
+                }
                 onClick={advanceSignup}
               >
                 다음

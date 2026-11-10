@@ -15,6 +15,11 @@ public interface NotificationMapper {
             @Param("notificationId") Long notificationId
     );
 
+    // AI작성: 알림 목록 조회 시 해당 회원이 읽은 지 30일 지난 알림만 지연 삭제합니다.
+    int deleteExpiredReadNotifications(
+            @Param("receiverId") Long receiverId
+    );
+
     // AI작성: 마지막 알림 번호가 있으면 그보다 오래된 알림을 조회합니다.
     List<NotificationDto> findRecent(
             @Param("receiverId") Long receiverId,
