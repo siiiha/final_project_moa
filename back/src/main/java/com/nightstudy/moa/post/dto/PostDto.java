@@ -27,6 +27,8 @@ public class PostDto {
     @NotBlank(message = "내용은 필수입니다.")
     private String content;
     private int viewCount;
+    // AI작성: 게시글 목록 제목 옆에 표시할 삭제되지 않은 댓글·대댓글의 전체 개수입니다.
+    private int commentCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

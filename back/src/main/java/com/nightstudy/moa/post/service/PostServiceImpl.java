@@ -20,28 +20,38 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Objects;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PostServiceImpl implements PostService {
+    private static final Logger log = LoggerFactory.getLogger(PostServiceImpl.class);
     private static final int MAX_IMAGES = 3;
+    private static final Duration VIEW_COUNT_TTL = Duration.ofMinutes(30);
+    private static final String VIEW_COUNT_KEY_PREFIX = "post:view:";
     private final PostImageStorage imageStorage;
     private final PostMapper postMapper;
     private final MemberFeatureRestrictionService restrictionService;
+    private final StringRedisTemplate redisTemplate;
 
 
     @Autowired
     public PostServiceImpl(
             PostMapper postMapper,
             MemberFeatureRestrictionService restrictionService,
-            PostImageStorage imageStorage
+            PostImageStorage imageStorage,
+            StringRedisTemplate redisTemplate
     ) {
         this.postMapper = postMapper;
         this.imageStorage = imageStorage;
         this.restrictionService = restrictionService;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -73,8 +83,18 @@ public class PostServiceImpl implements PostService {
             Long postId,
             Long loginMemberId
     ) {
-        int updatedRows =
-                postMapper.increaseViewCount(postId, loginMemberId);
+        return getPostDetail(postId, loginMemberId, null);
+    }
+
+    @Override
+    public PostDto getPostDetail(
+            Long postId,
+            Long loginMemberId,
+            String visitorId
+    ) {
+        if (shouldIncreaseViewCount(postId, loginMemberId, visitorId)) {
+            postMapper.increaseViewCount(postId, loginMemberId);
+        }
 
         PostDto post = postMapper.selectPostDetail(postId);
 
@@ -86,13 +106,31 @@ public class PostServiceImpl implements PostService {
             );
         }
 
-        if (updatedRows == 1) {
-            System.out.println("조회수 증가 성공");
-        } else {
-            System.out.println("작성자 본인이거나 존재하지 않는 게시글입니다.");
-        }
         post.setImages(postMapper.selectPostImages(postId));
         return post;
+    }
+
+    private boolean shouldIncreaseViewCount(Long postId, Long loginMemberId, String visitorId) {
+        String viewerKey;
+        if (loginMemberId != null) {
+            viewerKey = "member:" + loginMemberId;
+        } else if (visitorId != null && !visitorId.isBlank()) {
+            viewerKey = "guest:" + visitorId;
+        } else {
+            return false;
+        }
+
+        String redisKey = VIEW_COUNT_KEY_PREFIX + postId + ":" + viewerKey;
+        try {
+            // AI작성: 같은 사용자의 같은 게시글 조회는 Redis 키가 처음 생성된 경우에만 집계합니다.
+            return Boolean.TRUE.equals(
+                    redisTemplate.opsForValue().setIfAbsent(redisKey, "1", VIEW_COUNT_TTL)
+            );
+        } catch (RuntimeException exception) {
+            // AI작성: 조회수 캐시 장애가 게시글 열람 장애로 이어지지 않도록 집계만 생략합니다.
+            log.warn("게시글 조회수 중복 확인에 실패했습니다. postId={}", postId, exception);
+            return false;
+        }
     }
 
     // AI작성: 상세 조회와 같은 게시글 조건을 적용하고 파일의 소속을 확인합니다.
