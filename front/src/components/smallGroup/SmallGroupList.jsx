@@ -37,6 +37,10 @@ const PageButton = styled(Button)`
 `;
 
 function SmallGroupList({ groups, currentPage, totalPages, onPageChange, onView }) {
+  // AI작성: 이전·다음은 표시 중인 번호 묶음의 경계를 기준으로 이동한다.
+  const pages = getSmallGroupPages(currentPage, totalPages);
+  const firstPage = pages[0];
+  const lastPage = pages[pages.length - 1];
   if (!groups.length) {
     // AI작성: 서버 응답의 마지막 페이지를 넘긴 경우와 일반적인 빈 검색 결과를 구분한다.
     if (totalPages > 0 && currentPage > totalPages) {
@@ -54,11 +58,11 @@ function SmallGroupList({ groups, currentPage, totalPages, onPageChange, onView 
       </Grid>
       {totalPages > 1 && (
         <Pagination aria-label="소모임 목록 페이지 이동">
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>
+          <PageButton type="button" $variant="secondary" $size="small" disabled={firstPage === 1} onClick={() => onPageChange(firstPage - 1)}>
             이전
           </PageButton>
           {/* AI작성: 기존 계모임과 동일하게 현재 페이지 주변의 최대 다섯 개 번호만 표시한다. */}
-          {getSmallGroupPages(currentPage, totalPages).map((page) => (
+          {pages.map((page) => (
             <PageButton
               key={page}
               type="button"
@@ -70,7 +74,7 @@ function SmallGroupList({ groups, currentPage, totalPages, onPageChange, onView 
               {page}
             </PageButton>
           ))}
-          <PageButton type="button" $variant="secondary" $size="small" disabled={currentPage === totalPages} onClick={() => onPageChange(currentPage + 1)}>
+          <PageButton type="button" $variant="secondary" $size="small" disabled={lastPage === totalPages} onClick={() => onPageChange(lastPage + 1)}>
             다음
           </PageButton>
         </Pagination>
