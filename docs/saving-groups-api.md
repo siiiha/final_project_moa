@@ -10,6 +10,7 @@
 <!-- AI작성: 계모임 전용 경로와 공통 모임 신고의 식별값을 구분한다. -->
 - 브라우저 상세·설정·공지 URL과 계모임 전용 API의 첫 경로 변수는 `saving_group.saving_group_id`다.
 - 서비스는 이 ID로 계모임을 확인한 후 회원 소속·공지·일정·계좌 등 기존 내부 조회에 연결된 `groups.group_id`를 사용한다. 모임 신고는 공통 API의 `targetId`에 `groups.group_id`를 보낸다.
+- 설정 조회 `GET /api/saving-groups/{savingGroupId}/settings`와 수정 `PATCH /api/saving-groups/{savingGroupId}`는 모두 계모임 고유 ID로 대상을 조회한다. 수정 시 해당 행을 잠그고, 조회한 공통 모임 ID로 승인 계주 소속과 기본 정보 저장 대상을 확인한다.
 - 목록·설정·공지 화면 및 새 알림 링크는 계모임 ID로 상세에 진입한다. 예전에 공통 모임 ID로 저장된 주소는 현재 상세 경로의 식별값 계약과 다르다.
 - 브라우저 또는 Postman에서는 계모임 A의 계모임 ID와 B의 공통 모임 ID가 같은 데이터로 확인한다. 각 탭은 A를 조회하고 A에 등록해야 한다. B 소속 공지·일정의 수정·삭제는 차단돼야 하며 모임 신고는 A의 공통 모임 ID를 사용한다.
 
