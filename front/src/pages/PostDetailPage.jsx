@@ -693,6 +693,7 @@ function PostDetailPage() {
           memberId={memberId}
           comments={isLoadingComments ? [] : comments}
           commentTotal={commentTotal}
+          isLoadingComments={isLoadingComments}
           commentPage={commentPage}
           commentPageNumbers={commentPageNumbers}
           commentTotalPages={commentTotalPages}

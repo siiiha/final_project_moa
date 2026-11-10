@@ -98,6 +98,14 @@ const CommentsTitle = styled.h2`
   font-weight: 800;
 `;
 
+const CommentsLoading = styled.p`
+  margin-top: 14px;
+  padding: 20px 0;
+  color: ${({ theme }) => theme.colors.muted};
+  font-size: 14px;
+  text-align: center;
+`;
+
 const CommentList = styled.div`
   margin-top: 10px;
 `;
@@ -261,6 +269,7 @@ function PostDetail({
   memberId,
   comments,
   commentTotal,
+  isLoadingComments,
   commentPage,
   commentPageNumbers,
   commentTotalPages,
@@ -322,10 +331,14 @@ function PostDetail({
         </Button>
       </ListActions>
       <Comments>
-        <CommentsTitle>
-          댓글 {commentTotal}개
-        </CommentsTitle>
-        <CommentList>
+        {isLoadingComments ? (
+          // AI작성: 댓글 개수 0개를 먼저 노출하지 않고 조회 완료 후 실제 목록을 표시합니다.
+          <CommentsLoading role="status">댓글을 불러오는 중입니다.</CommentsLoading>
+        ) : <>
+          <CommentsTitle>
+            댓글 {commentTotal}개
+          </CommentsTitle>
+          <CommentList>
           {comments.map((comment) => (
             <Comment key={comment.id}>
               <CommentHeader>
@@ -446,8 +459,8 @@ function PostDetail({
               ))}
             </Comment>
           ))}
-        </CommentList>
-        {commentTotalPages > 1 && (
+          </CommentList>
+          {commentTotalPages > 1 && (
           <CommentPagination aria-label="댓글 페이지 이동">
             <CommentPageButton
               type="button"
@@ -480,7 +493,8 @@ function PostDetail({
               다음
             </CommentPageButton>
           </CommentPagination>
-        )}
+          )}
+        </>}
         <CommentForm onSubmit={onCommentSubmit}>
           <CommentInput
             value={commentText}
