@@ -98,6 +98,10 @@ const week = ['일', '월', '화', '수', '목', '금', '토'];
 // AI작성: 서버의 선택일 등록 상한과 같은 값으로 버튼 상태를 안내한다.
 const dailyEventLimit = 10;
 const seoulDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' });
+// AI작성: 달력 날짜와 동일한 서울 시간대를 사용한다.
+const seoulTime = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul', hourCycle: 'h23', hour: '2-digit', minute: '2-digit',
+});
 const detailDate = new Intl.DateTimeFormat('ko-KR', {
   month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC',
 });
@@ -161,6 +165,11 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
     selectDate(monthDate(month, offset).toISOString().slice(0, 10));
   }
 
+  function openForm() {
+    setTime(seoulTime.format(new Date()));
+    setFormOpen(true);
+  }
+
   async function save(event) {
     event.preventDefault();
     if (busy || !current?.data?.canCreate || limitReached) return;
@@ -221,7 +230,7 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
           <button type="button" onClick={() => moveMonth(1)} disabled={busy || month === '9999-12'}>다음 달</button>
           <button type="button" onClick={() => selectDate(seoulDate.format(new Date()))} disabled={busy}>오늘</button>
           {current?.data?.canCreate && (
-            <Primary type="button" onClick={() => setFormOpen(true)} disabled={busy || limitReached}>+ 일정 추가</Primary>
+            <Primary type="button" onClick={openForm} disabled={busy || limitReached || formOpen}>+ 일정 추가</Primary>
           )}
         </Toolbar>
         <Grid>
