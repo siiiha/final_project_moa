@@ -180,7 +180,7 @@ function SavingGroupSettingsPage() {
     );
   }
 
-  // AI작성: 설정 URL의 id는 상세 화면과 같은 groupId이므로 내부 savingGroupId로 대체하지 않는다.
+  // AI작성: 설정과 상세 URL은 동일한 savingGroupId를 사용한다.
   return (
     <Page>
       <Breadcrumb>계모임 · {settings.current.groupName} · 설정</Breadcrumb>

@@ -9,6 +9,7 @@ import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -30,14 +31,21 @@ class SavingGroupTurnOrderControllerTest {
     @ParameterizedTest @ValueSource(strings = {"/api/saving-groups", "/saving-groups"})
     void responseUsesOnlyAuthenticatedIdentity(String base) throws Exception {
         when(service.getTurnOrderRecommendations(10L, 30L)).thenReturn(List.of(
-                new SavingGroupTurnOrderRecommendationResponse("9223372036854775807", "테스트계주", 1, new BigDecimal("3297"))));
+                new SavingGroupTurnOrderRecommendationResponse("9223372036854775807", "테스트계주", 3, new BigDecimal("5515"))));
         mvc.perform(get(base + "/10/turn-orders/recommendations").requestAttr("memberId", 30L).param("memberId", "999"))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].memberId").value("9223372036854775807"))
                 .andExpect(jsonPath("$.data[0].nickname").value("테스트계주"))
-                .andExpect(jsonPath("$.data[0].recommendedTurnOrder").value(1))
-                .andExpect(jsonPath("$.data[0].expectedPayoutAmount").value(3297));
+                .andExpect(jsonPath("$.data[0].recommendedTurnOrder").value(3))
+                .andExpect(jsonPath("$.data[0].expectedPayoutAmount").value(5515));
+    }
+    // AI작성: 추천할 회차가 없으면 성공 응답의 빈 배열로 내려준다.
+    @Test void noRecommendationIsAnEmptyArray() throws Exception {
+        when(service.getTurnOrderRecommendations(10L, 30L)).thenReturn(List.of());
+        mvc.perform(get("/api/saving-groups/10/turn-orders/recommendations").requestAttr("memberId", 30L))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data").isEmpty());
     }
     @ParameterizedTest @ValueSource(strings = {"0", "-1", "abc"})
     void invalidPath(String id) throws Exception {

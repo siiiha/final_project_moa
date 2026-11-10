@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import SavingGroupFilterBar from '../components/savingGroup/SavingGroupFilterBar';
 import SavingGroupList from '../components/savingGroup/SavingGroupList';
 import { getSavingGroups } from '../api/savingGroups';
 import { getMemberRegions } from '../api/member';
+import useAuthStore from '../store/authStore';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -72,15 +73,28 @@ const Result = styled.p`
 // AI작성: 검색 조건과 서버 페이징을 연결하고 이전 요청의 응답을 폐기한다.
 function SavingGroupsPage() {
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
+  // AI작성: 목록 주소에서 적용된 검색 조건과 페이지를 복원한다.
+  const [params, setParams] = useSearchParams();
+  const submittedKeyword = (params.get('keyword') ?? '').trim().slice(0, 20);
+  const province = params.get('province') ?? '';
+  const districtId = province ? params.get('districtId') ?? '' : '';
+  const townId = districtId ? params.get('townId') ?? '' : '';
+  const page = Number(params.get('page'));
+  const currentPage = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  const updateQuery = (changes, nextPage = 1) => {
+    const next = new URLSearchParams(params);
+    Object.entries({ ...changes, page: nextPage > 1 ? nextPage : '' }).forEach(([key, value]) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    });
+    setParams(next);
+  };
   // AI작성: 회원가입과 같은 지역 목록을 사용하며 구·동은 필수가 아니다.
-  const [province, setProvince] = useState('');
-  const [districtId, setDistrictId] = useState('');
-  const [townId, setTownId] = useState('');
   const [regionState, setRegionState] = useState({ items: [], loading: true, error: '' });
   const [regionRetry, setRegionRetry] = useState(0);
-  const [keyword, setKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [keyword, setKeyword] = useState(submittedKeyword);
+  useEffect(() => { setKeyword(submittedKeyword); }, [submittedKeyword]);
 
   const [result, setResult] = useState({ items: [], totalElements: 0, totalPages: 0, requestKey: null, error: '' });
   const [searchError, setSearchError] = useState('');
@@ -108,6 +122,7 @@ function SavingGroupsPage() {
 
   // AI작성: 조건 변경·화면 이탈 시 요청을 취소하고 오래된 성공·실패 결과를 무시한다.
   useEffect(() => {
+    if ((districtId || townId) && regionState.loading) return;
     const controller = new AbortController();
     let active = true;
     getSavingGroups({
@@ -124,7 +139,7 @@ function SavingGroupsPage() {
           || '목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' });
     });
     return () => { active = false; controller.abort(); };
-  }, [submittedKeyword, province, districtName, townName, currentPage, retry, requestKey]);
+  }, [submittedKeyword, province, districtName, townName, currentPage, retry, requestKey, districtId, townId, regionState.loading]);
 
   // AI작성: 서버와 동일하게 앞뒤 공백 제거 후 길이를 검사한다.
   const handleSearch = (event) => {
@@ -135,8 +150,7 @@ function SavingGroupsPage() {
       return;
     }
     setSearchError('');
-    setSubmittedKeyword(normalizedKeyword);
-    setCurrentPage(1);
+    updateQuery({ keyword: normalizedKeyword });
   };
 
   const handleCreateApplication = () => {
@@ -146,12 +160,8 @@ function SavingGroupsPage() {
   // AI작성: 빈 결과에서 검색어·지역·페이지를 초기화하고 전체 목록을 다시 조회한다.
   const handleResetSearch = () => {
     setKeyword('');
-    setSubmittedKeyword('');
-    setProvince('');
-    setDistrictId('');
-    setTownId('');
+    setParams({});
     setSearchError('');
-    setCurrentPage(1);
     setRetry((value) => value + 1);
   };
 
@@ -163,9 +173,12 @@ function SavingGroupsPage() {
           <h1>계모임 둘러보기</h1>
           <p>같은 지역 이웃과 함께 목표를 만들고 즐겁게 모아보세요.</p>
         </div>
-        <CreateButton type="button" onClick={handleCreateApplication}>
-          계모임 개설 신청
-        </CreateButton>
+        {/* AI작성: 계모임 개설 신청 버튼은 로그인한 사용자에게만 표시한다. */}
+        {token && (
+          <CreateButton type="button" onClick={handleCreateApplication}>
+            계모임 개설 신청
+          </CreateButton>
+        )}
       </Heading>
       <Content>
         <SavingGroupFilterBar
@@ -178,19 +191,13 @@ function SavingGroupsPage() {
           regionsError={regionState.error}
           onProvinceChange={(value) => {
             // AI작성: 상위 지역 변경 시 이전 하위 선택을 남기지 않는다.
-            setProvince(value);
-            setDistrictId('');
-            setTownId('');
-            setCurrentPage(1);
+            updateQuery({ province: value, districtId: '', townId: '' });
           }}
           onDistrictChange={(value) => {
-            setDistrictId(value);
-            setTownId('');
-            setCurrentPage(1);
+            updateQuery({ districtId: value, townId: '' });
           }}
           onTownChange={(value) => {
-            setTownId(value);
-            setCurrentPage(1);
+            updateQuery({ townId: value });
           }}
           onKeywordChange={setKeyword}
           onSearch={handleSearch}
@@ -218,7 +225,7 @@ function SavingGroupsPage() {
               groups={result.items}
               currentPage={currentPage}
               totalPages={result.totalPages}
-              onPageChange={setCurrentPage}
+              onPageChange={(nextPage) => updateQuery({}, nextPage)}
             />
             {/* AI작성: 범위 초과는 기존 첫 페이지 이동을 사용하고 정상 빈 결과에만 초기화를 제공한다. */}
             {result.items.length === 0 && result.totalPages === 0 && (

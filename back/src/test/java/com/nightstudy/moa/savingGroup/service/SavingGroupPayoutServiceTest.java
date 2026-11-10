@@ -36,7 +36,7 @@ class SavingGroupPayoutServiceTest {
         service = new SavingGroupPayoutServiceImpl(mapper, storage, notificationService);
         group = new SavingGroupPayoutTargetRow(); group.setGroupId(1L); group.setGroupType("순번계"); group.setStatus("02");
         group.setStartDate(LocalDate.now(ZoneId.of("Asia/Seoul")).withDayOfMonth(1));
-        when(mapper.selectPayoutTargetForUpdate(1L)).thenReturn(group);
+        when(mapper.selectPayoutTargetForUpdate(11L)).thenReturn(group);
         member = new SavingGroupMembershipRelationRow(); member.setMembershipStatus("APPROVED"); member.setMemberRole("MEMBER");
         when(mapper.selectSavingGroupMembershipForUpdate(1L, 2L)).thenReturn(member);
         round = new SavingGroupPayoutRoundRow(); round.setRoundId(3L); round.setRoundNumber(1);
@@ -51,21 +51,21 @@ class SavingGroupPayoutServiceTest {
     }
     void expense(String role) { group.setGroupType("친목계"); member.setMemberRole(role); request.setAmount(new BigDecimal("1000")); request.setTitle("모임 식비"); }
     void fails(String code) {
-        assertThat(catchThrowableOfType(() -> service.createPayout(1L, 2L, request, "친목계".equals(group.getGroupType()) ? file : null), ApiException.class).getCode()).isEqualTo(code);
+        assertThat(catchThrowableOfType(() -> service.createPayout(11L, 2L, request, "친목계".equals(group.getGroupType()) ? file : null), ApiException.class).getCode()).isEqualTo(code);
         verify(mapper, never()).insertRoundPayout(any()); verify(mapper, never()).insertReceiptExpense(any());
     }
     @Test void rotationUsesSnapshotAndNoReceiptOrTransfer() {
-        assertThat(service.createPayout(1L, 2L, request, null).amount()).isEqualByComparingTo("502495");
-        var order = inOrder(mapper); order.verify(mapper).selectPayoutTargetForUpdate(1L);
+        assertThat(service.createPayout(11L, 2L, request, null).amount()).isEqualByComparingTo("502495");
+        var order = inOrder(mapper); order.verify(mapper).selectPayoutTargetForUpdate(11L);
         order.verify(mapper).selectSavingGroupMembershipForUpdate(1L, 2L);
         verifyNoInteractions(storage);
     }
     @Test void newRequestNotifiesApprovedOwnerExceptRequester() {
         when(mapper.selectSavingGroupPayoutReviewerIds(1L)).thenReturn(java.util.List.of(2L, 3L));
-        service.createPayout(1L, 2L, request, null);
+        service.createPayout(11L, 2L, request, null);
         verify(notificationService, never()).send(eq(2L), any(), any(), any());
         verify(notificationService).send(3L, NotificationType.SAVING_GROUP_PAYOUT_REQUESTED,
-                "새로운 계금·지출 요청이 등록되었습니다.", "/saving-groups/1");
+                "새로운 계금·지출 요청이 등록되었습니다.", "/saving-groups/11");
     }
     @Test void wrongTurn() { when(mapper.selectPayoutSequence(1L, 2L)).thenReturn(2); fails("PAYOUT_NOT_YOUR_TURN"); }
     @Test void startMonthDeterminesCurrentRoundAcrossYearBoundary() {
@@ -73,19 +73,19 @@ class SavingGroupPayoutServiceTest {
         round.setRoundNumber(14);
         when(mapper.selectPayoutRoundForUpdate(1L, 14)).thenReturn(round);
         when(mapper.selectPayoutSequence(1L, 2L)).thenReturn(14);
-        assertThat(service.getPayoutOptions(1L, 2L).roundNumber()).isEqualTo(14);
+        assertThat(service.getPayoutOptions(11L, 2L).roundNumber()).isEqualTo(14);
     }
     @Test void rotationRejectsExpenseInput() { request.setAmount(BigDecimal.ONE); fails("PAYOUT_INVALID_INPUT"); }
     @Test void rotationRejectsReceipt() {
-        assertThat(catchThrowableOfType(() -> service.createPayout(1L, 2L, request, file), ApiException.class).getCode()).isEqualTo("PAYOUT_INVALID_INPUT");
+        assertThat(catchThrowableOfType(() -> service.createPayout(11L, 2L, request, file), ApiException.class).getCode()).isEqualTo("PAYOUT_INVALID_INPUT");
         verify(mapper, never()).insertRoundPayout(any());
     }
     @Test void missingRound() { when(mapper.selectPayoutRoundForUpdate(1L, 1)).thenReturn(null); fails("PAYOUT_ROUND_MISSING"); }
     @Test void missingSnapshot() { round.setBaseDuesAmount(null); fails("PAYOUT_SNAPSHOT_MISSING"); }
     @Test void invalidSnapshot() { round.setAdditionalDuesAmount(new BigDecimal("1001")); fails("PAYOUT_SNAPSHOT_MISSING"); }
     @Test void alreadyRequestedApprovedOrCompleted() { when(mapper.existsBlockingRoundPayout(3L)).thenReturn(true); fails("PAYOUT_DUPLICATE"); }
-    @Test void missingGroup() { when(mapper.selectPayoutTargetForUpdate(1L)).thenReturn(null); fails("NOT_FOUND"); }
-    @Test void unauthenticated() { assertThat(catchThrowableOfType(() -> service.createPayout(1L, null, request, null), ApiException.class).getCode()).isEqualTo("UNAUTHORIZED"); verifyNoInteractions(storage); }
+    @Test void missingGroup() { when(mapper.selectPayoutTargetForUpdate(11L)).thenReturn(null); fails("NOT_FOUND"); }
+    @Test void unauthenticated() { assertThat(catchThrowableOfType(() -> service.createPayout(11L, null, request, null), ApiException.class).getCode()).isEqualTo("UNAUTHORIZED"); verifyNoInteractions(storage); }
     @Test void nonmember() { when(mapper.selectSavingGroupMembershipForUpdate(1L, 2L)).thenReturn(null); fails("PAYOUT_FORBIDDEN"); }
     @ParameterizedTest @ValueSource(strings = {"PENDING", "LEFT", "EXPELLED", "REJECTED"})
     void inactiveMembership(String status) { member.setMembershipStatus(status); fails("PAYOUT_FORBIDDEN"); }
@@ -94,30 +94,30 @@ class SavingGroupPayoutServiceTest {
     @Test void unsupportedType() { group.setGroupType("기타"); fails("PAYOUT_INVALID_TYPE"); }
     @Test void notStarted() { group.setStartDate(LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1)); fails("PAYOUT_NOT_STARTED"); }
     @ParameterizedTest @ValueSource(strings = {"OWNER", "MANAGER"})
-    void expenseOperators(String role) { expense(role); assertThat(service.createPayout(1L, 2L, request, file).status()).isEqualTo("PENDING"); verify(mapper, never()).insertRoundPayout(any()); }
+    void expenseOperators(String role) { expense(role); assertThat(service.createPayout(11L, 2L, request, file).status()).isEqualTo("PENDING"); verify(mapper, never()).insertRoundPayout(any()); }
     @Test void expenseMemberDenied() { expense("MEMBER"); fails("PAYOUT_FORBIDDEN"); }
     @ParameterizedTest @ValueSource(strings = {"0", "-1", "1.1", "10000000000000"})
     void invalidAmount(String value) { expense("OWNER"); request.setAmount(new BigDecimal(value)); fails("PAYOUT_INVALID_INPUT"); }
     @Test void duplicateReceipt() { expense("OWNER"); when(mapper.existsBlockingReceiptExpense(1L, "a".repeat(64))).thenReturn(true); fails("PAYOUT_DUPLICATE"); verify(storage, never()).store(any()); }
     @Test void missingReceiptCannotBeStored() {
         expense("MANAGER"); when(storage.prepare(null)).thenThrow(new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST, "INVALID_RECEIPT", "영수증 필수"));
-        assertThat(catchThrowableOfType(() -> service.createPayout(1L, 2L, request, null), ApiException.class).getCode()).isEqualTo("INVALID_RECEIPT");
+        assertThat(catchThrowableOfType(() -> service.createPayout(11L, 2L, request, null), ApiException.class).getCode()).isEqualTo("INVALID_RECEIPT");
         verify(mapper, never()).insertReceiptExpense(any());
     }
     @Test void blankExpenseTitleCannotBeStored() { expense("MANAGER"); request.setTitle(" "); fails("PAYOUT_INVALID_INPUT"); }
-    @Test void expenseForMissingGroup() { expense("MANAGER"); when(mapper.selectPayoutTargetForUpdate(1L)).thenReturn(null); fails("NOT_FOUND"); }
-    @Test void rejectedReceiptCanBeRequestedAgain() { expense("MANAGER"); when(mapper.existsBlockingReceiptExpense(1L, "a".repeat(64))).thenReturn(false); assertThat(service.createPayout(1L, 2L, request, file).requestId()).isEqualTo(9L); }
+    @Test void expenseForMissingGroup() { expense("MANAGER"); when(mapper.selectPayoutTargetForUpdate(11L)).thenReturn(null); fails("NOT_FOUND"); }
+    @Test void rejectedReceiptCanBeRequestedAgain() { expense("MANAGER"); when(mapper.existsBlockingReceiptExpense(1L, "a".repeat(64))).thenReturn(false); assertThat(service.createPayout(11L, 2L, request, file).requestId()).isEqualTo(9L); }
     @Test void transactionRollbackRemovesNewReceipt() {
         expense("OWNER"); TransactionSynchronizationManager.initSynchronization();
         try {
-            service.createPayout(1L, 2L, request, file);
+            service.createPayout(11L, 2L, request, file);
             for (var sync : TransactionSynchronizationManager.getSynchronizations()) sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
             verify(storage).delete("receipt.png");
         } finally { TransactionSynchronizationManager.clearSynchronization(); }
     }
     @Test void managerCannotReadReceipt() {
-        expense("MANAGER"); assertThat(catchThrowableOfType(() -> service.getReceipt(1L, 9L, 2L), ApiException.class).getCode()).isEqualTo("RECEIPT_FORBIDDEN");
+        expense("MANAGER"); assertThat(catchThrowableOfType(() -> service.getReceipt(11L, 9L, 2L), ApiException.class).getCode()).isEqualTo("RECEIPT_FORBIDDEN");
         verify(storage, never()).read(any());
     }
-    @Test void ownerReadsOnlyScopedReceipt() { expense("OWNER"); when(mapper.selectPayoutReceiptForOwner(1L, 9L)).thenReturn("receipt.png"); service.getReceipt(1L, 9L, 2L); verify(storage).read("receipt.png"); }
+    @Test void ownerReadsOnlyScopedReceipt() { expense("OWNER"); when(mapper.selectPayoutReceiptForOwner(1L, 9L)).thenReturn("receipt.png"); service.getReceipt(11L, 9L, 2L); verify(storage).read("receipt.png"); }
 }

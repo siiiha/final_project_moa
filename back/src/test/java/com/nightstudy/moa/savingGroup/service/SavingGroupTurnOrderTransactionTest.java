@@ -25,7 +25,7 @@ class SavingGroupTurnOrderTransactionTest {
         var source = mock(DataSource.class); when(source.getConnection()).thenReturn(connection);
         when(connection.getAutoCommit()).thenReturn(true);
         when(connection.getTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
-        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class)));
+        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class)));
         factory.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(source), new AnnotationTransactionAttributeSource()));
         service = (SavingGroupService) factory.getProxy();
     }
@@ -34,7 +34,7 @@ class SavingGroupTurnOrderTransactionTest {
         when(mapper.selectTurnOrderRecommendationContext(10L)).thenReturn(group);
         var owner = new SavingGroupMembershipRelationRow(); owner.setMemberRole("OWNER"); owner.setMembershipStatus("APPROVED");
         when(mapper.selectSavingGroupMembership(20L, 30L)).thenReturn(owner); when(mapper.existsMember(30L)).thenReturn(true);
-        when(mapper.selectTurnOrderRecommendationMembers(20L)).thenReturn(List.of());
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, null)).thenReturn(List.of());
         assertThat(service.getTurnOrderRecommendations(10L, 30L)).isEmpty();
         verify(connection).setReadOnly(true); verify(connection).setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
         verify(connection).commit(); verify(connection, never()).rollback();

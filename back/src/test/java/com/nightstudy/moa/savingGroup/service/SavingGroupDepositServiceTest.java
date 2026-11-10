@@ -27,8 +27,8 @@ class SavingGroupDepositServiceTest {
         notificationService = mock(NotificationService.class);
         // AI작성: 실제 서비스와 같은 필수 알림 의존성을 Mock으로 명시한다.
         service = new SavingGroupDepositServiceImpl(mapper, notificationService, () -> {});
-        var group = new SavingGroupPayoutTargetRow(); group.setStatus("02"); group.setGroupId(10L);
-        when(mapper.selectPayoutTargetForUpdate(10L)).thenReturn(group);
+        var group = new SavingGroupJoinTargetRow(); group.setStatus("02"); group.setGroupId(10L);
+        when(mapper.selectSavingGroupJoinTargetForUpdate(11L)).thenReturn(group);
         relation("APPROVED", "MEMBER");
         when(mapper.existsMember(20L)).thenReturn(true);
         when(mapper.selectDepositAccountForUpdate(10L)).thenReturn(30L);
@@ -54,7 +54,7 @@ class SavingGroupDepositServiceTest {
     @ParameterizedTest @ValueSource(strings = {"OWNER", "MANAGER", "MEMBER"})
     void approvedRolesCreateInternalTransaction(String role) {
         relation("APPROVED", role);
-        var result = service.deposit(10L, 20L, request());
+        var result = service.deposit(11L, 20L, request());
         assertThat(result.status()).isEqualTo("COMPLETED"); assertThat(result.balance()).isEqualByComparingTo("11000");
         verify(mapper).insertDepositTransaction(argThat(r -> r.getMemberId().equals(20L)
                 && r.getAmount().compareTo(new BigDecimal("1000")) == 0 && r.getCompletedAt().equals(now)
@@ -65,43 +65,43 @@ class SavingGroupDepositServiceTest {
                 20L,
                 NotificationType.DUES_PAYMENT_CONFIRMED,
                 "회비 납부가 확인되었습니다. 납부 금액: 1,000원",
-                "/saving-groups/10?menu=dues");
+                "/saving-groups/11?menu=dues");
     }
     @ParameterizedTest @ValueSource(strings = {"LEFT", "PENDING", "EXPELLED", "REJECTED"})
     void rejectsNonCurrentMembers(String status) {
         relation(status, "MEMBER");
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request())).isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositTransaction(any());
     }
     @Test void rejectsAbsentAndOtherGroupMembers() {
         when(mapper.selectSavingGroupMembershipForUpdate(10L, 20L)).thenReturn(null);
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request())).isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositTransaction(any());
     }
     @Test void rejectsAnonymousDeletedMissingAndInactiveTargets() {
-        assertThatThrownBy(() -> service.deposit(10L, null, request())).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.deposit(11L, null, request())).isInstanceOf(ApiException.class);
         when(mapper.existsMember(20L)).thenReturn(false);
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request())).isInstanceOf(ApiException.class);
         when(mapper.existsMember(20L)).thenReturn(true);
         when(mapper.selectDepositAccountForUpdate(10L)).thenReturn(null);
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
-        var inactive = new SavingGroupPayoutTargetRow(); inactive.setStatus("01");
-        when(mapper.selectPayoutTargetForUpdate(10L)).thenReturn(inactive);
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
-        when(mapper.selectPayoutTargetForUpdate(10L)).thenReturn(null);
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request())).isInstanceOf(ApiException.class);
+        var inactive = new SavingGroupJoinTargetRow(); inactive.setStatus("01"); inactive.setGroupId(10L);
+        when(mapper.selectSavingGroupJoinTargetForUpdate(11L)).thenReturn(inactive);
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request())).isInstanceOf(ApiException.class);
+        when(mapper.selectSavingGroupJoinTargetForUpdate(11L)).thenReturn(null);
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request())).isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositTransaction(any());
     }
     @ParameterizedTest @ValueSource(strings = {"0", "-1", "1.01", "10000000000000"})
     void rejectsInvalidAmounts(String amount) {
-        assertThatThrownBy(() -> service.deposit(10L, 20L, new SavingGroupDepositRequest(new BigDecimal(amount), key)))
+        assertThatThrownBy(() -> service.deposit(11L, 20L, new SavingGroupDepositRequest(new BigDecimal(amount), key)))
                 .isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositTransaction(any());
     }
     @Test void duplicateNeedsConfirmationAndConfirmReplayDoesNotCreateAnotherTransaction() {
         var anchor = pending(); anchor.setDepositRequestId(1L);
         when(mapper.selectDepositAnchorForUpdate(30L, 20L, new BigDecimal("1000"), now.minusMinutes(5))).thenReturn(anchor);
-        var response = service.deposit(10L, 20L, request());
+        var response = service.deposit(11L, 20L, request());
         assertThat(response.status()).isEqualTo("PENDING_CONFIRMATION");
         assertThat(response.confirmationExpiresAt()).isEqualTo(now.plusMinutes(5));
         var captor = org.mockito.ArgumentCaptor.forClass(SavingGroupDepositRow.class);
@@ -111,54 +111,54 @@ class SavingGroupDepositServiceTest {
         verify(mapper, never()).insertDepositTransaction(any());
         when(mapper.selectDepositRequestForUpdate(20L, key)).thenReturn(row);
         var confirm = new SavingGroupDepositConfirmRequest(key, response.confirmationToken());
-        assertThat(service.confirm(10L, 20L, confirm).status()).isEqualTo("COMPLETED");
+        assertThat(service.confirm(11L, 20L, confirm).status()).isEqualTo("COMPLETED");
         row.setStatus("COMPLETED"); row.setConfirmationTokenHash(null);
-        service.confirm(10L, 20L, confirm);
+        service.confirm(11L, 20L, confirm);
         verify(mapper, times(1)).insertDepositTransaction(any());
         // AI작성: 이미 완료된 확인 요청을 재호출해도 납부 확인 알림은 중복 발송하지 않는다.
         verify(notificationService, times(1)).send(
                 20L,
                 NotificationType.DUES_PAYMENT_CONFIRMED,
                 "회비 납부가 확인되었습니다. 납부 금액: 1,000원",
-                "/saving-groups/10?menu=dues");
+                "/saving-groups/11?menu=dues");
         assertThat(row.getWindowAnchorRequestId()).isEqualTo(1L);
     }
     @Test void invalidExpiredAndCrossAccountConfirmCannotSave() {
         var row = pending(); row.setConfirmationTokenHash("0".repeat(64)); row.setConfirmationExpiresAt(now.plusMinutes(5));
         when(mapper.selectDepositRequestForUpdate(20L, key)).thenReturn(row);
         var confirm = new SavingGroupDepositConfirmRequest(key, "A".repeat(43));
-        assertThatThrownBy(() -> service.confirm(10L, 20L, confirm)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.confirm(11L, 20L, confirm)).isInstanceOf(ApiException.class);
         row.setConfirmationExpiresAt(now);
-        assertThatThrownBy(() -> service.confirm(10L, 20L, confirm)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.confirm(11L, 20L, confirm)).isInstanceOf(ApiException.class);
         row.setAccountId(99L);
-        assertThatThrownBy(() -> service.confirm(10L, 20L, confirm)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.confirm(11L, 20L, confirm)).isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositTransaction(any());
     }
     @Test void retriesRefreshPendingTokenAndRejectChangedPayload() {
         var row = pending(); when(mapper.selectDepositRequestForUpdate(20L, key)).thenReturn(row);
-        String first = service.deposit(10L, 20L, request()).confirmationToken();
-        String second = service.deposit(10L, 20L, request()).confirmationToken();
+        String first = service.deposit(11L, 20L, request()).confirmationToken();
+        String second = service.deposit(11L, 20L, request()).confirmationToken();
         assertThat(second).isNotEqualTo(first);
-        assertThatThrownBy(() -> service.confirm(10L, 20L, new SavingGroupDepositConfirmRequest(key, first)))
+        assertThatThrownBy(() -> service.confirm(11L, 20L, new SavingGroupDepositConfirmRequest(key, first)))
                 .isInstanceOf(ApiException.class);
-        assertThatThrownBy(() -> service.deposit(10L, 20L, new SavingGroupDepositRequest(BigDecimal.TEN, key)))
+        assertThatThrownBy(() -> service.deposit(11L, 20L, new SavingGroupDepositRequest(BigDecimal.TEN, key)))
                 .isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositTransaction(any());
     }
     @Test void failedTransactionInsertCannotCreateCompletedRequest() {
         doReturn(0).when(mapper).insertDepositTransaction(any());
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request())).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request())).isInstanceOf(ApiException.class);
         verify(mapper, never()).insertDepositRequest(any());
     }
     // AI작성: 빈 원장에서는 최초 입금액 자체를 스냅샷으로 저장한다.
     @Test void firstTransactionStartsFromZeroBalance() {
         when(mapper.selectSavingGroupBalance(10L)).thenReturn(null, new BigDecimal("1000"));
-        service.deposit(10L, 20L, request());
+        service.deposit(11L, 20L, request());
         verify(mapper).insertDepositTransaction(argThat(row -> row.getBalanceAfter().compareTo(new BigDecimal("1000")) == 0));
     }
     @Test void balanceStorageOverflowIsRejectedBeforeWritingTransaction() {
         when(mapper.selectSavingGroupBalance(10L)).thenReturn(new BigDecimal("9999999999999.99"));
-        assertThatThrownBy(() -> service.deposit(10L, 20L, request()))
+        assertThatThrownBy(() -> service.deposit(11L, 20L, request()))
                 .isInstanceOfSatisfying(ApiException.class, error -> assertThat(error.getCode()).isEqualTo("DEPOSIT_BALANCE_OVERFLOW"));
         verify(mapper, never()).insertDepositTransaction(any());
         verify(mapper, never()).insertDepositRequest(any());
@@ -166,7 +166,7 @@ class SavingGroupDepositServiceTest {
     @Test void completedInitialRequestReplayDoesNotRecalculateOrInsertSnapshot() {
         var row = pending(); row.setStatus("COMPLETED"); row.setTransactionId(40L);
         when(mapper.selectDepositRequestForUpdate(20L, key)).thenReturn(row);
-        assertThat(service.deposit(10L, 20L, request()).status()).isEqualTo("COMPLETED");
+        assertThat(service.deposit(11L, 20L, request()).status()).isEqualTo("COMPLETED");
         verify(mapper, never()).insertDepositTransaction(any());
         verify(mapper, never()).insertDepositRequest(any());
     }

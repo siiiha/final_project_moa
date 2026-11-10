@@ -21,9 +21,9 @@ import org.springframework.transaction.interceptor.TransactionInterceptor;
 class SavingGroupDepositTransactionTest {
     @Test void rollsBackTransactionWhenRequestSaveFails() throws Exception {
         var mapper = mock(SavingGroupMapper.class);
-        var group = new SavingGroupPayoutTargetRow(); group.setStatus("02");
+        var group = new SavingGroupJoinTargetRow(); group.setStatus("02"); group.setGroupId(10L);
         var relation = new SavingGroupMembershipRelationRow(); relation.setMembershipStatus("APPROVED"); relation.setMemberRole("MEMBER");
-        when(mapper.selectPayoutTargetForUpdate(10L)).thenReturn(group);
+        when(mapper.selectSavingGroupJoinTargetForUpdate(11L)).thenReturn(group);
         when(mapper.selectSavingGroupMembershipForUpdate(10L, 20L)).thenReturn(relation);
         when(mapper.existsMember(20L)).thenReturn(true);
         when(mapper.selectDepositAccountForUpdate(10L)).thenReturn(30L);
@@ -40,7 +40,7 @@ class SavingGroupDepositTransactionTest {
         ProxyFactory proxy = new ProxyFactory(new SavingGroupDepositServiceImpl(mapper, notificationService, () -> {}));
         proxy.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(source), new AnnotationTransactionAttributeSource()));
         var service = (SavingGroupDepositService) proxy.getProxy();
-        assertThatThrownBy(() -> service.deposit(10L, 20L, new SavingGroupDepositRequest(BigDecimal.TEN, "mock-request-key-0001")))
+        assertThatThrownBy(() -> service.deposit(11L, 20L, new SavingGroupDepositRequest(BigDecimal.TEN, "mock-request-key-0001")))
                 .isInstanceOf(com.nightstudy.moa.common.exception.ApiException.class);
         verify(mapper).insertDepositTransaction(any()); verify(connection).rollback(); verify(connection, never()).commit();
     }

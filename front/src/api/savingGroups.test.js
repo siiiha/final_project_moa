@@ -329,7 +329,7 @@ test('지역 코드는 01~10 순서이며 카드는 기존 필드와 표시 형�
   const card = toSavingGroupCard({ savingGroupId: 101, groupId: 42, groupName: '테스트', description: '소개',
     regionName: '서울', maxMembers: 8, memberCount: 5, duesAmount: '50000.00', duesDay: 25, status: '01' });
   assert.equal(card.members, '5 / 8명');
-  assert.equal(card.id, 42);
+  assert.equal(card.id, 101);
   assert.equal(card.monthlyDues, '월 50,000원');
   assert.equal(card.nextDate, '매월 25일');
   assert.equal(card.status, '모집중');

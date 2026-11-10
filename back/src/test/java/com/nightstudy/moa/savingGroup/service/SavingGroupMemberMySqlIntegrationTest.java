@@ -72,7 +72,7 @@ class SavingGroupMemberMySqlIntegrationTest {
             configuration.getTypeAliasRegistry().registerAliases("com.nightstudy.moa.savingGroup.dto");
             factory.setConfiguration(configuration); factory.setMapperLocations(new ClassPathResource("mappers/SavingGroupMapper.xml"));
             var template = new SqlSessionTemplate(factory.getObject());
-            var proxy = new ProxyFactory(new SavingGroupServiceImpl(template.getMapper(SavingGroupMapper.class), null, null, org.mockito.Mockito.mock(NotificationService.class)));
+            var proxy = new ProxyFactory(new SavingGroupServiceImpl(template.getMapper(SavingGroupMapper.class), null, null, org.mockito.Mockito.mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class)));
             proxy.setInterfaces(SavingGroupService.class);
             proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
             service = (SavingGroupService) proxy.getProxy();

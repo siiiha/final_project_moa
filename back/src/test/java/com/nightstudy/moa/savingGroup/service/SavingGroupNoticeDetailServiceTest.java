@@ -44,7 +44,7 @@ class SavingGroupNoticeDetailServiceTest {
         assertThat(result.getWriterNickname()).isEqualTo("테스트닉네임");
         assertThat(result.getCreatedAt()).isEqualTo(createdAt);
         var order = inOrder(mapper);
-        order.verify(mapper).selectSavingGroupDetail(GROUP_ID);
+        order.verify(mapper).selectSavingGroupDetailBySavingGroupId(10L);
         order.verify(mapper).selectSavingGroupMembership(GROUP_ID, MEMBER_ID);
         order.verify(mapper).selectSavingGroupNoticeDetail(GROUP_ID, NOTICE_ID);
         verifyNoMoreInteractions(mapper);
@@ -54,7 +54,7 @@ class SavingGroupNoticeDetailServiceTest {
     @NullSource
     @ValueSource(longs = {0, -1})
     void rejectsUnauthenticatedMember(Long memberId) {
-        failure(() -> service.getSavingGroupNoticeDetail(GROUP_ID, NOTICE_ID, memberId), "UNAUTHORIZED", 401);
+        failure(() -> service.getSavingGroupNoticeDetail(10L, NOTICE_ID, memberId), "UNAUTHORIZED", 401);
         verifyNoInteractions(mapper);
     }
 
@@ -69,7 +69,7 @@ class SavingGroupNoticeDetailServiceTest {
     void rejectsGroupExcludedByExistingDetailQuery() {
         // AI작성: 기존 SQL에서 존재하지 않음·삭제·비활동 상태는 모두 조회 결과 null이다. SQL 자체 검증은 별도다.
         failure(this::read, "NOT_FOUND", 404);
-        verify(mapper).selectSavingGroupDetail(GROUP_ID);
+        verify(mapper).selectSavingGroupDetailBySavingGroupId(10L);
         verifyNoMoreInteractions(mapper);
     }
 
@@ -106,12 +106,12 @@ class SavingGroupNoticeDetailServiceTest {
         target("01");
         relation("MEMBER", "APPROVED");
         // AI작성: 소속 불일치와 공지 없음은 두 ID를 조건으로 하는 Mapper의 null 결과로 표현한다.
-        failure(() -> service.getSavingGroupNoticeDetail(GROUP_ID, noticeId, MEMBER_ID), "SAVING_GROUP_NOTICE_NOT_FOUND", 404);
+        failure(() -> service.getSavingGroupNoticeDetail(10L, noticeId, MEMBER_ID), "SAVING_GROUP_NOTICE_NOT_FOUND", 404);
         verify(mapper).selectSavingGroupNoticeDetail(GROUP_ID, noticeId);
     }
 
     private SavingGroupNoticeDetailResponse read() {
-        return service.getSavingGroupNoticeDetail(GROUP_ID, NOTICE_ID, MEMBER_ID);
+        return service.getSavingGroupNoticeDetail(10L, NOTICE_ID, MEMBER_ID);
     }
 
     private void failure(Runnable action, String code, int status) {
@@ -125,7 +125,7 @@ class SavingGroupNoticeDetailServiceTest {
         row.setGroupId(GROUP_ID);
         row.setSavingGroupId(10L);
         row.setStatus(status);
-        when(mapper.selectSavingGroupDetail(GROUP_ID)).thenReturn(row);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(row);
     }
 
     private void relation(String role, String status) {
