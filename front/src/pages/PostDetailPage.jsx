@@ -11,6 +11,7 @@ import {
   updateComment,
 } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
+import PostCategoryBadge from '../components/post/PostCategoryBadge';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import ReportModal from '../components/common/ReportModal';
@@ -69,8 +70,16 @@ const Breadcrumb = styled.p`
   font-size: 11px;
 `;
 
-const Title = styled.h1`
+const TitleRow = styled.div`
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const Title = styled.h1`
+  margin: 0;
   color: ${({ theme }) => theme.colors.text};
   font-size: 24px;
   font-weight: 800;
@@ -674,7 +683,10 @@ function PostDetailPage() {
   return (
     <Page>
       <Breadcrumb>게시판 &gt; 게시글 상세</Breadcrumb>
-      <Title>{post.title}</Title>
+      <TitleRow>
+        <Title>{post.title}</Title>
+        <PostCategoryBadge category={post.category} size="detail" />
+      </TitleRow>
       <Content>
         {deleteErrorMessage && <ActionError role="alert">{deleteErrorMessage}</ActionError>}
         {commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}

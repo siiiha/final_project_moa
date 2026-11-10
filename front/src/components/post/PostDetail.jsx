@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
-import PostCategoryBadge from './PostCategoryBadge';
 
 const ArticleCard = styled.article`
   padding: 22px 18px 14px;
@@ -301,7 +300,6 @@ function PostDetail({
   return (
     <>
       <ArticleCard>
-        <PostCategoryBadge category={post.category} size="detail" />
         <Meta>
           {post.author} · {post.date} · 조회 {post.views}
         </Meta>
