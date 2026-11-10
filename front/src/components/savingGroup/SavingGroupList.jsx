@@ -54,6 +54,10 @@ const PageButton = styled.button`
 
 // AI작성: 빈 결과와 범위 초과를 구분하고 번호를 최대 다섯 개씩 표시한다.
 function SavingGroupList({ groups, currentPage, totalPages, onPageChange }) {
+  // AI작성: 이전·다음은 표시 중인 번호 묶음의 경계를 기준으로 이동한다.
+  const pages = getSavingGroupPages(currentPage, totalPages);
+  const firstPage = pages[0];
+  const lastPage = pages[pages.length - 1];
   if (!groups.length) {
     if (totalPages > 0 && currentPage > totalPages) {
       return <Empty>해당 페이지에 표시할 계모임이 없습니다.{' '}
@@ -72,9 +76,9 @@ function SavingGroupList({ groups, currentPage, totalPages, onPageChange }) {
       </Grid>
       {totalPages > 1 && (
         <Pagination aria-label="계모임 목록 페이지">
-          <PageButton type="button" disabled={currentPage <= 1}
-            onClick={() => onPageChange(currentPage - 1)}>이전</PageButton>
-          {getSavingGroupPages(currentPage, totalPages).map((page) => (
+          <PageButton type="button" disabled={firstPage === 1}
+            onClick={() => onPageChange(firstPage - 1)}>이전</PageButton>
+          {pages.map((page) => (
             <PageButton
               key={page}
               type="button"
@@ -85,8 +89,8 @@ function SavingGroupList({ groups, currentPage, totalPages, onPageChange }) {
               {page}
             </PageButton>
           ))}
-          <PageButton type="button" disabled={currentPage >= totalPages}
-            onClick={() => onPageChange(currentPage + 1)}>다음</PageButton>
+          <PageButton type="button" disabled={lastPage === totalPages}
+            onClick={() => onPageChange(lastPage + 1)}>다음</PageButton>
         </Pagination>
       )}
     </>

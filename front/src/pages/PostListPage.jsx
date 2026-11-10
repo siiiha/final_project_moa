@@ -15,6 +15,8 @@ const ALL_CATEGORY_NAME = '전체보기';
 const SEARCH_TYPE_BY_CONDITION = {
   '제목': 'title',
   '내용': 'content',
+  // AI작성: 작성자 조건은 백엔드의 닉네임 검색값인 writer로 전달합니다.
+  '작성자': 'writer',
 };
 
 const Page = styled.div`
@@ -172,6 +174,7 @@ function PostListPage() {
             author: post.writerNickname || '알 수 없음',
             date: post.createdAtStr || '',
             views: post.viewCount,
+            commentCount: post.commentCount || 0,
           }))
         );
         setTotalCount(response.meta?.total || 0);

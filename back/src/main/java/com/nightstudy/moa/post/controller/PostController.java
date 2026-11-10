@@ -8,14 +8,22 @@ import com.nightstudy.moa.post.dto.PostEditRequest;
 import com.nightstudy.moa.post.dto.PostListResult;
 import com.nightstudy.moa.post.dto.PostSearchCondition;
 import com.nightstudy.moa.post.service.PostService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.time.Duration;
+import java.util.Arrays;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,6 +44,8 @@ import org.springframework.validation.annotation.Validated;
 @RestController
 @RequestMapping("/api/community")
 public class PostController {
+    private static final String VISITOR_COOKIE_NAME = "moa_visitor_id";
+    private static final Duration VISITOR_COOKIE_MAX_AGE = Duration.ofDays(365);
     private final PostService postService;
 
     @Autowired
@@ -85,10 +95,55 @@ public class PostController {
             @PathVariable
             @Positive(message = "게시글 번호는 1 이상이어야 합니다.")
             Long postId,
-            @RequestAttribute(value = "memberId", required = false) Long loginMemberId
+            @RequestAttribute(value = "memberId", required = false) Long loginMemberId,
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse
     ) {
-        PostDto post = postService.getPostDetail(postId, loginMemberId);
+        String visitorId = loginMemberId == null
+                ? resolveVisitorId(servletRequest, servletResponse)
+                : null;
+        PostDto post = postService.getPostDetail(postId, loginMemberId, visitorId);
         return ApiResponse.ok(post);
+    }
+
+    private String resolveVisitorId(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        String visitorId = request.getCookies() == null ? null
+                : Arrays.stream(request.getCookies())
+                .filter(cookie -> VISITOR_COOKIE_NAME.equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .filter(this::isValidVisitorId)
+                .findFirst()
+                .orElse(null);
+
+        if (visitorId != null) {
+            return visitorId;
+        }
+
+        visitorId = UUID.randomUUID().toString();
+        // AI작성: 개인정보 대신 임의 UUID만 저장하며 운영 HTTPS에서는 Secure 속성도 적용합니다.
+        ResponseCookie visitorCookie = ResponseCookie.from(VISITOR_COOKIE_NAME, visitorId)
+                .httpOnly(true)
+                .secure(request.isSecure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(VISITOR_COOKIE_MAX_AGE)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, visitorCookie.toString());
+        return visitorId;
+    }
+
+    private boolean isValidVisitorId(String value) {
+        if (value == null) {
+            return false;
+        }
+        try {
+            return value.equals(UUID.fromString(value).toString());
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     // AI작성: 첨부 파일의 접근 권한을 요청마다 검사할 수 있도록 캐시를 사용하지 않습니다.

@@ -74,6 +74,9 @@ function toSmallGroupDetailView(data) {
 function SmallGroupDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  // AI작성: 상세에서 목록으로 이동할 때 적용된 검색 조건을 복원한다.
+  const goToList = () => navigate({ pathname: '/small-groups',
+    search: new URLSearchParams(location.search).get('listSearch') ?? '' });
   const { id } = useParams();
   const noticeQuery = readSmallGroupNoticeQuery(location.search);
   // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
@@ -292,6 +295,9 @@ function SmallGroupDetailPage() {
   return (
     <Page>
       <Breadcrumb>소모임 &gt; 소모임 목록 &gt; 소모임 메인</Breadcrumb>
+      {current && !current.error && (
+        <Button type="button" $variant="secondary" onClick={goToList}>소모임 목록으로</Button>
+      )}
       <Content>
         {!current ? <EmptyCard role="status">소모임 정보를 불러오는 중입니다.</EmptyCard>
           : current.error ? (
@@ -300,7 +306,7 @@ function SmallGroupDetailPage() {
               {!['NOT_FOUND', 'ACCESS_DENIED', 'UNAUTHORIZED', 'LOGIN_REQUIRED'].includes(errorCode) && (
                 <Button type="button" onClick={() => setRetry((value) => value + 1)}>다시 시도</Button>
               )}
-              <Button type="button" $variant="secondary" onClick={() => navigate('/small-groups')}>
+              <Button type="button" $variant="secondary" onClick={goToList}>
                 소모임 목록으로
               </Button>
             </EmptyCard>
