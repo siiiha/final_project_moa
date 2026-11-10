@@ -102,10 +102,15 @@ const CommentList = styled.div`
   margin-top: 10px;
 `;
 
-const LoadMoreActions = styled.div`
+const CommentPagination = styled.nav`
   margin-top: 14px;
   display: flex;
   justify-content: center;
+  gap: 4px;
+`;
+
+const CommentPageButton = styled(Button)`
+  min-width: 30px;
 `;
 
 const Comment = styled.article`
@@ -256,8 +261,9 @@ function PostDetail({
   memberId,
   comments,
   commentTotal,
-  hasMoreComments,
-  isLoadingMoreComments,
+  commentPage,
+  commentPageNumbers,
+  commentTotalPages,
   isSubmittingComment,
   replyingCommentId,
   replyText,
@@ -277,7 +283,7 @@ function PostDetail({
   onCommentEditSubmit,
   onCommentEditCancel,
   onCommentDelete,
-  onLoadMoreComments,
+  onCommentPageChange,
   onEdit,
   onDelete,
   onReport,
@@ -441,19 +447,39 @@ function PostDetail({
             </Comment>
           ))}
         </CommentList>
-        {hasMoreComments && (
-          <LoadMoreActions>
-            {/* AI작성: 숫자 페이징보다 읽던 흐름을 유지하고 모바일에서 누르기 쉬운 더보기 방식을 사용합니다. */}
-            <Button
+        {commentTotalPages > 1 && (
+          <CommentPagination aria-label="댓글 페이지 이동">
+            <CommentPageButton
               type="button"
               $variant="secondary"
               $size="small"
-              disabled={isLoadingMoreComments}
-              onClick={onLoadMoreComments}
+              disabled={commentPage === 1}
+              onClick={() => onCommentPageChange(commentPage - 1)}
             >
-              {isLoadingMoreComments ? '댓글 불러오는 중...' : '댓글 더보기'}
-            </Button>
-          </LoadMoreActions>
+              이전
+            </CommentPageButton>
+            {commentPageNumbers.map((page) => (
+              <CommentPageButton
+                key={page}
+                type="button"
+                $variant={page === commentPage ? 'primary' : 'secondary'}
+                $size="small"
+                aria-current={page === commentPage ? 'page' : undefined}
+                onClick={() => onCommentPageChange(page)}
+              >
+                {page}
+              </CommentPageButton>
+            ))}
+            <CommentPageButton
+              type="button"
+              $variant="secondary"
+              $size="small"
+              disabled={commentPage === commentTotalPages}
+              onClick={() => onCommentPageChange(commentPage + 1)}
+            >
+              다음
+            </CommentPageButton>
+          </CommentPagination>
         )}
         <CommentForm onSubmit={onCommentSubmit}>
           <CommentInput
