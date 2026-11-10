@@ -96,12 +96,6 @@ const Composer = styled.form`
   }
 `;
 
-const RestrictionNotice = styled.p`
-  padding: 12px 16px 0;
-  color: ${({ theme }) => theme.colors.secondaryText};
-  font-weight: 700;
-`;
-
 const dayFormat = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 const timeFormat = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' });
 
@@ -238,11 +232,6 @@ export default function SavingGroupChatPanel({ group }) {
           );
         })}
       </History>
-      {chatRestricted && (
-        <RestrictionNotice role="status">
-          채팅 이용이 제한되어 메시지를 보낼 수 없습니다.
-        </RestrictionNotice>
-      )}
       <Composer onSubmit={submit}>
         <textarea aria-label="메시지"
           placeholder={chatRestricted ? '채팅 이용이 제한되었습니다.' : '메시지를 입력하세요'}

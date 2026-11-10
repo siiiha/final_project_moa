@@ -409,7 +409,8 @@ function PostDetailPage() {
           id: response.data.commentId,
           // AI작성: 등록 직후에도 본인 댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
           memberId: response.data.memberId,
-          author: '나',
+          // AI작성: 등록 응답의 닉네임을 즉시 표시해 목록 재조회 전후의 작성자 표기를 일치시킵니다.
+          author: response.data.writerNickname || '알 수 없음',
           content: response.data.content,
           createdAt: response.data.createdAt,
           replies: [],
@@ -489,7 +490,8 @@ function PostDetailPage() {
                     id: response.data.commentId,
                     // AI작성: 등록 직후에도 본인 대댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
                     memberId: response.data.memberId,
-                    author: '나',
+                    // AI작성: 답글도 등록 직후부터 서버가 반환한 닉네임으로 표시합니다.
+                    author: response.data.writerNickname || '알 수 없음',
                     content: response.data.content,
                     createdAt: response.data.createdAt,
                     deleted: false,
