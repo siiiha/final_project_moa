@@ -353,9 +353,18 @@ function PostDetailPage() {
     }
   };
 
-  // AI작성: 댓글 등록 후 서버의 최신 댓글 목록과 전체 개수를 다시 동기화합니다.
-  const refreshComments = async () => {
-    const response = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
+  // AI작성: 새 원댓글은 마지막 페이지에서 보이도록 서버의 최신 페이지 정보를 기준으로 다시 조회합니다.
+  const refreshComments = async ({ moveToLastPage = false } = {}) => {
+    const firstPageResponse = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
+    if (!firstPageResponse.success) {
+      throw new Error(firstPageResponse.error?.message || '최신 댓글을 불러오지 못했습니다.');
+    }
+
+    const lastPage = Math.max(1, firstPageResponse.meta?.totalPages || 1);
+    const response = moveToLastPage && lastPage > 1
+      ? await getComments(id, { page: lastPage, size: COMMENTS_PER_PAGE })
+      : firstPageResponse;
+
     if (!response.success) {
       throw new Error(response.error?.message || '최신 댓글을 불러오지 못했습니다.');
     }
@@ -405,7 +414,7 @@ function PostDetailPage() {
       setCommentTotal((currentTotal) => currentTotal + 1);
 
       try {
-        await refreshComments();
+        await refreshComments({ moveToLastPage: true });
       } catch (refreshError) {
         setCommentErrorMessage(
           refreshError.response?.data?.error?.message ||
