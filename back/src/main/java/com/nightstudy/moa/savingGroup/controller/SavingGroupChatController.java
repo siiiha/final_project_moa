@@ -4,6 +4,7 @@ import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupChatMessage;
 import com.nightstudy.moa.savingGroup.service.SavingGroupChatService;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupChatRoomResponse;
 import java.security.Principal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +25,8 @@ public class SavingGroupChatController {
     private final SimpMessagingTemplate messaging;
 
     @GetMapping("/api/saving-groups/{savingGroupId}/chat-room")
-    public ApiResponse<Long> room(@PathVariable long savingGroupId, @AuthenticationPrincipal Long memberId) {
-        return ApiResponse.ok(chatService.findRoomId(savingGroupId, memberId));
+    public ApiResponse<SavingGroupChatRoomResponse> room(@PathVariable long savingGroupId, @AuthenticationPrincipal Long memberId) {
+        return ApiResponse.ok(chatService.findRoom(savingGroupId, memberId));
     }
 
     @GetMapping("/api/v1/chat/rooms/{roomId}/messages")

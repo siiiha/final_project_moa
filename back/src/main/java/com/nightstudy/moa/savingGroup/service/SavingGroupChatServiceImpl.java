@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
+import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionService;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupChatRoomResponse;
 
 @Service
 @RequiredArgsConstructor
@@ -16,19 +19,43 @@ public class SavingGroupChatServiceImpl implements SavingGroupChatService {
     private final SavingGroupChatMapper chatMapper;
     private final SavingGroupMapper savingGroupMapper;
 
+    // AI작성: 채팅 메시지 전송 전 회원의 채팅 이용 제한 여부를 검사한다.
+    private final MemberFeatureRestrictionService restrictionService;
+
     @Override
     @Transactional(readOnly = true)
-    public long findRoomId(long savingGroupId, Long memberId) {
+// AI작성: 채팅방 정보와 현재 회원의 채팅 제한 상태를 함께 반환한다.
+    public SavingGroupChatRoomResponse findRoom(
+            long savingGroupId,
+            Long memberId
+    ) {
         requireLogin(memberId);
+
         Long roomId = chatMapper.findRoomId(savingGroupId);
         requireAccess(roomId, memberId);
-        return roomId;
+
+        boolean chatRestricted = restrictionService.isRestricted(
+                memberId,
+                MemberRestrictionScope.CHAT
+        );
+
+        return new SavingGroupChatRoomResponse(
+                roomId,
+                chatRestricted
+        );
     }
 
     @Override
     @Transactional
     public SavingGroupChatMessage save(long roomId, Long memberId, String content) {
         requireAccess(roomId, memberId);
+
+        // AI작성: 활성화된 채팅 제재가 있으면 메시지 저장과 전송을 차단한다.
+        restrictionService.validateAllowed(
+                memberId,
+                MemberRestrictionScope.CHAT
+        );
+
         if (content == null || content.isBlank() || content.length() > 1000) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "CHAT_INVALID_CONTENT", "메시지를 1,000자 이내로 입력해 주세요.");
         }

@@ -10,4 +10,11 @@ public interface MemberFeatureRestrictionService {
             Long memberId,
             MemberRestrictionScope restrictionScope
     );
+
+    // AI작성: 해당 기능에 현재 적용 중인 이용 제한이 있는지 반환한다.
+    boolean isRestricted(
+            Long memberId,
+            MemberRestrictionScope restrictionScope
+    );
+
 }
