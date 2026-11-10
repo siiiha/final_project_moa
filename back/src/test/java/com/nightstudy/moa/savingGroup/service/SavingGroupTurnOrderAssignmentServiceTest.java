@@ -131,7 +131,13 @@ class SavingGroupTurnOrderAssignmentServiceTest {
     }
     @Test void rejectsPeriodOverflowAndFailedPartialUpdate() {
         group.setStatus("02"); group.setEndDate(LocalDate.of(2026,12,31));
-        assertThatThrownBy(() -> service.update(10L,30L,request(30,3,40,4))).isInstanceOf(ApiException.class);
+        // AI작성: 현재 회차 계원을 포함한 정상 자료로 운영 기간 검증까지 도달한다.
+        var current = member("50", false); current.setSequenceNumber(2);
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(
+                List.of(member("30", false), member("40", false), current));
+        assertThatThrownBy(() -> service.update(10L,30L,request(30,3,40,4)))
+                .isInstanceOf(ApiException.class).hasMessageContaining("남은 운영 기간");
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(List.of(member("30", false), member("40", false)));
         group.setStatus("01"); when(mapper.updateTurnOrderSequence(20L,40L,2)).thenReturn(0);
         assertThatThrownBy(() -> service.update(10L,30L,request(30,1,40,2))).isInstanceOf(ApiException.class);
     }
@@ -144,7 +150,11 @@ class SavingGroupTurnOrderAssignmentServiceTest {
     }
     @Test void existingFuturePayoutBlocksReassignmentWithoutCancellingRequest() {
         group.setStatus("02"); when(mapper.existsUpcomingTurnOrderPayout(20L,3)).thenReturn(true);
-        assertThatThrownBy(() -> service.update(10L,30L,request(30,3,40,4))).isInstanceOf(ApiException.class);
+        var current = member("50", false); current.setSequenceNumber(2);
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(
+                List.of(member("30", false), member("40", false), current));
+        assertThatThrownBy(() -> service.update(10L,30L,request(30,3,40,4)))
+                .isInstanceOf(ApiException.class).hasMessageContaining("기존 지급 요청");
         verify(mapper,never()).insertTurnOrderPlan(any());
     }
 }

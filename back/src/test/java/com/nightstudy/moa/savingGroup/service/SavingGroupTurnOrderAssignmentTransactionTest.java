@@ -22,9 +22,16 @@ class SavingGroupTurnOrderAssignmentTransactionTest {
         var fixture = new SavingGroupTurnOrderAssignmentServiceTest(); fixture.setup();
         if (scheduled) {
             fixture.group.setStatus("02");
+            // AI작성: 현재 2회차 계원을 예약에 보존한 뒤 미래 순번 저장 실패를 재현한다.
+            var current = SavingGroupTurnOrderAssignmentServiceTest.member("50", false);
+            current.setSequenceNumber(2);
+            when(fixture.mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(java.util.List.of(
+                    SavingGroupTurnOrderAssignmentServiceTest.member("30", false),
+                    SavingGroupTurnOrderAssignmentServiceTest.member("40", false), current));
             when(fixture.mapper.insertTurnOrderPlan(any())).thenAnswer(call -> {
                 ((SavingGroupTurnOrderPlanRow)call.getArgument(0)).setTurnOrderPlanId(99L); return 1;
             });
+            when(fixture.mapper.insertTurnOrderPlanMember(99L,50L,2)).thenReturn(1);
             when(fixture.mapper.insertTurnOrderPlanMember(99L,30L,3)).thenAnswer(call -> {
                 assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue(); return 1;
             });
@@ -43,5 +50,7 @@ class SavingGroupTurnOrderAssignmentTransactionTest {
         assertThatThrownBy(() -> service.update(10L,30L,SavingGroupTurnOrderAssignmentServiceTest.request(30,scheduled?3:1,40,scheduled?4:2)))
             .isInstanceOf(ApiException.class);
         verify(connection).rollback(); verify(connection,never()).commit();
+        if (scheduled) verify(fixture.mapper).insertTurnOrderPlanMember(99L,40L,4);
+        else verify(fixture.mapper).updateTurnOrderSequence(20L,40L,2);
     }
 }
