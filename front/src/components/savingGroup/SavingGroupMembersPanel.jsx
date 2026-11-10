@@ -48,7 +48,7 @@ const SearchButton = styled(Button)`
 `;
 
 // AI작성: 입력 중 검색어와 적용한 검색어를 분리하고 현재 모임·검색·페이지의 서버 결과만 표시한다.
-function SavingGroupMembersPanelContent({ savingGroupId, groupId, myRole, membershipStatus, status, groupType }) {
+function SavingGroupMembersPanelContent({ savingGroupId, myRole, membershipStatus, status, groupType }) {
   // AI작성: 서버 검증과 별도로 승인 계주·순번계·운영 상태에서만 추천 진입점을 노출한다.
   const [recommendationOpen, setRecommendationOpen] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
@@ -143,7 +143,7 @@ function SavingGroupMembersPanelContent({ savingGroupId, groupId, myRole, member
     if (submitting.current || blocked || !canExpel || !member || !['MEMBER', 'MANAGER'].includes(member.role)) return false;
     submitting.current = true; setExpellingId(memberId); setExpulsionError(''); setNotice('');
     try {
-      await expelSavingGroupMember(groupId, memberId);
+      await expelSavingGroupMember(savingGroupId, memberId);
       if (!active.current) return false;
       setNotice('계원을 추방했습니다.'); setDrafts({}); setIsRoleEditing(false);
       // AI작성: 현재 검색·페이지로 재조회하고 빈 마지막 페이지는 기존 GET 보정으로 이전 페이지를 읽는다.

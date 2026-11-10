@@ -28,21 +28,24 @@ public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarServic
 
     @Override
     @Transactional(readOnly = true)
-    public Month getMonth(Long groupId, Long memberId, YearMonth month) {
-        String role = requireRole(groupId, memberId, false);
+    public Month getMonth(Long savingGroupId, Long memberId, YearMonth month) {
+        var access = requireAccess(savingGroupId, memberId, false);
+        Long groupId = access.groupId();
         if (month.getYear() < 1000 || month.getYear() > 9999) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "조회 월이 올바르지 않습니다.");
         }
         var start = month.atDay(1).atStartOfDay();
         var events = mapper.selectCalendarEvents(groupId, start, start.plusMonths(1)).stream()
                 .map(row -> toEvent(row.scheduleId(), row.title(), row.eventDate())).toList();
-        return new Month(canCreate(role), events);
+        return new Month(canCreate(access.role()), events);
     }
 
     @Override
     @Transactional
-    public Event create(Long groupId, Long memberId, CreateRequest request) {
-        if (!canCreate(requireRole(groupId, memberId, true))) {
+    public Event create(Long savingGroupId, Long memberId, CreateRequest request) {
+        var access = requireAccess(savingGroupId, memberId, true);
+        Long groupId = access.groupId();
+        if (!canCreate(access.role())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "계주와 회계만 일정을 등록할 수 있습니다.");
         }
         if (request.date().getYear() < 1000 || request.date().getYear() > 9999
@@ -66,7 +69,7 @@ public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarServic
                         receiverId,
                         NotificationType.SCHEDULE_CREATED,
                         "계모임에 새 일정이 등록되었습니다.",
-                        "/saving-groups/" + groupId + "/calendar"
+                        "/saving-groups/" + savingGroupId + "?menu=calendar"
                 ));
         return toEvent(row.scheduleId, row.title, row.eventDate);
     }
@@ -74,8 +77,10 @@ public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarServic
     // AI작성: 등록과 같은 모임 잠금을 사용해 삭제와 하루 상한 집계를 직렬화한다.
     @Override
     @Transactional
-    public void delete(Long groupId, Long memberId, Long scheduleId) {
-        if (!canCreate(requireRole(groupId, memberId, true))) {
+    public void delete(Long savingGroupId, Long memberId, Long scheduleId) {
+        var access = requireAccess(savingGroupId, memberId, true);
+        Long groupId = access.groupId();
+        if (!canCreate(access.role())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "계주와 회계만 일정을 삭제할 수 있습니다.");
         }
         if (mapper.deleteCalendarEvent(groupId, scheduleId) == 0) {
@@ -83,25 +88,33 @@ public class SavingGroupCalendarServiceImpl implements SavingGroupCalendarServic
         }
     }
 
-    private String requireRole(Long groupId, Long memberId, boolean forWrite) {
+    private CalendarAccess requireAccess(Long savingGroupId, Long memberId, boolean forWrite) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        // AI작성: 등록과 삭제는 일반 SELECT로 읽기 스냅샷을 만들기 전에 기존 모임 행을 잠근다.
-        boolean exists = forWrite ? mapper.selectSavingGroupStatusForUpdate(groupId) != null
-                : mapper.selectSavingGroupDetail(groupId) != null;
-        if (!exists) {
+        // AI작성: 쓰기는 계모임 ID로 행을 먼저 잠그고, 일정과 회원 소속에는 공통 모임 ID를 사용한다.
+        Long groupId;
+        if (forWrite) {
+            var target = mapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
+            groupId = target == null ? null : target.getGroupId();
+        } else {
+            var target = mapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+            groupId = target == null ? null : target.getGroupId();
+        }
+        if (groupId == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         var relation = mapper.selectSavingGroupMembership(groupId, memberId);
         if (relation != null && "APPROVED".equals(relation.getMembershipStatus())) {
             String role = relation.getMemberRole();
             if (canCreate(role) || "MEMBER".equals(role)) {
-                return role;
+                return new CalendarAccess(groupId, role);
             }
         }
         throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "승인된 모임원만 일정을 확인할 수 있습니다.");
     }
+
+    private record CalendarAccess(Long groupId, String role) {}
 
     private boolean canCreate(String role) {
         return "OWNER".equals(role) || "MANAGER".equals(role);

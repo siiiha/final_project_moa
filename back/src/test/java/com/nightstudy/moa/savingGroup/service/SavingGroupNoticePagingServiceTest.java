@@ -34,7 +34,7 @@ class SavingGroupNoticePagingServiceTest {
         var notice = new SavingGroupNoticeSummaryResponse(40L, "공지 제목", "작성자", LocalDateTime.of(2026, 11, 4, 10, 0));
         when(mapper.selectSavingGroupNotices(20L, sort, 4)).thenReturn(List.of(notice));
 
-        var result = service.getSavingGroupDetail(20L, null, condition(2, sort));
+        var result = service.getSavingGroupDetail(10L, null, condition(2, sort));
 
         assertThat(result.getDetail().getNotices()).containsExactly(notice);
         assertThat(result.getDetail().getGroupId()).isEqualTo(20L);
@@ -50,7 +50,7 @@ class SavingGroupNoticePagingServiceTest {
     void legacyCallUsesLatestFirstPage() {
         target();
         when(mapper.selectSavingGroupNoticeCount(20L)).thenReturn(1);
-        service.getSavingGroupDetail(20L, null);
+        service.getSavingGroupDetail(10L, null);
         verify(mapper).selectSavingGroupNotices(20L, "LATEST", 0);
     }
 
@@ -60,7 +60,7 @@ class SavingGroupNoticePagingServiceTest {
         target();
         when(mapper.selectSavingGroupNoticeCount(20L)).thenReturn(total);
 
-        var result = service.getSavingGroupDetail(20L, null, condition(page, "LATEST"));
+        var result = service.getSavingGroupDetail(10L, null, condition(page, "LATEST"));
 
         assertThat(result.getDetail().getNotices()).isEmpty();
         assertThat(result.getPageMeta().getPage()).isEqualTo(page);
@@ -72,13 +72,13 @@ class SavingGroupNoticePagingServiceTest {
     @ParameterizedTest
     @CsvSource({",LATEST", "0,LATEST", "-1,LATEST", "1,", "1,latest", "1,UNKNOWN"})
     void rejectsInvalidConditionsBeforeDatabaseAccess(Integer page, String sort) {
-        failure(() -> service.getSavingGroupDetail(20L, null, condition(page, sort)), HttpStatus.BAD_REQUEST);
+        failure(() -> service.getSavingGroupDetail(10L, null, condition(page, sort)), HttpStatus.BAD_REQUEST);
         verifyNoInteractions(mapper);
     }
 
     @Test
     void rejectsMissingCondition() {
-        failure(() -> service.getSavingGroupDetail(20L, null, null), HttpStatus.BAD_REQUEST);
+        failure(() -> service.getSavingGroupDetail(10L, null, null), HttpStatus.BAD_REQUEST);
         verifyNoInteractions(mapper);
     }
 
@@ -92,8 +92,8 @@ class SavingGroupNoticePagingServiceTest {
 
     @Test
     void missingGroupDoesNotQueryNotices() {
-        failure(() -> service.getSavingGroupDetail(20L, null, condition(1, "LATEST")), HttpStatus.NOT_FOUND);
-        verify(mapper).selectSavingGroupDetail(20L);
+        failure(() -> service.getSavingGroupDetail(10L, null, condition(1, "LATEST")), HttpStatus.NOT_FOUND);
+        verify(mapper).selectSavingGroupDetailBySavingGroupId(10L);
         verifyNoMoreInteractions(mapper);
     }
 
@@ -107,7 +107,7 @@ class SavingGroupNoticePagingServiceTest {
         when(mapper.selectApprovedMemberRoles(20L, 30L)).thenReturn(List.of(role));
         when(mapper.selectSavingGroupMembership(20L, 30L)).thenReturn(relation);
 
-        var detail = service.getSavingGroupDetail(20L, 30L, condition(1, "LATEST")).getDetail();
+        var detail = service.getSavingGroupDetail(10L, 30L, condition(1, "LATEST")).getDetail();
 
         assertThat(detail.getMyRole()).isEqualTo(role);
         assertThat(detail.getMembershipStatus()).isEqualTo("APPROVED");
@@ -120,7 +120,7 @@ class SavingGroupNoticePagingServiceTest {
     void rejectsConflictingRoles() {
         target();
         when(mapper.selectApprovedMemberRoles(20L, 30L)).thenReturn(List.of("OWNER", "MEMBER"));
-        failure(() -> service.getSavingGroupDetail(20L, 30L, condition(1, "LATEST")), HttpStatus.INTERNAL_SERVER_ERROR);
+        failure(() -> service.getSavingGroupDetail(10L, 30L, condition(1, "LATEST")), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     private void target() {
@@ -129,7 +129,7 @@ class SavingGroupNoticePagingServiceTest {
         row.setSavingGroupId(10L);
         row.setStatus("01");
         row.setMaxMembers(10);
-        when(mapper.selectSavingGroupDetail(20L)).thenReturn(row);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(row);
     }
 
     private SavingGroupNoticeSearchCondition condition(Integer page, String sort) {

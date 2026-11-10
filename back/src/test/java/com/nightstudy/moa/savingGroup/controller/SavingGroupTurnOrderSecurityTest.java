@@ -45,12 +45,14 @@ class SavingGroupTurnOrderSecurityTest {
         token(true);
         var group = new SavingGroupRow(); group.setSavingGroupId(10L); group.setGroupId(20L);
         group.setGroupType(type); group.setGroupName("테스트 모임"); group.setStatus("01");
-        when(mapper.selectSavingGroupDetail(20L)).thenReturn(group);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(group);
         when(mapper.selectApprovedMemberRoles(20L, 30L)).thenReturn(List.of("OWNER"));
         var owner = new SavingGroupMembershipRelationRow(); owner.setMemberRole("OWNER"); owner.setMembershipStatus("APPROVED");
         when(mapper.selectSavingGroupMembership(20L, 30L)).thenReturn(owner);
-        mvc.perform(get("/api/saving-groups/20").header("Authorization", "Bearer test-token"))
+        mvc.perform(get("/api/saving-groups/10").header("Authorization", "Bearer test-token"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.groupType").value(type))
+                .andExpect(jsonPath("$.data.savingGroupId").value(10))
+                .andExpect(jsonPath("$.data.groupId").value(20))
                 .andExpect(jsonPath("$.data.myRole").value("OWNER"))
                 .andExpect(jsonPath("$.data.membershipStatus").value("APPROVED"));
     }
