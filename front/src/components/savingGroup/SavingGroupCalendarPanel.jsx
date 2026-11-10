@@ -192,6 +192,12 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
     // AI작성: 자정은 00시, 정오는 12시로 변환해 기존 API 형식으로 전송한다.
     const hour24 = Number(hour) % 12 + (period === 'PM' ? 12 : 0);
     const time = `${String(hour24).padStart(2, '0')}:${minute.padStart(2, '0')}`;
+    // AI작성: 서울 기준 날짜와 시각을 분 단위로 비교해 현재 분은 허용한다.
+    const now = new Date();
+    if (`${selected}T${time}` < `${seoulDate.format(now)}T${seoulTime.format(now)}`) {
+      setSaveError('현재보다 이전인 시각에는 일정을 등록할 수 없습니다.');
+      return;
+    }
     setSaving(true);
     setSaveError('');
     try {
