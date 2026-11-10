@@ -727,9 +727,30 @@ CREATE TABLE IF NOT EXISTS card_expense_upload (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='카드 명세서 업로드';
 
 
+-- 카드 지출에서 참조하므로 거래 테이블을 먼저 생성
+CREATE TABLE IF NOT EXISTS `group_transaction` (
+    `transaction_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '거래 ID',
+    `account_id` BIGINT NOT NULL COMMENT '모임 계좌 ID',
+    `transaction_type` ENUM('DEPOSIT', 'WITHDRAWAL') NOT NULL COMMENT '입금 또는 출금 구분',
+    `amount` DECIMAL(15,2) NOT NULL COMMENT '금액',
+    `balance_after` DECIMAL(15,2) NULL COMMENT '거래 후 잔액',
+    `source_provider` VARCHAR(50) NULL COMMENT '거래 제공자',
+    `source_transaction_id` VARCHAR(128) NULL COMMENT '거래 제공자의 거래 식별자',
+    `transacted_at` DATETIME NOT NULL COMMENT '거래 일시',
+    `description` VARCHAR(255) NULL COMMENT '설명',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
+
+    PRIMARY KEY (`transaction_id`),
+    UNIQUE KEY `uq_group_transaction_source`
+(`account_id`, `source_provider`, `source_transaction_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='모임 계좌 거래 내역';
+
 CREATE TABLE IF NOT EXISTS card_expense (
     card_expense_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '카드 지출 ID',
     upload_id BIGINT NOT NULL COMMENT '카드 명세서 업로드 ID',
+
+    -- 사용자가 확인한 계좌 출금 거래를 연결
+    transaction_id BIGINT NULL DEFAULT NULL COMMENT '연결 거래 ID',
 
     used_date DATE NOT NULL COMMENT '카드 사용일',
     merchant_name VARCHAR(255) NOT NULL COMMENT '가맹점 이름',
@@ -762,6 +783,7 @@ CREATE TABLE IF NOT EXISTS card_expense (
     confirmed_at DATETIME NULL COMMENT '확정 일시',
 
     PRIMARY KEY (card_expense_id),
+    UNIQUE KEY uq_card_expense_transaction (transaction_id),
 
     CONSTRAINT fk_card_expense_upload
         FOREIGN KEY (upload_id)
@@ -771,6 +793,10 @@ CREATE TABLE IF NOT EXISTS card_expense (
         FOREIGN KEY (confirmed_by)
         REFERENCES members (member_id),
 
+    CONSTRAINT fk_card_expense_transaction
+    FOREIGN KEY (transaction_id)
+    REFERENCES group_transaction (transaction_id),
+
     INDEX ix_card_expense_upload_status
         (upload_id, classification_status),
 
@@ -778,23 +804,7 @@ CREATE TABLE IF NOT EXISTS card_expense (
         (classification_status, confirmed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='카드 지출';
 
-CREATE TABLE IF NOT EXISTS `group_transaction` (
-    `transaction_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '거래 ID',
-    `account_id` BIGINT NOT NULL COMMENT '모임 계좌 ID',
-    `transaction_type` ENUM('DEPOSIT', 'WITHDRAWAL') NOT NULL COMMENT '입금 또는 출금 구분',
-    `amount` DECIMAL(15,2) NOT NULL COMMENT '금액',
-    `balance_after` DECIMAL(15,2) NULL COMMENT '거래 후 잔액',
-    `source_provider` VARCHAR(50) NULL COMMENT '거래 제공자',
-    `source_transaction_id` VARCHAR(128) NULL COMMENT '거래 제공자의 거래 식별자',
-    `transacted_at` DATETIME NOT NULL COMMENT '거래 일시',
-    `description` VARCHAR(255) NULL COMMENT '설명',
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
-    PRIMARY KEY (`transaction_id`),
-    UNIQUE KEY `uq_group_transaction_source`
-(`account_id`, `source_provider`, `source_transaction_id`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='모임 계좌 거래 내역';
-
--- AI작성: 테스트 입금 요청과 중복 확인 이력을 저장합니다.
+-- 테스트 입금 요청과 중복 확인 이력을 저장
 CREATE TABLE IF NOT EXISTS `saving_group_mock_deposit_request` (
     `deposit_request_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '테스트 입금 요청 ID',
     `account_id` BIGINT NOT NULL COMMENT '모임 계좌 ID',
