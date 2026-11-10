@@ -34,7 +34,7 @@ class SavingGroupTurnOrderSecurityTest {
     MockMvc mvc;
     @BeforeEach void setup() {
         var filter = new JwtAuthenticationFilter(provider, new SecurityErrorResponseWriter(new ObjectMapper()), revoked, sessions);
-        mvc = MockMvcBuilders.standaloneSetup(new SavingGroupController(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class))))
+        mvc = MockMvcBuilders.standaloneSetup(new SavingGroupController(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class))))
                 .setControllerAdvice(new GlobalExceptionHandler()).addFilters(filter).build();
     }
     @AfterEach void clear() { SecurityContextHolder.clearContext(); }

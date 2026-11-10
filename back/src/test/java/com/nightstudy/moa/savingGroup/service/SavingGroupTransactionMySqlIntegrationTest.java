@@ -38,21 +38,17 @@ class SavingGroupTransactionMySqlIntegrationTest {
                 statement.execute("CREATE TEMPORARY TABLE saving_group_mock_deposit_request (transaction_id BIGINT, account_id BIGINT, status VARCHAR(20))");
                 statement.execute("CREATE TEMPORARY TABLE meeting_round (round_id BIGINT, group_id BIGINT)");
                 statement.execute("CREATE TEMPORARY TABLE payout_request (round_id BIGINT, transaction_id BIGINT, status VARCHAR(20))");
-                statement.execute("CREATE TEMPORARY TABLE card_expense_upload (upload_id BIGINT, group_id BIGINT)");
-                statement.execute("CREATE TEMPORARY TABLE card_expense (card_expense_id BIGINT, upload_id BIGINT, transaction_id BIGINT, approval_status VARCHAR(20), final_category VARCHAR(30), suggested_category VARCHAR(30), classification_status VARCHAR(30))");
                 statement.execute("INSERT INTO group_account VALUES (3,30),(4,40)");
                 statement.execute("INSERT INTO saving_group_mock_deposit_request VALUES (12,3,'COMPLETED')");
                 statement.execute("INSERT INTO meeting_round VALUES (1,30)");
                 statement.execute("INSERT INTO payout_request VALUES (1,11,'COMPLETED')");
-                statement.execute("INSERT INTO card_expense_upload VALUES (1,30)");
-                statement.execute("INSERT INTO card_expense VALUES (1,1,10,'APPROVED',NULL,'FOOD','REVIEW_PENDING'),(2,1,11,'APPROVED',NULL,'FOOD','REVIEW_PENDING')");
-                statement.execute("CREATE TEMPORARY TABLE group_transaction (transaction_id BIGINT PRIMARY KEY, account_id BIGINT, transaction_type VARCHAR(20), amount DECIMAL(15,2), balance_after DECIMAL(15,2), transacted_at DATETIME, description VARCHAR(255))");
+                statement.execute("CREATE TEMPORARY TABLE group_transaction (transaction_id BIGINT PRIMARY KEY, account_id BIGINT, transaction_type VARCHAR(20), amount DECIMAL(15,2), balance_after DECIMAL(15,2), transacted_at DATETIME, description VARCHAR(255), source_provider VARCHAR(50))");
                 for (int id = 1; id <= 12; id++) {
                     statement.execute("INSERT INTO group_transaction VALUES (" + id
-                            + ",3,'DEPOSIT'," + id + ",0,'2026-11-08 12:00:00','테스트 입금')");
+                            + ",3,'DEPOSIT'," + id + ",0,'2026-11-08 12:00:00','테스트 입금',NULL)");
                 }
-                statement.execute("INSERT INTO group_transaction VALUES (13,4,'WITHDRAWAL',100,0,'2026-11-08 12:00:00','다른 계좌')");
-                statement.execute("UPDATE group_transaction SET transaction_type = 'WITHDRAWAL' WHERE transaction_id IN (10,11)");
+                statement.execute("INSERT INTO group_transaction VALUES (13,4,'WITHDRAWAL',100,0,'2026-11-08 12:00:00','다른 계좌',NULL)");
+                statement.execute("UPDATE group_transaction SET transaction_type = 'WITHDRAWAL', source_provider = 'MOCK', description = '동네밥상' WHERE transaction_id IN (10,11)");
             }
             var config = new Configuration();
             config.setEnvironment(new Environment("transaction-test",new JdbcTransactionFactory(),new SingleConnectionDataSource(connection,true)));
@@ -74,9 +70,8 @@ class SavingGroupTransactionMySqlIntegrationTest {
                 assertThat(first.get(0).description()).isEqualTo("테스트 입금");
                 assertThat(first.get(0).purposeType()).isEqualTo("DUES");
                 assertThat(first.get(1).purposeType()).isEqualTo("PAYOUT");
-                assertThat(first.get(1).category()).isNull();
                 assertThat(first.get(2).purposeType()).isEqualTo("EXPENSE");
-                assertThat(first.get(2).category()).isEqualTo("FOOD");
+                assertThat(first.get(2).sourceProvider()).isEqualTo("MOCK");
                 assertThat(mapper.selectSavingGroupTransactions(3L, 20L, 10)).isEmpty();
                 assertThat(mapper.selectSavingGroupTransactionCount(4L)).isEqualTo(1);
             }

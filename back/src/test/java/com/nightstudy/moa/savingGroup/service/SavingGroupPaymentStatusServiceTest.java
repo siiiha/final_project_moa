@@ -17,7 +17,7 @@ import static org.mockito.Mockito.*;
 class SavingGroupPaymentStatusServiceTest {
     private final SavingGroupMapper mapper = mock(SavingGroupMapper.class);
     private final SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper,
-            mock(VirtualAccountStorageMapper.class), mock(AccountNumberCipher.class), mock(NotificationService.class));
+            mock(VirtualAccountStorageMapper.class), mock(AccountNumberCipher.class), mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class));
     private final YearMonth month = YearMonth.of(2026, 11);
 
     private void membership(String role, String status) {

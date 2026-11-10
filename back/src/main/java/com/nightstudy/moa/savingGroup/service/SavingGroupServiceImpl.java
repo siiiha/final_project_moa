@@ -1,6 +1,7 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
@@ -428,9 +429,24 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
                     "거래내역을 확인할 수 없습니다.");
-        // AI작성: 장부에 기록된 목적과 저장된 분류 결과를 같은 응답으로 반환한다.
+        var classification = classifyDemoExpense(row);
         return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(),
-                row.balanceAfter(), row.purposeType(), row.category(), row.classificationStatus());
+                row.balanceAfter(), row.purposeType(),
+                classification == null || classification.suggestedCategory() == null
+                        ? null : classification.suggestedCategory().name(),
+                classification == null ? null : classification.classificationStatus().name());
+    }
+
+    // AI작성: 데모 일반 출금의 가맹점명을 분류하고 호출 실패 시에도 장부 조회를 유지한다.
+    private CardExpenseClassifierClient.ClassificationResult classifyDemoExpense(SavingGroupTransactionRow row) {
+        if (!"EXPENSE".equals(row.purposeType()) || !"MOCK".equals(row.sourceProvider())) {
+            return null;
+        }
+        try {
+            return classifierClient.classify(row.description().strip(), row.amount());
+        } catch (ApiException exception) {
+            return null;
+        }
     }
 
     @Override
@@ -907,16 +923,20 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     }
 
     // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
+    private final CardExpenseClassifierClient classifierClient;
+
     public SavingGroupServiceImpl(
             SavingGroupMapper savingGroupMapper,
             VirtualAccountStorageMapper accountMapper,
             AccountNumberCipher accountCipher,
-            NotificationService notificationService
+            NotificationService notificationService,
+            CardExpenseClassifierClient classifierClient
     ) {
         this.savingGroupMapper = savingGroupMapper;
         this.accountMapper = accountMapper;
         this.accountCipher = accountCipher;
         this.notificationService = notificationService;
+        this.classifierClient = classifierClient;
     }
 
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.

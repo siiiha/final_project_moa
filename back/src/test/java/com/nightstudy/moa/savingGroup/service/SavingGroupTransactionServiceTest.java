@@ -19,7 +19,7 @@ class SavingGroupTransactionServiceTest {
     private final SavingGroupMapper mapper = mock(SavingGroupMapper.class);
     private final VirtualAccountStorageMapper accounts = mock(VirtualAccountStorageMapper.class);
     private final SavingGroupServiceImpl service = new SavingGroupServiceImpl(
-            mapper, accounts, mock(AccountNumberCipher.class), mock(NotificationService.class));
+            mapper, accounts, mock(AccountNumberCipher.class), mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class));
 
     private void membership(String role, String status) {
         when(mapper.selectSavingGroupDetail(2L)).thenReturn(new SavingGroupRow());
