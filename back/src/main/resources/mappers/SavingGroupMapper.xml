@@ -1169,7 +1169,7 @@
         g.member_id AS owner_member_id
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.group_id = #{groupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
         FOR UPDATE
     </select>

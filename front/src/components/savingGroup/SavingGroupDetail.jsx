@@ -400,8 +400,8 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           {group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' && ['01', '02'].includes(group.status)
             ? <SavingGroupMembersPanel
                 /* AI작성: ID 종류를 구분하고 모임·권한 변경 시 이전 편집/요청 상태를 폐기한다. */
-                key={JSON.stringify([group.savingGroupId, group.groupId, group.myRole, group.membershipStatus, group.status])}
-                savingGroupId={String(group.savingGroupId)} groupId={group.groupId} groupType={group.groupType}
+                key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus, group.status])}
+                savingGroupId={String(group.savingGroupId)} groupType={group.groupType}
                 myRole={group.myRole} membershipStatus={group.membershipStatus} status={group.status} />
             : <p>모집중 또는 진행중인 계모임의 계주만 계원을 관리할 수 있습니다.</p>}
         </MembersContent>

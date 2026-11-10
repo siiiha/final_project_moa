@@ -477,13 +477,13 @@ back 폴더에서 실행한다.
 ### 경로와 요청
 
 ```http
-PATCH /api/saving-groups/{groupId}/members/{memberId}/expel
+PATCH /api/saving-groups/{savingGroupId}/members/{memberId}/expel
 ```
 
 기존 Controller 별칭도 유지한다.
 
 ```http
-PATCH /saving-groups/{groupId}/members/{memberId}/expel
+PATCH /saving-groups/{savingGroupId}/members/{memberId}/expel
 ```
 
 - groupId: 양수 Long, `groups.group_id`이면서 삭제되지 않은 계모임이어야 한다.
@@ -1919,7 +1919,7 @@ back 폴더에서 `gradlew.bat -I <임시-init-절대경로> test --tests '*Savi
 ## 진행 전 계원 추방 프론트 연결
 
 - 기존 계원 관리 화면을 재사용한다. APPROVED OWNER이고 모임 상태가 01일 때 MEMBER·MANAGER에 추방 버튼이 보인다. 역할 편집 중에는 추방 버튼을 비활성화한다. 진행중·종료 및 비OWNER는 추방 UI를 제공하지 않으며 최종 권한은 서버가 판단한다.
-- 회원 조회·역할 변경에는 savingGroupId, 추방에는 공통 groupId를 사용한다. 상세 응답의 두 ID를 분리하여 전달한다. 추방은 기존 JWT client의 /api 기본 경로와 PATCH /saving-groups/{groupId}/members/{memberId}/expel을 사용하고 본문은 보내지 않는다.
+- 회원 조회·역할 변경·추방은 savingGroupId를 사용한다. 추방은 기존 JWT client의 /api 기본 경로와 PATCH /saving-groups/{savingGroupId}/members/{memberId}/expel을 사용하고 본문은 보내지 않는다.
 - 기존 ConfirmModal에서 '추방된 계원은 이 계모임에 다시 가입할 수 없습니다.'를 안내한다. 취소는 요청 없이 닫는다. 확인 중 검색·페이지·역할 변경·추방·확인창 닫기를 차단하고 ref 잠금으로 중복 요청을 방지한다.
 - 성공 시 안내 후 현재 검색과 페이지로 재조회하고 마지막 페이지가 사라지면 남은 페이지를 조회한다. 실패 시 목록을 유지하고 확인창 안에 오류를 표시한다. 다시 열면 이전 오류를 지운다. 모임·역할·회원 상태·진행 상태 변경 시 패널을 재생성하여 이전 상태를 폐기한다.
 - 자동 검증: 계모임 API·회원 관리·계금 요청 API·목록 SSR 테스트 61건 통과, 프론트 빌드 성공 및 대상 lint 오류 없음(기존 경고 2건). 브라우저 클릭 검증은 앱 내 브라우저의 로컬 서버 연결 시간 초과 및 Windows URL 확인 정책으로 수행하지 못했다. 실제 JWT·MySQL 연동 및 모바일 브라우저도 미검증이다.

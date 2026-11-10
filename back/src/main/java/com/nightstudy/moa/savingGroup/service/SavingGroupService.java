@@ -68,7 +68,7 @@ public interface SavingGroupService {
     void rejectSavingGroupJoin(Long savingGroupId, Long crewMemberId, Long memberId);
 
     // AI작성: 계주는 자신의 계모임에 승인된 계원의 관계 상태만 추방으로 변경할 수 있다.
-    void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId);
+    void expelApprovedSavingGroupMember(Long savingGroupId, Long targetMemberId, Long memberId);
 
     // AI작성: 계주는 승인 후 시작 전인 자신의 계모임만 소프트 삭제할 수 있다.
     void deleteSavingGroup(Long savingGroupId, Long memberId);

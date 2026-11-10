@@ -275,7 +275,7 @@ public interface SavingGroupMapper {
     int updateSavingGroupStatus(
             @Param("groupId") Long groupId, @Param("status") String status);
     // AI작성: URL의 groupId로 계모임과 생성 계주를 잠가 추방 권한 검증에 사용한다.
-    SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(@Param("groupId") Long groupId);
+    SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
 
     // AI작성: 승인 상태인 기존 계원 관계 한 건만 추방 상태로 조건부 변경한다.
     int expelApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,

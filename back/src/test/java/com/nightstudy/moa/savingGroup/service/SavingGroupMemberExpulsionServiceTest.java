@@ -23,20 +23,20 @@ class SavingGroupMemberExpulsionServiceTest {
  }
  void group(String status,long owner) {
   var g=new SavingGroupJoinTargetRow();g.setGroupId(20L);g.setSavingGroupId(10L);g.setStatus(status);g.setOwnerMemberId(owner);
-  when(mapper.selectSavingGroupExpulsionTargetForUpdate(20L)).thenReturn(g);
+  when(mapper.selectSavingGroupExpulsionTargetForUpdate(10L)).thenReturn(g);
  }
  void owner() {group("01",30L);when(mapper.selectSavingGroupMembershipForUpdate(20L,30L)).thenReturn(row("OWNER","APPROVED"));}
  void target(String role) {when(mapper.selectSavingGroupMembershipForUpdate(20L,50L)).thenReturn(row(role,"APPROVED"));when(mapper.existsMember(50L)).thenReturn(true);}
  void failure(String code,Long target,Long actor) {
-  assertThatThrownBy(()->service.expelApprovedSavingGroupMember(20L,target,actor)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo(code));
+  assertThatThrownBy(()->service.expelApprovedSavingGroupMember(10L,target,actor)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo(code));
   verify(mapper,never()).expelApprovedSavingGroupMember(anyLong(),anyLong());
  }
  @ParameterizedTest @ValueSource(strings={"MEMBER","MANAGER"}) void success(String role) {
   owner();target(role);when(mapper.expelApprovedSavingGroupMember(40L,20L)).thenReturn(1);
-  service.expelApprovedSavingGroupMember(20L,50L,30L);
-  var order=inOrder(mapper);order.verify(mapper).selectSavingGroupExpulsionTargetForUpdate(20L);
+  service.expelApprovedSavingGroupMember(10L,50L,30L);
+  var order=inOrder(mapper);order.verify(mapper).selectSavingGroupExpulsionTargetForUpdate(10L);
   order.verify(mapper).selectSavingGroupMembershipForUpdate(20L,30L);order.verify(mapper).selectSavingGroupMembershipForUpdate(20L,50L);
-  order.verify(mapper).existsMember(50L);order.verify(mapper).expelApprovedSavingGroupMember(40L,20L);verifyNoMoreInteractions(mapper);
+  order.verify(mapper).existsMember(50L);order.verify(mapper).expelApprovedSavingGroupMember(40L,20L);order.verify(mapper).deleteSavingGroupChatMember(20L,50L);verifyNoMoreInteractions(mapper);
   verify(notificationService).send(50L,NotificationType.SAVING_GROUP_MEMBER_EXPELLED,"계모임에서 제외되었습니다.",null);
  }
  @Test void noLogin(){failure("UNAUTHORIZED",50L,null);verifyNoInteractions(mapper);}
@@ -53,5 +53,5 @@ class SavingGroupMemberExpulsionServiceTest {
  @Test void self(){owner();when(mapper.existsMember(30L)).thenReturn(true);failure("SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED",30L,30L);}
  @Test void otherOwner(){owner();target("OWNER");failure("SAVING_GROUP_OWNER_EXPULSION_NOT_ALLOWED",50L,30L);}
  @Test void invalidRole(){owner();target("UNKNOWN");failure("SAVING_GROUP_MEMBER_ROLE_INVALID",50L,30L);}
- @ParameterizedTest @ValueSource(ints={0,2}) void updateFailure(int count){owner();target("MANAGER");when(mapper.expelApprovedSavingGroupMember(40L,20L)).thenReturn(count);assertThatThrownBy(()->service.expelApprovedSavingGroupMember(20L,50L,30L)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("SAVING_GROUP_MEMBER_EXPULSION_FAILED"));}
+ @ParameterizedTest @ValueSource(ints={0,2}) void updateFailure(int count){owner();target("MANAGER");when(mapper.expelApprovedSavingGroupMember(40L,20L)).thenReturn(count);assertThatThrownBy(()->service.expelApprovedSavingGroupMember(10L,50L,30L)).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getCode()).isEqualTo("SAVING_GROUP_MEMBER_EXPULSION_FAILED"));}
 }

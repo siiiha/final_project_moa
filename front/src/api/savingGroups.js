@@ -185,9 +185,9 @@ export async function leaveSavingGroup(savingGroupId) {
   );
 }
 
-// AI작성: 추방은 공통 groupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
-export async function expelSavingGroupMember(groupId, memberId, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+// AI작성: 추방은 savingGroupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
+export async function expelSavingGroupMember(savingGroupId, memberId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const targetId = savingGroupPathId(memberId);
   const result = await savingGroupMemberResponse(
     () => client.patch(`/saving-groups/${id}/members/${targetId}/expel`, undefined, { signal }),

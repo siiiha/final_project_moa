@@ -660,15 +660,16 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 계주 권한과 대상의 승인 관계를 같은 트랜잭션에서 잠가 확인한 뒤 추방 상태로 변경한다.
     @Override
     @Transactional
-    public void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId) {
-        if (groupId == null || groupId <= 0 || targetMemberId == null || targetMemberId <= 0) {
+    public void expelApprovedSavingGroupMember(Long savingGroupId, Long targetMemberId, Long memberId) {
+        if (savingGroupId == null || savingGroupId <= 0 || targetMemberId == null || targetMemberId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 또는 추방 대상 회원 번호가 올바르지 않습니다.");
         }
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
 
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(groupId);
+        // AI작성: 계모임 ID로 대상을 잠근 뒤 기존 회원 소속 검증을 수행한다.
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
         }
