@@ -24,7 +24,7 @@ class SavingGroupPayoutDecisionTransactionTest {
         mapper = mock(SavingGroupMapper.class); connection = mock(Connection.class);
         var datasource = mock(DataSource.class); when(datasource.getConnection()).thenReturn(connection);
         when(connection.getAutoCommit()).thenReturn(true);
-        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class)));
+        var factory = new ProxyFactory(new SavingGroupServiceImpl(mapper, null, null, org.mockito.Mockito.mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class)));
         factory.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(datasource), new AnnotationTransactionAttributeSource()));
         service = (SavingGroupService) factory.getProxy();
         var group = new SavingGroupPayoutDecisionRow(); group.setGroupId(20L); group.setOwnerMemberId(30L);

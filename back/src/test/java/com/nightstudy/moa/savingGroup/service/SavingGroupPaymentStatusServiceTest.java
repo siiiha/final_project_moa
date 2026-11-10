@@ -17,11 +17,13 @@ import static org.mockito.Mockito.*;
 class SavingGroupPaymentStatusServiceTest {
     private final SavingGroupMapper mapper = mock(SavingGroupMapper.class);
     private final SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper,
-            mock(VirtualAccountStorageMapper.class), mock(AccountNumberCipher.class), mock(NotificationService.class));
+            mock(VirtualAccountStorageMapper.class), mock(AccountNumberCipher.class), mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class));
     private final YearMonth month = YearMonth.of(2026, 11);
 
     private void membership(String role, String status) {
-        when(mapper.selectSavingGroupDetail(2L)).thenReturn(new SavingGroupRow());
+        var target = new SavingGroupRow();
+        target.setGroupId(2L);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(12L)).thenReturn(target);
         var relation = new SavingGroupMembershipRelationRow();
         relation.setMemberRole(role);
         relation.setMembershipStatus(status);
@@ -32,7 +34,7 @@ class SavingGroupPaymentStatusServiceTest {
     @CsvSource({"MEMBER,APPROVED", "MANAGER,APPROVED", "OWNER,PENDING", "OWNER,LEFT"})
     void deniesOtherMemberships(String role, String status) {
         membership(role, status);
-        assertThatThrownBy(() -> service.getSavingGroupPaymentStatus(2L, 1L, month, 1))
+        assertThatThrownBy(() -> service.getSavingGroupPaymentStatus(12L, 1L, month, 1))
                 .isInstanceOf(ApiException.class);
         verify(mapper, never()).countSavingGroupPaymentStatus(2L);
     }
@@ -48,12 +50,12 @@ class SavingGroupPaymentStatusServiceTest {
                 new SavingGroupPaymentStatusRow("테스트", new BigDecimal("12000")),
                 new SavingGroupPaymentStatusRow("테스트", new BigDecimal("2000"))));
 
-        var result = service.getSavingGroupPaymentStatus(2L, 1L, month, 2);
+        var result = service.getSavingGroupPaymentStatus(12L, 1L, month, 2);
         assertThat(result.pageMeta().getTotalPages()).isEqualTo(2);
         assertThat(result.items()).extracting(SavingGroupPaymentStatusResponse::paid).containsExactly(true, false);
         assertThat(result.items().get(1).remainingAmount()).isEqualByComparingTo("10000");
-        assertThat(service.getSavingGroupPaymentStatus(2L, 1L, month, 2).items())
+        assertThat(service.getSavingGroupPaymentStatus(12L, 1L, month, 2).items())
                 .allSatisfy(row -> { assertThat(row.paid()).isNull(); assertThat(row.remainingAmount()).isNull(); });
-        assertThat(service.getSavingGroupPaymentStatus(2L, 1L, month, 3).items()).isEmpty();
+        assertThat(service.getSavingGroupPaymentStatus(12L, 1L, month, 3).items()).isEmpty();
     }
 }

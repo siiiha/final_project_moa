@@ -81,9 +81,15 @@ class SavingGroupTurnOrderAssignmentMySqlIntegrationTest {
             assertThatThrownBy(() -> service(failing,source).update(10L,30L,SavingGroupTurnOrderAssignmentServiceTest.request(30,changedFirst,40,3-changedFirst))).isInstanceOf(IllegalStateException.class);
             assertThat(jdbc.queryForList("SELECT sequence_number FROM group_member ORDER BY member_id",Integer.class)).isEqualTo(before);
             jdbc.update("UPDATE saving_group SET status='02'");
-            service.update(10L,30L,SavingGroupTurnOrderAssignmentServiceTest.request(30,3,40,4));
-            assertThatThrownBy(() -> service(failing,source).update(10L,30L,SavingGroupTurnOrderAssignmentServiceTest.request(30,4,40,3))).isInstanceOf(IllegalStateException.class);
-            assertThat(jdbc.queryForList("SELECT round_number FROM saving_group_turn_order_plan_member ORDER BY member_id",Integer.class)).containsExactly(3,4);
+            // AI작성: 이번 달 지급 계원은 고정하고 다음 달 예약의 두 계원만 변경한다.
+            jdbc.update("UPDATE group_member SET sequence_number = member_id / 10");
+            jdbc.update("INSERT INTO members VALUES (50,'현재회차',NULL)");
+            jdbc.update("INSERT INTO group_member VALUES (3,20,50,'MEMBER','APPROVED',2)");
+            service.update(10L,30L,SavingGroupTurnOrderAssignmentServiceTest.request(30,4,40,3));
+            assertThatThrownBy(() -> service.update(10L,30L,SavingGroupTurnOrderAssignmentServiceTest.request(30,4,40,3)))
+                    .hasMessage("이전과 동일한 순번입니다.");
+            assertThatThrownBy(() -> service(failing,source).update(10L,30L,SavingGroupTurnOrderAssignmentServiceTest.request(30,3,40,4))).isInstanceOf(IllegalStateException.class);
+            assertThat(jdbc.queryForList("SELECT round_number FROM saving_group_turn_order_plan_member ORDER BY member_id",Integer.class)).containsExactly(4,3,2);
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM saving_group_turn_order_plan",Integer.class)).isEqualTo(1);
         } finally {
             executor.shutdownNow(); executor.awaitTermination(20,TimeUnit.SECONDS);

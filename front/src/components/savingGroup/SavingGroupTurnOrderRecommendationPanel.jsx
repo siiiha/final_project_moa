@@ -25,7 +25,8 @@ const Panel = styled.section`
 export function TurnOrderRecommendationView({ phase = 'idle', items = [], error = '', onRecommend, disabled = false }) {
   return <Panel aria-label="순번 추천" aria-busy={phase === 'loading'}>
     <h3>순번 추천</h3>
-    <p>전체 승인 모임원의 순번을 무작위로 제안합니다. 추천 결과는 실제 순번에 저장되거나 적용되지 않습니다.</p>
+    {/* AI작성: 진행 중인 순번계는 현재 지급 회차 이후만 추천한다. */}
+    <p>순번을 무작위로 제안합니다. 진행 중에는 지급 완료 계원과 현재 회차 계원을 제외합니다. 추천 결과는 참고용입니다.</p>
     <p>예상 지급 금액은 현재 인원과 회비가 유지되고 앞 순번이 모두 지급받는다는 가정으로 계산합니다. 실제 지급 금액과 다를 수 있습니다.</p>
     <Button type="button" disabled={disabled || phase === 'loading'} onClick={onRecommend}>
       {phase === 'loading' ? '추천 중…' : phase === 'success' ? '다시 추천받기' : '추천받기'}
@@ -33,10 +34,10 @@ export function TurnOrderRecommendationView({ phase = 'idle', items = [], error 
     {phase === 'idle' && <p>추천받기를 누르면 모의 순번과 예상 지급 금액을 확인할 수 있습니다.</p>}
     {phase === 'loading' && <p role="status">순번을 추천하고 있습니다.</p>}
     {phase === 'error' && <p role="alert">{error || '순번 추천을 불러오지 못했습니다.'}</p>}
-    {phase === 'success' && (items.length === 0 ? <p role="status">추천할 승인 모임원이 없습니다.</p>
+    {phase === 'success' && (items.length === 0 ? <p role="status">추천할 수 있는 순번이 없습니다.</p>
       : <div><p role="status">{items.length}명의 모의 추천 결과입니다.</p>
         <ol aria-label="추천 순번 목록">{items.map((item) => <li key={item.memberId}>
-          <span><strong>{item.recommendedTurnOrder}번</strong> · {item.nickname}</span>
+          <span><strong>{item.recommendedTurnOrder}회차</strong> · {item.nickname}</span>
           <span>예상 지급 금액 <strong>{formatSavingGroupAmount(item.expectedPayoutAmount)}</strong></span>
         </li>)}</ol></div>)}
   </Panel>;

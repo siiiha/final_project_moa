@@ -8,8 +8,8 @@ import { getSavingGroupTurnOrders, updateSavingGroupTurnOrders } from './savingG
 test('순번 지정 API는 전체 목록·적용월을 보존하고 잘못된 응답을 거절한다', async () => {
   const originalGet = client.get; const originalPut = client.put;
   const signal = new AbortController().signal;
-  const data = { effectiveMonth: '2026-12-01', startRoundNumber: 3, scheduled: true, needsReassignment: false,
-    members: [{ memberId: '9223372036854775807', nickname: '테스트계주', role: 'OWNER', paid: false, currentSequenceNumber: 2, plannedSequenceNumber: 3 }] };
+  const data = { effectiveMonth: '2026-12-01', startRoundNumber: 3, currentRoundNumber: 2, scheduled: true, needsReassignment: false,
+    members: [{ memberId: '9223372036854775807', nickname: '테스트계주', role: 'OWNER', paid: false, currentSequenceNumber: 3, plannedSequenceNumber: 4, fixedReason: null }] };
   try {
     client.get = async (path, options) => {
       assert.equal(path, '/saving-groups/10/turn-orders'); assert.equal(options.signal, signal);
@@ -18,10 +18,10 @@ test('순번 지정 API는 전체 목록·적용월을 보존하고 잘못된 �
     assert.deepEqual(await getSavingGroupTurnOrders(10, { signal }), data);
     const orders = [{ memberId: data.members[0].memberId, sequenceNumber: 3 }];
     client.put = async (path, body, options) => {
-      assert.equal(path, '/saving-groups/10/turn-orders'); assert.deepEqual(body, { turnOrders: orders }); assert.equal(options.signal, signal);
+      assert.equal(path, '/saving-groups/10/turn-orders'); assert.deepEqual(body, { turnOrders: orders, currentRoundNumber: 2 }); assert.equal(options.signal, signal);
       return { data: { success: true, data } };
     };
-    assert.deepEqual(await updateSavingGroupTurnOrders(10, orders, { signal }), data);
+    assert.deepEqual(await updateSavingGroupTurnOrders(10, orders, { signal, currentRoundNumber: 2 }), data);
     for (const invalid of [null, { ...data, members: [data.members[0], data.members[0]] }, { ...data, startRoundNumber: 0 }]) {
       client.get = async () => ({ data: { success: true, data: invalid } });
       await assert.rejects(() => getSavingGroupTurnOrders(10));
@@ -52,7 +52,9 @@ test('추천 조회는 GET과 취소 신호를 전달하고 허용 필드만 반
 test('중복 회원·순번, 누락 순번, 잘못된 금액·닉네임·목록을 거절한다', async () => {
   const original = client.get;
   try {
-    for (const data of [null, [row, row], [{ ...row, recommendedTurnOrder: 2 }],
+    // AI작성: 시작 회차는 1보다 클 수 있지만 추천된 회차 사이에는 누락이 없어야 한다.
+    for (const data of [null, [row, row], [{ ...row, recommendedTurnOrder: 0 }],
+      [{ ...row, recommendedTurnOrder: 3 }, { ...row, memberId: '50', recommendedTurnOrder: 5 }],
       [{ ...row, expectedPayoutAmount: -1 }], [{ ...row, expectedPayoutAmount: 1.5 }],
       [{ ...row, nickname: '' }], [{ ...row, memberId: Number.MAX_SAFE_INTEGER + 1 }],
       [row, { ...row, memberId: '50' }]]) {
@@ -60,8 +62,8 @@ test('중복 회원·순번, 누락 순번, 잘못된 금액·닉네임·목록�
       await assert.rejects(() => getRecommendations(10), (e) => e.code === 'INVALID_RESPONSE');
     }
     client.get = async () => ({ data: { success: true, data: [
-      { ...row, recommendedTurnOrder: 2 }, { ...row, memberId: '50' }] } });
-    assert.deepEqual((await getRecommendations(10)).map((item) => item.recommendedTurnOrder), [1, 2]);
+      { ...row, recommendedTurnOrder: 4 }, { ...row, memberId: '50', recommendedTurnOrder: 3 }] } });
+    assert.deepEqual((await getRecommendations(10)).map((item) => item.recommendedTurnOrder), [3, 4]);
   } finally { client.get = original; }
 });
 test('잘못된 ID는 요청 전에 거절하고 서버 오류·취소를 유지한다', async () => {

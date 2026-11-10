@@ -109,11 +109,33 @@
     </select>
 
     <select id="selectSavingGroupTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
-        SELECT transacted_at, transaction_type, amount, balance_after, description
-        FROM group_transaction
-        WHERE account_id = #{accountId}
-        ORDER BY transacted_at DESC, transaction_id DESC
-        LIMIT #{size} OFFSET #{offset}
+        <!-- AI작성: 지급 완료 기록이 연결된 출금은 계금 지급으로 우선 표시한다. -->
+        SELECT ledger.transacted_at, ledger.transaction_type, ledger.amount, ledger.balance_after, ledger.description,
+               CASE WHEN ledger.is_dues THEN 'DUES'
+                    WHEN ledger.is_payout THEN 'PAYOUT'
+                    WHEN ledger.transaction_type = 'WITHDRAWAL' AND ledger.source_provider = 'MOCK' AND TRIM(ledger.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
+               ledger.source_provider
+        FROM (
+            SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount,
+                   gt.balance_after, gt.description, gt.source_provider,
+                   (gt.transaction_type = 'DEPOSIT' AND EXISTS (
+                       SELECT 1 FROM saving_group_mock_deposit_request dr
+                       WHERE dr.transaction_id = gt.transaction_id AND dr.account_id = gt.account_id
+                         AND dr.status = 'COMPLETED'
+                   )) AS is_dues,
+                   (gt.transaction_type = 'WITHDRAWAL' AND EXISTS (
+                       SELECT 1 FROM payout_request pr
+                       JOIN meeting_round mr ON mr.round_id = pr.round_id
+                       WHERE pr.transaction_id = gt.transaction_id AND mr.group_id = ga.group_id
+                         AND pr.status = 'COMPLETED'
+                   )) AS is_payout
+            FROM group_transaction gt
+            JOIN group_account ga ON ga.account_id = gt.account_id
+            WHERE gt.account_id = #{accountId}
+            ORDER BY transacted_at DESC, transaction_id DESC
+            LIMIT #{size} OFFSET #{offset}
+        ) ledger
+        ORDER BY ledger.transacted_at DESC, ledger.transaction_id DESC
     </select>
     <!-- AI작성: savingGroupId를 내부 groupId로 해석하고 기존 회원·지급 처리와 모임 잠금을 공유한다. -->
     <select id="selectTurnOrderGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">
@@ -173,14 +195,31 @@
     </select>
     <!-- AI작성: 공개 계모임 ID로 내부 모임 ID를 해석하며 삭제 모임은 제외한다. -->
     <select id="selectTurnOrderRecommendationContext" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderContextRow">
-        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, sg.dues_amount
+        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, sg.dues_amount, sg.start_date
         FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL
     </select>
     <!-- AI작성: 조회 정렬은 추천 우선순위가 아니다. Service에서 승인된 무작위 모의 배치를 수행한다. -->
     <select id="selectTurnOrderRecommendationMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderMemberRow">
-        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname,
+        <choose>
+            <when test="month != null">
+                CASE WHEN plan.turn_order_plan_id IS NULL THEN gm.sequence_number ELSE planned.round_number END
+            </when>
+            <otherwise>gm.sequence_number</otherwise>
+        </choose> AS sequence_number,
+            EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                   WHERE mr.group_id = gm.group_id AND pr.requester_id = gm.member_id AND pr.status = 'COMPLETED') AS paid
         FROM group_member gm JOIN members m ON m.member_id = gm.member_id
+        <if test="month != null">
+            LEFT JOIN saving_group_turn_order_plan plan ON plan.turn_order_plan_id = (
+                SELECT turn_order_plan_id FROM saving_group_turn_order_plan
+                WHERE saving_group_id = #{savingGroupId} AND effective_month &lt;= #{month}
+                ORDER BY effective_month DESC LIMIT 1
+            )
+            LEFT JOIN saving_group_turn_order_plan_member planned ON planned.turn_order_plan_id = plan.turn_order_plan_id
+                AND planned.member_id = gm.member_id
+        </if>
         WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
           AND gm.member_role IN ('OWNER', 'MANAGER', 'MEMBER') AND m.deleted_at IS NULL
         ORDER BY gm.crew_member_id
@@ -236,7 +275,7 @@
     <select id="selectPayoutTargetForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutTargetRow">
         SELECT g.group_id, sg.saving_group_type AS group_type, sg.status, sg.start_date
         FROM `groups` g JOIN saving_group sg ON sg.group_id = g.group_id
-        WHERE g.group_id = #{groupId} AND g.deleted_at IS NULL FOR UPDATE
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL FOR UPDATE
     </select>
     <!-- AI작성: 현재 심사 권한과 동일하게 승인 상태인 계주의 회원 번호만 알림 대상으로 조회한다. -->
     <select id="selectSavingGroupPayoutReviewerIds" resultType="long">
@@ -701,6 +740,7 @@
 
 
     <!-- AI작성: 설정 화면 URL은 groups.group_id를 사용하므로 조회·수정 권한 확인도 같은 식별자로 찾는다. -->
+    <!-- AI작성: 설정 경로의 계모임 ID로 권한과 설정 대상을 조회한다. -->
     <select id="selectSavingGroupSettingsAuthority" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsAuthorityRow">
         SELECT sg.saving_group_id,
         sg.group_id,
@@ -716,7 +756,7 @@
         AND membership_status = 'APPROVED'
         GROUP BY group_id
         ) owner ON owner.group_id = g.group_id
-        WHERE sg.group_id = #{savingGroupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -735,7 +775,7 @@
         WHERE membership_status = 'APPROVED'
         GROUP BY group_id
         ) approved ON approved.group_id = g.group_id
-        WHERE sg.group_id = #{savingGroupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
     </select>
 
@@ -746,7 +786,7 @@
         sg.status
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.group_id = #{savingGroupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
         FOR UPDATE
     </select>
@@ -928,14 +968,14 @@
         </foreach>
         GROUP BY group_id
     </select>
-    <!-- AI작성: URL ID는 saving_group_id가 아닌 groups.group_id다. -->
-    <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
+    <!-- AI작성: 계모임 상세는 계모임 고유 ID로 조회한다. -->
+    <select id="selectSavingGroupDetailBySavingGroupId" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
         SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,
         <!-- AI작성: 순번 추천 버튼이 실제 상세 응답의 유형으로 표시되도록 조회한다. -->
         sg.saving_group_type AS group_type,
         r.region_name, g.max_members, sg.dues_amount, sg.dues_day, sg.status
         <include refid="listFrom"/>
-        WHERE g.group_id = #{groupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL AND sg.status IN ('01', '02')
     </select>
 
@@ -1004,7 +1044,7 @@
         SELECT sg.saving_group_id, sg.group_id, sg.status, g.max_members, g.member_id AS owner_member_id
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.group_id = #{groupId} AND g.deleted_at IS NULL
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL
         FOR UPDATE
     </select>
 
@@ -1159,7 +1199,7 @@
         g.member_id AS owner_member_id
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
-        WHERE sg.group_id = #{groupId}
+        WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL
         FOR UPDATE
     </select>

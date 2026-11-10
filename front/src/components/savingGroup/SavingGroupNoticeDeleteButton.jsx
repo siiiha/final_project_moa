@@ -4,7 +4,7 @@ import ConfirmModal from '../common/ConfirmModal';
 import { deleteSavingGroupNotice } from '../../api/savingGroups.js';
 
 // AI작성: 기존 확인창을 재사용하고 삭제 중 중복 요청과 계정·URL 이탈 후 콜백을 차단한다.
-export default function SavingGroupNoticeDeleteButton({ groupId, noticeId, onDeleted, onBlocked }) {
+export default function SavingGroupNoticeDeleteButton({ savingGroupId, noticeId, onDeleted, onBlocked }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -20,7 +20,7 @@ export default function SavingGroupNoticeDeleteButton({ groupId, noticeId, onDel
     setBusy(true);
     setError('');
     try {
-      await deleteSavingGroupNotice(groupId, noticeId);
+      await deleteSavingGroupNotice(savingGroupId, noticeId);
       if (active.current) onDeleted();
     } catch (failure) {
       if (!active.current) return;

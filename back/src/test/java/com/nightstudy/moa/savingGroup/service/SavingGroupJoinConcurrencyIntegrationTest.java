@@ -130,7 +130,7 @@ public class SavingGroupJoinConcurrencyIntegrationTest {
                         template.getMapper(SavingGroupMapper.class),
                         org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper.class),
                         new AccountNumberCipher(new com.nightstudy.moa.common.config.AccountEncryptionProperties()),
-                        org.mockito.Mockito.mock(NotificationService.class)), SavingGroupService.class);
+                        org.mockito.Mockito.mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class)), SavingGroupService.class);
                 assertThat(AopUtils.isAopProxy(savingService)).isTrue();
             } else {
                 smallService = transactionalProxy(new SmallGroupServiceImpl(

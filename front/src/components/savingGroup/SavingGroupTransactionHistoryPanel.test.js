@@ -28,6 +28,18 @@ test('거래내역 화면은 성공·빈 목록·조회 오류를 구분한다',
     assert.match(html, /-30,000원/);
     assert.match(html, />0원</);
     assert.match(html, /2 \/ 2/);
+    assert.match(html, /미분류/);
+    // AI작성: PC와 모바일에서 같은 목적과 분류를 표시하는지 검증한다.
+    const row = { transactedAt: '2026-11-08T12:00:00', transactionType: 'WITHDRAWAL', amount: 30000, balanceAfter: 0 };
+    const classified = render({ result: { items: [
+      { ...row, transactionType: 'DEPOSIT', purposeType: 'DUES' },
+      { ...row, purposeType: 'PAYOUT' },
+      { ...row, purposeType: 'EXPENSE', category: 'FOOD' },
+      { ...row, purposeType: 'EXPENSE', category: 'FOOD', classificationStatus: 'REVIEW_REQUIRED' },
+    ], meta: { totalPages: 2 } } });
+    for (const label of ['회비', '계금 지급', '일반 지출', '식비', '확인 필요']) {
+      assert.ok(classified.split(label).length >= 3, label);
+    }
   } finally {
     await vite.close();
   }
