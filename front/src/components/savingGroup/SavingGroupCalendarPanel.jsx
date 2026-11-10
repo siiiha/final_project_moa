@@ -87,17 +87,87 @@ const EventActions = styled.div`
   flex-wrap: wrap;
   gap: .5rem;
 `;
+// AI작성: 달력과 같은 민트색을 쓰고 시각 입력을 두 줄로 배치한다.
 const Form = styled.form`
   display: grid;
-  gap: .65rem;
+  gap: 1rem;
   margin-top: 1rem;
-  label { display: grid; gap: .25rem; }
+  padding: clamp(.75rem, 2vw, 1rem);
+  border: 1px solid #cbdad6;
+  border-radius: .8rem;
+  background: #f4faf8;
+  h4, p { margin: 0; }
+  label { display: grid; gap: .35rem; font-weight: 600; }
+  input:not([type='radio']) {
+    box-sizing: border-box;
+    width: 100%;
+    padding: .5rem .65rem;
+    border: 1px solid #78978f;
+    border-radius: .5rem;
+    background: white;
+    color: inherit;
+  }
+  :is(input, button):focus-visible {
+    outline: 2px solid #116858;
+    outline-offset: 2px;
+  }
+  [role='alert'] { color: #a12626; }
+`;
+const TimeFields = styled.fieldset`
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  legend { margin-bottom: .5rem; padding: 0; font-weight: 700; }
+`;
+const TimeRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  & + & { margin-top: .65rem; }
+  input:not([type='radio']) { text-align: center; font-size: 1.15rem; }
+`;
+const PeriodOption = styled.label`
+  && {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    border: 1px solid #78978f;
+    border-radius: .5rem;
+    background: white;
+    cursor: pointer;
+  }
+  &&:has(input:checked) { background: #116858; color: white; border-color: #116858; }
+  &:has(input:focus-visible) { outline: 2px solid #116858; outline-offset: 2px; }
+  &:has(input:disabled) { cursor: default; opacity: .65; }
+  input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+`;
+const FormActions = styled(Toolbar)`
+  margin-bottom: 0;
+  > button:last-child {
+    border: 1px solid #78978f;
+    border-radius: .5rem;
+    background: white;
+    color: inherit;
+  }
 `;
 
 const week = ['일', '월', '화', '수', '목', '금', '토'];
 // AI작성: 서버의 선택일 등록 상한과 같은 값으로 버튼 상태를 안내한다.
 const dailyEventLimit = 10;
 const seoulDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' });
+// AI작성: 달력 날짜와 동일한 서울 시간대를 사용한다.
+const seoulTime = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul', hourCycle: 'h23', hour: '2-digit', minute: '2-digit',
+});
 const detailDate = new Intl.DateTimeFormat('ko-KR', {
   month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC',
 });
@@ -115,7 +185,10 @@ export default function SavingGroupCalendarPanel({ savingGroupId, loadMonth, cre
   const [retry, setRetry] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [time, setTime] = useState('');
+  // AI작성: 오전·오후는 하나의 값으로 관리하고 시와 분은 따로 입력받는다.
+  const [period, setPeriod] = useState('AM');
+  const [hour, setHour] = useState('');
+  const [minute, setMinute] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
@@ -161,11 +234,34 @@ export default function SavingGroupCalendarPanel({ savingGroupId, loadMonth, cre
     selectDate(monthDate(month, offset).toISOString().slice(0, 10));
   }
 
+  function openForm() {
+    const [currentHour, currentMinute] = seoulTime.format(new Date()).split(':');
+    const hour24 = Number(currentHour);
+    setPeriod(hour24 < 12 ? 'AM' : 'PM');
+    setHour(String(hour24 % 12 || 12));
+    setMinute(currentMinute);
+    setFormOpen(true);
+  }
+
   async function save(event) {
     event.preventDefault();
     if (busy || !current?.data?.canCreate || limitReached) return;
     if (!title.trim()) {
       setSaveError('일정 제목을 입력해 주세요.');
+      return;
+    }
+    if (!/^\d{1,2}$/.test(hour) || Number(hour) < 1 || Number(hour) > 12 ||
+        !/^\d{1,2}$/.test(minute) || Number(minute) > 59) {
+      setSaveError('시는 1~12, 분은 0~59 사이의 정수로 입력해 주세요.');
+      return;
+    }
+    // AI작성: 자정은 00시, 정오는 12시로 변환해 기존 API 형식으로 전송한다.
+    const hour24 = Number(hour) % 12 + (period === 'PM' ? 12 : 0);
+    const time = `${String(hour24).padStart(2, '0')}:${minute.padStart(2, '0')}`;
+    // AI작성: 서울 기준 날짜와 시각을 분 단위로 비교해 현재 분은 허용한다.
+    const now = new Date();
+    if (`${selected}T${time}` < `${seoulDate.format(now)}T${seoulTime.format(now)}`) {
+      setSaveError('현재보다 이전인 시각에는 일정을 등록할 수 없습니다.');
       return;
     }
     setSaving(true);
@@ -182,7 +278,6 @@ export default function SavingGroupCalendarPanel({ savingGroupId, loadMonth, cre
       }));
       setFormOpen(false);
       setTitle('');
-      setTime('');
     } catch (error) {
       setSaveError(error.message || '일정을 저장하지 못했습니다.');
       // AI작성: 다른 회원이 마지막 자리를 등록했으면 서버의 최신 월간 일정을 조회한다.
@@ -221,7 +316,7 @@ export default function SavingGroupCalendarPanel({ savingGroupId, loadMonth, cre
           <button type="button" onClick={() => moveMonth(1)} disabled={busy || month === '9999-12'}>다음 달</button>
           <button type="button" onClick={() => selectDate(seoulDate.format(new Date()))} disabled={busy}>오늘</button>
           {current?.data?.canCreate && (
-            <Primary type="button" onClick={() => setFormOpen(true)} disabled={busy || limitReached}>+ 일정 추가</Primary>
+            <Primary type="button" onClick={openForm} disabled={busy || limitReached || formOpen}>+ 일정 추가</Primary>
           )}
         </Toolbar>
         <Grid>
@@ -253,12 +348,22 @@ export default function SavingGroupCalendarPanel({ savingGroupId, loadMonth, cre
           <Form onSubmit={save}>
             <h4>선택한 날짜에 일정 등록</h4>
             <label>일정 제목<input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={100} required disabled={saving} /></label>
-            <label>시각<input type="time" value={time} onChange={event => setTime(event.target.value)} required disabled={saving} /></label>
+            <TimeFields disabled={saving}>
+              <legend>시각</legend>
+              <TimeRow>
+                <PeriodOption><input type="radio" name="schedule-period" checked={period === 'AM'} onChange={() => setPeriod('AM')} />오전</PeriodOption>
+                <PeriodOption><input type="radio" name="schedule-period" checked={period === 'PM'} onChange={() => setPeriod('PM')} />오후</PeriodOption>
+              </TimeRow>
+              <TimeRow>
+                <label>시<input inputMode="numeric" maxLength={2} value={hour} onChange={event => setHour(event.target.value)} /></label>
+                <label>분<input inputMode="numeric" maxLength={2} value={minute} onChange={event => setMinute(event.target.value)} /></label>
+              </TimeRow>
+            </TimeFields>
             {saveError && <p role="alert">{saveError}</p>}
-            <Toolbar>
+            <FormActions>
               <Primary type="submit" disabled={busy || !current?.data?.canCreate || limitReached}>{saving ? '저장 중' : '일정 저장'}</Primary>
               <button type="button" disabled={saving} onClick={() => { setFormOpen(false); setSaveError(''); }}>취소</button>
-            </Toolbar>
+            </FormActions>
           </Form>
         )}
         <h4>일정</h4>
