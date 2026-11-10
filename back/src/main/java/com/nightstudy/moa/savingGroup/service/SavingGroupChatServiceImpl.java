@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class SavingGroupChatServiceImpl implements SavingGroupChatService {
     private final SavingGroupChatMapper chatMapper;
     private final SavingGroupMapper savingGroupMapper;
-    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -42,14 +41,6 @@ public class SavingGroupChatServiceImpl implements SavingGroupChatService {
         if (savingGroupId == null) {
             throw new IllegalStateException("채팅방의 계모임 정보를 확인할 수 없습니다.");
         }
-        // AI작성: 메시지 저장 성공 후 발신자를 제외한 현재 채팅방 참여자에게 새 메시지 알림을 보낸다.
-        chatMapper.findNotificationReceiverIds(roomId, memberId)
-                .forEach(receiverId -> notificationService.send(
-                        receiverId,
-                        NotificationType.CHAT_MESSAGE_CREATED,
-                        "계모임 채팅방에 새 메시지가 도착했습니다.",
-                        "/saving-groups/" + savingGroupId
-                ));
         return chatMapper.findMessage(message.getMessageId());
     }
 
