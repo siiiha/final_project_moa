@@ -119,7 +119,10 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
   const [retry, setRetry] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [time, setTime] = useState('');
+  // AI작성: 오전·오후는 하나의 값으로 관리하고 시와 분은 따로 입력받는다.
+  const [period, setPeriod] = useState('AM');
+  const [hour, setHour] = useState('');
+  const [minute, setMinute] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
@@ -166,7 +169,11 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
   }
 
   function openForm() {
-    setTime(seoulTime.format(new Date()));
+    const [currentHour, currentMinute] = seoulTime.format(new Date()).split(':');
+    const hour24 = Number(currentHour);
+    setPeriod(hour24 < 12 ? 'AM' : 'PM');
+    setHour(String(hour24 % 12 || 12));
+    setMinute(currentMinute);
     setFormOpen(true);
   }
 
@@ -177,6 +184,14 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
       setSaveError('일정 제목을 입력해 주세요.');
       return;
     }
+    if (!/^\d{1,2}$/.test(hour) || Number(hour) < 1 || Number(hour) > 12 ||
+        !/^\d{1,2}$/.test(minute) || Number(minute) > 59) {
+      setSaveError('시는 1~12, 분은 0~59 사이의 정수로 입력해 주세요.');
+      return;
+    }
+    // AI작성: 자정은 00시, 정오는 12시로 변환해 기존 API 형식으로 전송한다.
+    const hour24 = Number(hour) % 12 + (period === 'PM' ? 12 : 0);
+    const time = `${String(hour24).padStart(2, '0')}:${minute.padStart(2, '0')}`;
     setSaving(true);
     setSaveError('');
     try {
@@ -191,7 +206,6 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
       }));
       setFormOpen(false);
       setTitle('');
-      setTime('');
     } catch (error) {
       setSaveError(error.message || '일정을 저장하지 못했습니다.');
       // AI작성: 다른 회원이 마지막 자리를 등록했으면 서버의 최신 월간 일정을 조회한다.
@@ -262,7 +276,15 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
           <Form onSubmit={save}>
             <h4>선택한 날짜에 일정 등록</h4>
             <label>일정 제목<input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={100} required disabled={saving} /></label>
-            <label>시각<input type="time" value={time} onChange={event => setTime(event.target.value)} required disabled={saving} /></label>
+            <fieldset disabled={saving}>
+              <legend>시각</legend>
+              <Toolbar>
+                <label><input type="radio" name="schedule-period" checked={period === 'AM'} onChange={() => setPeriod('AM')} /> 오전</label>
+                <label><input type="radio" name="schedule-period" checked={period === 'PM'} onChange={() => setPeriod('PM')} /> 오후</label>
+                <label>시<input inputMode="numeric" maxLength={2} value={hour} onChange={event => setHour(event.target.value)} /></label>
+                <label>분<input inputMode="numeric" maxLength={2} value={minute} onChange={event => setMinute(event.target.value)} /></label>
+              </Toolbar>
+            </fieldset>
             {saveError && <p role="alert">{saveError}</p>}
             <Toolbar>
               <Primary type="submit" disabled={busy || !current?.data?.canCreate || limitReached}>{saving ? '저장 중' : '일정 저장'}</Primary>
