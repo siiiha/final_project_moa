@@ -109,11 +109,33 @@
     </select>
 
     <select id="selectSavingGroupTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
-        SELECT transacted_at, transaction_type, amount, balance_after, description
-        FROM group_transaction
-        WHERE account_id = #{accountId}
-        ORDER BY transacted_at DESC, transaction_id DESC
-        LIMIT #{size} OFFSET #{offset}
+        <!-- AI작성: 지급 완료 기록이 연결된 출금은 계금 지급으로 우선 표시한다. -->
+        SELECT ledger.transacted_at, ledger.transaction_type, ledger.amount, ledger.balance_after, ledger.description,
+               CASE WHEN ledger.is_dues THEN 'DUES'
+                    WHEN ledger.is_payout THEN 'PAYOUT'
+                    WHEN ledger.transaction_type = 'WITHDRAWAL' AND ledger.source_provider = 'MOCK' AND TRIM(ledger.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
+               ledger.source_provider
+        FROM (
+            SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount,
+                   gt.balance_after, gt.description, gt.source_provider,
+                   (gt.transaction_type = 'DEPOSIT' AND EXISTS (
+                       SELECT 1 FROM saving_group_mock_deposit_request dr
+                       WHERE dr.transaction_id = gt.transaction_id AND dr.account_id = gt.account_id
+                         AND dr.status = 'COMPLETED'
+                   )) AS is_dues,
+                   (gt.transaction_type = 'WITHDRAWAL' AND EXISTS (
+                       SELECT 1 FROM payout_request pr
+                       JOIN meeting_round mr ON mr.round_id = pr.round_id
+                       WHERE pr.transaction_id = gt.transaction_id AND mr.group_id = ga.group_id
+                         AND pr.status = 'COMPLETED'
+                   )) AS is_payout
+            FROM group_transaction gt
+            JOIN group_account ga ON ga.account_id = gt.account_id
+            WHERE gt.account_id = #{accountId}
+            ORDER BY transacted_at DESC, transaction_id DESC
+            LIMIT #{size} OFFSET #{offset}
+        ) ledger
+        ORDER BY ledger.transacted_at DESC, ledger.transaction_id DESC
     </select>
     <!-- AI작성: savingGroupId를 내부 groupId로 해석하고 기존 회원·지급 처리와 모임 잠금을 공유한다. -->
     <select id="selectTurnOrderGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">

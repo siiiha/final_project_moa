@@ -23,7 +23,7 @@ class SavingGroupTransactionMapperTest {
         String count = config.getMappedStatement(prefix + "selectSavingGroupTransactionCount").getBoundSql(params).getSql();
         String list = config.getMappedStatement(prefix + "selectSavingGroupTransactions").getBoundSql(params).getSql();
         assertThat(count).contains("WHERE account_id = ?");
-        assertThat(list).contains("WHERE account_id = ?", "transacted_at DESC, transaction_id DESC", "LIMIT ? OFFSET ?")
+        assertThat(list).contains("WHERE gt.account_id = ?", "transacted_at DESC, transaction_id DESC", "LIMIT ? OFFSET ?")
                 .doesNotContain("source_transaction_id", "account_number");
     }
 }

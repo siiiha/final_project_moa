@@ -16,7 +16,7 @@ class SavingGroupAccountServiceTest {
     SavingGroupMapper mapper = mock(SavingGroupMapper.class);
     VirtualAccountStorageMapper accounts = mock(VirtualAccountStorageMapper.class);
     AccountNumberCipher cipher = AccountNumberCipherTest.cipher();
-    SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper, accounts, cipher, org.mockito.Mockito.mock(NotificationService.class));
+    SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper, accounts, cipher, org.mockito.Mockito.mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class));
     void member(String role, String status) {
         var target = new SavingGroupRow();
         target.setGroupId(2L);

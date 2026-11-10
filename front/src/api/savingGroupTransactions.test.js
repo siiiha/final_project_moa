@@ -6,7 +6,11 @@ import { getSavingGroupTransactions } from './savingGroups.js';
 // AI작성: 인증 클라이언트의 요청 형식과 허용된 거래 필드만 전달되는지 확인한다.
 test('공용 계좌 거래내역 조회와 서버 페이지 전달', async (t) => {
   const signal = new AbortController().signal;
-  const row = { transactedAt: '2026-11-08T12:00:00', transactionType: 'WITHDRAWAL', amount: 30000, balanceAfter: 0 };
+  // AI작성: 기존 잔액과 새 분류 필드가 동일한 응답에서 전달되는지 확인한다.
+  const row = {
+    transactedAt: '2026-11-08T12:00:00', transactionType: 'WITHDRAWAL', amount: 30000, balanceAfter: 0,
+    purposeType: 'EXPENSE', category: 'FOOD', classificationStatus: 'REVIEW_PENDING',
+  };
   const meta = { page: 2, size: 10, total: 11, totalPages: 2 };
   t.mock.method(client, 'get', async (path, options) => {
     assert.equal(path, '/saving-groups/2/account/transactions');

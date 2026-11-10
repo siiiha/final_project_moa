@@ -489,8 +489,10 @@ export async function getSavingGroupTransactions(savingGroupId, { page = 1, sign
     throw new Error('거래내역 응답을 확인할 수 없습니다.');
   }
   return {
-    items: response.data.map(({ transactedAt, transactionType, amount, balanceAfter }) => ({
+    // AI작성: 공개 거래 필드와 서버에서 연결한 분류 정보만 화면에 전달한다.
+    items: response.data.map(({ transactedAt, transactionType, amount, balanceAfter, purposeType, category, classificationStatus }) => ({
       transactedAt, transactionType, amount, balanceAfter,
+      ...(purposeType !== undefined && { purposeType, category, classificationStatus }),
     })),
     meta: response.meta,
   };
