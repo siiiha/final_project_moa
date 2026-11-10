@@ -87,11 +87,77 @@ const EventActions = styled.div`
   flex-wrap: wrap;
   gap: .5rem;
 `;
+// AI작성: 달력과 같은 민트색을 쓰고 시각 입력을 두 줄로 배치한다.
 const Form = styled.form`
   display: grid;
-  gap: .65rem;
+  gap: 1rem;
   margin-top: 1rem;
-  label { display: grid; gap: .25rem; }
+  padding: clamp(.75rem, 2vw, 1rem);
+  border: 1px solid #cbdad6;
+  border-radius: .8rem;
+  background: #f4faf8;
+  h4, p { margin: 0; }
+  label { display: grid; gap: .35rem; font-weight: 600; }
+  input:not([type='radio']) {
+    box-sizing: border-box;
+    width: 100%;
+    padding: .5rem .65rem;
+    border: 1px solid #78978f;
+    border-radius: .5rem;
+    background: white;
+    color: inherit;
+  }
+  :is(input, button):focus-visible {
+    outline: 2px solid #116858;
+    outline-offset: 2px;
+  }
+  [role='alert'] { color: #a12626; }
+`;
+const TimeFields = styled.fieldset`
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  legend { margin-bottom: .5rem; padding: 0; font-weight: 700; }
+`;
+const TimeRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  & + & { margin-top: .65rem; }
+  input:not([type='radio']) { text-align: center; font-size: 1.15rem; }
+`;
+const PeriodOption = styled.label`
+  && {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    border: 1px solid #78978f;
+    border-radius: .5rem;
+    background: white;
+    cursor: pointer;
+  }
+  &&:has(input:checked) { background: #116858; color: white; border-color: #116858; }
+  &:has(input:focus-visible) { outline: 2px solid #116858; outline-offset: 2px; }
+  &:has(input:disabled) { cursor: default; opacity: .65; }
+  input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+`;
+const FormActions = styled(Toolbar)`
+  margin-bottom: 0;
+  > button:last-child {
+    border: 1px solid #78978f;
+    border-radius: .5rem;
+    background: white;
+    color: inherit;
+  }
 `;
 
 const week = ['일', '월', '화', '수', '목', '금', '토'];
@@ -282,20 +348,22 @@ export default function SavingGroupCalendarPanel({ groupId, loadMonth, createEve
           <Form onSubmit={save}>
             <h4>선택한 날짜에 일정 등록</h4>
             <label>일정 제목<input autoFocus value={title} onChange={event => setTitle(event.target.value)} maxLength={100} required disabled={saving} /></label>
-            <fieldset disabled={saving}>
+            <TimeFields disabled={saving}>
               <legend>시각</legend>
-              <Toolbar>
-                <label><input type="radio" name="schedule-period" checked={period === 'AM'} onChange={() => setPeriod('AM')} /> 오전</label>
-                <label><input type="radio" name="schedule-period" checked={period === 'PM'} onChange={() => setPeriod('PM')} /> 오후</label>
+              <TimeRow>
+                <PeriodOption><input type="radio" name="schedule-period" checked={period === 'AM'} onChange={() => setPeriod('AM')} />오전</PeriodOption>
+                <PeriodOption><input type="radio" name="schedule-period" checked={period === 'PM'} onChange={() => setPeriod('PM')} />오후</PeriodOption>
+              </TimeRow>
+              <TimeRow>
                 <label>시<input inputMode="numeric" maxLength={2} value={hour} onChange={event => setHour(event.target.value)} /></label>
                 <label>분<input inputMode="numeric" maxLength={2} value={minute} onChange={event => setMinute(event.target.value)} /></label>
-              </Toolbar>
-            </fieldset>
+              </TimeRow>
+            </TimeFields>
             {saveError && <p role="alert">{saveError}</p>}
-            <Toolbar>
+            <FormActions>
               <Primary type="submit" disabled={busy || !current?.data?.canCreate || limitReached}>{saving ? '저장 중' : '일정 저장'}</Primary>
               <button type="button" disabled={saving} onClick={() => { setFormOpen(false); setSaveError(''); }}>취소</button>
-            </Toolbar>
+            </FormActions>
           </Form>
         )}
         <h4>일정</h4>
