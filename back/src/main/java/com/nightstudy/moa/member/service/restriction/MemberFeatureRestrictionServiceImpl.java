@@ -26,7 +26,7 @@ public class MemberFeatureRestrictionServiceImpl
             Long memberId,
             MemberRestrictionScope restrictionScope
     ) {
-        if (restrictionMapper.existsActiveRestriction(memberId, restrictionScope)) {
+        if (isRestricted(memberId, restrictionScope)) {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     "FEATURE_RESTRICTED",
