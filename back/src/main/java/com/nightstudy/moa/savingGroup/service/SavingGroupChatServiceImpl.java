@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.nightstudy.moa.common.restriction.MemberRestrictionScope;
 import com.nightstudy.moa.member.service.restriction.MemberFeatureRestrictionService;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupChatRoomResponse;
 
 @Service
 @RequiredArgsConstructor
@@ -26,11 +27,25 @@ public class SavingGroupChatServiceImpl implements SavingGroupChatService {
 
     @Override
     @Transactional(readOnly = true)
-    public long findRoomId(long savingGroupId, Long memberId) {
+// AI작성: 채팅방 정보와 현재 회원의 채팅 제한 상태를 함께 반환한다.
+    public SavingGroupChatRoomResponse findRoom(
+            long savingGroupId,
+            Long memberId
+    ) {
         requireLogin(memberId);
+
         Long roomId = chatMapper.findRoomId(savingGroupId);
         requireAccess(roomId, memberId);
-        return roomId;
+
+        boolean chatRestricted = restrictionService.isRestricted(
+                memberId,
+                MemberRestrictionScope.CHAT
+        );
+
+        return new SavingGroupChatRoomResponse(
+                roomId,
+                chatRestricted
+        );
     }
 
     @Override
