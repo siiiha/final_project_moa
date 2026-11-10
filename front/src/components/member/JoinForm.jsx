@@ -1596,16 +1596,12 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             ref={signupCardRef}
             aria-labelledby="signup-current-title"
           >
-            <h2 id="signup-current-title">{titles[signupStep]}</h2>
-            {steps.slice(0, stepIndex + 1).reverse().map((step) => (
-              <SignupFieldGroup key={step}>{fields[step]}</SignupFieldGroup>
-            ))}
-
-            {signupError && <p role="alert">{signupError}</p>}
-            {signupStep === 'details' ? (
+            {/* AI작성: 관심사 단계에서는 가입 버튼을 제목 위에 표시합니다. */}
+            {signupStep === 'details' && (
               <SubmitButton
                 key="signup-submit"
                 type="submit"
+                style={{ marginTop: 0, marginBottom: 24 }}
                 disabled={
                   isSubmitting ||
                   isEmailBusy ||
@@ -1615,13 +1611,28 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                   memberTermOptions.length === 0
                 }
               >
-                {isSubmitting ? '가입 처리 중…' : '회원가입'}
+                {isSubmitting ? '가입 처리 중…' : '가입 완료'}
               </SubmitButton>
-            ) : (
+            )}
+
+            <h2 id="signup-current-title">{titles[signupStep]}</h2>
+
+            {steps.slice(0, stepIndex + 1).reverse().map((step) => (
+              <SignupFieldGroup key={step}>
+                {fields[step]}
+              </SignupFieldGroup>
+            ))}
+
+            {signupError && <p role="alert">{signupError}</p>}
+
+            {signupStep !== 'details' && (
               <SubmitButton
                 key="signup-next"
                 type="button"
-                disabled={isEmailBusy || (signupStep === 'email' && !emailVerificationToken)}
+                disabled={
+                  isEmailBusy ||
+                  (signupStep === 'email' && !emailVerificationToken)
+                }
                 onClick={advanceSignup}
               >
                 다음
