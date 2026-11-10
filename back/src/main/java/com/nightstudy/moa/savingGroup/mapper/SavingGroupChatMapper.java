@@ -15,18 +15,6 @@ public interface SavingGroupChatMapper {
     Long findRoomId(long savingGroupId);
 
 
-
-    // AI작성: 새 메시지 알림을 받을 채팅방 참여자를 발신자를 제외하고 조회한다.
-    @Select("""
-            SELECT member_id
-            FROM chat_room_member
-            WHERE room_id = #{roomId}
-              AND member_id != #{senderId}
-            """)
-    List<Long> findNotificationReceiverIds(
-            @Param("roomId") long roomId,
-            @Param("senderId") Long senderId);
-
     @Insert("INSERT INTO chat_message (room_id, sender_id, content) VALUES (#{roomId}, #{senderId}, #{content})")
     @Options(useGeneratedKeys = true, keyProperty = "messageId")
     void insert(SavingGroupChatMessage message);
