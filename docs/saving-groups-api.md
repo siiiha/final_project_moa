@@ -2165,11 +2165,12 @@ Postman에서는 입금·확인 요청 후 계좌 조회에서 장부 잔액을 
 
 AI작성: 사용자 승인 A안에 따라 GET/PUT /api/saving-groups/{savingGroupId}/turn-orders를 추가했다. /saving-groups 별칭도 지원한다. savingGroupId는 saving_group.saving_group_id다.
 
-- 현재 승인된 OWNER만 조회·지정한다. OWNER를 포함한 미지급 승인 회원 전원에게 남은 실제 회차를 중복 없이 배정한다.
-- 지급 완료 회원은 재배정에서 제외하고 같은 운영 기간 중 재수령 요청·승인을 차단한다.
+- 현재 승인된 OWNER만 조회·지정한다. 진행 중에는 지급 완료 회원과 현재 회차 회원의 순번을 고정하고 나머지 승인 회원에게만 다음 회차부터 중복·누락 없이 배정한다. 남은 회원이 0명 또는 1명이면 지정할 수 없다.
+- 지급 완료 회원은 같은 운영 기간 중 재수령 요청·승인을 할 수 없다.
 - 모집중은 즉시 저장, 진행중은 다음 달 예약 저장이며 같은 적용월 예약 전체를 교체한다.
-- PUT 본문은 {"turnOrders":[{"memberId":"30","sequenceNumber":3},{"memberId":"40","sequenceNumber":4}]} 형식이다. 다음 달이 3회차이고 미지급 회원이 2명인 예시다.
-- 응답은 기존 ApiResponse 안에 effectiveMonth, startRoundNumber, scheduled, needsReassignment, members를 반환한다. members는 memberId·nickname·role·paid·currentSequenceNumber·plannedSequenceNumber다. 회원 ID는 문자열이며 nullable 순번은 누락될 수 있다.
+- 진행 중 PUT 본문은 {"currentRoundNumber":2,"turnOrders":[{"memberId":"30","sequenceNumber":3},{"memberId":"40","sequenceNumber":4}]} 형식이다. 모집 중에는 currentRoundNumber를 생략한다.
+- 응답은 기존 ApiResponse 안에 effectiveMonth, startRoundNumber, currentRoundNumber, scheduled, needsReassignment, members를 반환한다. 각 회원은 memberId·nickname·role·paid·currentSequenceNumber·plannedSequenceNumber·fixedReason을 포함한다. fixedReason은 PAID 또는 CURRENT_ROUND이며, 편집 대상이면 null이거나 생략된다.
+- 진행 중 저장에서 기준 회차가 다르면 409 SAVING_GROUP_TURN_ORDER_ROUND_CHANGED를 반환한다. 변경 가능 회원이 2명 미만이거나 배정이 대상 월 예약 또는 현재 순번과 같으면 409 SAVING_GROUP_TURN_ORDER_CONFLICT를 반환한다.
 - 기존 JWT memberId만 사용하며 요청 본문·쿼리로 요청자 신원을 받지 않는다. GET은 no-store다.
 - 기존 미래 지급 요청과 충돌하거나 예약 이후 대상·지급 상태가 달라지면 자동 취소·자동 재배정하지 않는다.
 - 지급 요청과 승인에는 해당 회차의 적용월 순번을 사용한다. 회차 생성·지급 상태 변경·실제 금융 호출은 하지 않는다.
