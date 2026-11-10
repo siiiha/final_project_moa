@@ -20,13 +20,13 @@ class SavingGroupNoticeUpdateServiceTest {
     @InjectMocks SavingGroupServiceImpl service;
     void target(String status) {
         var row = new SavingGroupJoinTargetRow(); row.setGroupId(20L); row.setSavingGroupId(10L); row.setStatus(status);
-        when(mapper.selectSavingGroupNoticeTargetForUpdate(20L)).thenReturn(row);
+        when(mapper.selectSavingGroupNoticeTargetForUpdate(10L)).thenReturn(row);
     }
     void relation(String role, String status) {
         var row = new SavingGroupMembershipRelationRow(); row.setMemberRole(role); row.setMembershipStatus(status);
         when(mapper.selectSavingGroupMembershipForUpdate(20L, 30L)).thenReturn(row);
     }
-    Long update() { return service.updateSavingGroupNotice(20L, 40L, 30L, " 새 제목 ", " 새 내용 "); }
+    Long update() { return service.updateSavingGroupNotice(10L, 40L, 30L, " 새 제목 ", " 새 내용 "); }
     void failure(String code) {
         var error = catchThrowableOfType(this::update, ApiException.class);
         assertThat(error).isNotNull();
@@ -41,7 +41,7 @@ class SavingGroupNoticeUpdateServiceTest {
         when(mapper.updateSavingGroupNotice(20L, 40L, "새 제목", "새 내용")).thenReturn(1);
         assertThat(update()).isEqualTo(40L);
         var order = inOrder(mapper);
-        order.verify(mapper).selectSavingGroupNoticeTargetForUpdate(20L);
+        order.verify(mapper).selectSavingGroupNoticeTargetForUpdate(10L);
         order.verify(mapper).selectSavingGroupMembershipForUpdate(20L, 30L);
         order.verify(mapper).selectSavingGroupNoticeForUpdate(20L, 40L);
         order.verify(mapper).updateSavingGroupNotice(20L, 40L, "새 제목", "새 내용");
@@ -83,14 +83,14 @@ class SavingGroupNoticeUpdateServiceTest {
         assertThat(catchThrowableOfType(this::update, ApiException.class).getCode()).isEqualTo("SAVING_GROUP_NOTICE_EDIT_FAILED");
     }
     @Test void rejectsMissingAuthenticationBeforeQuery() {
-        assertThat(catchThrowableOfType(() -> service.updateSavingGroupNotice(20L, 40L, null, "제목", "내용"), ApiException.class).getCode())
+        assertThat(catchThrowableOfType(() -> service.updateSavingGroupNotice(10L, 40L, null, "제목", "내용"), ApiException.class).getCode())
                 .isEqualTo("UNAUTHORIZED");
         verifyNoInteractions(mapper);
     }
     // AI작성: 인증 및 경로 오류는 DB 접근 전에 거절한다.
     @ParameterizedTest @ValueSource(longs = {0, -1})
     void rejectsInvalidMemberId(long memberId) {
-        assertThat(catchThrowableOfType(() -> service.updateSavingGroupNotice(20L, 40L, memberId, "제목", "내용"), ApiException.class).getCode())
+        assertThat(catchThrowableOfType(() -> service.updateSavingGroupNotice(10L, 40L, memberId, "제목", "내용"), ApiException.class).getCode())
                 .isEqualTo("UNAUTHORIZED");
         verifyNoInteractions(mapper);
     }

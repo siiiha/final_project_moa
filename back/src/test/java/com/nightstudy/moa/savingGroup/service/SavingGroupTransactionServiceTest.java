@@ -55,7 +55,9 @@ class SavingGroupTransactionServiceTest {
     }
 
     private void membership(String role, String status) {
-        when(mapper.selectSavingGroupDetail(2L)).thenReturn(new SavingGroupRow());
+        var target = new SavingGroupRow();
+        target.setGroupId(2L);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(12L)).thenReturn(target);
         var relation = new SavingGroupMembershipRelationRow();
         relation.setMemberRole(role);
         relation.setMembershipStatus(status);
@@ -77,7 +79,7 @@ class SavingGroupTransactionServiceTest {
         var now = LocalDateTime.of(2026, 11, 8, 12, 0);
         when(mapper.selectSavingGroupTransactions(3L, 10L, 10))
                 .thenReturn(List.of(new SavingGroupTransactionRow(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "테스트")));
-        var result = service.getSavingGroupTransactions(2L, 1L, 2);
+        var result = service.getSavingGroupTransactions(12L, 1L, 2);
         assertThat(result.items()).containsExactly(new SavingGroupTransactionResponse(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO));
         assertThat(result.pageMeta().getTotalPages()).isEqualTo(2);
     }
@@ -86,19 +88,21 @@ class SavingGroupTransactionServiceTest {
     @ValueSource(strings = {"PENDING", "LEFT", "EXPELLED", "REJECTED"})
     void deniesInactiveMembership(String status) {
         membership("MEMBER", status);
-        assertThatThrownBy(() -> service.getSavingGroupTransactions(2L, 1L, 1)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.getSavingGroupTransactions(12L, 1L, 1)).isInstanceOf(ApiException.class);
         verifyNoInteractions(accounts);
     }
 
     @Test
     void handlesMissingGroupMembershipAccountAndEmptyLedger() {
-        assertThatThrownBy(() -> service.getSavingGroupTransactions(2L, 1L, 1)).isInstanceOf(ApiException.class);
-        when(mapper.selectSavingGroupDetail(2L)).thenReturn(new SavingGroupRow());
-        assertThatThrownBy(() -> service.getSavingGroupTransactions(2L, 9L, 1)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.getSavingGroupTransactions(12L, 1L, 1)).isInstanceOf(ApiException.class);
+        var target = new SavingGroupRow();
+        target.setGroupId(2L);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(12L)).thenReturn(target);
+        assertThatThrownBy(() -> service.getSavingGroupTransactions(12L, 9L, 1)).isInstanceOf(ApiException.class);
         membership("MEMBER", "APPROVED");
-        assertThatThrownBy(() -> service.getSavingGroupTransactions(2L, 1L, 1)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.getSavingGroupTransactions(12L, 1L, 1)).isInstanceOf(ApiException.class);
         account();
-        assertThat(service.getSavingGroupTransactions(2L, 1L, 1).items()).isEmpty();
+        assertThat(service.getSavingGroupTransactions(12L, 1L, 1).items()).isEmpty();
     }
 
     @ParameterizedTest
@@ -119,7 +123,7 @@ class SavingGroupTransactionServiceTest {
         when(mapper.selectSavingGroupTransactionCount(3L)).thenReturn(1);
         when(mapper.selectSavingGroupTransactions(3L, 0L, 10))
                 .thenReturn(List.of(new SavingGroupTransactionRow(LocalDateTime.now(), "DEPOSIT", BigDecimal.TEN, balance, memo)));
-        assertThatThrownBy(() -> service.getSavingGroupTransactions(2L, 1L, 1))
+        assertThatThrownBy(() -> service.getSavingGroupTransactions(12L, 1L, 1))
                 .isInstanceOf(ApiException.class).hasMessage("거래내역을 확인할 수 없습니다.");
     }
 }

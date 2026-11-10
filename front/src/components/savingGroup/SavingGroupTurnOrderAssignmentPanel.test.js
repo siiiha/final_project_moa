@@ -18,19 +18,33 @@ test('순번 지정 화면은 다음 달 적용과 지급 완료 제외 및 입�
       ` : undefined }] });
   try {
     const { render, View, Members } = await vite.ssrLoadModule(entry);
-    const data = { effectiveMonth: '2026-12-01', startRoundNumber: 3, scheduled: true, needsReassignment: true,
-      members: [{ memberId: '30', nickname: '테스트계주', role: 'OWNER', paid: false, currentSequenceNumber: 2 },
-        { memberId: '40', nickname: '완료회원', role: 'MEMBER', paid: true, currentSequenceNumber: 1 }] };
-    let html = render(View, { data, drafts: { 30: '3' } });
+    // AI작성: 두 계원을 교환하고 한 계원을 유지하는 경우와 마지막 한 명만 남는 경우를 확인한다.
+    const data = { effectiveMonth: '2026-12-01', startRoundNumber: 3, currentRoundNumber: 2, scheduled: true, needsReassignment: true,
+      members: [{ memberId: '30', nickname: '테스트계주', role: 'OWNER', paid: false, currentSequenceNumber: 2, fixedReason: 'CURRENT_ROUND' },
+        { memberId: '40', nickname: '완료회원', role: 'MEMBER', paid: true, currentSequenceNumber: 1 },
+        ...[3, 4, 5].map(round => ({ memberId: String(round), nickname: `계원${round}`, currentSequenceNumber: round }))] };
+    let html = render(View, { data, drafts: { 3: '4', 4: '3', 5: '5' } });
     assert.match(html, /2026년 12월부터 적용/); assert.match(html, /이번 달 순번은 유지/);
-    assert.match(html, /지급 완료 · 재배정 제외/); assert.equal((html.match(/<select/g) || []).length, 1);
+    assert.match(html, /지급 완료 · 재배정 제외/); assert.match(html, /현재 지급 회차 · 재배정 제외/);
+    assert.equal((html.match(/<select/g) || []).length, 3);
     assert.match(html, /3회차/); assert.match(html, /모임원 구성이 변경/);
     assert.doesNotMatch(html, /<button[^>]*disabled[^>]*>다음 달 순번 저장/);
+    html = render(View, { data, drafts: { 3: '3', 4: '4', 5: '5' } });
+    assert.match(html, /이전과 동일한 순번입니다/);
+    assert.match(html, /<button[^>]*disabled[^>]*>다음 달 순번 저장/);
     html = render(View, { data, drafts: {} }); assert.match(html, /<button[^>]*disabled[^>]*>다음 달 순번 저장/);
     html = render(View, { data, drafts: { 30: '3' }, saving: true }); assert.match(html, /저장 중…/); assert.match(html, /<select[^>]*disabled/);
     assert.match(render(View, { loading: true }), /불러오고 있습니다/);
     assert.match(render(View, { error: '조회 실패' }), /role="alert"/);
-    assert.match(render(View, { data: { ...data, members: [] } }), /미지급 승인 회원이 없습니다/);
+    const onlyOne = { ...data, currentRoundNumber: 3, startRoundNumber: 4, needsReassignment: false,
+      members: [
+        { ...data.members[0], fixedReason: 'PAID', paid: true }, data.members[1],
+        { ...data.members[2], fixedReason: 'CURRENT_ROUND' }, data.members[3],
+      ] };
+    html = render(View, { data: onlyOne });
+    assert.match(html, /4회차 · 남은 순번 확정/);
+    assert.match(html, /변경할 수 있는 순번이 없습니다/);
+    assert.doesNotMatch(html, /<select/);
     const props = { savingGroupId: '10', groupId: '20', groupType: '순번계', status: '02', myRole: 'OWNER', membershipStatus: 'APPROVED' };
     assert.match(render(Members, props), />순번 지정<\/button>/);
     for (const change of [{ myRole: 'MANAGER' }, { myRole: 'MEMBER' }, { membershipStatus: 'LEFT' }, { groupType: '친목계' }])

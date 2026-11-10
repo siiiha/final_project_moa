@@ -6,6 +6,7 @@ import SavingGroupFilterBar from '../components/savingGroup/SavingGroupFilterBar
 import SavingGroupList from '../components/savingGroup/SavingGroupList';
 import { getSavingGroups } from '../api/savingGroups';
 import { getMemberRegions } from '../api/member';
+import useAuthStore from '../store/authStore';
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -72,6 +73,7 @@ const Result = styled.p`
 // AI작성: 검색 조건과 서버 페이징을 연결하고 이전 요청의 응답을 폐기한다.
 function SavingGroupsPage() {
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
   // AI작성: 목록 주소에서 적용된 검색 조건과 페이지를 복원한다.
   const [params, setParams] = useSearchParams();
   const submittedKeyword = (params.get('keyword') ?? '').trim().slice(0, 20);
@@ -171,9 +173,12 @@ function SavingGroupsPage() {
           <h1>계모임 둘러보기</h1>
           <p>같은 지역 이웃과 함께 목표를 만들고 즐겁게 모아보세요.</p>
         </div>
-        <CreateButton type="button" onClick={handleCreateApplication}>
-          계모임 개설 신청
-        </CreateButton>
+        {/* AI작성: 계모임 개설 신청 버튼은 로그인한 사용자에게만 표시한다. */}
+        {token && (
+          <CreateButton type="button" onClick={handleCreateApplication}>
+            계모임 개설 신청
+          </CreateButton>
+        )}
       </Heading>
       <Content>
         <SavingGroupFilterBar

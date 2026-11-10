@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FiPlus } from 'react-icons/fi';
+import useAuthStore from '../store/authStore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
@@ -80,6 +81,7 @@ const Result = styled.p`
 function SmallGroupsPage() {
   const navigate = useNavigate();
   // AI작성: 목록 주소에서 적용된 검색 조건과 페이지를 복원한다.
+  const token = useAuthStore((state) => state.token);
   const [params, setParams] = useSearchParams();
   const submittedKeyword = (params.get('keyword') ?? '').trim().slice(0, 20);
   const province = params.get('province') ?? '';
@@ -203,9 +205,12 @@ function SmallGroupsPage() {
           <h1>우리 동네 소모임</h1>
           <p>취미가 같은 이웃과 즐거운 일상을 함께해요.</p>
         </div>
-        <CreateButton type="button" onClick={handleCreate}>
-          <FiPlus size={15} aria-hidden="true" /> 소모임 만들기
-        </CreateButton>
+        {/* AI작성: 소모임 만들기 버튼은 로그인한 사용자에게만 표시한다. */}
+        {token && (
+          <CreateButton type="button" onClick={handleCreate}>
+            <FiPlus size={15} aria-hidden="true" /> 소모임 만들기
+          </CreateButton>
+        )}
       </Heading>
 
       <Content>

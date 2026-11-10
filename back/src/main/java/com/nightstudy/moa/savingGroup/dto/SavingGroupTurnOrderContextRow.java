@@ -1,6 +1,7 @@
 package com.nightstudy.moa.savingGroup.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -12,4 +13,6 @@ public class SavingGroupTurnOrderContextRow {
     private String groupType;
     private String status;
     private BigDecimal duesAmount;
+    // AI작성: 모임 시작일로 현재 지급 회차를 계산한다.
+    private LocalDate startDate;
 }
