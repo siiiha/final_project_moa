@@ -26,8 +26,10 @@ class SavingGroupTurnOrderEffectiveSequenceTest {
         var plan = new SavingGroupTurnOrderPlanRow(); plan.setTurnOrderPlanId(99L);
         when(mapper.selectTurnOrderPlan(10L,LocalDate.of(2026,12,1))).thenReturn(plan);
         var member = SavingGroupTurnOrderAssignmentServiceTest.member("30",false); member.setSequenceNumber(3);
-        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(List.of(member));
-        when(mapper.selectTurnOrderPlanMembers(99L)).thenReturn(List.of(member));
+        // AI작성: 이전 회차 미지급 계원의 고정 순번을 새 예약에 보존해도 다음 회차 지급이 가능하다.
+        var previous = SavingGroupTurnOrderAssignmentServiceTest.member("50",false); previous.setSequenceNumber(2);
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(List.of(member, previous));
+        when(mapper.selectTurnOrderPlanMembers(99L)).thenReturn(List.of(previous, member));
         assertThat(SavingGroupTurnOrderServiceImpl.resolveSequence(mapper,20L,30L,1,3)).isEqualTo(3);
         when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(List.of(member,SavingGroupTurnOrderAssignmentServiceTest.member("40",false)));
         assertThatThrownBy(() -> SavingGroupTurnOrderServiceImpl.resolveSequence(mapper,20L,30L,1,3)).isInstanceOf(ApiException.class);

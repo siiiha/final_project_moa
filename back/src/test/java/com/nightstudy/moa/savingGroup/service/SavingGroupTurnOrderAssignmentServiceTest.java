@@ -31,7 +31,8 @@ class SavingGroupTurnOrderAssignmentServiceTest {
         var row = new SavingGroupTurnOrderAssignmentRow(); row.setMemberId(id); row.setNickname("테스트회원"); row.setPaid(paid); return row;
     }
     static SavingGroupTurnOrderUpdateRequest request(long a, int x, long b, int y) {
-        return new SavingGroupTurnOrderUpdateRequest(List.of(new SavingGroupTurnOrderUpdateRequest.Entry(a, x), new SavingGroupTurnOrderUpdateRequest.Entry(b, y)));
+        return new SavingGroupTurnOrderUpdateRequest(List.of(new SavingGroupTurnOrderUpdateRequest.Entry(a, x), new SavingGroupTurnOrderUpdateRequest.Entry(b, y)),
+                Math.min(x, y) == 3 ? 2 : null);
     }
     @Test void assignsOwnerAndEveryEligibleMemberOnce() {
         service.update(10L, 30L, request(30, 1, 40, 2));
@@ -52,6 +53,34 @@ class SavingGroupTurnOrderAssignmentServiceTest {
         order.verify(mapper).insertTurnOrderPlanMember(99L, 30L, 3); order.verify(mapper).insertTurnOrderPlanMember(99L, 40L, 4);
         verify(mapper, never()).updateTurnOrderSequence(anyLong(), anyLong(), anyInt());
     }
+    // AI작성: 5인 2회차에서 동일한 배정과 오래된 회차는 거절하고 두 계원의 순번 교환은 저장한다.
+    @Test void savesOnlyChangedFutureAssignments() {
+        group.setStatus("02");
+        var paid = member("60", true); paid.setSequenceNumber(1);
+        var current = member("50", false); current.setSequenceNumber(2);
+        var first = member("30", false); first.setSequenceNumber(3);
+        var second = member("40", false); second.setSequenceNumber(4);
+        var last = member("70", false); last.setSequenceNumber(5);
+        when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(List.of(paid, current, first, second, last));
+        var baseline = List.of(new SavingGroupTurnOrderUpdateRequest.Entry(30L, 3),
+                new SavingGroupTurnOrderUpdateRequest.Entry(40L, 4), new SavingGroupTurnOrderUpdateRequest.Entry(70L, 5));
+        assertThatThrownBy(() -> service.update(10L, 30L, new SavingGroupTurnOrderUpdateRequest(baseline, 1)))
+                .isInstanceOf(ApiException.class).hasMessageContaining("현재 회차가 변경되었습니다.");
+        assertThatThrownBy(() -> service.update(10L, 30L, new SavingGroupTurnOrderUpdateRequest(baseline, 2)))
+                .isInstanceOf(ApiException.class).hasMessage("이전과 동일한 순번입니다.");
+        verify(mapper, never()).insertTurnOrderPlan(any());
+        doAnswer(call -> { ((SavingGroupTurnOrderPlanRow) call.getArgument(0)).setTurnOrderPlanId(99L); return 1; })
+                .when(mapper).insertTurnOrderPlan(any());
+        when(mapper.insertTurnOrderPlanMember(anyLong(), anyLong(), anyInt())).thenReturn(1);
+        service.update(10L, 30L, new SavingGroupTurnOrderUpdateRequest(List.of(
+                new SavingGroupTurnOrderUpdateRequest.Entry(30L, 4), new SavingGroupTurnOrderUpdateRequest.Entry(40L, 3),
+                new SavingGroupTurnOrderUpdateRequest.Entry(70L, 5)), 2));
+        verify(mapper).insertTurnOrderPlanMember(99L, 60L, 1);
+        verify(mapper).insertTurnOrderPlanMember(99L, 50L, 2);
+        verify(mapper).insertTurnOrderPlanMember(99L, 30L, 4);
+        verify(mapper).insertTurnOrderPlanMember(99L, 40L, 3);
+        verify(mapper).insertTurnOrderPlanMember(99L, 70L, 5);
+    }
     // AI작성: 4인 순번계의 3회차에서는 남은 한 명의 순번을 변경할 수 없다.
     @Test void rejectsReassignmentWhenOnlyOneMemberRemains() {
         group.setStatus("02");
@@ -61,7 +90,7 @@ class SavingGroupTurnOrderAssignmentServiceTest {
         when(mapper.selectTurnOrderAssignmentMembers(20L)).thenReturn(
                 List.of(member("30", true), member("40", true), current, member("60", false)));
         assertThatThrownBy(() -> service.update(10L, 30L,
-                new SavingGroupTurnOrderUpdateRequest(List.of(new SavingGroupTurnOrderUpdateRequest.Entry(60L, 4)))))
+                new SavingGroupTurnOrderUpdateRequest(List.of(new SavingGroupTurnOrderUpdateRequest.Entry(60L, 4)), 3)))
                 .isInstanceOf(ApiException.class).hasMessage("변경할 수 있는 순번이 없습니다.");
         verify(mapper, never()).insertTurnOrderPlan(any());
     }
