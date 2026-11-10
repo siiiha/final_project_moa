@@ -24,13 +24,14 @@ class SavingGroupTurnOrderMapperTest {
         var context = config.getMappedStatement(prefix + "selectTurnOrderRecommendationContext");
         assertThat(context.getSqlCommandType()).isEqualTo(SqlCommandType.SELECT);
         assertThat(context.getBoundSql(Map.of("savingGroupId", 99L)).getSql())
-                .contains("sg.saving_group_id = ?", "g.deleted_at IS NULL");
+                .contains("sg.saving_group_id = ?", "g.deleted_at IS NULL", "sg.start_date");
         var members = config.getMappedStatement(prefix + "selectTurnOrderRecommendationMembers");
         assertThat(members.getSqlCommandType()).isEqualTo(SqlCommandType.SELECT);
         var bound = members.getBoundSql(Map.of("groupId", 20L));
         assertThat(bound.getSql()).contains("gm.group_id = ?", "gm.membership_status = 'APPROVED'",
-                "'OWNER', 'MANAGER', 'MEMBER'", "m.deleted_at IS NULL", "m.nickname")
-                .doesNotContain("LIMIT", "sequence_number", "payout_request", "fee_payment", "m.name", "m.email");
+                "'OWNER', 'MANAGER', 'MEMBER'", "m.deleted_at IS NULL", "m.nickname",
+                "gm.sequence_number", "pr.status = 'COMPLETED'")
+                .doesNotContain("FOR UPDATE", "fee_payment", "m.name", "m.email");
         assertThat(bound.getParameterMappings()).extracting(p -> p.getProperty()).containsExactly("groupId");
     }
 }
