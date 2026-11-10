@@ -34,7 +34,7 @@ class SavingGroupTurnOrderTransactionTest {
         when(mapper.selectTurnOrderRecommendationContext(10L)).thenReturn(group);
         var owner = new SavingGroupMembershipRelationRow(); owner.setMemberRole("OWNER"); owner.setMembershipStatus("APPROVED");
         when(mapper.selectSavingGroupMembership(20L, 30L)).thenReturn(owner); when(mapper.existsMember(30L)).thenReturn(true);
-        when(mapper.selectTurnOrderRecommendationMembers(20L)).thenReturn(List.of());
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, null)).thenReturn(List.of());
         assertThat(service.getTurnOrderRecommendations(10L, 30L)).isEmpty();
         verify(connection).setReadOnly(true); verify(connection).setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
         verify(connection).commit(); verify(connection, never()).rollback();

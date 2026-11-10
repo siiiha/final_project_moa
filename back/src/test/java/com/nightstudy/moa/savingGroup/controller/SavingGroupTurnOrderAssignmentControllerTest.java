@@ -24,11 +24,13 @@ class SavingGroupTurnOrderAssignmentControllerTest {
     }
     @ParameterizedTest @ValueSource(strings={"/api/saving-groups", "/saving-groups"})
     void updatesWithJwtAttributeAndReturnsCommonResponse(String prefix) throws Exception {
-        when(service.update(eq(10L),eq(30L),any())).thenReturn(new SavingGroupTurnOrderResponse(LocalDate.of(2026,12,1),3,true,false,List.of()));
+        when(service.update(eq(10L),eq(30L),any())).thenReturn(new SavingGroupTurnOrderResponse(LocalDate.of(2026,12,1),3,true,false,List.of(),2));
         mvc.perform(put(prefix+"/10/turn-orders").requestAttr("memberId",30L).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"turnOrders\":[{\"memberId\":30,\"sequenceNumber\":3}]}"))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.effectiveMonth").value("2026-12-01"));
-        verify(service).update(eq(10L),eq(30L),any());
+            .content("{\"currentRoundNumber\":2,\"turnOrders\":[{\"memberId\":30,\"sequenceNumber\":3}]}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.effectiveMonth").value("2026-12-01"))
+            .andExpect(jsonPath("$.data.currentRoundNumber").value(2));
+        verify(service).update(eq(10L),eq(30L),argThat(request -> request.currentRoundNumber() == 2));
     }
     @Test void rejectsInvalidBodyBeforeService() throws Exception {
         for (String body : List.of("{}", "{\"turnOrders\":[]}","{\"turnOrders\":[null]}","{\"turnOrders\":[{\"memberId\":0,\"sequenceNumber\":-1}]}"))

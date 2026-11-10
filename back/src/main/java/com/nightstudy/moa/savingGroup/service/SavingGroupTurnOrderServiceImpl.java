@@ -4,7 +4,6 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.time.*;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -34,24 +33,30 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
         if (!List.of("01", "02").contains(group.getStatus())) throw conflict("모집중 또는 진행중에만 순번을 지정할 수 있습니다.");
         return group;
     }
-    private int nextRound(SavingGroupTurnOrderPlanRow group) {
-        if ("01".equals(group.getStatus())) return 1;
-        if (group.getStartDate() == null || LocalDate.now(clock).isBefore(group.getStartDate())) throw conflict("계모임 시작일을 확인해주세요.");
-        return Math.toIntExact(ChronoUnit.MONTHS.between(YearMonth.from(group.getStartDate()), YearMonth.now(clock)) + 2);
-    }
-    private LocalDate effectiveMonth(SavingGroupTurnOrderPlanRow group) {
-        return YearMonth.now(clock).plusMonths("02".equals(group.getStatus()) ? 1 : 0).atDay(1);
+    private LocalDate effectiveMonth(SavingGroupTurnOrderPlanRow group, LocalDate today) {
+        return YearMonth.from(today).plusMonths("02".equals(group.getStatus()) ? 1 : 0).atDay(1);
     }
     @Override @Transactional
-    public SavingGroupTurnOrderResponse get(Long id, Long user) { return response(authorize(id, user)); }
+    public SavingGroupTurnOrderResponse get(Long id, Long user) { return response(authorize(id, user), LocalDate.now(clock)); }
 
     @Override @Transactional
     public SavingGroupTurnOrderResponse update(Long id, Long user, SavingGroupTurnOrderUpdateRequest request) {
         var group = authorize(id, user);
         var members = mapper.selectTurnOrderAssignmentMembers(group.getGroupId());
-        var eligible = members.stream().filter(m -> !m.isPaid()).map(SavingGroupTurnOrderAssignmentRow::getMemberId).collect(Collectors.toSet());
-        int start = nextRound(group);
+        // AI작성: 잠금 후 한 번 읽은 날짜로 회차와 적용월을 함께 계산한다.
+        var today = LocalDate.now(clock);
+        int start = SavingGroupTurnOrderPolicy.nextRound(group.getStatus(), group.getStartDate(), today);
         if (request == null || request.turnOrders() == null || request.turnOrders().isEmpty()) throw badRequest();
+        if (start > 1 && !Objects.equals(request.currentRoundNumber(), start - 1))
+            throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TURN_ORDER_ROUND_CHANGED", "현재 회차가 변경되었습니다. 최신 순번을 확인해주세요.");
+        var effectiveMonth = effectiveMonth(group, today);
+        var currentPlan = mapper.selectTurnOrderPlan(id, today.withDayOfMonth(1));
+        var current = currentAssignments(members, currentPlan);
+        var fixed = fixedMembers(members, current, start);
+        var eligible = members.stream().map(SavingGroupTurnOrderAssignmentRow::getMemberId)
+                .filter(memberId -> !fixed.contains(memberId)).collect(Collectors.toSet());
+        if (start > 1 && eligible.size() < 2)
+            throw conflict("변경할 수 있는 순번이 없습니다.");
         var ids = new HashSet<String>(); var rounds = new HashSet<Integer>();
         for (var entry : request.turnOrders()) {
             if (entry == null || entry.memberId() == null || entry.memberId() <= 0 || entry.sequenceNumber() == null
@@ -59,11 +64,19 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
                     || !ids.add(entry.memberId().toString()) || !rounds.add(entry.sequenceNumber())) throw badRequest();
         }
         if (!ids.equals(eligible)) throw badRequest();
+        if (start > 1) {
+            var targetPlan = mapper.selectTurnOrderPlan(id, effectiveMonth);
+            var previous = targetPlan != null && effectiveMonth.equals(targetPlan.getEffectiveMonth())
+                    ? assignments(targetPlan) : current;
+            if (request.turnOrders().stream().allMatch(entry -> Objects.equals(
+                    previous.get(entry.memberId().toString()), entry.sequenceNumber())))
+                throw conflict("이전과 동일한 순번입니다.");
+        }
         if (mapper.existsUpcomingTurnOrderPayout(group.getGroupId(), start))
             throw conflict("배정할 회차에 기존 지급 요청이 있습니다. 기존 요청을 확인해주세요.");
         // AI작성: 종료일을 자동 연장하지 않는다. 남은 기간보다 배정이 길면 명시적으로 재확인을 요청한다.
         if (group.getEndDate() != null && "02".equals(group.getStatus())
-                && YearMonth.from(effectiveMonth(group)).plusMonths(eligible.size() - 1L).isAfter(YearMonth.from(group.getEndDate())))
+                && YearMonth.from(effectiveMonth).plusMonths(eligible.size() - 1L).isAfter(YearMonth.from(group.getEndDate())))
             throw conflict("남은 운영 기간보다 배정할 회원이 많습니다. 운영 기간을 확인해주세요.");
         if ("01".equals(group.getStatus())) {
             for (var entry : request.turnOrders()) {
@@ -75,29 +88,57 @@ public class SavingGroupTurnOrderServiceImpl implements SavingGroupTurnOrderServ
             }
         } else {
             var plan = new SavingGroupTurnOrderPlanRow(); plan.setSavingGroupId(id);
-            plan.setEffectiveMonth(effectiveMonth(group)); plan.setStartRoundNumber(start); plan.setAssignedBy(user);
+            plan.setEffectiveMonth(effectiveMonth); plan.setStartRoundNumber(start); plan.setAssignedBy(user);
             mapper.insertTurnOrderPlan(plan);
             if (plan.getTurnOrderPlanId() == null) throw conflict("예약 목록을 저장하지 못했습니다.");
             mapper.deleteTurnOrderPlanMembers(plan.getTurnOrderPlanId());
+            // AI작성: 새 예약에도 이미 확정된 과거·현재 순번을 이어서 보존한다.
+            for (var memberId : fixed) {
+                Integer sequence = current.get(memberId);
+                if (sequence != null && sequence < start
+                        && mapper.insertTurnOrderPlanMember(plan.getTurnOrderPlanId(), Long.valueOf(memberId), sequence) != 1)
+                    throw conflict("고정 순번을 보존하지 못했습니다.");
+            }
             for (var entry : request.turnOrders()) if (mapper.insertTurnOrderPlanMember(plan.getTurnOrderPlanId(), entry.memberId(), entry.sequenceNumber()) != 1)
                 throw conflict("예약 순번을 모두 저장하지 못했습니다.");
         }
-        return response(group);
+        return response(group, today);
     }
-    private static ApiException badRequest() { return new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TURN_ORDER_INVALID", "미지급 승인 회원 전원에게 중복 없이 남은 회차를 배정해주세요."); }
-    private SavingGroupTurnOrderResponse response(SavingGroupTurnOrderPlanRow group) {
+    // AI작성: 이번 달 예약이 있으면 해당 예약에서 현재 지급 회차의 계원을 찾는다.
+    private Map<String, Integer> currentAssignments(List<SavingGroupTurnOrderAssignmentRow> members,
+            SavingGroupTurnOrderPlanRow plan) {
+        if (plan != null) return assignments(plan);
+        return members.stream().filter(member -> member.getSequenceNumber() != null).collect(Collectors.toMap(
+                SavingGroupTurnOrderAssignmentRow::getMemberId, SavingGroupTurnOrderAssignmentRow::getSequenceNumber));
+    }
+
+    private Set<String> fixedMembers(List<SavingGroupTurnOrderAssignmentRow> members,
+            Map<String, Integer> current, int start) {
+        return SavingGroupTurnOrderPolicy.fixedMembers(members, SavingGroupTurnOrderAssignmentRow::getMemberId,
+                SavingGroupTurnOrderAssignmentRow::isPaid, member -> current.get(member.getMemberId()), start);
+    }
+
+    private static ApiException badRequest() { return new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TURN_ORDER_INVALID", "재배정 대상 계원 전원에게 중복 없이 남은 회차를 배정해주세요."); }
+    private SavingGroupTurnOrderResponse response(SavingGroupTurnOrderPlanRow group, LocalDate today) {
+        int start = SavingGroupTurnOrderPolicy.nextRound(group.getStatus(), group.getStartDate(), today);
+        var effectiveMonth = effectiveMonth(group, today);
         var members = mapper.selectTurnOrderAssignmentMembers(group.getGroupId());
-        var currentPlan = mapper.selectTurnOrderPlan(group.getSavingGroupId(), YearMonth.now(clock).atDay(1));
-        var targetPlan = mapper.selectTurnOrderPlan(group.getSavingGroupId(), effectiveMonth(group));
-        var current = assignments(currentPlan); var planned = assignments(targetPlan);
-        boolean exact = targetPlan != null && targetPlan.getEffectiveMonth().equals(effectiveMonth(group));
-        var eligible = members.stream().filter(m -> !m.isPaid()).map(SavingGroupTurnOrderAssignmentRow::getMemberId).collect(Collectors.toSet());
-        var remaining = planned.entrySet().stream().filter(e -> e.getValue() >= nextRound(group))
+        var currentPlan = mapper.selectTurnOrderPlan(group.getSavingGroupId(), today.withDayOfMonth(1));
+        var targetPlan = mapper.selectTurnOrderPlan(group.getSavingGroupId(), effectiveMonth);
+        var current = currentAssignments(members, currentPlan);
+        var planned = assignments(targetPlan);
+        boolean exact = targetPlan != null && targetPlan.getEffectiveMonth().equals(effectiveMonth);
+        var fixed = fixedMembers(members, current, start);
+        var eligible = members.stream().map(SavingGroupTurnOrderAssignmentRow::getMemberId)
+                .filter(memberId -> !fixed.contains(memberId)).collect(Collectors.toSet());
+        var remaining = planned.entrySet().stream().filter(e -> e.getValue() >= start)
                 .map(Map.Entry::getKey).collect(Collectors.toSet());
         var rows = members.stream().map(m -> new SavingGroupTurnOrderResponse.Member(m.getMemberId(), m.getNickname(), m.getRole(), m.isPaid(),
-                currentPlan == null ? m.getSequenceNumber() : current.get(m.getMemberId()), exact ? planned.get(m.getMemberId()) : null)).toList();
-        return new SavingGroupTurnOrderResponse(effectiveMonth(group), nextRound(group), "02".equals(group.getStatus()),
-                "02".equals(group.getStatus()) && (!exact || !remaining.equals(eligible)), rows);
+                current.get(m.getMemberId()), exact ? planned.get(m.getMemberId()) : null,
+                m.isPaid() ? "PAID" : fixed.contains(m.getMemberId()) ? "CURRENT_ROUND" : null)).toList();
+        return new SavingGroupTurnOrderResponse(effectiveMonth, start, start > 1,
+                start > 1 && eligible.size() >= 2 && (!exact || !remaining.equals(eligible)), rows,
+                start > 1 ? start - 1 : null);
     }
     private Map<String, Integer> assignments(SavingGroupTurnOrderPlanRow plan) {
         if (plan == null) return Map.of();

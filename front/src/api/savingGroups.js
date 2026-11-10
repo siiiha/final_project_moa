@@ -4,6 +4,7 @@ import client from './client.js';
 function toTurnOrderAssignment(data) {
   if (!data || !/^\d{4}-\d{2}-01$/.test(data.effectiveMonth) || !Number.isSafeInteger(data.startRoundNumber)
     || data.startRoundNumber < 1 || typeof data.scheduled !== 'boolean' || typeof data.needsReassignment !== 'boolean'
+    || (data.scheduled && (data.startRoundNumber < 2 || data.currentRoundNumber !== data.startRoundNumber - 1))
     || !Array.isArray(data.members)) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
   const ids = new Set();
   const members = data.members.map((row) => {
@@ -13,10 +14,12 @@ function toTurnOrderAssignment(data) {
         value => value != null && (!Number.isSafeInteger(value) || value < 1))) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
     ids.add(memberId);
     return { memberId, nickname: row.nickname, role: row.role, paid: row.paid,
-      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null };
+      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null,
+      fixedReason: row.fixedReason ?? null };
   });
   return { effectiveMonth: data.effectiveMonth, startRoundNumber: data.startRoundNumber,
-    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members };
+    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members,
+    currentRoundNumber: data.currentRoundNumber ?? null };
 }
 
 export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
@@ -26,9 +29,11 @@ export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
   return toTurnOrderAssignment(result.data);
 }
 
-export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal } = {}) {
+// AI작성: 진행 중인 순번계는 조회 당시 회차를 함께 보내 서버에서 변경 여부를 확인한다.
+export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal, currentRoundNumber } = {}) {
+  const body = currentRoundNumber == null ? { turnOrders } : { turnOrders, currentRoundNumber };
   const result = await savingGroupMemberResponse(
-    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, { turnOrders }, { signal }),
+    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, body, { signal }),
     '순번 저장 결과를 확인하지 못했습니다. 다시 조회해주세요.');
   return toTurnOrderAssignment(result.data);
 }
@@ -50,7 +55,7 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
     let memberId;
     try { memberId = savingGroupPathId(row?.memberId); } catch { throw invalid(); }
     if (ids.has(memberId) || !Number.isSafeInteger(row.recommendedTurnOrder)
-      || row.recommendedTurnOrder < 1 || row.recommendedTurnOrder > rows.length
+      || row.recommendedTurnOrder < 1
       || orders.has(row.recommendedTurnOrder) || typeof row.nickname !== 'string' || !row.nickname.trim()
       || !Number.isSafeInteger(row.expectedPayoutAmount) || row.expectedPayoutAmount < 1
       || row.expectedPayoutAmount > 9999999999999) throw invalid();
@@ -58,7 +63,11 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
     return { memberId, nickname: row.nickname, recommendedTurnOrder: row.recommendedTurnOrder,
       expectedPayoutAmount: row.expectedPayoutAmount };
   });
-  return items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+  // AI작성: 진행 중에는 다음 회차부터 시작하므로 정렬한 실제 회차의 연속성을 확인한다.
+  items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+  if (items.some((item, index) => index > 0
+    && item.recommendedTurnOrder !== items[index - 1].recommendedTurnOrder + 1)) throw invalid();
+  return items;
 }
 
 // AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.

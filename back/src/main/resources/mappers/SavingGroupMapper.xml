@@ -173,14 +173,31 @@
     </select>
     <!-- AI작성: 공개 계모임 ID로 내부 모임 ID를 해석하며 삭제 모임은 제외한다. -->
     <select id="selectTurnOrderRecommendationContext" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderContextRow">
-        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, sg.dues_amount
+        SELECT sg.group_id, sg.saving_group_type AS group_type, sg.status, sg.dues_amount, sg.start_date
         FROM saving_group sg JOIN `groups` g ON g.group_id = sg.group_id
         WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL
     </select>
     <!-- AI작성: 조회 정렬은 추천 우선순위가 아니다. Service에서 승인된 무작위 모의 배치를 수행한다. -->
     <select id="selectTurnOrderRecommendationMembers" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderMemberRow">
-        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname
+        SELECT CAST(gm.member_id AS CHAR) AS member_id, m.nickname,
+        <choose>
+            <when test="month != null">
+                CASE WHEN plan.turn_order_plan_id IS NULL THEN gm.sequence_number ELSE planned.round_number END
+            </when>
+            <otherwise>gm.sequence_number</otherwise>
+        </choose> AS sequence_number,
+            EXISTS(SELECT 1 FROM payout_request pr JOIN meeting_round mr ON mr.round_id = pr.round_id
+                   WHERE mr.group_id = gm.group_id AND pr.requester_id = gm.member_id AND pr.status = 'COMPLETED') AS paid
         FROM group_member gm JOIN members m ON m.member_id = gm.member_id
+        <if test="month != null">
+            LEFT JOIN saving_group_turn_order_plan plan ON plan.turn_order_plan_id = (
+                SELECT turn_order_plan_id FROM saving_group_turn_order_plan
+                WHERE saving_group_id = #{savingGroupId} AND effective_month &lt;= #{month}
+                ORDER BY effective_month DESC LIMIT 1
+            )
+            LEFT JOIN saving_group_turn_order_plan_member planned ON planned.turn_order_plan_id = plan.turn_order_plan_id
+                AND planned.member_id = gm.member_id
+        </if>
         WHERE gm.group_id = #{groupId} AND gm.membership_status = 'APPROVED'
           AND gm.member_role IN ('OWNER', 'MANAGER', 'MEMBER') AND m.deleted_at IS NULL
         ORDER BY gm.crew_member_id

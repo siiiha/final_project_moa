@@ -6,6 +6,8 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,11 +40,10 @@ class SavingGroupTurnOrderServiceTest {
         assertThatThrownBy(() -> service.getTurnOrderRecommendations(id, user))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo(code));
     }
-    @ParameterizedTest @ValueSource(strings = {"01", "02"})
-    void allMembersAppearExactlyOnceAndNothingIsWritten(String status) {
-        group("순번계", status); owner();
+    @Test void allMembersAppearExactlyOnceAndNothingIsWritten() {
+        group("순번계", "01"); owner();
         var rows = List.of(member("30"), member("9223372036854775807"), member("50"));
-        when(mapper.selectTurnOrderRecommendationMembers(20L)).thenReturn(rows);
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, null)).thenReturn(rows);
         for (int attempt = 0; attempt < 10; attempt++) {
             var result = service.getTurnOrderRecommendations(10L, 30L);
             assertThat(result).extracting(SavingGroupTurnOrderRecommendationResponse::getMemberId)
@@ -55,8 +56,51 @@ class SavingGroupTurnOrderServiceTest {
         verify(mapper, times(10)).selectTurnOrderRecommendationContext(10L);
         verify(mapper, times(10)).selectSavingGroupMembership(20L, 30L);
         verify(mapper, times(10)).existsMember(30L);
-        verify(mapper, times(10)).selectTurnOrderRecommendationMembers(20L);
+        verify(mapper, times(10)).selectTurnOrderRecommendationMembers(20L, 10L, null);
         verifyNoMoreInteractions(mapper);
+    }
+    // AI작성: 현재 회차 지급 전후 모두 제외하고 전체 승인 인원과 실제 회차로 예상액을 계산한다.
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void recommendsOnlyFutureRounds(boolean currentPaid) {
+        var month = runningGroup(2);
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, month)).thenReturn(List.of(
+                member("30", 4, false), member("40", 1, true), member("50", 2, currentPaid),
+                member("60", 3, false), member("70", 5, false)));
+        var result = service.getTurnOrderRecommendations(10L, 30L);
+        assertThat(result).extracting(SavingGroupTurnOrderRecommendationResponse::getMemberId)
+                .containsExactlyInAnyOrder("30", "60", "70");
+        assertThat(result).extracting(SavingGroupTurnOrderRecommendationResponse::getRecommendedTurnOrder)
+                .containsExactly(3, 4, 5);
+        assertThat(result).extracting(SavingGroupTurnOrderRecommendationResponse::getExpectedPayoutAmount)
+                .containsExactly(new BigDecimal("5515"), new BigDecimal("5525"), new BigDecimal("5535"));
+    }
+
+    @Test void oneRemainingMemberHasNoRecommendation() {
+        var month = runningGroup(3);
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, month)).thenReturn(List.of(
+                member("30", 1, true), member("40", 2, true), member("50", 3, false), member("60", 4, false)));
+        assertThat(service.getTurnOrderRecommendations(10L, 30L)).isEmpty();
+    }
+
+    @Test void rejectsAmbiguousCurrentRecipient() {
+        var month = runningGroup(2);
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, month)).thenReturn(List.of(
+                member("30", 2, false), member("40", 2, false)));
+        fails("SAVING_GROUP_TURN_ORDER_CONFLICT", 10L, 30L);
+    }
+
+    private LocalDate runningGroup(int round) {
+        group("순번계", "02"); owner();
+        var month = LocalDate.now(ZoneId.of("Asia/Seoul")).withDayOfMonth(1);
+        group.setStartDate(month.minusMonths(round - 1L));
+        return month;
+    }
+
+    private SavingGroupTurnOrderMemberRow member(String id, int sequence, boolean paid) {
+        var row = member(id);
+        row.setSequenceNumber(sequence);
+        row.setPaid(paid);
+        return row;
     }
     @Test void unauthenticatedAndInvalidIds() {
         fails("UNAUTHORIZED", 10L, null); fails("UNAUTHORIZED", 10L, 0L);
@@ -73,13 +117,13 @@ class SavingGroupTurnOrderServiceTest {
     @ParameterizedTest @ValueSource(strings = {"03", "04", "", "UNKNOWN"})
     void wrongStatus(String status) { group("순번계", status); owner(); fails("SAVING_GROUP_ACTIVITY_RESTRICTED", 10L, 30L); }
     @Test void emptyResult() {
-        group("순번계", "01"); owner(); when(mapper.selectTurnOrderRecommendationMembers(20L)).thenReturn(List.of());
+        group("순번계", "01"); owner(); when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, null)).thenReturn(List.of());
         assertThat(service.getTurnOrderRecommendations(10L, 30L)).isEmpty();
     }
     @ParameterizedTest @ValueSource(strings = {"0", "-1", "0.5", "99999999999999"})
     void invalidDues(String dues) {
         group("순번계", "01"); owner(); group.setDuesAmount(new BigDecimal(dues));
-        when(mapper.selectTurnOrderRecommendationMembers(20L)).thenReturn(List.of(member("30")));
+        when(mapper.selectTurnOrderRecommendationMembers(20L, 10L, null)).thenReturn(List.of(member("30")));
         fails("SAVING_GROUP_DUES_INVALID", 10L, 30L);
     }
 }

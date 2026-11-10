@@ -2059,10 +2059,10 @@ DB 테이블 미적용·기타 DB 장애는 기존 공통 예외 처리 대상�
 
 ### 추천과 금액 정책
 
-- 해당 계모임의 현재 승인된 OWNER·MANAGER·MEMBER 전체를 매 호출 무작위 배치한다. 검색어·계원 목록 페이지에 영향을 받지 않는다.
-- 기존 순번 유무·과거 지급 여부와 관계없이 현재 승인 회원 전원을 모의 배치한다. 가입일·나이·주소·납부·금융 이력을 추천 기준으로 사용하지 않는다.
-- 1부터 현재 대상 인원 수까지 회원당 하나의 순번을 제안한다. 재조회 시 우연히 같은 결과가 나올 수 있다.
-- 기본 회비 B, 승인된 미삭제 회원 수 N, 추천 순번 k일 때 예상 지급 금액은 `B × N + floor(B × 0.01) × (k - 1)`이다.
+- 모집 중에는 승인된 OWNER·MANAGER·MEMBER 전체를 무작위로 배치하고 1회차부터 추천한다.
+- 진행 중에는 지급 완료 계원과 현재 회차 계원을 제외하고, 남은 계원에게 다음 회차부터 연속으로 추천한다. 현재 회차 계원은 이번 달까지의 최신 예약 순번으로 찾으며, 적용 예약이 없을 때는 기본 순번을 사용한다.
+- 진행 중 남은 계원이 0명 또는 1명이면 성공 빈 배열을 반환한다. 추천 대상은 같은 우선순위로 무작위 배치하므로 재조회 시 우연히 같은 결과가 나올 수 있다.
+- 기본 회비 B, 전체 승인된 미삭제 회원 수 N, 실제 추천 회차 k일 때 예상 지급 금액은 `B × N + floor(B × 0.01) × (k - 1)`이다. 진행 중에도 추천에서 제외된 계원을 N에 포함한다.
 - 인원·기본 회비 유지, 앞 순번 전원 지급을 가정한다. 이는 확정 회차의 payout_amount나 실제 지급 약속이 아니다. 모집중에도 현재 값으로 계산하며 인원·회비 변경 시 재조회해야 한다.
 - BigDecimal로 원 단위 계산한다. 기본 회비 미설정·0 이하·소수 회비 또는 예상 금액 13자리 초과는 409다. 대상 없음은 성공 빈 배열로 반환한다.
 - 순번·회원·회차·회비·지급 상태·추천 이력을 저장하거나 변경하지 않는다. 읽기 전용 REPEATABLE_READ 트랜잭션에서 일관된 조회 결과로 계산하며 SELECT만 사용한다. DB·마이그레이션·의존성 변경 없음.
@@ -2093,6 +2093,7 @@ Cache-Control: no-store를 적용한다. 기존 공통 ApiResponse를 사용하�
 | 409 | SAVING_GROUP_TYPE_INVALID | 순번계가 아님 |
 | 409 | SAVING_GROUP_ACTIVITY_RESTRICTED | 모집중·진행중이 아님 |
 | 409 | SAVING_GROUP_DUES_INVALID | 회비 또는 예상 금액 범위 오류 |
+| 409 | SAVING_GROUP_TURN_ORDER_CONFLICT | 시작일이 올바르지 않거나 현재 회차 계원을 한 명으로 특정할 수 없음 |
 
 ### 화면 흐름
 
@@ -2116,7 +2117,7 @@ Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트�
 ### 수동 검증 절차
 
 1. 테스트 DB에 모집중·진행중 순번계, 승인 OWNER·MANAGER·MEMBER와 대기·탈퇴·추방 회원을 준비한다. 실명·실제 금융정보는 사용하지 않는다.
-2. OWNER로 상세 → 계원 관리 → 순번 추천을 열고 추천받기를 클릭한다. Network에서 위 GET 한 건과 회원 전체의 순번·닉네임·예상 금액을 확인한다.
+2. OWNER로 상세 → 계원 관리 → 순번 추천을 열고 추천받기를 클릭한다. 모집 중에는 전체 승인 계원, 진행 중에는 이후 회차 추천 대상의 회차·닉네임·예상 금액을 확인한다. 5명·2회차에 1회차 지급이 완료됐다면 3~5회차를, 4명·3회차에 1·2회차 지급이 완료됐다면 빈 목록을 확인한다.
 3. 예를 들어 기본 회비 10,000원·승인 회원 3명이면 순번별 예상 금액이 30,000원·30,100원·30,200원인지 확인한다. 재추천은 같은 결과가 나올 수도 있다.
 4. 검색·페이지와 무관하게 OWNER 포함 전체 대상이 반환되는지 확인한다. 대기·탈퇴·추방·삭제 회원은 없어야 한다.
 5. Postman에서 MANAGER·MEMBER·비회원·탈퇴·대기 계정은 403, 로그아웃은 401, 친목계는 409, 없는 모임은 404인지 확인한다. 종료·정지 상태도 409다.
@@ -2175,11 +2176,12 @@ Postman에서는 입금·확인 요청 후 계좌 조회에서 장부 잔액을 
 
 AI작성: 사용자 승인 A안에 따라 GET/PUT /api/saving-groups/{savingGroupId}/turn-orders를 추가했다. /saving-groups 별칭도 지원한다. savingGroupId는 saving_group.saving_group_id다.
 
-- 현재 승인된 OWNER만 조회·지정한다. OWNER를 포함한 미지급 승인 회원 전원에게 남은 실제 회차를 중복 없이 배정한다.
-- 지급 완료 회원은 재배정에서 제외하고 같은 운영 기간 중 재수령 요청·승인을 차단한다.
+- 현재 승인된 OWNER만 조회·지정한다. 진행 중에는 지급 완료 회원과 현재 회차 회원의 순번을 고정하고 나머지 승인 회원에게만 다음 회차부터 중복·누락 없이 배정한다. 남은 회원이 0명 또는 1명이면 지정할 수 없다.
+- 지급 완료 회원은 같은 운영 기간 중 재수령 요청·승인을 할 수 없다.
 - 모집중은 즉시 저장, 진행중은 다음 달 예약 저장이며 같은 적용월 예약 전체를 교체한다.
-- PUT 본문은 {"turnOrders":[{"memberId":"30","sequenceNumber":3},{"memberId":"40","sequenceNumber":4}]} 형식이다. 다음 달이 3회차이고 미지급 회원이 2명인 예시다.
-- 응답은 기존 ApiResponse 안에 effectiveMonth, startRoundNumber, scheduled, needsReassignment, members를 반환한다. members는 memberId·nickname·role·paid·currentSequenceNumber·plannedSequenceNumber다. 회원 ID는 문자열이며 nullable 순번은 누락될 수 있다.
+- 진행 중 PUT 본문은 {"currentRoundNumber":2,"turnOrders":[{"memberId":"30","sequenceNumber":3},{"memberId":"40","sequenceNumber":4}]} 형식이다. 모집 중에는 currentRoundNumber를 생략한다.
+- 응답은 기존 ApiResponse 안에 effectiveMonth, startRoundNumber, currentRoundNumber, scheduled, needsReassignment, members를 반환한다. 각 회원은 memberId·nickname·role·paid·currentSequenceNumber·plannedSequenceNumber·fixedReason을 포함한다. fixedReason은 PAID 또는 CURRENT_ROUND이며, 편집 대상이면 null이거나 생략된다.
+- 진행 중 저장에서 기준 회차가 다르면 409 SAVING_GROUP_TURN_ORDER_ROUND_CHANGED를 반환한다. 변경 가능 회원이 2명 미만이거나 배정이 대상 월 예약 또는 현재 순번과 같으면 409 SAVING_GROUP_TURN_ORDER_CONFLICT를 반환한다.
 - 기존 JWT memberId만 사용하며 요청 본문·쿼리로 요청자 신원을 받지 않는다. GET은 no-store다.
 - 기존 미래 지급 요청과 충돌하거나 예약 이후 대상·지급 상태가 달라지면 자동 취소·자동 재배정하지 않는다.
 - 지급 요청과 승인에는 해당 회차의 적용월 순번을 사용한다. 회차 생성·지급 상태 변경·실제 금융 호출은 하지 않는다.
