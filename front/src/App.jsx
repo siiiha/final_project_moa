@@ -50,6 +50,12 @@ function SavingGroupApplicationRoute() {
 
   return token ? <SavingGroupApplicationPage /> : <Navigate to="/member/login" replace />;
 }
+// AI작성: 비로그인 사용자가 소모임 개설 주소를 직접 열면 로그인 화면으로 이동한다.
+function SmallGroupCreateRoute() {
+  const token = useAuthStore((state) => state.token);
+
+  return token ? <SmallGroupCreatePage /> : <Navigate to="/member/login" replace />;
+}
 
 function App() {
   return (
@@ -63,7 +69,7 @@ function App() {
         {/* AI작성: id는 공통 group_id이며 공지 상세 권한은 서버에서 확인한다. */}
         <Route path="/saving-groups/:id/notices/:noticeId" element={<SavingGroupNoticeDetailPage />} />
         <Route path="/saving-groups/:id" element={<SavingGroupDetailPage />} />
-        <Route path="/small-groups/new" element={<SmallGroupCreatePage />} />
+        <Route path="/small-groups/new" element={<SmallGroupCreateRoute />} />
         <Route path="/small-groups/:smallGroupId/votes/:voteId" element={<SmallGroupVoteDetailPage />} />
         {/* AI작성: 소모임 공지 본문은 별도 경로에서 조회한다. */}
         <Route path="/small-groups/:id/notices/:noticeId" element={<SmallGroupNoticeDetailPage />} />
