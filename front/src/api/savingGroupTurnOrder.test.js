@@ -8,8 +8,8 @@ import { getSavingGroupTurnOrders, updateSavingGroupTurnOrders } from './savingG
 test('순번 지정 API는 전체 목록·적용월을 보존하고 잘못된 응답을 거절한다', async () => {
   const originalGet = client.get; const originalPut = client.put;
   const signal = new AbortController().signal;
-  const data = { effectiveMonth: '2026-12-01', startRoundNumber: 3, scheduled: true, needsReassignment: false,
-    members: [{ memberId: '9223372036854775807', nickname: '테스트계주', role: 'OWNER', paid: false, currentSequenceNumber: 2, plannedSequenceNumber: 3 }] };
+  const data = { effectiveMonth: '2026-12-01', startRoundNumber: 3, currentRoundNumber: 2, scheduled: true, needsReassignment: false,
+    members: [{ memberId: '9223372036854775807', nickname: '테스트계주', role: 'OWNER', paid: false, currentSequenceNumber: 3, plannedSequenceNumber: 4, fixedReason: null }] };
   try {
     client.get = async (path, options) => {
       assert.equal(path, '/saving-groups/10/turn-orders'); assert.equal(options.signal, signal);
@@ -18,10 +18,10 @@ test('순번 지정 API는 전체 목록·적용월을 보존하고 잘못된 �
     assert.deepEqual(await getSavingGroupTurnOrders(10, { signal }), data);
     const orders = [{ memberId: data.members[0].memberId, sequenceNumber: 3 }];
     client.put = async (path, body, options) => {
-      assert.equal(path, '/saving-groups/10/turn-orders'); assert.deepEqual(body, { turnOrders: orders }); assert.equal(options.signal, signal);
+      assert.equal(path, '/saving-groups/10/turn-orders'); assert.deepEqual(body, { turnOrders: orders, currentRoundNumber: 2 }); assert.equal(options.signal, signal);
       return { data: { success: true, data } };
     };
-    assert.deepEqual(await updateSavingGroupTurnOrders(10, orders, { signal }), data);
+    assert.deepEqual(await updateSavingGroupTurnOrders(10, orders, { signal, currentRoundNumber: 2 }), data);
     for (const invalid of [null, { ...data, members: [data.members[0], data.members[0]] }, { ...data, startRoundNumber: 0 }]) {
       client.get = async () => ({ data: { success: true, data: invalid } });
       await assert.rejects(() => getSavingGroupTurnOrders(10));

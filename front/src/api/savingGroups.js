@@ -4,6 +4,7 @@ import client from './client.js';
 function toTurnOrderAssignment(data) {
   if (!data || !/^\d{4}-\d{2}-01$/.test(data.effectiveMonth) || !Number.isSafeInteger(data.startRoundNumber)
     || data.startRoundNumber < 1 || typeof data.scheduled !== 'boolean' || typeof data.needsReassignment !== 'boolean'
+    || (data.scheduled && (data.startRoundNumber < 2 || data.currentRoundNumber !== data.startRoundNumber - 1))
     || !Array.isArray(data.members)) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
   const ids = new Set();
   const members = data.members.map((row) => {
@@ -13,10 +14,12 @@ function toTurnOrderAssignment(data) {
         value => value != null && (!Number.isSafeInteger(value) || value < 1))) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
     ids.add(memberId);
     return { memberId, nickname: row.nickname, role: row.role, paid: row.paid,
-      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null };
+      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null,
+      fixedReason: row.fixedReason ?? null };
   });
   return { effectiveMonth: data.effectiveMonth, startRoundNumber: data.startRoundNumber,
-    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members };
+    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members,
+    currentRoundNumber: data.currentRoundNumber ?? null };
 }
 
 export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
@@ -26,9 +29,11 @@ export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
   return toTurnOrderAssignment(result.data);
 }
 
-export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal } = {}) {
+// AI작성: 진행 중인 순번계는 조회 당시 회차를 함께 보내 서버에서 변경 여부를 확인한다.
+export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal, currentRoundNumber } = {}) {
+  const body = currentRoundNumber == null ? { turnOrders } : { turnOrders, currentRoundNumber };
   const result = await savingGroupMemberResponse(
-    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, { turnOrders }, { signal }),
+    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, body, { signal }),
     '순번 저장 결과를 확인하지 못했습니다. 다시 조회해주세요.');
   return toTurnOrderAssignment(result.data);
 }
