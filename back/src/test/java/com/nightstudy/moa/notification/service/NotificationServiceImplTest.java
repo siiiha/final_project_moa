@@ -88,6 +88,22 @@ class NotificationServiceImplTest {
         assertSame(emitter, result);
     }
 
+    @Test
+    // AI작성: 목록 조회를 트리거로 만료된 읽은 알림을 먼저 삭제한 뒤 남은 목록을 조회하는지 검증합니다.
+    void getRecent_deletesExpiredReadNotificationsBeforeQueryingList() {
+        Long receiverId = 7L;
+        Long lastNotificationId = 20L;
+        int size = 10;
+        when(notificationMapper.findRecent(receiverId, lastNotificationId, size))
+                .thenReturn(List.of());
+
+        notificationService.getRecent(receiverId, lastNotificationId, size);
+
+        InOrder order = inOrder(notificationMapper);
+        order.verify(notificationMapper).deleteExpiredReadNotifications(receiverId);
+        order.verify(notificationMapper).findRecent(receiverId, lastNotificationId, size);
+    }
+
     // AI작성: 복구 전송 순서를 확인하는 데 필요한 알림 데이터만 생성합니다.
     private NotificationDto notification(Long notificationId, String message) {
         NotificationDto notification = new NotificationDto();

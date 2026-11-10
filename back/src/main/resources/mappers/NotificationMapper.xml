@@ -35,6 +35,14 @@
         WHERE notification_id = #{notificationId}
     </select>
 
+    <!-- AI작성: 조회한 회원의 읽은 알림 중 읽은 시점부터 30일이 지난 행만 지연 삭제합니다. -->
+    <delete id="deleteExpiredReadNotifications">
+        DELETE FROM notification
+        WHERE receiver_id = #{receiverId}
+        AND read_at IS NOT NULL
+        AND read_at &lt; DATE_SUB(NOW(), INTERVAL 30 DAY)
+    </delete>
+
     <!-- AI작성: 마지막으로 조회한 알림 번호보다 작은 알림을 다음 목록으로 조회합니다. -->
     <select id="findRecent" resultType="NotificationDto">
         SELECT
