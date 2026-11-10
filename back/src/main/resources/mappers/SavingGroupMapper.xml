@@ -928,23 +928,13 @@
         </foreach>
         GROUP BY group_id
     </select>
-    <!-- AI작성: 공개 상세 조건을 두 ID 기준 조회에서 공유한다. -->
-    <sql id="savingGroupDetailColumns">
+    <!-- AI작성: 계모임 상세는 계모임 고유 ID로 조회한다. -->
+    <select id="selectSavingGroupDetailBySavingGroupId" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
         SELECT sg.saving_group_id, g.group_id, g.group_name, g.description,
         <!-- AI작성: 순번 추천 버튼이 실제 상세 응답의 유형으로 표시되도록 조회한다. -->
         sg.saving_group_type AS group_type,
         r.region_name, g.max_members, sg.dues_amount, sg.dues_day, sg.status
         <include refid="listFrom"/>
-    </sql>
-
-    <select id="selectSavingGroupDetail" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
-        <include refid="savingGroupDetailColumns"/>
-        WHERE g.group_id = #{groupId}
-        AND g.deleted_at IS NULL AND sg.status IN ('01', '02')
-    </select>
-
-    <select id="selectSavingGroupDetailBySavingGroupId" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupRow">
-        <include refid="savingGroupDetailColumns"/>
         WHERE sg.saving_group_id = #{savingGroupId}
         AND g.deleted_at IS NULL AND sg.status IN ('01', '02')
     </select>

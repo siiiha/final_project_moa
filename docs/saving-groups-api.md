@@ -5,6 +5,14 @@
 <!-- AI작성: 공지 페이징·고정의 현재 계약을 과거 단계별 기록과 구분한다. -->
 > 공지 목록·고정 기능은 문서 하단의 [2026-11-04 페이징·고정 최신 계약](#notice-pagination-and-pin)을 우선한다. 아래 기존 기록의 최신 4건·meta 없음·고정 제외는 당시 구현 범위다.
 
+## 2026-11-10 계모임 경로 식별값
+
+<!-- AI작성: 계모임 전용 경로와 공통 모임 신고의 식별값을 구분한다. -->
+- 브라우저 상세·설정·공지 URL과 계모임 전용 API의 첫 경로 변수는 `saving_group.saving_group_id`다.
+- 서비스는 이 ID로 계모임을 확인한 후 회원 소속·공지·일정·계좌 등 기존 내부 조회에 연결된 `groups.group_id`를 사용한다. 모임 신고는 공통 API의 `targetId`에 `groups.group_id`를 보낸다.
+- 목록·설정·공지 화면 및 새 알림 링크는 계모임 ID로 상세에 진입한다. 예전에 공통 모임 ID로 저장된 주소는 현재 상세 경로의 식별값 계약과 다르다.
+- 브라우저 또는 Postman에서는 계모임 A의 계모임 ID와 B의 공통 모임 ID가 같은 데이터로 확인한다. 각 탭은 A를 조회하고 A에 등록해야 한다. B 소속 공지·일정의 수정·삭제는 차단돼야 하며 모임 신고는 A의 공통 모임 ID를 사용한다.
+
 ## 2026-10-20 상세 조회 확장 — 최신 계약
 
 <!-- AI작성: 구현 중 사용자 정정 사항을 반영한다. 아래 기존 목록 구현 기록보다 이 절을 우선한다. -->
@@ -30,6 +38,7 @@
 {
   "success": true,
   "data": {
+    "savingGroupId": 101,
     "groupId": 42,
     "groupName": "테스트 모임",
     "description": null,
@@ -69,7 +78,7 @@ Number로 변환하지 않는다. 응답 BIGINT가 JavaScript 안전 정수 범�
 ### 프론트 연결
 
 - SavingGroupDetailPage는 URL ID로 조회하므로 직접 접근과 새로고침을 지원한다.
-- 목록 응답에 groupId를 추가하고 기존 savingGroupId는 유지한다. 카드 URL은 groupId를 사용한다.
+- 목록 응답에 groupId를 추가하고 기존 savingGroupId는 유지한다. 카드 URL은 savingGroupId를 사용한다.
 - 로딩·400·401·403·404·서버/네트워크 오류, 재시도, 빈 공지를 구분한다.
 - 요청 취소와 응답 ID·재시도 회차 비교로 이전 응답이 새 화면을 덮어쓰지 않게 한다.
 - 소개·공지·회비·납부일·정원·인원수·상태는 실제 상세 응답만 사용한다.
@@ -742,7 +751,7 @@ HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
 
 계모임은 기존과 같이 status=01일 때만 신규 신청할 수 있다. 정원 미설정·정원 도달과 최대 5개 가입 제한을 동일하게 반영한다. 상세 URL과 가입 신청 URL은 savingGroupId를 사용한다.
 
-수동 확인: GET /api/saving-groups/{groupId}를 비로그인·가입·심사 대기·거절·추방·탈퇴·관계 없음으로 각각 조회한다. POST /api/saving-groups/{savingGroupId}/join-requests에서도 같은 제한이 유지되는지 확인한다.
+수동 확인: GET /api/saving-groups/{savingGroupId}를 비로그인·가입·심사 대기·거절·추방·탈퇴·관계 없음으로 각각 조회한다. POST /api/saving-groups/{savingGroupId}/join-requests에서도 같은 제한이 유지되는지 확인한다.
 
 <!-- AI작성: 버튼 크기 변경 없이 재적용한 5단계 화면 동작입니다. -->
 ## 2026-11-03 가입 신청 화면 연결 — 기존 버튼 크기 유지
@@ -970,9 +979,9 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 
 ### React 화면·요청
 
-- `getSavingGroupNoticeDetail(groupId, noticeId, { signal })`는 기존 공통 client의 `/api` baseURL·인증을 재사용한다. 두 ID는 기존 양수 BIGINT 검증을 통과해야 하며 큰 문자열 ID를 Number로 변환하지 않는다.
+- `getSavingGroupNoticeDetail(savingGroupId, noticeId, { signal })`는 기존 공통 client의 `/api` baseURL·인증을 재사용한다. 두 ID는 기존 양수 BIGINT 검증을 통과해야 하며 큰 문자열 ID를 Number로 변환하지 않는다.
 - 서버 코드·메시지·HTTP 상태를 보존하고 `ERR_CANCELED`는 원본 그대로 전달한다. 통신·실패 봉투의 기본 오류는 `SAVING_GROUP_NOTICE_READ_FAILED`, 본문 객체가 없는 성공 응답은 `INVALID_RESPONSE`다.
-- 화면 경로는 `/saving-groups/:id/notices/:noticeId`이며 id는 공통 group_id다. 승인된 OWNER·MANAGER·MEMBER이고 모임 상태가 01/02이면 기존 최근 공지 제목이 링크로 표시된다. 그 외에는 제목 텍스트를 유지한다. 서버가 실제 권한을 다시 검사한다.
+- 화면 경로는 `/saving-groups/:id/notices/:noticeId`이며 id는 saving_group_id다. 승인된 OWNER·MANAGER·MEMBER이고 모임 상태가 01/02이면 기존 최근 공지 제목이 링크로 표시된다. 그 외에는 제목 텍스트를 유지한다. 서버가 실제 권한을 다시 검사한다.
 - 페이지가 URL·요청·로딩·오류·재시도를 관리하고 별도 표시 컴포넌트가 제목·작성자 닉네임·한국어 작성일·본문을 렌더링한다. 본문은 일반 텍스트로 표시하며 줄바꿈을 유지한다. 닉네임·날짜 누락 안내는 기존 목록 관례를 따른다.
 - URL·계정(authVersion)·재시도 회차가 바뀌면 이전 본문을 숨기고 이탈한 요청을 취소한다. 통신·서버 오류와 INVALID_RESPONSE에는 재시도를 제공한다. 400·401·403·404는 원인별 안내를 표시한다.
 - '계모임 공지로 돌아가기'는 같은 groupId의 계모임 기본 공지 탭으로 이동한다. 직접 URL 접근·새로고침도 URL 기반 GET으로 처리한다.
@@ -1000,7 +1009,7 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 후속 수동 검증:
 
 1. Java 17 환경에서 신규 상세 Service·Controller 및 기존 작성 테스트를 실행한다. 기존 다른 테스트의 컴파일 문제 여부도 확인한다.
-2. 테스트용 계모임의 group_id와 saving_group_id가 다른 데이터로 GET 경로가 group_id를 사용하는지 확인한다. 승인 OWNER·MANAGER·MEMBER와 모임 상태 01/02에서 200 및 6개 필드를 확인한다.
+2. 테스트용 계모임의 group_id와 saving_group_id가 다른 데이터로 GET 경로가 saving_group_id를 사용하는지 확인한다. 승인 OWNER·MANAGER·MEMBER와 모임 상태 01/02에서 200 및 6개 필드를 확인한다.
 3. 미인증 401, 관계 없음·PENDING·REJECTED·LEFT·EXPELLED 403, 모임 없음·삭제·상태 00/03/04의 404, 공지 없음·다른 모임 공지의 404, 두 ID 각각 타입·범위·양수 오류 400을 확인한다.
 4. 실제 DB에서 공지·작성자 매핑, 닉네임 누락, 같은 공지 반복 조회 시 조회 데이터 변경 없음과 소속 조건을 확인한다.
 5. 브라우저에서 승인 역할별 제목 링크, 직접 접근·새로고침·돌아가기, 오류 안내·재시도, URL·계정 변경·로그아웃 뒤 이전 본문 숨김을 확인한다. 작성·취소·등록 성공 후 최근 공지 갱신도 회귀 확인한다.
@@ -1441,7 +1450,7 @@ WHERE ma.approval_id = @approval_id;
 
 ### 공통 정책
 
-- 두 API의 첫 경로 ID는 `saving_group.saving_group_id`다. 상세 화면 URL의 공통 `group_id`와 다르므로 프론트는 상세 응답의 `savingGroupId`를 전달한다.
+- 두 API의 첫 경로 ID는 `saving_group.saving_group_id`다. 상세 화면 URL과 같은 식별자를 사용한다.
 - 기존 `/saving-groups` 별칭도 동일하게 지원한다. 처리자는 JWT 필터가 설정한 request attribute `memberId`만 사용한다.
 - 해당 모임의 `groups.member_id`가 인증 회원과 일치하고, 그 회원 관계가 `OWNER + APPROVED`여야 한다. MANAGER·MEMBER·비회원·다른 모임 OWNER는 조회·변경할 수 없다.
 - 모임이 미삭제이고 모집중(`01`) 또는 진행중(`02`)일 때만 허용한다. 인증·존재·상태·소속·권한·역할 검증은 Service가 수행한다.
@@ -2238,7 +2247,7 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 
 <!-- AI작성: 공유 일정의 API 계약과 검증 결과를 기록한다. -->
 
-승인된 계주(OWNER), 회계(MANAGER), 계원(MEMBER)이 같은 계모임의 일정을 조회한다. 등록은 승인된 계주와 회계만 가능하다. 경로의 groupId는 공통 모임 ID다. 실제 로그인 회원은 서버 인증 속성에서 가져온다.
+승인된 계주(OWNER), 회계(MANAGER), 계원(MEMBER)이 같은 계모임의 일정을 조회한다. 등록은 승인된 계주와 회계만 가능하다. 경로의 savingGroupId는 계모임 고유 ID다. 실제 로그인 회원은 서버 인증 속성에서 가져온다.
 
 | 동작 | 메서드와 경로 | 성공 |
 | --- | --- | --- |

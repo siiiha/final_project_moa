@@ -157,7 +157,6 @@ public interface SavingGroupMapper {
     // AI작성: 상세 URL의 계모임 ID로 두 식별값을 조회한다.
     SavingGroupRow selectSavingGroupDetailBySavingGroupId(@Param("savingGroupId") Long savingGroupId);
 
-    SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
     // AI작성: 모임 존재 여부는 Service에서 확인하며 고정 공지를 제외한 일반 공지 개수를 조회한다.
