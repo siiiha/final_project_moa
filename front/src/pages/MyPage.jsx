@@ -4,9 +4,7 @@ import styled from 'styled-components';
 import MemberSidebar from '../components/layout/MemberSidebar';
 import MeetingList from '../components/member/MeetingList';
 import ProfileSummary from '../components/member/ProfileSummary';
-import QuickLinks from '../components/member/QuickLinks';
 import { MEMBER_MENU_ITEMS } from '../constants/memberMenu';
-import { quickLinks } from '../mocks/mypage';
 import { getMyJoinedGroups, getMyProfile } from '../api/member';
 import useAuthStore from '../store/authStore';
 
@@ -39,7 +37,7 @@ const Heading = styled.div`
 const Grid = styled.div`
   margin-top: 22px;
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 210px;
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 16px;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
@@ -222,11 +220,6 @@ function MyPage() {
       ],
     }
     : null;
-
-  const handlePendingAction = () => {
-    // 참여 모임과 바로가기 기능은 별도로 연결
-  };
-
   return (
     <Page>
       <Heading>
@@ -294,7 +287,6 @@ function MyPage() {
           )}
         </main>
 
-        <QuickLinks links={quickLinks} onSelect={handlePendingAction} />
       </Grid>
     </Page>
   );

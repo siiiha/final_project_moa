@@ -446,7 +446,7 @@ function EditProfileForm({ initialProfile }) {
     <Card>
       <AvatarPanel>
         <Avatar aria-busy={photoStatus === 'uploading'}>
-          <ProfileImage imageUrl={profile.profileImageUrl} />
+          <ProfileImage imageUrl={profile.profileImageUrl} size={72} />
 
           {photoStatus && (
             <PhotoStatus

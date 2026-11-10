@@ -73,6 +73,11 @@ const Composer = styled.form`
     border-radius: 8px;
     font: inherit;
   }
+  textarea:disabled {
+    background: #eef1f0;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    cursor: not-allowed;
+  }
   button {
     display: inline-flex;
     align-items: center;
@@ -85,7 +90,10 @@ const Composer = styled.form`
     font: inherit;
     font-weight: 700;
   }
-  button:disabled { opacity: 0.55; }
+  button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 `;
 
 const dayFormat = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
@@ -99,6 +107,7 @@ export default function SavingGroupChatPanel({ group }) {
   const [status, setStatus] = useState('채팅방에 연결하고 있습니다.');
   const [error, setError] = useState('');
   const [memberId, setMemberId] = useState(null);
+  const [chatRestricted, setChatRestricted] = useState(false);
   const authVersion = useAuthStore((state) => state.authVersion);
   const connection = useRef(null);
   const history = useRef(null);
@@ -111,6 +120,7 @@ export default function SavingGroupChatPanel({ group }) {
     setConnected(false);
     setMessages([]);
     setError('');
+    setChatRestricted(false);
     setStatus('채팅방에 연결하고 있습니다.');
 
     // AI작성: REST와 STOMP 응답 순서에 관계없이 메시지 번호로 합치고 중복을 제거한다.
@@ -128,8 +138,10 @@ export default function SavingGroupChatPanel({ group }) {
 
     async function start() {
       try {
-        const roomId = await findChatRoom(savingGroupId, signal);
+        const room = await findChatRoom(savingGroupId, signal);
+        const { roomId, chatRestricted: restricted } = room;
         if (signal.aborted) return;
+        setChatRestricted(restricted);
         const payload = useAuthStore.getState().token?.split('.')[1];
         const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
         setMemberId(JSON.parse(window.atob(normalized)).sub);
@@ -172,7 +184,7 @@ export default function SavingGroupChatPanel({ group }) {
 
   function submit(event) {
     event.preventDefault();
-    if (!draft.trim()) return;
+    if (chatRestricted || !draft.trim()) return;
     try {
       if (connection.current?.send(draft)) {
         setDraft('');
@@ -189,7 +201,7 @@ export default function SavingGroupChatPanel({ group }) {
         || event.nativeEvent.isComposing || event.keyCode === 229) return;
 
     event.preventDefault();
-    if (connected && draft.trim()) {
+    if (connected && !chatRestricted && draft.trim()) {
       event.currentTarget.form?.requestSubmit();
     }
   }
@@ -221,10 +233,12 @@ export default function SavingGroupChatPanel({ group }) {
         })}
       </History>
       <Composer onSubmit={submit}>
-        <textarea aria-label="메시지" placeholder="메시지를 입력하세요" maxLength={1000}
+        <textarea aria-label="메시지"
+          placeholder={chatRestricted ? '채팅 이용이 제한되었습니다.' : '메시지를 입력하세요'}
+          maxLength={1000} disabled={chatRestricted}
           rows={1} value={draft} onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleMessageKeyDown} />
-        <button type="submit" disabled={!connected || !draft.trim()}>
+        <button type="submit" disabled={chatRestricted || !connected || !draft.trim()}>
           <FiSend aria-hidden="true" /> 보내기
         </button>
       </Composer>

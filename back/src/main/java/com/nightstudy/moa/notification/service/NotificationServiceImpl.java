@@ -10,6 +10,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -74,11 +75,14 @@ public class NotificationServiceImpl implements NotificationService {
 
     // AI작성: DB 조회 결과에서 회원 번호를 제외한 응답 객체 목록을 생성합니다.
     @Override
+    @Transactional
     public List<NotificationResponse> getRecent(
             Long receiverId,
             Long lastNotificationId,
             int size
     ) {
+        // AI작성: 목록을 반환하기 전에 해당 회원이 읽은 지 30일 지난 알림을 DB에서 정리합니다.
+        notificationMapper.deleteExpiredReadNotifications(receiverId);
         return notificationMapper
                 .findRecent(receiverId, lastNotificationId, size)
                 .stream()
