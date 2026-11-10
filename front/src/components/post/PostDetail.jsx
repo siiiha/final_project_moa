@@ -505,7 +505,7 @@ function PostDetail({
               }
             }}
             maxLength={500}
-            placeholder="이웃에게 따뜻한 댓글을 남겨보세요."
+            placeholder="댓글은 ctrl+enter로 등록이 가능합니다."
           />
           <CommentSubmitButton type="submit" $size="small" disabled={isSubmittingComment}>
             {isSubmittingComment ? '등록 중...' : '등록'}
