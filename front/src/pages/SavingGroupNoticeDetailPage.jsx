@@ -61,10 +61,12 @@ export default function SavingGroupNoticeDetailPage() {
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
-    // AI작성: 상세 URL의 계모임 ID로 조회한 뒤 공지 API에 공통 모임 ID를 넘긴다.
-    getSavingGroupDetail(id, { signal: controller.signal })
-      .then(async (group) => {
-        const notice = await getSavingGroupNoticeDetail(group.groupId, noticeId, { signal: controller.signal });
+    // AI작성: 공지와 계모임 상세는 URL의 같은 계모임 ID를 사용한다.
+    Promise.all([
+      getSavingGroupNoticeDetail(id, noticeId, { signal: controller.signal }),
+      getSavingGroupDetail(id, { signal: controller.signal }),
+    ])
+      .then(([notice, group]) => {
         if (active) setResult({ id, noticeId, authVersion, retry, notice, group });
       })
       .catch((error) => {
@@ -101,7 +103,7 @@ export default function SavingGroupNoticeDetailPage() {
             {saved === scope && <Message role="status">공지가 수정되었습니다.</Message>}
             {blocked === scope && <Message role="alert">현재 수정·삭제 권한 또는 공지 상태가 변경되었습니다. 새로고침 후 확인해 주세요.</Message>}
             {canEdit && editing === scope ? (
-              <SavingGroupNoticeEditForm key={scope} groupId={current.group.groupId} notice={current.notice}
+              <SavingGroupNoticeEditForm key={scope} savingGroupId={id} notice={current.notice}
                 onCancel={() => setEditing(null)} onBlocked={() => setBlocked(scope)}
                 onSaved={(notice) => {
                   // AI작성: 재조회 실패로 성공한 저장을 실패로 안내하지 않고 서버와 동일한 정규화 값을 즉시 표시한다.
@@ -115,7 +117,7 @@ export default function SavingGroupNoticeDetailPage() {
 
               <Button type="button" onClick={() => { setEditing(scope); setSaved(null); }}>공지 수정</Button>
               {/* AI작성: 삭제는 동일한 작성자 조건에서만 표시하고 성공 후 기존 목록 재조회 흐름으로 복귀한다. */}
-              <SavingGroupNoticeDeleteButton key={scope} groupId={current.group.groupId} noticeId={noticeId}
+              <SavingGroupNoticeDeleteButton key={scope} savingGroupId={id} noticeId={noticeId}
                 onBlocked={() => setBlocked(scope)}
                 onDeleted={() => navigate(`/saving-groups/${encodeURIComponent(id)}?${toSavingGroupNoticeSearch(page, sort)}`,
                   { replace: true, state: { deletedNoticeId: noticeId, deletedNoticeGroupId: id } })} />

@@ -54,8 +54,8 @@ class SavingGroupNoticePinMapperTest {
 
     @Test
     void groupLockUsesCommonGroupIdAndExcludesDeletedGroups() {
-        var bound = sql("selectSavingGroupNoticeTargetForUpdate", Map.of("groupId", 20L));
-        assertThat(normalize(bound)).contains("sg.group_id = ?", "g.deleted_at IS NULL", "FOR UPDATE");
+        var bound = sql("selectSavingGroupNoticeTargetForUpdate", Map.of("savingGroupId", 10L));
+        assertThat(normalize(bound)).contains("sg.saving_group_id = ?", "g.deleted_at IS NULL", "FOR UPDATE");
         assertThat(bound.getParameterMappings()).extracting(mapping -> mapping.getProperty()).containsExactly("groupId");
     }
 

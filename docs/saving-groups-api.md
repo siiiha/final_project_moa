@@ -912,9 +912,9 @@ TODO·제외 범위:
 
 ### 요청·식별자·권한
 
-- `GET /api/saving-groups/{groupId}/notices/{noticeId}`
-- 기존 Controller 별칭 `GET /saving-groups/{groupId}/notices/{noticeId}`도 지원한다.
-- 두 경로 변수는 양수 Long이다. `groupId`는 `groups.group_id`이며 공지 작성 POST의 `savingGroupId` (`saving_group_id`)와 다르다. 요청 본문은 없다.
+- `GET /api/saving-groups/{savingGroupId}/notices/{noticeId}`
+- 기존 Controller 별칭 `GET /saving-groups/{savingGroupId}/notices/{noticeId}`도 지원한다.
+- 두 경로 변수는 양수 Long이며 공지 API의 첫 ID는 `saving_group.saving_group_id`다. 요청 본문은 없다.
 - 인증은 기존 JWT·세션 검증과 서버 요청 속성 `memberId`를 사용한다. 쿼리의 회원 ID는 사용하지 않는다.
 - 해당 계모임의 `APPROVED` 관계를 가진 `OWNER / MANAGER / MEMBER`만 본문을 조회할 수 있다. 작성은 OWNER·MANAGER만 가능하지만 상세 조회는 MEMBER도 가능하다.
 - 관계 없음과 `PENDING / REJECTED / LEFT / EXPELLED`는 403이다. 공개 계모임 상세의 최근 공지 요약 공개 정책은 유지하며 본문 조회 권한과 구분한다.
@@ -1058,9 +1058,9 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 
 ### 고정 지정·해제 PATCH
 
-`PATCH /saving-groups/{groupId}/notices/{noticeId}/pin`
+`PATCH /saving-groups/{savingGroupId}/notices/{noticeId}/pin`
 
-`/api/saving-groups/{groupId}/notices/{noticeId}/pin` 별칭도 지원한다. 두 ID는 양수 Long이다. JWT 인증 계층이 전달하는 요청 속성 memberId만 사용하며 쿼리·본문의 처리자 ID는 권한 근거로 사용하지 않는다.
+`/api/saving-groups/{savingGroupId}/notices/{noticeId}/pin` 별칭도 지원한다. 두 ID는 양수 Long이다. JWT 인증 계층이 전달하는 요청 속성 memberId만 사용하며 쿼리·본문의 처리자 ID는 권한 근거로 사용하지 않는다.
 
 ```json
 { "pinned": true }
@@ -1132,8 +1132,8 @@ Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서
 # 계모임 공지 수정 — 2026-11-04
 
 <!-- AI작성: 사용자 최종 확정인 작성자 본인 수정 정책을 기록한다. -->
-- `PUT /api/saving-groups/{groupId}/notices/{noticeId}` 및 `/saving-groups` 별칭.
-- 첫 경로 ID는 기존 상세·고정 API와 동일한 `groups.group_id`이며 `saving_group_id`가 아니다.
+- `PUT /api/saving-groups/{savingGroupId}/notices/{noticeId}` 및 `/saving-groups` 별칭.
+- 첫 경로 ID는 `saving_group.saving_group_id`다.
 - JWT `memberId`와 공지 `writer_id`가 일치하는 작성자만 수정한다. 기존 승인 회원·운영진(OWNER 또는 MANAGER)·모임 상태 조건도 적용하며 타 운영진의 수정은 금지한다.
 - 모집중(01)·진행중(02)의 삭제되지 않은 계모임과 미삭제 소속 공지만 수정한다.
 - JSON 본문: `{"title":"제목","content":"내용"}`. 두 필드 필수, 제목 최대 100자·내용 최대 5,000자, 앞뒤 공백 제거. 부분 수정은 지원하지 않는다.
@@ -1150,8 +1150,8 @@ Service는 쓰기 트랜잭션에서 모임·승인 관계·대상 공지 순서
 # 계모임 공지 삭제 — 2026-11-04
 
 <!-- AI작성: 수정 완료 efcf44f를 기준으로 구현한 작성자 논리 삭제 계약과 검증 결과다. -->
-- `DELETE /api/saving-groups/{groupId}/notices/{noticeId}`, `/saving-groups` 별칭 유지. 요청 본문 없음.
-- 첫 경로 ID는 공통 groups.group_id. 인증은 JWT 필터의 memberId만 사용하며 성공은 기존 ApiResponse<Void>다.
+- `DELETE /api/saving-groups/{savingGroupId}/notices/{noticeId}`, `/saving-groups` 별칭 유지. 요청 본문 없음.
+- 첫 경로 ID는 saving_group.saving_group_id. 인증은 JWT 필터의 memberId만 사용하며 성공은 기존 ApiResponse<Void>다.
 - 대상 모임의 APPROVED OWNER·MANAGER인 작성자 본인만 삭제한다. 다른 운영진·일반 회원·비회원·대기·탈퇴·추방 회원은 거절한다. 모임 상태는 모집중(01)·진행중(02)만 허용한다.
 - 모임→회원 관계→미삭제 소속 공지 순으로 잠근 뒤 작성자를 비교한다. 저장 SQL에서도 group_id·notice_id·writer_id·deleted_at IS NULL을 확인한다.
 - group_notice.deleted_at에 CURRENT_TIMESTAMP를 저장한다. 실제 DB DATETIME·NULL 허용·기본값 NULL 준비는 사용자가 확인했다. AI는 스키마·마이그레이션·실제 DB를 변경하지 않았다.

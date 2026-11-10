@@ -168,7 +168,7 @@ public interface SavingGroupMapper {
     // AI작성: 모든 페이지 상단의 고정 공지는 기존 공지 요약 DTO로 별도 조회한다.
     List<SavingGroupNoticeSummaryResponse> selectSavingGroupPinnedNotices(@Param("groupId") Long groupId);
     // AI작성: 고정 변경은 이 모임 잠금 후 기존 회원 관계 잠금·공지 잠금 순서로 수행해 동시 지정을 직렬화한다.
-    SavingGroupJoinTargetRow selectSavingGroupNoticeTargetForUpdate(@Param("groupId") Long groupId);
+    SavingGroupJoinTargetRow selectSavingGroupNoticeTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
     SavingGroupNoticePinRow selectSavingGroupNoticePinForUpdate(
             @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
     // AI작성: 집계 대신 현재 읽기의 고정 ID 목록 크기를 사용해 이전 스냅샷으로 인한 두 개 제한 초과를 방지한다.

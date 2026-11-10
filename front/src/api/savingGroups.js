@@ -583,11 +583,11 @@ export async function createSavingGroupNotice(savingGroupId, { title, content },
 
 // AI작성: 고정 변경 오류의 서버 코드·문구·상태를 유지해 권한 변경과 최대 개수 초과를 안내한다.
 // AI작성: 수정 오류를 작성·고정 오류와 구분하고 서버 코드·상태 및 취소 원본을 유지한다.
-export async function updateSavingGroupNotice(groupId, noticeId, { title, content }, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function updateSavingGroupNotice(savingGroupId, noticeId, { title, content }, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.put(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { title, content }, { signal });
+    const response = await client.put(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { title, content }, { signal });
     if (response.data?.success !== true) throw { response };
     return response.data.data;
   } catch (error) {
@@ -601,11 +601,11 @@ export async function updateSavingGroupNotice(groupId, noticeId, { title, conten
 }
 
 // AI작성: 작성자는 요청으로 받지 않고 공통 인증 client로 삭제하며 오류·취소를 보존한다.
-export async function deleteSavingGroupNotice(groupId, noticeId, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function deleteSavingGroupNotice(savingGroupId, noticeId, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.delete(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    const response = await client.delete(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { signal });
     if (response.data?.success !== true) throw { response };
     return response.data.data;
   } catch (error) {
@@ -627,12 +627,12 @@ function toSavingGroupNoticePinError(error, status) {
 }
 
 // AI작성: 토글 대신 목표 상태를 전달해 응답 유실 후 재요청에서도 상태가 뒤집히지 않게 한다.
-export async function updateSavingGroupNoticePinned(groupId, noticeId, pinned, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function updateSavingGroupNoticePinned(savingGroupId, noticeId, pinned, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   if (typeof pinned !== 'boolean') throw toSavingGroupNoticePinError({ code: 'BAD_REQUEST', message: '고정 여부를 확인해 주세요.' }, 400);
   try {
-    const response = await client.patch(`/saving-groups/${groupPathId}/notices/${noticePathId}/pin`, { pinned }, { signal });
+    const response = await client.patch(`/saving-groups/${savingGroupPath}/notices/${noticePathId}/pin`, { pinned }, { signal });
     if (response.data?.success !== true) throw toSavingGroupNoticePinError(response.data?.error, response.status);
     return response.data.data;
   } catch (error) {
@@ -651,11 +651,11 @@ function toSavingGroupNoticeDetailError(error, status) {
 }
 
 // AI작성: 공통 groupId와 공지 ID를 문자열로 유지하며 인증·요청 취소는 기존 client를 재사용한다.
-export async function getSavingGroupNoticeDetail(groupId, noticeId, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function getSavingGroupNoticeDetail(savingGroupId, noticeId, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.get(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    const response = await client.get(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { signal });
     if (response.data?.success !== true) {
       throw toSavingGroupNoticeDetailError(response.data?.error, response.status);
     }

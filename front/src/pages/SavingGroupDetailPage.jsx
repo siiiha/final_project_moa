@@ -219,7 +219,7 @@ function SavingGroupDetailPage() {
     setPinState({ id, authVersion, phase: 'pending' });
     let changed = false;
     try {
-      await updateSavingGroupNoticePinned(visibleGroup.groupId, noticeId, pinned);
+      await updateSavingGroupNoticePinned(id, noticeId, pinned);
       changed = true;
       if (!scope.active) return;
       const refreshed = await handleNoticeRefresh();

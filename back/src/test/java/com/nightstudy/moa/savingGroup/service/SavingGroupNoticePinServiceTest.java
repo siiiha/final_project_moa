@@ -30,7 +30,7 @@ class SavingGroupNoticePinServiceTest {
         when(mapper.updateSavingGroupNoticePinned(20L, 40L, true)).thenReturn(1);
         change(true);
         var order = inOrder(mapper);
-        order.verify(mapper).selectSavingGroupNoticeTargetForUpdate(20L);
+        order.verify(mapper).selectSavingGroupNoticeTargetForUpdate(10L);
         order.verify(mapper).selectSavingGroupMembershipForUpdate(20L, 30L);
         order.verify(mapper).selectSavingGroupNoticePinForUpdate(20L, 40L);
         order.verify(mapper).selectSavingGroupPinnedNoticeIdsForUpdate(20L);
@@ -62,7 +62,7 @@ class SavingGroupNoticePinServiceTest {
 
     @ParameterizedTest @NullSource @ValueSource(longs = {0, -1})
     void requiresLogin(Long memberId) {
-        failure(() -> service.updateSavingGroupNoticePinned(20L, 40L, memberId, true), 401, "UNAUTHORIZED");
+        failure(() -> service.updateSavingGroupNoticePinned(10L, 40L, memberId, true), 401, "UNAUTHORIZED");
         verifyNoInteractions(mapper);
     }
 
@@ -75,7 +75,7 @@ class SavingGroupNoticePinServiceTest {
 
     @Test void missingGroupStopsLookup() {
         failure(() -> change(true), 404, "NOT_FOUND");
-        verify(mapper).selectSavingGroupNoticeTargetForUpdate(20L);
+        verify(mapper).selectSavingGroupNoticeTargetForUpdate(10L);
         verifyNoMoreInteractions(mapper);
     }
 
@@ -122,7 +122,7 @@ class SavingGroupNoticePinServiceTest {
 
     private void target(String status) {
         var row = new SavingGroupJoinTargetRow(); row.setGroupId(20L); row.setStatus(status);
-        when(mapper.selectSavingGroupNoticeTargetForUpdate(20L)).thenReturn(row);
+        when(mapper.selectSavingGroupNoticeTargetForUpdate(10L)).thenReturn(row);
     }
     private void relation(String role, String status) {
         var row = new SavingGroupMembershipRelationRow(); row.setMemberRole(role); row.setMembershipStatus(status);
@@ -131,7 +131,7 @@ class SavingGroupNoticePinServiceTest {
     private void notice(boolean pinned) {
         when(mapper.selectSavingGroupNoticePinForUpdate(20L, 40L)).thenReturn(new SavingGroupNoticePinRow(40L, pinned));
     }
-    private void change(boolean pinned) { service.updateSavingGroupNoticePinned(20L, 40L, 30L, pinned); }
+    private void change(boolean pinned) { service.updateSavingGroupNoticePinned(10L, 40L, 30L, pinned); }
     private void failure(Runnable action, int status, String code) {
         var error = catchThrowableOfType(action::run, ApiException.class);
         assertThat(error.getStatus().value()).isEqualTo(status); assertThat(error.getCode()).isEqualTo(code);
