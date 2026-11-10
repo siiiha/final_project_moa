@@ -920,27 +920,29 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupDetailResponse getSavingGroupDetail(Long groupId, Long memberId) {
+    public SavingGroupDetailResponse getSavingGroupDetail(Long savingGroupId, Long memberId) {
         // AI작성: 기존 Controller와 호출자는 최신순 1페이지로 동작하도록 기존 메서드를 유지한다.
-        return getSavingGroupDetail(groupId, memberId, new SavingGroupNoticeSearchCondition()).getDetail();
+        return getSavingGroupDetail(savingGroupId, memberId, new SavingGroupNoticeSearchCondition()).getDetail();
     }
 
     // AI작성: 개수와 목록을 같은 읽기 트랜잭션에서 조회하고 기존 상세의 역할·가입 제한 처리를 유지한다.
     @Override
     @Transactional(readOnly = true)
     public SavingGroupDetailPageResponse getSavingGroupDetail(
-            Long groupId, Long memberId, SavingGroupNoticeSearchCondition condition) {
+            Long savingGroupId, Long memberId, SavingGroupNoticeSearchCondition condition) {
         // AI작성: Controller를 거치지 않는 호출에서도 잘못된 조건과 경로 ID를 차단한다.
-        if (groupId == null || groupId <= 0 || condition == null
+        if (savingGroupId == null || savingGroupId <= 0 || condition == null
                 || condition.getNoticePage() == null || condition.getNoticePage() < 1
                 || condition.getNoticeSort() == null
                 || !List.of("LATEST", "OLDEST").contains(condition.getNoticeSort())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 공지 페이지 또는 정렬이 올바르지 않습니다.");
         }
-        SavingGroupRow row = savingGroupMapper.selectSavingGroupDetail(groupId);
+        SavingGroupRow row = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
         if (row == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
+        // AI작성: 계모임 ID로 찾은 공통 모임 ID를 소속과 공지 조회에 사용한다.
+        Long groupId = row.getGroupId();
         long count = savingGroupMapper.selectDetailMemberCount(groupId);
         int noticeTotal = savingGroupMapper.selectSavingGroupNoticeCount(groupId);
         PageMeta pageMeta = PageMeta.of(condition.getNoticePage(), NOTICE_PAGE_SIZE, noticeTotal);

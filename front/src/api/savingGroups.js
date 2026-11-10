@@ -781,7 +781,8 @@ export function toSavingGroupCard(item) {
         ? '회비 확인 필요'
         : `월 ${amount.toLocaleString('ko-KR')}원`;
   return {
-    id: item.groupId,
+    // AI작성: 상세 주소는 계모임 고유 ID로 이동한다.
+    id: item.savingGroupId,
     name: item.groupName,
     description: item.description?.trim() || '소개글이 없습니다.',
     region: item.regionName,

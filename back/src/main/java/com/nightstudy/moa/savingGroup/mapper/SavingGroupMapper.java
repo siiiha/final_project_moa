@@ -154,6 +154,9 @@ public interface SavingGroupMapper {
 
     // 목록 검색 조건에 맞는 공개 계모임의 총 개수를 조회한다.
     // AI작성: 일대다 데이터를 분리 조회하여 공지 수가 계원 집계에 영향을 주지 않게 한다.
+    // AI작성: 상세 URL의 계모임 ID로 두 식별값을 조회한다.
+    SavingGroupRow selectSavingGroupDetailBySavingGroupId(@Param("savingGroupId") Long savingGroupId);
+
     SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);

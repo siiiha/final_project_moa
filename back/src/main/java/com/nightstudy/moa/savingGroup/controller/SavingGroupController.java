@@ -263,13 +263,13 @@ public class SavingGroupController {
     }
 
     // AI작성: JWT 필터가 검증해 요청에 저장한 회원 ID만 상세 역할 조회에 사용한다.
-    @GetMapping("/{id}")
+    @GetMapping("/{savingGroupId}")
     public ApiResponse<SavingGroupDetailResponse> detail(
-            @PathVariable("id") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long id,
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @Valid @ModelAttribute SavingGroupNoticeSearchCondition condition) {
         // AI작성: 기존 상세 데이터는 data에 유지하고 검증된 공지 조회 조건의 페이징 정보만 meta로 전달한다.
-        SavingGroupDetailPageResponse result = savingGroupService.getSavingGroupDetail(id, memberId, condition);
+        SavingGroupDetailPageResponse result = savingGroupService.getSavingGroupDetail(savingGroupId, memberId, condition);
         return ApiResponse.ok(result.getDetail(), result.getPageMeta());
     }
 

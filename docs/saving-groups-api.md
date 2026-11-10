@@ -20,7 +20,7 @@
 
 `GET /saving-groups/{id}` / 프록시 별칭 `GET /api/saving-groups/{id}`
 
-- id는 groups.group_id이며 Controller에서 Long + @Positive로 검증한다.
+- id는 saving_group.saving_group_id이며 Controller에서 Long + @Positive로 검증한다.
 - 타입 오류·Long 범위 초과·0·음수는 400 BAD_REQUEST다.
 - groups.deleted_at IS NULL, saving_group.status IN ('01','02')만 허용한다.
 - 없는 모임·삭제·그 외 상태는 모두 404 NOT_FOUND, 메시지는 '조회할 수 있는 계모임이 없습니다.'다.
@@ -740,7 +740,7 @@ HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
 - 신청·승인 인원 집계 및 중복 방지 구조는 유지한다. 상세 응답은 조회 시점의 안내이므로 신청 또는 승인 성공을 보장하지 않는다.
 - 3단계에서 서버 조건과 응답을 구현했고, 5단계에서 아래와 같이 기존 버튼 크기를 유지하며 화면에 연결했다.
 
-계모임은 기존과 같이 status=01일 때만 신규 신청할 수 있다. 정원 미설정·정원 도달과 최대 5개 가입 제한을 동일하게 반영한다. 상세 URL은 groupId, 가입 신청 URL은 savingGroupId를 사용하므로 두 식별자를 혼용하지 않는다.
+계모임은 기존과 같이 status=01일 때만 신규 신청할 수 있다. 정원 미설정·정원 도달과 최대 5개 가입 제한을 동일하게 반영한다. 상세 URL과 가입 신청 URL은 savingGroupId를 사용한다.
 
 수동 확인: GET /api/saving-groups/{groupId}를 비로그인·가입·심사 대기·거절·추방·탈퇴·관계 없음으로 각각 조회한다. POST /api/saving-groups/{savingGroupId}/join-requests에서도 같은 제한이 유지되는지 확인한다.
 
@@ -776,7 +776,7 @@ HTTP 200, 기존 삭제 성공 형식인 `ApiResponse.ok()`를 사용한다.
 
 - `POST /api/saving-groups/{savingGroupId}/notices`
 - 기존 Controller 별칭인 `POST /saving-groups/{savingGroupId}/notices`도 지원한다.
-- `savingGroupId`는 양수 BIGINT인 계모임 식별자다. 상세 화면 URL의 공통 `groupId`와 구분한다.
+- `savingGroupId`는 양수 BIGINT인 계모임 식별자다. 상세 화면 URL도 같은 식별자를 사용한다.
 - `Authorization: Bearer <로그인 토큰>`, `Content-Type: application/json`을 사용한다. JWT 필터가 설정한 요청 속성 `memberId`만 작성자로 사용한다.
 
 | 요청 필드 | 타입 | 필수·검증 |
@@ -889,7 +889,7 @@ TODO·제외 범위:
 <!-- AI작성: 계모임 공지 요약에 소모임과 같은 작성자·작성일을 추가한 현재 응답 계약입니다. -->
 ## 계모임 최근 공지 작성자·작성일 표시 (2026-11-04)
 
-기존 계모임 상세 조회 `GET /api/saving-groups/{id}`의 `data.notices` 항목에 다음 두 필드를 추가했다. 여기서 상세 URL의 id는 공통 groupId이며 공지 작성 URL의 savingGroupId와 다르다. 초기의 공지 ID·제목 전용 응답을 확장한 것으로 기존 필드는 유지한다.
+기존 계모임 상세 조회 `GET /api/saving-groups/{id}`의 `data.notices` 항목에 다음 두 필드를 추가했다. 상세 URL과 공지 작성 URL은 savingGroupId를 사용한다. 초기의 공지 ID·제목 전용 응답을 확장한 것으로 기존 필드는 유지한다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
@@ -1024,7 +1024,7 @@ ID는 기존 Long 숫자 직렬화, 작성일은 LocalDateTime ISO 문자열이�
 
 `GET /saving-groups/{id}?noticePage=1&noticeSort=LATEST`
 
-`/api/saving-groups/{id}` 별칭도 동일하다. id는 saving_group_id가 아닌 공통 groups.group_id다. 별도 공지 목록 GET 경로는 추가하지 않았다.
+`/api/saving-groups/{id}` 별칭도 동일하다. id는 saving_group.saving_group_id다. 별도 공지 목록 GET 경로는 추가하지 않았다.
 
 | 항목 | 규칙 |
 | --- | --- |

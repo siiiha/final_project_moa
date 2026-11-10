@@ -173,12 +173,12 @@ function SavingGroupDetailPage() {
     if (!canReadAccount) return undefined;
     const controller = new AbortController();
     let active = true;
-    getSavingGroupAccount(id, { signal: controller.signal })
+    getSavingGroupAccount(visibleGroup.groupId, { signal: controller.signal })
       .then((data) => { if (active) setAccountResult({ id, authVersion, accountRetry, status: 'success', data }); })
       .catch((error) => { if (active && error.code !== 'ERR_CANCELED')
         setAccountResult({ id, authVersion, accountRetry, status: 'error', message: error.message }); });
     return () => { active = false; controller.abort(); };
-  }, [id, authVersion, accountRetry, canReadAccount]);
+  }, [id, authVersion, accountRetry, canReadAccount, visibleGroup?.groupId]);
   const currentAccount = canReadAccount && accountResult?.id === id && accountResult?.authVersion === authVersion
     && accountResult?.accountRetry === accountRetry ? accountResult : null;
   // AI작성: 등록 후 조회만 갱신해 실패 시 폼 상태를 보존하고 모임·계정 변경 뒤 이전 응답은 반영하지 않는다.
@@ -219,7 +219,7 @@ function SavingGroupDetailPage() {
     setPinState({ id, authVersion, phase: 'pending' });
     let changed = false;
     try {
-      await updateSavingGroupNoticePinned(id, noticeId, pinned);
+      await updateSavingGroupNoticePinned(visibleGroup.groupId, noticeId, pinned);
       changed = true;
       if (!scope.active) return;
       const refreshed = await handleNoticeRefresh();

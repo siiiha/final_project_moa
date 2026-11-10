@@ -110,11 +110,11 @@ class SavingGroupNoticePinServiceTest {
     }
 
     @Test void returnsPinnedNoticesEvenWhenNormalPageIsEmpty() {
-        var row = new SavingGroupRow(); row.setGroupId(20L); row.setStatus("01");
-        when(mapper.selectSavingGroupDetail(20L)).thenReturn(row);
+        var row = new SavingGroupRow(); row.setGroupId(20L); row.setSavingGroupId(10L); row.setStatus("01");
+        when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(row);
         var pinned = new SavingGroupNoticeSummaryResponse(40L, "고정 공지", "작성자", null);
         when(mapper.selectSavingGroupPinnedNotices(20L)).thenReturn(List.of(pinned));
-        var result = service.getSavingGroupDetail(20L, null, new SavingGroupNoticeSearchCondition());
+        var result = service.getSavingGroupDetail(10L, null, new SavingGroupNoticeSearchCondition());
         assertThat(result.getDetail().getPinnedNotices()).containsExactly(pinned);
         assertThat(result.getDetail().getNotices()).isEmpty();
         assertThat(result.getPageMeta().getTotal()).isZero();

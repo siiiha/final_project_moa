@@ -330,7 +330,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         <NoticeRow role="row" $pinned={pinned} $withPin={canPinNotice} key={notice.noticeId}>
           <span role="cell">
             {pinned && <PinnedNoticeBadge>고정</PinnedNoticeBadge>}{' '}
-            {canReadNotice ? <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
+            {canReadNotice ? <NoticeLink to={`/saving-groups/${group.savingGroupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
               {notice.title}</NoticeLink> : notice.title}
           </span>
           <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
@@ -388,7 +388,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           activeMenu={currentMenu}
           onMenuChange={onMenuChange}
           allowedMenus={allowedMenus}
-          settingsPath={`/saving-groups/${group.groupId}/settings`}
+          settingsPath={`/saving-groups/${group.savingGroupId}/settings`}
         />
       </HeaderCard>
 
