@@ -212,14 +212,14 @@ async function payoutCall(operation) {
   }
 }
 
-export async function getSavingGroupPayoutOptions(groupId, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupPayoutOptions(savingGroupId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   return payoutCall(() => client.get(`/saving-groups/${id}/payout-requests/options`, { signal }));
 }
 
 // AI작성: 순번계는 빈 폼을 보내고 친목계만 금액·제목·영수증을 전달한다. multipart 경계는 브라우저가 생성한다.
-export async function createSavingGroupPayout(groupId, { amount, title, receipt } = {}, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function createSavingGroupPayout(savingGroupId, { amount, title, receipt } = {}, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const body = new FormData();
   if (amount != null) body.append('amount', String(amount));
   if (title != null) body.append('title', title);

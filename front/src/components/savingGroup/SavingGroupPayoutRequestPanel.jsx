@@ -26,12 +26,12 @@ const Panel = styled.section`
 `;
 
 // AI작성: 모임·로그인 세션 변경 시 입력·요청 상태를 새로 만들고 이전 계정 결과를 표시하지 않는다.
-function SavingGroupPayoutRequestPanel({ groupId }) {
+function SavingGroupPayoutRequestPanel({ savingGroupId }) {
   const authVersion = useAuthStore((state) => state.authVersion);
-  return <PayoutForm key={`${groupId}:${authVersion}`} groupId={groupId} />;
+  return <PayoutForm key={`${savingGroupId}:${authVersion}`} savingGroupId={savingGroupId} />;
 }
 
-function PayoutForm({ groupId }) {
+function PayoutForm({ savingGroupId }) {
   const fieldId = useId();
   const lock = useRef(false);
   const alive = useRef(false);
@@ -52,7 +52,7 @@ function PayoutForm({ groupId }) {
   useEffect(() => {
     const controller = new AbortController();
     let current = true;
-    getSavingGroupPayoutOptions(groupId, { signal: controller.signal }).then((value) => {
+    getSavingGroupPayoutOptions(savingGroupId, { signal: controller.signal }).then((value) => {
       if (!current) return;
       if (!['순번계', '친목계'].includes(value?.groupType)
           || (value.groupType === '순번계' && (value.amount == null || value.roundNumber == null))) {
@@ -64,7 +64,7 @@ function PayoutForm({ groupId }) {
       setError(failure.message); setPhase('blocked');
     });
     return () => { current = false; controller.abort(); };
-  }, [groupId, revision]);
+  }, [savingGroupId, revision]);
 
   const isRotation = options?.groupType === '순번계';
   const formattedAmount = options?.amount == null ? '' : `${Number(options.amount).toLocaleString('ko-KR')}원`;
@@ -79,7 +79,7 @@ function PayoutForm({ groupId }) {
     lock.current = true; setPhase('submitting'); setError('');
     const controller = new AbortController(); submitController.current = controller;
     try {
-      await createSavingGroupPayout(groupId, isRotation ? {} : { amount, title: title.trim(), receipt }, { signal: controller.signal });
+      await createSavingGroupPayout(savingGroupId, isRotation ? {} : { amount, title: title.trim(), receipt }, { signal: controller.signal });
       if (alive.current) { setPhase('success'); setReceipt(null); }
     } catch (failure) {
       if (!alive.current || failure.code === 'ERR_CANCELED') return;

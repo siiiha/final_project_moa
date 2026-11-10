@@ -1641,13 +1641,13 @@ Java 경로는 `back/src/main/java/com/nightstudy/moa/savingGroup/`, 테스트 �
 
 <!-- AI작성: 실제 금융 호출 없이 내부 요청과 증빙만 저장한다. DB 담당자의 신규 컬럼 적용이 선행되어야 한다. -->
 
-기본 경로 `/saving-groups`와 `/api/saving-groups`는 동일하다. `{groupId}`는 `groups.group_id`다. 인증 사용자 ID는 JWT 속성에서만 사용한다.
+기본 경로 `/saving-groups`와 `/api/saving-groups`는 동일하다. `{savingGroupId}`는 `saving_group.saving_group_id`다. 인증 사용자 ID는 JWT 속성에서만 사용한다.
 
 | 메서드·경로 | 입력 | 결과 |
 |---|---|---|
-| GET `/{groupId}/payout-requests/options` | 없음 | 현재 사용자의 유형·현재 회차·확정 금액·증빙 필요 여부 |
-| POST `/{groupId}/payout-requests` | multipart/form-data | 요청 ID·유형·금액·PENDING |
-| GET `/{groupId}/payout-requests/expenses/{expenseId}/receipt` | 없음, OWNER 전용 | 증빙 파일 다운로드, no-store |
+| GET `/{savingGroupId}/payout-requests/options` | 없음 | 현재 사용자의 유형·현재 회차·확정 금액·증빙 필요 여부 |
+| POST `/{savingGroupId}/payout-requests` | multipart/form-data | 요청 ID·유형·금액·PENDING |
+| GET `/{savingGroupId}/payout-requests/expenses/{expenseId}/receipt` | 없음, OWNER 전용 | 증빙 파일 다운로드, no-store |
 
 POST는 순번계의 경우 빈 multipart를 보내고, 친목계는 `amount`(1원 이상·13자리 이하 정수), `title`(공백 제외 필수·최대 100자), `receipt`(JPG/PNG·5MB 이하·각 변 4096픽셀 이하)를 보낸다. 사용자·상태·계좌·이체 정보는 입력하지 않는다. 순번계 금액·제목·증빙 입력은 거절한다.
 
@@ -1782,7 +1782,7 @@ Postman에서 테스트 계정의 기존 인증을 사용해 순번계·친목�
 
 <!-- AI작성: 계원 관리·계금 요청 등록·목록 조회를 모두 보존하여 충돌을 해결했다. -->
 
-- 등록 POST 및 options·영수증 GET은 기존 공통 groupId 계약을 유지한다. 목록 GET의 경로 ID는 savingGroupId다. 프론트는 각각 group.groupId / group.savingGroupId를 전달한다. HTTP 메서드와 하위 경로가 달라 별도의 핸들러로 유지한다.
+- 등록 POST와 options·영수증·목록 GET은 savingGroupId를 사용한다. HTTP 메서드와 하위 경로가 달라 별도의 핸들러로 유지한다.
 - 기준 브랜치의 계금 산정·지출 검토 컬럼을 유지한다. 목록 응답은 사용자 확정 범위대로 유지하며 새 컬럼을 자동 노출하지 않는다.
 - 충돌 해결 후 프론트 테스트 121건·빌드 통과. 백엔드 계모임 회귀 581건 중 566 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 계원 관리 및 계금 등록·목록 테스트에는 실패 없음. 일반 전체 테스트 컴파일의 기존 import 오류 13건·실제 DB/브라우저 미검증은 AI 사용 기록에 별도 기재했다.
 
@@ -1884,7 +1884,7 @@ back 폴더에서 `gradlew.bat -I <임시-init-절대경로> test --tests '*Savi
 
 <!-- AI작성: 위 개별 브랜치 작업 당시의 미검증 사항과 구분하여 현재 병합 검증 결과를 기록한다. -->
 
-- feature/savinggroup(9dbd9ae)에 승인·거절 작업(86a3d6b)을 병합하면서 계원관리·요청 등록·목록·승인·거절 API와 SQL을 모두 보존했다. 등록/options/영수증은 groupId, 목록과 승인·거절은 savingGroupId 계약을 유지한다. 승인·거절의 requestId는 해당 유형의 목록 응답 request_id와 같다.
+- feature/savinggroup(9dbd9ae)에 승인·거절 작업(86a3d6b)을 병합하면서 계원관리·요청 등록·목록·승인·거절 API와 SQL을 모두 보존했다. 등록·옵션·증빙·목록·승인·거절은 savingGroupId를 사용한다. 승인·거절의 requestId는 해당 유형의 목록 응답 request_id와 같다.
 - 기준 schema.sql에 expenses.reviewer_id/reviewed_at/reject_reason이 반영되어 있음을 확인했다. 위 심사 브랜치 작성 당시의 컬럼 적용 대기 기록은 이 스키마 정의 확인으로 보완되지만, 운영·개발 DB에 실제 적용됐는지는 별도 확인이 필요하다.
 - 이번에는 설치된 JDK 17 경로를 명시하여 본문·테스트를 컴파일했다. 계모임 회귀 649건 중 634 통과·13 생략·기존 삭제 신청 테스트 2건 실패. 신규 승인·거절 내부 테스트 68건은 전부 통과했다. 기존 두 실패는 승인 OWNER 관계 Mock 누락이며 이전 병합 기록과 동일하다.
 - 실제 MySQL 저장·동시 잠금·브라우저·Postman 검증은 실행하지 않았다. 계주 전용 영수증 조회는 기존 등록 작업의 구현을 보존했으며 이번에 API를 새로 만들거나 프론트 승인 버튼을 연결하지 않았다. 커밋은 사용자 진행 예정이다.

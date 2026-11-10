@@ -21,28 +21,28 @@ public class SavingGroupPayoutController {
     private final SavingGroupPayoutService service;
     public SavingGroupPayoutController(SavingGroupPayoutService service) { this.service = service; }
 
-    @GetMapping("/{groupId}/payout-requests/options")
+    @GetMapping("/{savingGroupId}/payout-requests/options")
     public ResponseEntity<ApiResponse<SavingGroupPayoutResponse>> options(
-            @PathVariable("groupId") @Positive Long groupId,
+            @PathVariable("savingGroupId") @Positive Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.ok(service.getPayoutOptions(groupId, memberId)));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.ok(service.getPayoutOptions(savingGroupId, memberId)));
     }
     // AI작성: 순번계는 빈 multipart, 친목계는 amount·title·receipt만 받는다. 계좌·거래 정보는 받지 않는다.
-    @PostMapping(value = "/{groupId}/payout-requests", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/{savingGroupId}/payout-requests", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<SavingGroupPayoutResponse> create(
-            @PathVariable("groupId") @Positive Long groupId,
+            @PathVariable("savingGroupId") @Positive Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @Valid @ModelAttribute SavingGroupPayoutRequest request,
             @RequestParam(name = "receipt", required = false) MultipartFile receipt) {
-        return ApiResponse.ok(service.createPayout(groupId, memberId, request, receipt));
+        return ApiResponse.ok(service.createPayout(savingGroupId, memberId, request, receipt));
     }
     // AI작성: 공개 파일 경로를 노출하지 않고 OWNER만 원본을 내려받도록 Service에서 검증한다.
-    @GetMapping("/{groupId}/payout-requests/expenses/{expenseId}/receipt")
+    @GetMapping("/{savingGroupId}/payout-requests/expenses/{expenseId}/receipt")
     public ResponseEntity<Resource> receipt(
-            @PathVariable("groupId") @Positive Long groupId,
+            @PathVariable("savingGroupId") @Positive Long savingGroupId,
             @PathVariable("expenseId") @Positive Long expenseId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        Resource resource = service.getReceipt(groupId, expenseId, memberId);
+        Resource resource = service.getReceipt(savingGroupId, expenseId, memberId);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"receipt" + (resource.getFilename().endsWith(".png") ? ".png" : ".jpg") + "\"")
                 .header("X-Content-Type-Options", "nosniff")

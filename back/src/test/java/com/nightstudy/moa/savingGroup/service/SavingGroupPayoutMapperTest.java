@@ -18,8 +18,8 @@ class SavingGroupPayoutMapperTest {
         }
         String prefix = "com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper.";
         var parameters = Map.of("groupId", 1L, "roundId", 2L, "hash", "a".repeat(64));
-        assertThat(config.getMappedStatement(prefix + "selectPayoutTargetForUpdate").getBoundSql(parameters).getSql())
-                .contains("deleted_at IS NULL FOR UPDATE");
+        assertThat(config.getMappedStatement(prefix + "selectPayoutTargetForUpdate").getBoundSql(Map.of("savingGroupId", 11L)).getSql())
+                .contains("sg.saving_group_id = ?", "deleted_at IS NULL FOR UPDATE");
         assertThat(config.getMappedStatement(prefix + "existsBlockingRoundPayout").getBoundSql(parameters).getSql())
                 .contains("round_id = ?", "'PENDING', 'APPROVED', 'COMPLETED'").doesNotContain("'REJECTED'");
         assertThat(config.getMappedStatement(prefix + "existsBlockingReceiptExpense").getBoundSql(parameters).getSql())

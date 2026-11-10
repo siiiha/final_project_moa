@@ -76,7 +76,7 @@ public interface SavingGroupMapper {
     List<SavingGroupMemberResponse> selectSavingGroupMembers(
             @Param("groupId") Long groupId, @Param("keywordPattern") String keywordPattern, @Param("offset") int offset);
     // AI작성: 모임 잠금으로 같은 모임의 중복 검사와 저장을 직렬화한다. DB 컬럼 적용 후 사용한다.
-    SavingGroupPayoutTargetRow selectPayoutTargetForUpdate(@Param("groupId") Long groupId);
+    SavingGroupPayoutTargetRow selectPayoutTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
     // AI작성: 지급 요청을 실제 심사할 수 있는 승인 계주의 회원 번호만 조회한다.
     List<Long> selectSavingGroupPayoutReviewerIds(@Param("groupId") Long groupId);
     Integer selectPayoutSequence(@Param("groupId") Long groupId, @Param("memberId") Long memberId);

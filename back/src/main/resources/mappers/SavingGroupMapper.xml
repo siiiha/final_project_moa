@@ -236,7 +236,7 @@
     <select id="selectPayoutTargetForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupPayoutTargetRow">
         SELECT g.group_id, sg.saving_group_type AS group_type, sg.status, sg.start_date
         FROM `groups` g JOIN saving_group sg ON sg.group_id = g.group_id
-        WHERE g.group_id = #{groupId} AND g.deleted_at IS NULL FOR UPDATE
+        WHERE sg.saving_group_id = #{savingGroupId} AND g.deleted_at IS NULL FOR UPDATE
     </select>
     <!-- AI작성: 현재 심사 권한과 동일하게 승인 상태인 계주의 회원 번호만 알림 대상으로 조회한다. -->
     <select id="selectSavingGroupPayoutReviewerIds" resultType="long">
