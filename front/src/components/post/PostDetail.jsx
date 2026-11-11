@@ -237,6 +237,19 @@ const CommentSubmitButton = styled(Button)`
   width: 76px;
   min-width: 76px;
   align-self: stretch;
+
+  /* AI작성: 로그인 안내용 등록 버튼은 회색으로 보이지만 클릭하면 로그인 화면으로 이동합니다. */
+  ${({ $loginRequired, theme }) => $loginRequired && `
+    color: ${theme.colors.muted};
+    background: ${theme.colors.background};
+    border-color: ${theme.colors.border};
+    cursor: pointer;
+
+    &:hover {
+      background: ${theme.colors.border};
+      border-color: ${theme.colors.border};
+    }
+  `}
 `;
 
 const CommentEditForm = styled.form`
@@ -529,7 +542,12 @@ function PostDetail({
             disabled={!memberId}
             placeholder={memberId ? '댓글은 ctrl+enter로 등록이 가능합니다.' : '댓글 작성하려면 로그인이 필요합니다.'}
           />
-          <CommentSubmitButton type="submit" $size="small" disabled={!memberId || isSubmittingComment}>
+          <CommentSubmitButton
+            type="submit"
+            $size="small"
+            $loginRequired={!memberId}
+            disabled={isSubmittingComment}
+          >
             {isSubmittingComment ? '등록 중...' : '등록'}
           </CommentSubmitButton>
         </CommentForm>
