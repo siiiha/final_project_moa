@@ -78,6 +78,16 @@ class SavingGroupChatServiceTest {
     }
 
     @Test
+    void rollingWindowStillDetectsFloodJustBeforeTenSeconds() {
+        sendFive();
+        when(clock.instant()).thenReturn(start.plusMillis(9999));
+        blocked();
+        var room = service.findRoom(20, 30L);
+        assertThat(room.restrictedUntil()).isEqualTo(start.plusMillis(189999));
+        verify(chat, times(5)).insert(any());
+    }
+
+    @Test
     void otherMembersAndRoomsRemainIndependent() {
         sendFive();
         blocked();
