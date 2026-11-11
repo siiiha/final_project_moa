@@ -15,19 +15,14 @@ const Image = styled.img`
 
 // AI작성: 사진 조회 진행 상태와 실패 안내를 표시합니다.
 const ImageStatus = styled.span`
-  padding: 12px;
-  color: ${({ theme }) => theme.colors.secondaryText};
+  padding: 6px;
   font-size: 12px;
   line-height: 1.5;
   text-align: center;
   word-break: keep-all;
-
-  &[role='alert'] {
-    color: ${({ theme }) => theme.colors.danger};
-  }
 `;
 
-function ProfileImage({ imageUrl, size = 38, status = '' }) {
+function ProfileImage({ imageUrl, size = 38 }) {
   const token = useAuthStore((state) => state.token);
   const [image, setImage] = useState(null);
 
@@ -70,17 +65,6 @@ function ProfileImage({ imageUrl, size = 38, status = '' }) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [token, imageUrl]);
-
-  // AI작성: 사진 업로드와 조회에 동일한 상태 안내를 사용합니다.
-  if (status === 'uploading' || status === 'error') {
-    return (
-      <ImageStatus role={status === 'error' ? 'alert' : 'status'}>
-        {status === 'uploading'
-          ? '사진을 준비하고 있어요'
-          : '사진을 변경하지 못했어요'}
-      </ImageStatus>
-    );
-  }
 
   if (!token || !imageUrl) {
     return (

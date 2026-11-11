@@ -685,13 +685,11 @@ function VerificationPage() {
         setLocationError('');
       }
 
-      // AI작성: 활동 지역이 변경된 경우에만 저장 결과를 안내합니다.
       setVerificationMessage(
         regionChanged
-          ? '활동 지역을 변경했어요. 선택한 지역에서 현재 위치를 확인해 주세요.'
-          : '',
+          ? '활동 지역을 변경했습니다. 선택한 지역에서 위치 인증을 진행해주세요.'
+          : '기존 활동 지역을 유지했습니다.',
       );
-      
     } catch (error) {
       if (!isCurrentLogin()) return;
 
@@ -911,39 +909,10 @@ function VerificationPage() {
                   </RegionActions>
                 )}
 
-                <RegionMap
-                  latitude={position?.latitude}
-                  longitude={position?.longitude}
-                />
-
-                {/* AI작성: 현재 진행 상황에 맞는 안내 하나만 표시합니다. */}
-                <RegionNotice
-                  $tone={
-                    verificationError
-                      ? 'error'
-                      : locationError
-                        ? 'warning'
-                        : undefined
-                  }
-                  role={
-                    verificationError || locationError
-                      ? 'alert'
-                      : 'status'
-                  }
-                >
-                  {isLocating ? (
-                    '현재 위치를 확인하고 있어요. 잠시만 기다려 주세요.'
-                  ) : isVerifying ? (
-                    '선택한 활동 지역과 현재 위치를 확인하고 있어요.'
-                  ) : verificationError ? (
-                    verificationError
-                  ) : locationError ? (
-                    locationError
-                  ) : verificationMessage ? (
-                    verificationMessage
-                  ) : profile.regionVerified ? (
+                <RegionNotice>
+                  {profile.regionVerified ? (
                     <>
-                      활동 지역 인증이 완료됐어요.
+                      가입한 활동 지역의 인증이 완료되어 있습니다.
                       {profile.regionVerifiedAt && (
                         <>
                           <br />
@@ -955,19 +924,58 @@ function VerificationPage() {
                         </>
                       )}
                     </>
-                  ) : position ? (
-                    <>
-                      현재 위치를 확인했어요.
-                      <br />
-                      예상 오차 반경: 약{' '}
-                      {Math.ceil(position.accuracy).toLocaleString()}m
-                      <br />
-                      ‘이 위치로 인증하기’를 눌러 인증을 진행해 주세요.
-                    </>
                   ) : (
-                    '‘현재 위치 확인’을 누르면 지역 인증을 시작할 수 있어요.'
+                    '가입한 활동 지역에서 현재 위치를 확인해주세요. 예상 오차 반경이 500m 이하일 때 인증할 수 있습니다.'
                   )}
                 </RegionNotice>
+
+                <RegionMap
+                  latitude={position?.latitude}
+                  longitude={position?.longitude}
+                />
+
+                {locationError ? (
+                  <RegionNotice $tone="warning" role="alert">
+                    {locationError}
+                    {position && (
+                      <>
+                        <br />
+                        예상 오차 반경: 약{' '}
+                        {Math.ceil(position.accuracy).toLocaleString()}m
+                      </>
+                    )}
+                  </RegionNotice>
+                ) : position ? (
+                  <RegionNotice role="status">
+                    위치를 확인했습니다.
+                    <br />
+                    예상 오차 반경: 약{' '}
+                    {Math.ceil(position.accuracy).toLocaleString()}m
+                    {!profile.regionVerified && (
+                      <>
+                        <br />
+                        ‘이 위치로 인증하기’를 누르면 활동 지역과 일치하는지 확인합니다.
+                      </>
+                    )}
+                  </RegionNotice>
+                ) : (
+                  <RegionNotice>
+                    {isLocating
+                      ? '현재 위치를 확인하고 있습니다. 잠시만 기다려주세요.'
+                      : '아래 ‘현재 위치 확인’ 버튼을 눌러 시작해주세요.'}
+                  </RegionNotice>
+                )}
+
+                {verificationError && (
+                  <RegionNotice $tone="error" role="alert">
+                    {verificationError}
+                  </RegionNotice>
+                )}
+                {verificationMessage && (
+                  <RegionNotice role="status">
+                    {verificationMessage}
+                  </RegionNotice>
+                )}
 
                 <RegionActions>
                   <Button

@@ -39,15 +39,6 @@ const Grid = styled.div`
     grid-template-columns: 1fr;
   }
 `;
-
-// AI작성: 비밀번호 확인과 계정 조회 오류를 빨간색으로 안내합니다.
-const ErrorMessage = styled.p`
-  margin: 8px 0 0;
-  color: ${({ theme }) => theme.colors.danger};
-  font-size: 13px;
-  line-height: 1.5;
-`;
-
 function EditProfilePage() {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
@@ -58,7 +49,7 @@ function EditProfilePage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [accountProfile, setAccountProfile] = useState(null);
-
+  
   useEffect(() => {
     if (!token) {
       navigate('/member/login', { replace: true });
@@ -129,7 +120,7 @@ function EditProfilePage() {
         />
         <main>
           {access === 'loading' && <p role="status">계정 정보를 확인하고 있습니다.</p>}
-          {access === 'error' && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
+          {access === 'error' && <p role="alert">{errorMessage}</p>}
           {access === 'allowed' && accountProfile && (
             <EditProfileForm
               key={token}
@@ -170,7 +161,7 @@ function EditProfilePage() {
             disabled={isVerifying}
             autoFocus
           />
-          {errorMessage && <ErrorMessage role="alert">{errorMessage}</ErrorMessage>}
+          {errorMessage && <p role="alert">{errorMessage}</p>}
         </ConfirmModal>
       )}
     </Page>
