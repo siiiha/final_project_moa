@@ -337,12 +337,12 @@
     <!-- AI작성: 신청자 이름 원문·회원 ID·연락처를 조회하지 않으며 crew_member_id는 JavaScript 정밀도 손실 방지를 위해 문자열로 반환한다. -->
     <select id="selectSmallGroupJoinRequests"
             resultType="com.nightstudy.moa.smallGroup.dto.SmallGroupJoinRequestRow">
+        <!-- AI작성: 소모임 신청자 표시는 닉네임으로 한정하며 실명은 조회하지 않는다. -->
         SELECT CAST(gm.crew_member_id AS CHAR) AS crew_member_id,
-               CONCAT(LEFT(m.name, 1), REPEAT('*', GREATEST(CHAR_LENGTH(m.name) - 1, 1))) AS applicant,
+               m.nickname AS applicant,
                r.region_name,
                (m.identity_verified_at IS NOT NULL) AS identity_verified,
                (m.region_verified_at IS NOT NULL) AS region_verified,
-               gm.application_message,
                gm.membership_status
         <include refid="smallGroupJoinRequestFromWhere"/>
         ORDER BY gm.requested_at DESC, gm.crew_member_id DESC

@@ -1485,6 +1485,60 @@
 - 검증: 프론트 빌드와 git diff --check를 실행했다. 브라우저의 목록 복귀와 묶음 경계 동작은 별도 확인이 필요하다.
 
 
+<!-- AI작성: 신청자 정보 표시 수정의 합의·변경 범위·검증 결과를 기록한다. -->
+## 2026-11-11 신청 목록의 신청자 정보 표시 수정
+
+- 목적: 계모임 신청 목록에 이름 원문과 닉네임을 표시하고, 소모임 신청 목록에는 닉네임만 표시하여 API와 화면 정보를 일치시킨다.
+- 사용자 확인: 계모임 이름 원문 공개 및 소모임 닉네임만 표시를 승인했다. 기존 개인정보 마스킹 규칙의 이번 예외는 계모임 신청자 이름에 한정한다.
+- AI 제안·작성: 계모임 DTO에 nickname을 추가하고 목록 SQL에서 이름 원문·닉네임을 조회한다. 소모임 SQL의 applicant는 닉네임으로 변경하여 실명을 조회하지 않는다. 기존 API 필드명·경로는 유지한다. API 변환 및 PC·모바일 표시, 누락 닉네임 안내, 테스트와 API 명세를 갱신했다.
+- 권한 확인: 계모임은 groups 소유자와 승인된 OWNER 관계를 함께 검증하고, 소모임은 groups 생성자와 승인된 OWNER 관계를 함께 검증한다. 관리자·회계·일반회원의 조회 권한은 추가하지 않았다. 연락처·생년월일·계좌 정보는 추가 반환하지 않는다.
+- 작업 브랜치: 현재 체크아웃된 fix/application-member-display에서 작업했다(최초 요청의 displays와 철자 차이 있음).
+- 변경 파일: SavingGroupJoinRequestRow.java, SmallGroupJoinRequestRow.java, SavingGroupMapper.xml, SmallGroupMapper.xml, savingGroups.js/test.js, smallGroups.js/test.js, SavingGroupJoinRequestList.jsx, SmallGroupJoinRequestList.jsx, SmallGroupJoinRequestControllerTest.java, SmallGroupServiceImplTest.java, docs/saving-groups-api.md, docs/small-group-public-detail-api.md, 본 기록 수정. SavingGroupJoinRequestList.test.js 추가. 삭제 없음.
+- 검증: 프론트 API 테스트 및 실제 JSX SSR 테스트 112개 통과. npm run build 통과(큰 번들 경고 있음). 두 Mapper XML 파싱 및 git diff --check 통과.
+- 백엔드 검증 한계: SmallGroupJoinRequestControllerTest·SmallGroupServiceImplTest·SmallGroupSecurityIntegrationTest 실행을 시도했으나 Java 17 도구 체인을 찾지 못해 테스트 시작 전 실패했다. 실제 MySQL·JWT·브라우저 수동 검증은 미실시다.
+- 개발자 검토·수정: 공개 범위는 사용자 확인 완료. 코드 검토와 실제 환경 동작 확인은 아직 필요하다.
+- 수동 검증: 각 모임의 승인된 OWNER로 신청 목록 GET 응답과 PC·모바일을 비교한다. 계모임은 이름 원문·닉네임, 소모임은 applicant의 닉네임과 실명 미포함을 확인한다. 비로그인 401, 비OWNER 403, 필터·페이지·빈 결과·닉네임 누락·승인·거절 후 재조회를 확인한다.
+
+
+<!-- AI작성: 사용자 후속 요청에 따른 계모임 신청 목록 표시 변경을 기록한다. -->
+### 2026-11-11 후속 수정: 이메일 원문 표시와 신청 메시지 제거
+
+- 사용자 확인: 계모임 신청 목록에 이메일 전체를 마스킹 없이 표시하고, 신청자 이름 앞에 이름: 레이블을 추가한다. 신청 메시지 대신 이메일을 표시하며 표 순서는 체크표시·신청자·이메일·지역·상태·처리다.
+- AI 작성: SavingGroupJoinRequestRow.java에 email 추가 및 applicationMessage 제거, SavingGroupMapper.xml에서 이메일 원문 조회 및 신청 메시지 조회 제거, savingGroups.js에서 이메일 전달 및 메시지 매핑 제거, SavingGroupJoinRequestList.jsx의 PC·모바일 표시와 긴 이메일 줄바꿈을 수정했다. API·SSR 테스트와 docs/saving-groups-api.md 및 본 기록을 갱신했다. 이번 후속 작업은 기존 파일 8개 수정이며 추가·삭제 파일은 없다.
+- 공개 범위: 해당 모임의 승인된 계주만 조회하는 기존 권한을 유지한다. 이번 원문 이메일 공개 합의는 계모임 신청 목록에 적용한다. 닉네임은 저장값 그대로 표시하며 실제 인증 상태 배지를 유지한다.
+- 검증: 관련 프론트 API·SSR 테스트 112개 통과, 프론트 빌드 통과(큰 번들 경고 있음). Mapper XML 파싱 및 diff 공백 검사 통과. Java 17 부재로 백엔드 테스트와 실제 DB·JWT·브라우저 검증은 미실시다.
+- 개발자 검토·수정: 사용자 표시·공개 기준 확인 완료. 코드 검토와 실환경 확인은 필요하다. 브라우저에서 승인된 계주로 PC·모바일의 열 순서·이름 레이블·닉네임·인증 배지·이메일 전체·메시지 미노출을 확인하고, Postman에서 목록의 email 원문 및 applicationMessage 미포함과 비OWNER 접근 차단을 확인한다.
+
+
+<!-- AI작성: 표 제목과 내용 정렬 보정을 기록한다. -->
+### 2026-11-11 계모임 신청 목록 열 정렬 보정
+- 목적·AI 작성: SavingGroupJoinRequestList.jsx에서 신청자·이메일·지역의 th와 td에 동일한 왼쪽 정렬을 적용하고, 상태 열의 왼쪽 정렬을 제거하여 체크박스·상태·처리는 가운데 정렬로 통일했다.
+- 검증: 기존 신청 목록 SSR 테스트 통과, diff 공백 검사 통과. 브라우저 시각 검증은 미실시이며 PC 신청 목록에서 제목과 내용의 시작점 및 상태 배지 중앙 배치를 확인한다.
+- 개발자 검토·수정: 검토 대기.
+
+
+<!-- AI작성: 신청 목록 열 너비 조정을 기록한다. -->
+### 2026-11-11 계모임 신청 목록 지역 열 확대
+- 사용자 요청·AI 작성: SavingGroupJoinRequestList.jsx의 지역 열을 12%에서 20%로 넓히고 처리 열을 21%에서 13%로 줄였다. 나머지 열 너비는 유지했다.
+- 검증: 열 너비 합계 100%, diff 공백 검사 통과. 브라우저에서는 긴 지역명과 승인·거절 버튼 배치를 확인해야 한다.
+- 개발자 검토·수정: 검토 대기.
+
+
+<!-- AI작성: 소모임 가입 신청 목록의 표시·선택 기능 정리를 기록한다. -->
+### 2026-11-11 소모임 신청 목록 메시지 제거·인증 상태·선택 칸 반영
+- 사용자 요청: 소모임도 신청 메시지 제거, 계모임과 같은 열 정렬·간격 처리, 닉네임 아래 인증 상태, 맨 왼쪽 체크 칸을 적용한다.
+- AI 작성: SmallGroupJoinRequestRow.java 및 SmallGroupMapper.xml에서 신청 메시지 반환·조회를 제거했다. smallGroups.js에 실제 본인·지역 인증 여부의 네 가지 배지를 매핑하고 메시지 매핑을 제거했다. SmallGroupJoinRequestList.jsx에 공통 Checkbox와 인증 배지를 재사용하고 PC·모바일 모두 반영했다. 제목·내용을 닉네임·지역은 왼쪽, 체크·상태·처리는 가운데 정렬했다. 열 너비는 체크 7%·닉네임 30%·지역 33%·상태 15%·처리 15%다.
+- 선택 동작: 현재 페이지의 대기 신청만 개별·전체 선택하며 재조회 결과가 바뀌면 선택을 초기화한다. 로딩·오류·처리 중에는 선택을 차단한다. 선택 승인 버튼은 일괄 승인 API가 연결되지 않은 기존 비활성 상태를 유지한다. 기존 조회 권한과 실명·이메일 비공개 범위는 유지했다.
+- 파일: 위 DTO·Mapper·API·화면, SmallGroupJoinRequestControllerTest.java, SmallGroupServiceImplTest.java, smallGroups.test.js, SavingGroupJoinRequestList.test.js, docs/small-group-public-detail-api.md 및 본 기록의 기존 파일 총 10개 수정. 추가·삭제 없음.
+- 검증: 프론트 API·SSR 113개 테스트 통과(인증 네 가지 상태·닉네임 누락·메시지 미노출·PC/모바일 체크 칸·완료 신청 선택 차단 포함), npm run build 통과(기존 큰 번들 경고), XML 파싱·diff 공백 검사 통과. Java 17 부재로 백엔드 테스트는 미실행. 브라우저 시각·클릭 및 실제 MySQL·JWT 검증은 미실시.
+- 개발자 검토·수정: 검토 대기. 브라우저에서 OWNER로 긴 지역의 정렬, PC·모바일 인증 배지, 대기 신청 개별·전체 선택 및 재조회 초기화, 승인·거절 후 선택 상태를 확인한다. Postman에서 메시지 미포함과 기존 비OWNER 접근 차단을 확인한다.
+
+
+<!-- AI작성: 소모임 닉네임 레이블 제거를 기록한다. -->
+### 2026-11-11 소모임 신청자 닉네임 값만 표시
+- 사용자 요청·AI 작성: SmallGroupJoinRequestList.jsx의 PC·모바일에서 닉네임: 접두어를 제거하고 값과 인증 배지를 유지했다. SavingGroupJoinRequestList.test.js의 표시 기대값을 갱신했다.
+- 검증: 기존 SSR 테스트 통과, diff 공백 검사 통과. 브라우저 시각 검증은 미실시다.
+- 개발자 검토·수정: 검토 대기.
 ## 2026-11-11 계모임 폼 입력 보완
 - 목적: 개설·수정 소개글 크기 고정 및 소모임과 동일한 정원 입력 처리.
 - AI 제안·작성: 142px 고정 높이, 내부 스크롤, 정원 number/min/max/step, 범위 보정과 제출 검증.
