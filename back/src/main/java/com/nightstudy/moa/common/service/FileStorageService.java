@@ -13,6 +13,18 @@ public class FileStorageService {
     private static final Path GROUP_IMAGE_DIRECTORY =
             Paths.get("C:/uploads/groups");
 
+    // AI작성: DB에 연결된 UUID 이미지 파일만 제공하고 경로 이탈을 차단한다.
+    public static org.springframework.core.io.Resource loadGroupImage(String storedPath) {
+        if (storedPath == null || !storedPath.matches("/uploads/groups/[0-9a-fA-F-]{36}\\.(?i:jpg|jpeg|png|webp)")) {
+            throw new com.nightstudy.moa.common.exception.ApiException(org.springframework.http.HttpStatus.NOT_FOUND, "GROUP_IMAGE_NOT_FOUND", "이미지를 찾을 수 없습니다.");
+        }
+        Path directory = GROUP_IMAGE_DIRECTORY.toAbsolutePath().normalize();
+        Path target = directory.resolve(storedPath.substring("/uploads/groups/".length())).normalize();
+        if (!target.startsWith(directory) || !Files.isRegularFile(target) || !Files.isReadable(target) || Files.isSymbolicLink(target)) {
+            throw new com.nightstudy.moa.common.exception.ApiException(org.springframework.http.HttpStatus.NOT_FOUND, "GROUP_IMAGE_NOT_FOUND", "이미지를 찾을 수 없습니다.");
+        }
+        return new org.springframework.core.io.FileSystemResource(target);
+    }
     // 업로드된 이미지 파일을 서버 폴더에 저장하고, DB에 저장할 이미지 경로를 반환하는 함수
     public String storeGroupImage(MultipartFile file) {
         validateImage(file);
