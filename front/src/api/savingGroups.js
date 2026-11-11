@@ -502,6 +502,29 @@ export async function getSavingGroupTransactions(savingGroupId, { page = 1, sign
   };
 }
 
+// AI작성: 대시보드 전용 집계는 거래 페이지를 반복 조회하지 않고 서버가 계산한 최근 여섯 달 데이터만 사용한다.
+export async function getSavingGroupDashboard(savingGroupId, { month, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const { data: response } = await client.get(`/saving-groups/${id}/dashboard`, { params: { month }, signal });
+  const data = response?.data;
+  if (response?.success !== true || !data || !Number.isFinite(Number(data.currentBalance))
+    || !Number.isFinite(Number(data.monthlyDuesTotal)) || !Number.isFinite(Number(data.monthlyExpenseTotal))
+    || !Number.isInteger(data.reviewRequiredWithdrawalCount) || data.reviewRequiredWithdrawalCount < 0
+    || !Array.isArray(data.monthlyTrends) || !Array.isArray(data.expenseCategoryRatios)) {
+    throw new Error('대시보드 응답을 확인할 수 없습니다.');
+  }
+  return {
+    currentBalance: Number(data.currentBalance),
+    monthlyDuesTotal: Number(data.monthlyDuesTotal),
+    monthlyExpenseTotal: Number(data.monthlyExpenseTotal),
+    reviewRequiredWithdrawalCount: data.reviewRequiredWithdrawalCount,
+    monthlyTrends: data.monthlyTrends.map(({ month: trendMonth, income, expense }) => ({
+      month: trendMonth, income: Number(income), expense: Number(expense),
+    })),
+    expenseCategoryRatios: data.expenseCategoryRatios.map(({ category, amount }) => ({ category, amount: Number(amount) })),
+  };
+}
+
 // AI작성: 확인이 필요한 출금 거래의 최종 분류만 일괄 전송하고, 권한·대상 검증은 서버가 처리한다.
 export async function updateSavingGroupTransactionCategories(savingGroupId, items, { signal } = {}) {
   const id = savingGroupPathId(savingGroupId);
