@@ -278,7 +278,9 @@ export function SavingGroupTransactionHistoryView({
     balance: formatWon(row.balanceAfter),
     purpose: purposeLabels[row.purposeType] ?? '목적 미확인',
     category: getCategoryLabel(row),
-    selectedCategory: row.transactionId == null ? null : categoryChanges[row.transactionId] ?? null,
+    // AI작성: 재조회 뒤 임시 변경값이 없어도 서버에 저장된 최종 분류를 선택 UI에 그대로 표시한다.
+    selectedCategory: row.transactionId == null ? null
+      : categoryChanges[row.transactionId] ?? (editableCategoryCodes.includes(row.category) ? row.category : ''),
     // AI작성: 자동 확정 건과 구분하기 위해 상태 문자열 대신 서버의 재분류 가능 여부를 사용한다.
     canEditCategory: canManageCategories && row.transactionId != null
       && row.transactionType === 'WITHDRAWAL' && row.categoryEditable === true,
