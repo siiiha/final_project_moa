@@ -190,6 +190,13 @@ const MapButton = styled(Button)`
   font-size: 11px;
 `;
 
+// AI작성: 계모임 목록 버튼과 같은 보조 스타일·높이를 사용하고 장소 카드 너비에 맞춘다.
+const BackButton = styled(Button)`
+  width: 100%;
+  min-height: 38px;
+  font-size: 12px;
+`;
+
 const ScheduleRow = styled.div`
   margin-top: 13px;
   display: grid;
@@ -407,6 +414,8 @@ function SmallGroupDetail({
   group,
   groupId,
   smallGroupId,
+  // AI작성: 목록의 검색 조건과 페이지를 복원하는 상위 화면의 이동 함수를 받는다.
+  onBack,
   myRole = null,
   activeMenu,
   settings,
@@ -672,6 +681,8 @@ function SmallGroupDetail({
                 </MapButton>
               </PlaceContent>
             </Card>
+            {/* AI작성: 소모임 목록 복귀 버튼은 장소 카드 바로 아래에 배치한다. */}
+            <BackButton type="button" $variant="secondary" onClick={onBack}>소모임 목록으로</BackButton>
           </Column>
         </ContentGrid>
       )}
