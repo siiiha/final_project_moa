@@ -717,6 +717,7 @@ CREATE TABLE IF NOT EXISTS `group_transaction` (
     `source_transaction_id` VARCHAR(128) NULL COMMENT '거래 제공자의 거래 식별자',
     `transacted_at` DATETIME NOT NULL COMMENT '거래 일시',
     `description` VARCHAR(255) NULL COMMENT '설명',
+    `final_category` VARCHAR(30) NULL COMMENT '사용자가 선택한 최종 지출 분류'
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
 
     PRIMARY KEY (`transaction_id`),
