@@ -498,7 +498,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         var classification = classifyDemoExpense(row);
         // AI작성: 사용자가 확정한 분류는 매 조회마다 계산하는 자동 분류 결과보다 우선한다.
         boolean hasFinalCategory = row.finalCategory() != null && !row.finalCategory().isBlank();
-        return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(),
+        return new SavingGroupTransactionResponse(row.transactionId(), row.transactedAt(), row.transactionType(), row.amount(),
                 row.balanceAfter(), row.purposeType(),
                 hasFinalCategory ? row.finalCategory() : classification == null || classification.suggestedCategory() == null
                         ? null : classification.suggestedCategory().name(),
