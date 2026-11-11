@@ -146,6 +146,16 @@
         FROM saving_group_transaction_classification
         WHERE transaction_id = #{transactionId}
     </select>
+    <!-- AI작성: 현재 화면의 MOCK 지출만 IN 조건으로 조회해 원격 DB 왕복을 한 번으로 줄인다. -->
+    <select id="selectSavingGroupTransactionClassifications" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionClassificationRow">
+        SELECT transaction_id, suggested_category, classification_status, confidence,
+               prediction_source, review_reason, model_version
+        FROM saving_group_transaction_classification
+        WHERE transaction_id IN
+        <foreach collection="transactionIds" item="transactionId" open="(" separator="," close=")">
+            #{transactionId}
+        </foreach>
+    </select>
     <insert id="insertSavingGroupTransactionClassification">
         INSERT INTO saving_group_transaction_classification (
             transaction_id, suggested_category, classification_status, confidence,

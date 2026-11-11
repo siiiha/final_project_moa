@@ -9,6 +9,9 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionClassificationRo
 import com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
@@ -51,6 +54,31 @@ public class CardExpenseClassificationService {
         } catch (ApiException exception) {
             return null;
         }
+    }
+
+    // AI작성: 화면에 표시할 MOCK 지출의 저장 분류를 단일 SQL로 읽어 조회 지연을 줄인다.
+    @Transactional(readOnly = true)
+    public Map<Long, CardExpenseClassifierClient.ClassificationResult> findStoredClassifications(
+            List<SavingGroupTransactionRow> rows) {
+        List<Long> transactionIds = rows.stream()
+                .filter(row -> "EXPENSE".equals(row.purposeType()) && "MOCK".equals(row.sourceProvider()))
+                .map(SavingGroupTransactionRow::transactionId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (transactionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications = new HashMap<>();
+        for (SavingGroupTransactionClassificationRow saved :
+                savingGroupMapper.selectSavingGroupTransactionClassifications(transactionIds)) {
+            try {
+                classifications.put(saved.transactionId(), toStoredClassification(saved));
+            } catch (ApiException exception) {
+                // AI작성: 잘못 저장된 한 건은 화면 전체를 막지 않고 새 분류 대상으로 남긴다.
+            }
+        }
+        return classifications;
     }
 
     // AI작성: 거래 목록은 저장된 분류만 즉시 반환하고 새 분류는 응답 이후에 저장한다.

@@ -42,6 +42,9 @@ public interface SavingGroupMapper {
             @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
     // AI작성: 같은 거래의 ML 결과는 한 번만 저장하고 이후 거래내역·대시보드에서 재사용한다.
     SavingGroupTransactionClassificationRow selectSavingGroupTransactionClassification(@Param("transactionId") Long transactionId);
+    // AI작성: 목록·대시보드의 거래 ID를 한 번에 조회해 건별 분류 SELECT를 방지한다.
+    List<SavingGroupTransactionClassificationRow> selectSavingGroupTransactionClassifications(
+            @Param("transactionIds") List<Long> transactionIds);
     int insertSavingGroupTransactionClassification(SavingGroupTransactionClassificationRow classification);
     SavingGroupTransactionRow selectSavingGroupTransactionForCategoryUpdate(@Param("accountId") Long accountId,
             @Param("transactionId") Long transactionId);

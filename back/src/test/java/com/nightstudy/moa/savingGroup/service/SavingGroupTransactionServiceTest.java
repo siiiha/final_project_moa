@@ -95,9 +95,9 @@ class SavingGroupTransactionServiceTest {
         when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
                 new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
                         "동네밥상", "EXPENSE", "MOCK", "FOOD")));
-        when(mapper.selectSavingGroupTransactionClassification(123L)).thenReturn(
+        when(mapper.selectSavingGroupTransactionClassifications(List.of(123L))).thenReturn(List.of(
                 new SavingGroupTransactionClassificationRow(123L, "NEEDS_REVIEW", "REVIEW_REQUIRED",
-                        new BigDecimal("0.5000"), "MACHINE_LEARNING", null, null));
+                        new BigDecimal("0.5000"), "MACHINE_LEARNING", null, null)));
 
         SavingGroupTransactionResponse item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
         assertThat(item.category()).isEqualTo("FOOD");
@@ -115,9 +115,9 @@ class SavingGroupTransactionServiceTest {
         when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
                 new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
                         "동네밥상", "EXPENSE", "MOCK", null)));
-        when(mapper.selectSavingGroupTransactionClassification(123L)).thenReturn(
+        when(mapper.selectSavingGroupTransactionClassifications(List.of(123L))).thenReturn(List.of(
                 new SavingGroupTransactionClassificationRow(123L, "FOOD", "REVIEW_PENDING", new BigDecimal("0.9000"),
-                        "MACHINE_LEARNING", null, null));
+                        "MACHINE_LEARNING", null, null)));
 
         SavingGroupTransactionResponse item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
         assertThat(item.category()).isEqualTo("FOOD");
@@ -142,12 +142,11 @@ class SavingGroupTransactionServiceTest {
                         "정체불명 결제", "EXPENSE", "MOCK", null),
                 new SavingGroupTransactionRow(4L, october, "WITHDRAWAL", new BigDecimal("30000"), new BigDecimal("130000"),
                         "계금 지급", "PAYOUT", "MOCK", null)));
-        when(mapper.selectSavingGroupTransactionClassification(2L)).thenReturn(
+        when(mapper.selectSavingGroupTransactionClassifications(List.of(2L, 3L))).thenReturn(List.of(
                 new SavingGroupTransactionClassificationRow(2L, "FOOD", "REVIEW_PENDING", new BigDecimal("0.9000"),
-                        "MACHINE_LEARNING", null, null));
-        when(mapper.selectSavingGroupTransactionClassification(3L)).thenReturn(
+                        "MACHINE_LEARNING", null, null),
                 new SavingGroupTransactionClassificationRow(3L, "NEEDS_REVIEW", "REVIEW_REQUIRED", new BigDecimal("0.2000"),
-                        "MACHINE_LEARNING", null, null));
+                        "MACHINE_LEARNING", null, null)));
 
         SavingGroupDashboardResponse dashboard = service.getSavingGroupDashboard(12L, 1L, YearMonth.of(2026, 11));
         assertThat(dashboard.currentBalance()).isEqualByComparingTo("120000");

@@ -451,8 +451,12 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         var meta = PageMeta.of(page, size, total);
         long offset = (page - 1L) * size;
         if (offset >= total) return new SavingGroupTransactionListResponse(List.of(), meta);
-        var items = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size)
-                .stream().map(this::toTransactionResponse).toList();
+        List<SavingGroupTransactionRow> rows = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size);
+        Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications =
+                expenseClassificationService.findStoredClassifications(rows);
+        List<SavingGroupTransactionResponse> items = rows.stream()
+                .map(row -> toTransactionResponse(row, classifications.get(row.transactionId())))
+                .toList();
         return new SavingGroupTransactionListResponse(items, meta);
     }
 
@@ -477,7 +481,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         BigDecimal monthlyExpense = BigDecimal.ZERO;
         int reviewRequiredCount = 0;
 
-        for (SavingGroupTransactionRow row : savingGroupMapper.selectSavingGroupDashboardTransactions(account.getAccountId(), start, end)) {
+        List<SavingGroupTransactionRow> rows = savingGroupMapper.selectSavingGroupDashboardTransactions(account.getAccountId(), start, end);
+        Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications =
+                expenseClassificationService.findStoredClassifications(rows);
+        for (SavingGroupTransactionRow row : rows) {
             YearMonth transactionMonth = YearMonth.from(row.transactedAt());
             BigDecimal amount = row.amount().abs();
             if ("DEPOSIT".equals(row.transactionType())) {
@@ -486,7 +493,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 continue;
             }
             if (!"EXPENSE".equals(row.purposeType())) continue;
-            CardExpenseClassifierClient.ClassificationResult classification = expenseClassificationService.findStoredClassification(row);
+            CardExpenseClassifierClient.ClassificationResult classification = classifications.get(row.transactionId());
             boolean finalCategorySaved = row.finalCategory() != null && !row.finalCategory().isBlank();
             boolean reviewRequired = !finalCategorySaved && classification != null
                     && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED;
@@ -551,11 +558,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     }
 
     // AI작성: 잘못된 장부 행은 원본 메모나 거래 정보를 공개하지 않고 조회 오류로 처리한다.
-    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row) {
+    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row,
+            CardExpenseClassifierClient.ClassificationResult classification) {
         if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
                     "거래내역을 확인할 수 없습니다.");
-        CardExpenseClassifierClient.ClassificationResult classification = findStoredClassificationOrSchedule(row);
+        if (classification == null) {
+            expenseClassificationService.classifyAndSaveAsync(row);
+        }
         // AI작성: 사용자가 확정한 분류는 매 조회마다 계산하는 자동 분류 결과보다 우선한다.
         boolean hasFinalCategory = row.finalCategory() != null && !row.finalCategory().isBlank();
         return new SavingGroupTransactionResponse(row.transactionId(), row.transactedAt(), row.transactionType(), row.amount(),
@@ -573,14 +583,6 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         return expenseClassificationService.classify(row);
     }
 
-    // AI작성: 거래 목록에서는 저장값만 바로 사용하고, 없는 자동 분류는 비동기로 요청한다.
-    private CardExpenseClassifierClient.ClassificationResult findStoredClassificationOrSchedule(SavingGroupTransactionRow row) {
-        CardExpenseClassifierClient.ClassificationResult classification = expenseClassificationService.findStoredClassification(row);
-        if (classification == null) {
-            expenseClassificationService.classifyAndSaveAsync(row);
-        }
-        return classification;
-    }
 
     @Override
     @Transactional(readOnly = true)
