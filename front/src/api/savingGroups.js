@@ -516,10 +516,11 @@ export async function getSavingGroupDashboard(savingGroupId, { month, signal } =
   const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/dashboard`, { params: { month }, signal });
   const data = response?.data;
-  const toAmount = (value) => {
+  const toNumber = (value) => {
     const amount = typeof value === 'number' ? value : Number(value);
-    return Number.isFinite(amount) && amount >= 0 ? amount : 0;
+    return Number.isFinite(amount) ? amount : 0;
   };
+  const toNonNegativeAmount = (value) => Math.max(0, toNumber(value));
   const categoryCodes = new Set([...savingGroupExpenseCategoryCodes, 'NEEDS_REVIEW']);
   if (response?.success !== true || !data) {
     throw new Error('대시보드 응답을 확인할 수 없습니다.');
@@ -527,14 +528,15 @@ export async function getSavingGroupDashboard(savingGroupId, { month, signal } =
   // AI작성: 일부 차트 행의 형식이 달라도 정상 요약 카드까지 비워지지 않도록 값별로 보정한다.
   const monthlyTrends = Array.isArray(data.monthlyTrends) ? data.monthlyTrends
     .filter((item) => item && /^\d{4}-(0[1-9]|1[0-2])$/.test(item.month))
-    .map((item) => ({ month: item.month, income: toAmount(item.income), expense: toAmount(item.expense) })) : [];
+    .map((item) => ({ month: item.month, income: toNonNegativeAmount(item.income), expense: toNonNegativeAmount(item.expense) })) : [];
   const expenseCategoryRatios = Array.isArray(data.expenseCategoryRatios) ? data.expenseCategoryRatios
-    .filter((item) => item && categoryCodes.has(item.category) && toAmount(item.amount) > 0)
-    .map((item) => ({ category: item.category, amount: toAmount(item.amount) })) : [];
+    .filter((item) => item && categoryCodes.has(item.category) && toNonNegativeAmount(item.amount) > 0)
+    .map((item) => ({ category: item.category, amount: toNonNegativeAmount(item.amount) })) : [];
   return {
-    currentBalance: toAmount(data.currentBalance),
-    monthlyDuesTotal: toAmount(data.monthlyDuesTotal),
-    monthlyExpenseTotal: toAmount(data.monthlyExpenseTotal),
+    // AI작성: 내부 장부 잔액은 출금이 입금을 초과하면 음수가 될 수 있으므로 그대로 표시한다.
+    currentBalance: toNumber(data.currentBalance),
+    monthlyDuesTotal: toNonNegativeAmount(data.monthlyDuesTotal),
+    monthlyExpenseTotal: toNonNegativeAmount(data.monthlyExpenseTotal),
     reviewRequiredWithdrawalCount: Number.isInteger(data.reviewRequiredWithdrawalCount)
       && data.reviewRequiredWithdrawalCount >= 0 ? data.reviewRequiredWithdrawalCount : 0,
     monthlyTrends,
