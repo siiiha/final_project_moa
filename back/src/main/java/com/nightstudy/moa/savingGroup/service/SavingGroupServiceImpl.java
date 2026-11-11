@@ -31,6 +31,9 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 대시보드 추이는 현재 월을 포함한 최근 여섯 달만 보여주며, 집계 범위를 한곳에서 관리한다.
+    private static final int DASHBOARD_MONTH_COUNT = 6;
+
     // AI작성: 같은 읽기 스냅샷의 모임·회원·회비로 계산하며 실제 순번·회차·지급 상태는 변경하지 않는다.
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
@@ -461,11 +464,13 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (account == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
         }
-        YearMonth firstMonth = month.minusMonths(5);
+        YearMonth firstMonth = month.minusMonths(DASHBOARD_MONTH_COUNT - 1L);
         LocalDateTime start = firstMonth.atDay(1).atStartOfDay();
         LocalDateTime end = month.plusMonths(1).atDay(1).atStartOfDay();
         var totals = new LinkedHashMap<YearMonth, BigDecimal[]>();
-        for (int index = 0; index < 6; index += 1) totals.put(firstMonth.plusMonths(index), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+        for (int index = 0; index < DASHBOARD_MONTH_COUNT; index += 1) {
+            totals.put(firstMonth.plusMonths(index), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+        }
         var categoryTotals = new LinkedHashMap<String, BigDecimal>();
         BigDecimal monthlyDues = BigDecimal.ZERO;
         BigDecimal monthlyExpense = BigDecimal.ZERO;
