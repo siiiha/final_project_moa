@@ -308,6 +308,7 @@ function PostDetail({
   replyingCommentId,
   replyText,
   isSubmittingReply,
+  newReplyParentId,
   editingCommentId,
   editingCommentText,
   isUpdatingComment,
@@ -318,6 +319,7 @@ function PostDetail({
   onReplyChange,
   onReplySubmit,
   onReplyCancel,
+  onReplyMoreViewed,
   onCommentEditStart,
   onCommentEditChange,
   onCommentEditSubmit,
@@ -338,6 +340,7 @@ function PostDetail({
       ...currentCounts,
       [commentId]: (currentCounts[commentId] || REPLIES_PER_LOAD) + REPLIES_PER_LOAD,
     }));
+    onReplyMoreViewed(commentId);
   };
 
   return (
@@ -508,7 +511,9 @@ function PostDetail({
               ))}
               {comment.replies.length > getVisibleReplyCount(comment.id) && (
                 <ReplyMoreButton type="button" onClick={() => handleReplyMore(comment.id)}>
-                  답글 더보기 (남은 {comment.replies.length - getVisibleReplyCount(comment.id)}개)
+                  {newReplyParentId === comment.id
+                    ? '새 답글이 등록되었습니다. 답글 더보기'
+                    : `답글 더보기 (남은 ${comment.replies.length - getVisibleReplyCount(comment.id)}개)`}
                 </ReplyMoreButton>
               )}
             </Comment>

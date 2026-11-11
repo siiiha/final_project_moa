@@ -140,6 +140,7 @@ function PostDetailPage() {
   const [replyingCommentId, setReplyingCommentId] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [newReplyParentId, setNewReplyParentId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [isUpdatingComment, setIsUpdatingComment] = useState(false);
@@ -482,6 +483,8 @@ function PostDetailPage() {
       setReplyingCommentId(null);
       setReplyText('');
       if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
+      // AI작성: 접힌 답글 목록에서는 새로 등록한 답글을 더보기 안내로 찾을 수 있게 부모 번호를 보관합니다.
+      setNewReplyParentId(replyingCommentId);
 
       try {
         // AI작성: 임시 답글의 작성자 정보가 비어 보이지 않도록 서버 목록을 다시 조회합니다.
@@ -502,6 +505,12 @@ function PostDetailPage() {
       );
     } finally {
       setIsSubmittingReply(false);
+    }
+  };
+
+  const handleReplyMoreViewed = (commentId) => {
+    if (newReplyParentId === commentId) {
+      setNewReplyParentId(null);
     }
   };
 
@@ -692,6 +701,7 @@ function PostDetailPage() {
           replyingCommentId={replyingCommentId}
           replyText={replyText}
           isSubmittingReply={isSubmittingReply}
+          newReplyParentId={newReplyParentId}
           editingCommentId={editingCommentId}
           editingCommentText={editingCommentText}
           isUpdatingComment={isUpdatingComment}
@@ -702,6 +712,7 @@ function PostDetailPage() {
           onReplyChange={handleReplyChange}
           onReplySubmit={handleReplySubmit}
           onReplyCancel={handleReplyCancel}
+          onReplyMoreViewed={handleReplyMoreViewed}
           onCommentEditStart={handleCommentEditStart}
           onCommentEditChange={setEditingCommentText}
           onCommentEditSubmit={handleCommentEditSubmit}
