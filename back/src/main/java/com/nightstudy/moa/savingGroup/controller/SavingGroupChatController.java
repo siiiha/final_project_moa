@@ -43,6 +43,7 @@ public class SavingGroupChatController {
             SavingGroupChatMessage message = chatService.save(roomId, Long.valueOf(principal.getName()), request.content());
             messaging.convertAndSend("/topic/chat/rooms/" + roomId, message);
         } catch (ApiException exception) {
+            // AI작성: 도배 제한도 기존 개인 오류 큐로 전달하며 제한 시간은 채팅방 조회로 확인한다.
             messaging.convertAndSendToUser(principal.getName(), "/queue/errors",
                     ApiResponse.fail(exception.getCode(), exception.getMessage()));
         }
