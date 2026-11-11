@@ -65,21 +65,6 @@ const Avatar = styled.div`
   }
 `;
 
-// AI작성: 사진 등록 상태를 프로필 사진 위에 표시합니다.
-const PhotoStatus = styled.span`
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.88);
-  color: ${({ theme }) => theme.colors.primary};
-  font-size: 14px;
-  font-weight: 700;
-  text-align: center;
-`;
-
 const AvatarLabel = styled.strong`
   margin-top: 10px;
   font-size: 13px;
@@ -446,17 +431,11 @@ function EditProfileForm({ initialProfile }) {
     <Card>
       <AvatarPanel>
         <Avatar aria-busy={photoStatus === 'uploading'}>
-          <ProfileImage imageUrl={profile.profileImageUrl} size={72} />
-
-          {photoStatus && (
-            <PhotoStatus
-              role={photoStatus === 'error' ? 'alert' : 'status'}
-            >
-              {photoStatus === 'uploading'
-                ? '사진을 준비하고 있어요'
-                : '사진을 변경하지 못했어요'}
-            </PhotoStatus>
-          )}
+          <ProfileImage
+            imageUrl={profile.profileImageUrl}
+            size={72}
+            status={photoStatus}
+          />
         </Avatar>
         <AvatarLabel>프로필 사진</AvatarLabel>
         <input
@@ -484,7 +463,6 @@ function EditProfileForm({ initialProfile }) {
           </AvatarButton>
         </AvatarActions>
         <PhotoHint>
-          선택한 사진은 자동으로 저장돼요.
           <span>JPG·PNG · 최대 5MB</span>
         </PhotoHint>
       </AvatarPanel>
