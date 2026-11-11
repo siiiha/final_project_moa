@@ -485,6 +485,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications =
                 expenseClassificationService.findStoredClassifications(rows);
         for (SavingGroupTransactionRow row : rows) {
+            // AI작성: 오래된 원장에 날짜·금액이 누락돼도 대시보드 전체 조회를 실패시키지 않는다.
+            if (row.transactedAt() == null || row.amount() == null) {
+                continue;
+            }
             YearMonth transactionMonth = YearMonth.from(row.transactedAt());
             BigDecimal amount = row.amount().abs();
             if ("DEPOSIT".equals(row.transactionType())) {
@@ -512,7 +516,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 trendMonth.toString(), value[0], value[1])));
         List<SavingGroupDashboardResponse.ExpenseCategoryRatio> ratios = categoryTotals.entrySet().stream()
                 .map(entry -> new SavingGroupDashboardResponse.ExpenseCategoryRatio(entry.getKey(), entry.getValue())).toList();
-        return new SavingGroupDashboardResponse(savingGroupMapper.selectSavingGroupBalance(groupId), monthlyDues,
+        BigDecimal currentBalance = savingGroupMapper.selectSavingGroupBalance(groupId);
+        return new SavingGroupDashboardResponse(currentBalance == null ? BigDecimal.ZERO : currentBalance, monthlyDues,
                 monthlyExpense, reviewRequiredCount, trends, ratios);
     }
 
