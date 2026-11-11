@@ -503,7 +503,7 @@ test('신청 목록은 이름 원문·닉네임·문자열 ID와 서버 필터·
     assert.equal(config.params.page, 2);
     assert.equal(config.signal, controller.signal);
     return ok(config, [{ crewMemberId: '9007199254740993', applicant: '테스트이름', nickname: '테스트닉네임', regionName: '서울',
-      identityVerified: true, regionVerified: true, applicationMessage: null, membershipStatus: 'PENDING' }],
+      identityVerified: true, regionVerified: true, email: 'applicant@example.com', membershipStatus: 'PENDING' }],
     { page: 2, size: 10, total: 11, totalPages: 2 });
   }, async () => {
     const result = await getSavingGroupJoinRequests('12', { status: 'PENDING', page: 2, signal: controller.signal });
@@ -513,7 +513,9 @@ test('신청 목록은 이름 원문·닉네임·문자열 ID와 서버 필터·
     assert.equal(result.items[0].nickname, '테스트닉네임');
     assert.equal(result.items[0].status, '대기');
     assert.equal(result.items[0].verification, '본인·지역 인증 완료');
-    assert.equal(result.items[0].message, '신청 메시지가 없습니다.');
+    // AI작성: 이메일 원문을 유지하고 사용하지 않는 신청 메시지는 전달하지 않는다.
+    assert.equal(result.items[0].email, 'applicant@example.com');
+    assert.equal(Object.hasOwn(result.items[0], 'message'), false);
     assert.equal(result.meta.total, 11);
   });
 });

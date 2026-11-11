@@ -22,10 +22,15 @@ test('계모임은 이름과 닉네임, 소모임은 닉네임만 PC·모바일�
   try {
     const { render, Saving, Small } = await server.ssrLoadModule(entry);
     const props = { activeFilter: '전체', selectedIds: [], currentPage: 1, totalPages: 1, totalCount: 1 };
-    const request = { id: '1', applicant: '테스트이름', nickname: '테스트닉네임', status: '대기', message: '신청합니다.' };
+    const request = { id: '1', applicant: '테스트이름', nickname: '테스트닉네임', email: 'applicant@example.com', status: '대기', message: '신청합니다.' };
     const saving = render(Saving, { ...props, requests: [request] });
     assert.equal(saving.match(/테스트닉네임/g)?.length, 2);
     assert.match(saving, /테스트이름/);
+    // AI작성: PC·모바일 모두 이름 레이블과 이메일 원문을 표시하고 신청 메시지는 제외한다.
+    assert.equal(saving.match(/이름: 테스트이름/g)?.length, 2);
+    assert.equal(saving.match(/applicant@example.com/g)?.length, 2);
+    assert.doesNotMatch(saving, /신청 메시지|신청합니다\./);
+    assert.match(saving, /신청자<\/th>[\s\S]*?이메일<\/th>[\s\S]*?지역<\/th>[\s\S]*?상태<\/th>[\s\S]*?처리<\/th>/);
     const small = render(Small, { ...props, requests: [{ ...request, applicant: '테스트닉네임' }] });
     assert.equal(small.match(/테스트닉네임/g)?.length, 2);
     assert.doesNotMatch(small, /테스트이름/);

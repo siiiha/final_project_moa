@@ -108,10 +108,19 @@ const Table = styled.table`
     font-weight: 700;
   }
 
+  /* AI작성: 신청자·이메일·지역의 제목과 내용을 같은 시작점에 맞추고 나머지 열은 가운데 정렬한다. */
+  th:nth-child(2),
   td:nth-child(2),
-  td:nth-child(4),
-  td:nth-child(5) {
+  th:nth-child(3),
+  td:nth-child(3),
+  th:nth-child(4),
+  td:nth-child(4) {
     text-align: left;
+  }
+
+  /* AI작성: 긴 이메일 주소도 열 너비 안에서 줄바꿈해 전체를 표시한다. */
+  td:nth-child(3) {
+    overflow-wrap: anywhere;
   }
 
   tbody tr:last-child td {
@@ -182,6 +191,8 @@ const MobileApplicant = styled.div`
 `;
 
 const MobileInfo = styled.p`
+  /* AI작성: 모바일에서도 긴 이메일 원문을 생략하지 않고 줄바꿈한다. */
+  overflow-wrap: anywhere;
   margin-top: 10px;
   color: ${({ theme }) => theme.colors.secondaryText};
   font-size: 11px;
@@ -311,11 +322,12 @@ function SavingGroupJoinRequestList({
               <Table>
                 <colgroup>
                   <col width="7%" />
-                  <col width="17%" />
-                  <col width="20%" />
                   <col width="25%" />
+                  <col width="25%" />
+                  {/* AI작성: 처리 열의 여유 폭을 지역 열에 배분해 긴 지역명의 줄바꿈을 줄인다. */}
+                  <col width="20%" />
                   <col width="10%" />
-                  <col width="21%" />
+                  <col width="13%" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -323,8 +335,9 @@ function SavingGroupJoinRequestList({
                       <Checkbox id="join-request-all" aria-label="대기 신청 전체 선택" checked={isAllSelected} disabled={blocked} onChange={onToggleAll} />
                     </th>
                     <th scope="col">신청자</th>
+                    {/* AI작성: 신청 메시지 대신 이메일을 지역 앞에 표시한다. */}
+                    <th scope="col">이메일</th>
                     <th scope="col">지역</th>
-                    <th scope="col">신청 메시지</th>
                     <th scope="col">상태</th>
                     <th scope="col">처리</th>
                   </tr>
@@ -342,13 +355,13 @@ function SavingGroupJoinRequestList({
                         />
                       </td>
                       <td>
-                        <Applicant>{request.applicant}</Applicant>
+                        <Applicant>이름: {request.applicant}</Applicant>
                         {/* AI작성: 이름 원문과 닉네임을 구분해 표시한다. */}
                         <div>닉네임: {request.nickname}</div>
                         <VerificationBadge>{request.verification}</VerificationBadge>
                       </td>
+                      <td>{request.email}</td>
                       <td>{request.regionInterest}</td>
-                      <td>{request.message}</td>
                       <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
                       <td><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} pendingAction={pendingAction} blocked={blocked} /></td>
                     </tr>
@@ -370,7 +383,7 @@ function SavingGroupJoinRequestList({
                         onChange={() => onToggleRequest(request.id)}
                       />
                       <div>
-                        <Applicant>{request.applicant}</Applicant>
+                        <Applicant>이름: {request.applicant}</Applicant>
                         {/* AI작성: 모바일에서도 PC와 같은 신청자 정보를 제공한다. */}
                         <div>닉네임: {request.nickname}</div>
                         <VerificationBadge>{request.verification}</VerificationBadge>
@@ -378,7 +391,8 @@ function SavingGroupJoinRequestList({
                     </MobileApplicant>
                     <StatusBadge $status={request.status}>{request.status}</StatusBadge>
                   </MobileTop>
-                  <MobileInfo>{request.regionInterest}<br />{request.message}</MobileInfo>
+                  {/* AI작성: 모바일도 이메일·지역 순서로 표시하며 신청 메시지는 제외한다. */}
+                  <MobileInfo>이메일: {request.email}<br />지역: {request.regionInterest}</MobileInfo>
                   <MobileActions><RequestActions request={request} onApprove={onApprove} onReject={onReject} pendingId={pendingId} pendingAction={pendingAction} blocked={blocked} /></MobileActions>
                 </MobileItem>
               ))}

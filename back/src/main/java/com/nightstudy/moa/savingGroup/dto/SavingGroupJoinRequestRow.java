@@ -12,9 +12,10 @@ public class SavingGroupJoinRequestRow {
     private String crewMemberId;
     private String applicant;
     private String nickname;
+    // AI작성: 사용자 합의에 따라 승인된 계주에게 이메일 원문을 제공한다.
+    private String email;
     private String regionName;
     private boolean identityVerified;
     private boolean regionVerified;
-    private String applicationMessage;
     private String membershipStatus;
 }
