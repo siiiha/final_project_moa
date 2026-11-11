@@ -486,7 +486,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 continue;
             }
             if (!"EXPENSE".equals(row.purposeType())) continue;
-            CardExpenseClassifierClient.ClassificationResult classification = classifyDemoExpense(row);
+            CardExpenseClassifierClient.ClassificationResult classification = expenseClassificationService.findStoredClassification(row);
             boolean finalCategorySaved = row.finalCategory() != null && !row.finalCategory().isBlank();
             boolean reviewRequired = !finalCategorySaved && classification != null
                     && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED;

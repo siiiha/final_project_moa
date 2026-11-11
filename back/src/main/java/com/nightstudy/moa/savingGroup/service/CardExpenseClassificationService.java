@@ -33,6 +33,21 @@ public class CardExpenseClassificationService {
         return classifyAndSave(row);
     }
 
+    // AI작성: 대시보드는 저장된 결과만 읽어 화면 조회가 Python 응답 시간에 영향을 받지 않게 한다.
+    @Transactional(readOnly = true)
+    public CardExpenseClassifierClient.ClassificationResult findStoredClassification(SavingGroupTransactionRow row) {
+        if (!"EXPENSE".equals(row.purposeType()) || !"MOCK".equals(row.sourceProvider()) || row.transactionId() == null) {
+            return null;
+        }
+        try {
+            SavingGroupTransactionClassificationRow saved =
+                    savingGroupMapper.selectSavingGroupTransactionClassification(row.transactionId());
+            return saved == null ? null : toStoredClassification(saved);
+        } catch (ApiException exception) {
+            return null;
+        }
+    }
+
     // AI작성: 카테고리 수정 명령에서는 기존 쓰기 트랜잭션에 참여해 전체 변경의 원자성을 유지한다.
     @Transactional
     public CardExpenseClassifierClient.ClassificationResult classifyInCurrentTransaction(SavingGroupTransactionRow row) {

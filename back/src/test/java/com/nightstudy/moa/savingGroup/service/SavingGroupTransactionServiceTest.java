@@ -142,12 +142,12 @@ class SavingGroupTransactionServiceTest {
                         "정체불명 결제", "EXPENSE", "MOCK", null),
                 new SavingGroupTransactionRow(4L, october, "WITHDRAWAL", new BigDecimal("30000"), new BigDecimal("130000"),
                         "계금 지급", "PAYOUT", "MOCK", null)));
-        when(classifier.classify("동네밥상", new BigDecimal("20000"))).thenReturn(
-                new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.FOOD, 0.9,
-                        CardExpenseClassificationStatus.REVIEW_PENDING, CardExpenseClassificationSource.MACHINE_LEARNING, null));
-        when(classifier.classify("정체불명 결제", new BigDecimal("10000"))).thenReturn(
-                new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.NEEDS_REVIEW, 0.2,
-                        CardExpenseClassificationStatus.REVIEW_REQUIRED, CardExpenseClassificationSource.MACHINE_LEARNING, null));
+        when(mapper.selectSavingGroupTransactionClassification(2L)).thenReturn(
+                new SavingGroupTransactionClassificationRow(2L, "FOOD", "REVIEW_PENDING", new BigDecimal("0.9000"),
+                        "MACHINE_LEARNING", null, null));
+        when(mapper.selectSavingGroupTransactionClassification(3L)).thenReturn(
+                new SavingGroupTransactionClassificationRow(3L, "NEEDS_REVIEW", "REVIEW_REQUIRED", new BigDecimal("0.2000"),
+                        "MACHINE_LEARNING", null, null));
 
         SavingGroupDashboardResponse dashboard = service.getSavingGroupDashboard(12L, 1L, YearMonth.of(2026, 11));
         assertThat(dashboard.currentBalance()).isEqualByComparingTo("120000");
