@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -532,7 +533,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             if (row == null) {
                 throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_TRANSACTION_NOT_FOUND", "거래내역을 찾을 수 없습니다.");
             }
-            var classification = classifyDemoExpense(row);
+            var classification = expenseClassificationService.classifyInCurrentTransaction(row);
             if (classification == null) {
                 throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CARD_EXPENSE_CLASSIFIER_UNAVAILABLE",
                         "자동 분류 서비스를 확인할 수 없습니다.");
@@ -567,43 +568,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 classification != null && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED);
     }
 
-    // AI작성: 데모 일반 출금의 가맹점명을 분류하고 호출 실패 시에도 장부 조회를 유지한다.
+    // AI작성: 읽기 전용 조회와 분류 결과 저장 트랜잭션을 분리한 전용 서비스에 위임한다.
     private CardExpenseClassifierClient.ClassificationResult classifyDemoExpense(SavingGroupTransactionRow row) {
-        if (!"EXPENSE".equals(row.purposeType()) || !"MOCK".equals(row.sourceProvider())) {
-            return null;
-        }
-        try {
-            var saved = row.transactionId() == null ? null
-                    : savingGroupMapper.selectSavingGroupTransactionClassification(row.transactionId());
-            if (saved != null) return toStoredClassification(saved);
-            var classification = classifierClient.classify(row.description().strip(), row.amount());
-            if (row.transactionId() != null) {
-                savingGroupMapper.insertSavingGroupTransactionClassification(new SavingGroupTransactionClassificationRow(
-                        row.transactionId(), classification.suggestedCategory() == null ? null : classification.suggestedCategory().name(),
-                        classification.classificationStatus().name(),
-                        classification.confidence() == null ? null : BigDecimal.valueOf(classification.confidence()),
-                        classification.classificationSource().name(), classification.reviewReason(), null));
-            }
-            return classification;
-        } catch (ApiException exception) {
-            return null;
-        }
-    }
-
-    // AI작성: 저장값은 Python 응답과 같은 타입으로 복원해 기존 거래내역·대시보드 계산식을 재사용한다.
-    private CardExpenseClassifierClient.ClassificationResult toStoredClassification(
-            SavingGroupTransactionClassificationRow classification) {
-        try {
-            return new CardExpenseClassifierClient.ClassificationResult(
-                    classification.suggestedCategory() == null ? null : CardExpenseCategory.valueOf(classification.suggestedCategory()),
-                    classification.confidence() == null ? null : classification.confidence().doubleValue(),
-                    CardExpenseClassificationStatus.valueOf(classification.classificationStatus()),
-                    CardExpenseClassificationSource.valueOf(classification.predictionSource()),
-                    classification.reviewReason());
-        } catch (IllegalArgumentException exception) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "CARD_EXPENSE_CLASSIFIER_RESPONSE_INVALID",
-                    "저장된 자동 분류 결과를 확인할 수 없습니다.");
-        }
+        return expenseClassificationService.classify(row);
     }
 
     @Override
@@ -1084,9 +1051,25 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         return new SavingGroupJoinDecisionTarget(request, target);
     }
 
-    // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
-    private final CardExpenseClassifierClient classifierClient;
+    // AI작성: 실제 실행에서는 Spring 프록시가 적용된 쓰기 전용 분류 서비스를 주입받는다.
+    private final CardExpenseClassificationService expenseClassificationService;
 
+    @Autowired
+    public SavingGroupServiceImpl(
+            SavingGroupMapper savingGroupMapper,
+            VirtualAccountStorageMapper accountMapper,
+            AccountNumberCipher accountCipher,
+            NotificationService notificationService,
+            CardExpenseClassificationService expenseClassificationService
+    ) {
+        this.savingGroupMapper = savingGroupMapper;
+        this.accountMapper = accountMapper;
+        this.accountCipher = accountCipher;
+        this.notificationService = notificationService;
+        this.expenseClassificationService = expenseClassificationService;
+    }
+
+    // AI작성: 기존 단위 테스트와 직접 생성 호출의 호환성을 유지하며 분류 로직은 전용 서비스로 통일한다.
     public SavingGroupServiceImpl(
             SavingGroupMapper savingGroupMapper,
             VirtualAccountStorageMapper accountMapper,
@@ -1094,11 +1077,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             NotificationService notificationService,
             CardExpenseClassifierClient classifierClient
     ) {
-        this.savingGroupMapper = savingGroupMapper;
-        this.accountMapper = accountMapper;
-        this.accountCipher = accountCipher;
-        this.notificationService = notificationService;
-        this.classifierClient = classifierClient;
+        this(savingGroupMapper, accountMapper, accountCipher, notificationService,
+                new CardExpenseClassificationService(savingGroupMapper, classifierClient));
     }
 
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.
