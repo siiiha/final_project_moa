@@ -3,6 +3,14 @@ import styled from 'styled-components';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
 
+// AI작성: 소개글 높이를 유지하고 긴 내용은 내부 스크롤로 확인한다.
+const Introduction = styled(Textarea)`
+  height: 142px;
+  min-height: 142px;
+  resize: none;
+  overflow-y: auto;
+`;
+
 const Card = styled.section`
   padding: 22px;
   background: ${({ theme }) => theme.colors.white};
@@ -266,6 +274,8 @@ function SavingGroupSettingsForm({
   const [name, setName] = useState(initialValues.groupName);
   const [capacity, setCapacity] = useState(initialValues.maxMembers);
   const approvedMemberCount = current.approvedMemberCount ?? 0;
+  // AI작성: 승인 계원을 포함한 최소 정원을 적용한다.
+  const minimumCapacity = Math.max(4, approvedMemberCount);
   const memberRangeMessage = '정원은 4~20명의 정수로 입력해 주세요.';
   const approvedMemberMessage = `정원은 현재 승인 계원 ${approvedMemberCount}명보다 적을 수 없습니다.`;
   // AI작성: 입력과 저장에 동일한 정원 검증을 적용한다.
@@ -377,13 +387,19 @@ function SavingGroupSettingsForm({
             정원
             <Input
               name="capacity"
+              type="number" min={minimumCapacity} max="20" step="1" required
               disabled={isReadOnly}
               inputMode="numeric"
               value={capacity}
               aria-invalid={Boolean(errors.maxMembers)}
               aria-describedby={errors.maxMembers ? 'max-members-error' : undefined}
+              onInvalid={() => setErrors((previous) => ({ ...previous, maxMembers: getCapacityError(capacity) }))}
               onChange={(event) => {
-                const value = event.target.value;
+                // AI작성: 소모임처럼 범위 밖 입력을 보정하고 빈 값은 재입력을 위해 허용한다.
+                const input = event.target;
+                const value = input.value === '' ? ''
+                  : input.valueAsNumber > 20 ? '20'
+                    : input.valueAsNumber < minimumCapacity ? String(minimumCapacity) : input.value;
                 const error = value === '' ? undefined : getCapacityError(value);
                 setCapacity(value);
                 setErrors((previous) => ({ ...previous, maxMembers: error, form: undefined }));
@@ -479,7 +495,7 @@ function SavingGroupSettingsForm({
 
         <FullField>
           소개글
-          <Textarea
+          <Introduction
             name="description"
             disabled={isReadOnly}
             value={description}
