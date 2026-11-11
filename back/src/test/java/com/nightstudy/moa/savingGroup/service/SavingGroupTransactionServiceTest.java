@@ -132,7 +132,7 @@ class SavingGroupTransactionServiceTest {
         account();
         LocalDateTime november = LocalDateTime.of(2026, 11, 8, 12, 0);
         LocalDateTime october = LocalDateTime.of(2026, 10, 8, 12, 0);
-        when(mapper.selectSavingGroupBalance(2L)).thenReturn(new BigDecimal("120000"));
+        when(mapper.selectSavingGroupLatestTransactionBalance(3L)).thenReturn(new BigDecimal("120000"));
         when(mapper.selectSavingGroupDashboardTransactions(eq(3L), any(), any())).thenReturn(List.of(
                 new SavingGroupTransactionRow(1L, november, "DEPOSIT", new BigDecimal("50000"), new BigDecimal("150000"),
                         "김영희 회비", "DUES", "MOCK", null),

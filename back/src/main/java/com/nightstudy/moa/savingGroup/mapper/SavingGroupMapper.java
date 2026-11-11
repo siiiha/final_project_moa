@@ -40,6 +40,8 @@ public interface SavingGroupMapper {
     // AI작성: 대시보드는 페이지 제한 없이 최근 여섯 달의 모임 계좌 거래만 집계한다.
     List<SavingGroupTransactionRow> selectSavingGroupDashboardTransactions(@Param("accountId") Long accountId,
             @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    // AI작성: 대시보드 현재 잔액은 거래 화면과 같은 최신 거래 후 잔액을 사용한다.
+    java.math.BigDecimal selectSavingGroupLatestTransactionBalance(@Param("accountId") Long accountId);
     // AI작성: 같은 거래의 ML 결과는 한 번만 저장하고 이후 거래내역·대시보드에서 재사용한다.
     SavingGroupTransactionClassificationRow selectSavingGroupTransactionClassification(@Param("transactionId") Long transactionId);
     // AI작성: 목록·대시보드의 거래 ID를 한 번에 조회해 건별 분류 SELECT를 방지한다.

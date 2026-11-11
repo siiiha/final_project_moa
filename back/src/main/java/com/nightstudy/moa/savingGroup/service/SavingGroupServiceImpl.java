@@ -516,7 +516,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 trendMonth.toString(), value[0], value[1])));
         List<SavingGroupDashboardResponse.ExpenseCategoryRatio> ratios = categoryTotals.entrySet().stream()
                 .map(entry -> new SavingGroupDashboardResponse.ExpenseCategoryRatio(entry.getKey(), entry.getValue())).toList();
-        BigDecimal currentBalance = savingGroupMapper.selectSavingGroupBalance(groupId);
+        BigDecimal currentBalance = savingGroupMapper.selectSavingGroupLatestTransactionBalance(account.getAccountId());
         return new SavingGroupDashboardResponse(currentBalance == null ? BigDecimal.ZERO : currentBalance, monthlyDues,
                 monthlyExpense, reviewRequiredCount, trends, ratios);
     }

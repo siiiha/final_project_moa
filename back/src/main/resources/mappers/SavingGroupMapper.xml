@@ -139,6 +139,16 @@
           AND gt.transacted_at &gt;= #{start} AND gt.transacted_at &lt; #{end}
         ORDER BY gt.transacted_at ASC, gt.transaction_id ASC
     </select>
+    <!-- AI작성: 원장 합계보다 실제 거래 화면의 최신 balance_after를 우선해 현재 잔액을 표시한다. -->
+    <select id="selectSavingGroupLatestTransactionBalance" resultType="java.math.BigDecimal">
+        SELECT COALESCE((
+            SELECT gt.balance_after
+            FROM group_transaction gt
+            WHERE gt.account_id = #{accountId} AND gt.balance_after IS NOT NULL
+            ORDER BY gt.transacted_at DESC, gt.transaction_id DESC
+            LIMIT 1
+        ), 0)
+    </select>
     <!-- AI작성: 최종 분류와 별개로 최초 자동 분류 결과를 보관해 Python 재호출을 줄인다. -->
     <select id="selectSavingGroupTransactionClassification" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionClassificationRow">
         SELECT transaction_id, suggested_category, classification_status, confidence,
