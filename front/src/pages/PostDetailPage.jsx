@@ -21,6 +21,15 @@ import { createReport } from '../api/reports';
 const COMMENTS_PER_PAGE = 20;
 const COMMENT_PAGE_BUTTON_COUNT = 5;
 
+// AI작성: 일반 공백 외 제로폭·형식 공백만 붙여넣은 경우에도 댓글 내용을 비어 있는 값으로 처리합니다.
+const normalizeCommentContent = (content) => {
+  const trimmedContent = content.trim();
+
+  return /^[\u200B-\u200D\u2060\uFEFF\u180E]*$/u.test(trimmedContent)
+    ? ''
+    : trimmedContent;
+};
+
 // AI작성: 로그인 JWT의 subject는 백엔드가 발급한 회원 번호이므로 댓글 작성 권한 비교에 사용한다.
 const getMemberIdFromToken = (token) => {
   try {
@@ -390,7 +399,7 @@ function PostDetailPage() {
       goToLogin();
       return;
     }
-    const trimmedComment = commentText.trim();
+    const trimmedComment = normalizeCommentContent(commentText);
     if (!trimmedComment || isSubmittingComment) return;
 
     setIsSubmittingComment(true);
@@ -456,7 +465,7 @@ function PostDetailPage() {
 
   const handleReplySubmit = async (event) => {
     event.preventDefault();
-    const trimmedReply = replyText.trim();
+    const trimmedReply = normalizeCommentContent(replyText);
     if (!replyingCommentId || !trimmedReply || isSubmittingReply) return;
 
     setIsSubmittingReply(true);
@@ -508,7 +517,7 @@ function PostDetailPage() {
       goToLogin();
       return;
     }
-    const trimmedComment = editingCommentText.trim();
+    const trimmedComment = normalizeCommentContent(editingCommentText);
     if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
 
     setIsUpdatingComment(true);
