@@ -240,7 +240,8 @@ function PostListPage() {
   };
 
   const handlePostClick = (postId) => {
-    navigate(`/post/${postId}`);
+    // AI작성: 상세에서 목록으로 돌아올 때 필터·검색·정렬·페이지 조건을 복원할 수 있도록 URL 조건을 함께 전달한다.
+    navigate(`/post/${postId}${location.search}`);
   };
 
   const handleWrite = () => {

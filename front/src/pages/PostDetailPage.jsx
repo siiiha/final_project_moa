@@ -147,6 +147,9 @@ function PostDetailPage() {
   const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
   const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
 
+  // AI작성: 목록에서 전달받은 URL 조건을 유지해 필터·검색·페이징 상태를 복원한다.
+  const goToPostList = () => navigate(`/post/list${location.search}`);
+
   // AI작성: 같은 회원이 같은 게시글에서 작성하던 댓글과 대댓글을 새로고침 후 복원합니다.
   useEffect(() => {
     if (!commentDraftKey || !replyDraftKey) return;
@@ -351,7 +354,7 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '게시글 삭제에 실패했습니다.');
       }
 
-      navigate('/post/list');
+      goToPostList();
     } catch (error) {
       setIsDeleteModalOpen(false);
       setDeleteErrorMessage(
@@ -671,7 +674,7 @@ function PostDetailPage() {
         <EmptyCard>
           <p>{isLoading ? '게시글을 불러오는 중입니다.' : errorMessage || '존재하지 않거나 삭제된 게시글입니다.'}</p>
           {!isLoading && (
-            <Button type="button" $variant="secondary" onClick={() => navigate('/post/list')}>
+            <Button type="button" $variant="secondary" onClick={goToPostList}>
               목록으로
             </Button>
           )}
@@ -722,7 +725,7 @@ function PostDetailPage() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onReport={handleReportStart}
-          onBack={() => navigate('/post/list')}
+          onBack={goToPostList}
         />
       </Content>
       {isDeleteModalOpen && (
