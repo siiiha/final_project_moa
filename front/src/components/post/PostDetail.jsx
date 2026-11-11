@@ -2,6 +2,8 @@ import { useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 
+const REPLIES_PER_LOAD = 5;
+
 const ArticleCard = styled.article`
   padding: 22px 18px 14px;
   background: ${({ theme }) => theme.colors.white};
@@ -182,6 +184,11 @@ const TextAction = styled.button`
   font-weight: 700;
 `;
 
+const ReplyMoreButton = styled(TextAction)`
+  margin: 12px 0 0 28px;
+  font-size: 13px;
+`;
+
 const CommentForm = styled.form`
   margin-top: 14px;
   padding-top: 14px;
@@ -322,6 +329,17 @@ function PostDetail({
   onReport,
   onBack,
 }) {
+  const [visibleReplyCounts, setVisibleReplyCounts] = useState({});
+  const getVisibleReplyCount = (commentId) => visibleReplyCounts[commentId] || REPLIES_PER_LOAD;
+
+  const handleReplyMore = (commentId) => {
+    // AI작성: 숫자 페이지 대신 같은 부모 댓글 아래 답글을 5개씩 추가로 표시합니다.
+    setVisibleReplyCounts((currentCounts) => ({
+      ...currentCounts,
+      [commentId]: (currentCounts[commentId] || REPLIES_PER_LOAD) + REPLIES_PER_LOAD,
+    }));
+  };
+
   return (
     <>
       <ArticleCard>
@@ -442,7 +460,7 @@ function PostDetail({
                   </Button>
                 </ReplyForm>
               )}
-              {comment.replies.map((reply) => (
+              {comment.replies.slice(0, getVisibleReplyCount(comment.id)).map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>
                     <AuthorInfo>
@@ -488,6 +506,11 @@ function PostDetail({
                   )}
                 </Reply>
               ))}
+              {comment.replies.length > getVisibleReplyCount(comment.id) && (
+                <ReplyMoreButton type="button" onClick={() => handleReplyMore(comment.id)}>
+                  답글 더보기 (남은 {comment.replies.length - getVisibleReplyCount(comment.id)}개)
+                </ReplyMoreButton>
+              )}
             </Comment>
           ))}
           </CommentList>
