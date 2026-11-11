@@ -218,6 +218,18 @@ const CommentInput = styled.textarea`
     outline: 0;
     box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
   }
+
+  /* AI작성: 비로그인 상태의 댓글 입력창은 회색으로 비활성 상태를 분명히 표시합니다. */
+  &:disabled {
+    color: ${({ theme }) => theme.colors.muted};
+    background: ${({ theme }) => theme.colors.background};
+    border-color: ${({ theme }) => theme.colors.border};
+    cursor: not-allowed;
+  }
+
+  &:disabled::placeholder {
+    color: ${({ theme }) => theme.colors.muted};
+  }
 `;
 
 // AI작성: 댓글 입력창 높이만큼 버튼이 늘어나지 않도록 하단에 고정된 크기로 표시한다.
@@ -513,9 +525,11 @@ function PostDetail({
               }
             }}
             maxLength={500}
-            placeholder="댓글은 ctrl+enter로 등록이 가능합니다."
+            // AI작성: 비로그인 회원은 댓글을 작성할 수 없도록 입력 영역을 비활성화합니다.
+            disabled={!memberId}
+            placeholder={memberId ? '댓글은 ctrl+enter로 등록이 가능합니다.' : '댓글 작성하려면 로그인이 필요합니다.'}
           />
-          <CommentSubmitButton type="submit" $size="small" disabled={isSubmittingComment}>
+          <CommentSubmitButton type="submit" $size="small" disabled={!memberId || isSubmittingComment}>
             {isSubmittingComment ? '등록 중...' : '등록'}
           </CommentSubmitButton>
         </CommentForm>
