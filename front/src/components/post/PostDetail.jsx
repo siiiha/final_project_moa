@@ -391,8 +391,15 @@ function PostDetail({
                   <CommentInput
                     value={replyText}
                     onChange={(event) => onReplyChange(event.target.value)}
+                    // AI작성: 일반 Enter는 줄바꿈으로 두고 Ctrl/Cmd+Enter로 답글을 등록합니다.
+                    onKeyDown={(event) => {
+                      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                        event.preventDefault();
+                        onReplySubmit(event);
+                      }
+                    }}
                     maxLength={500}
-                    placeholder="답글을 입력해주세요."
+                    placeholder="댓글은 ctrl+enter로 등록이 가능합니다."
                     autoFocus
                     required
                   />
