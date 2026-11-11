@@ -177,6 +177,13 @@ const GenderDialog = styled.dialog`
 const InterestCard = styled(SectionCard)`
   margin-top: 16px;
 
+  /* AI작성: 관심사 헤더에 적용된 큰 제목 여백을 제거합니다. */
+  > header > h2 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
   > div {
     padding: 15px 18px;
   }
@@ -855,7 +862,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     ].join('-');
 
     if (!birthDate || birthDate >= todayText) {
-      setSignupError('생년월일은 오늘보다 이전 날짜여야 합니다.');
+      setSignupError('올바른 생년월일을 입력해 주세요.');
       return;
     }
 
@@ -1042,7 +1049,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       today.setHours(0, 0, 0, 0);
       if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== birthDate ||
         new Date(`${birthDate}T00:00:00`) >= today) {
-        message = '오늘보다 이전의 올바른 생년월일을 입력해 주세요.';
+        message = '올바른 생년월일을 입력해 주세요.';
       }
     }
 
@@ -1133,6 +1140,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
 
     return handleSubmit(event);
   };
+  // AI작성: 생년월일 오류를 입력칸 아래에서만 표시합니다.
+  const hasBirthDateError =
+    signupError === '올바른 생년월일을 입력해 주세요.';
 
   const fields = {
     name: (
@@ -1171,7 +1181,16 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             setSignupError('');
           }}
         />
-        {signupStep === 'birthDate' && (<p id="signup-birth-hint">생년월일은 8자리 숫자로 입력해 주세요.</p>)}
+        {/* AI작성: 생년월일 오류는 기본 안내 위치에서 빨간색으로 표시합니다. */}
+        {hasBirthDateError ? (
+          <EmailFeedback id="signup-birth-hint" role="alert">
+            {signupError}
+          </EmailFeedback>
+        ) : signupStep === 'birthDate' ? (
+          <p id="signup-birth-hint">
+            생년월일은 8자리 숫자로 입력해 주세요.
+          </p>
+        ) : null}
       </>
     ),
     gender: (
@@ -1289,7 +1308,19 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }
                 inline
                 compact
-                helpText="메일로 받은 인증번호를 입력해주세요."
+                helpText={
+                  // AI작성: 인증 완료 안내를 기존 입력 안내 위치에 표시합니다.
+                  emailVerificationToken ? (
+                    <span
+                      role="status"
+                      style={{ color: '#2E7D32', fontWeight: 600 }}
+                    >
+                      이메일 인증이 완료됐어요.
+                    </span>
+                  ) : (
+                    '메일로 받은 인증번호를 입력해 주세요.'
+                  )
+                }
                 action={
                   <VerifyButton
                     type="button"
@@ -1307,7 +1338,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }
               />
 
-              {emailMessage && <p role="status">{emailMessage}</p>}
+              {emailMessage && !emailVerificationToken && (
+                <p role="status">{emailMessage}</p>
+              )}
               {verificationRequestId && !emailVerificationToken && (
                 remainingSeconds > 0 ? (
                   <p
@@ -1418,9 +1451,26 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             }
           />
 
-          {nicknameMessage && <p role="status">{nicknameMessage}</p>}
         </FieldList>
-        {signupStep === 'nickname' && (<p>모아에서 사용할 닉네임을 2~12자로 입력해 주세요.</p>)}
+        {/* AI작성: 닉네임 안내 위치에서 성공은 초록색, 오류는 빨간색으로 표시합니다. */}
+        {(signupStep === 'nickname' || nicknameMessage) && (
+          <p role={nicknameMessage ? 'status' : undefined}>
+            {nicknameMessage ? (
+              <span
+                style={{
+                  color:
+                    nicknameMessage === '사용 가능한 닉네임입니다.'
+                      ? '#2E7D32'
+                      : '#c9463f',
+                }}
+              >
+                {nicknameMessage}
+              </span>
+            ) : (
+              '모아에서 사용할 닉네임을 2~12자로 입력해 주세요.'
+            )}
+          </p>
+        )}
       </>
     ),
     region: (
@@ -1715,7 +1765,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
               ))
             )}
 
-            {signupError && <p role="alert">{signupError}</p>}
+            {signupError && !hasBirthDateError && <p role="alert">{signupError}</p>}
 
             {/* AI작성: 관심사를 선택하고 입력 정보를 확인한 뒤 가입하도록 버튼을 아래에 배치합니다. */}
             {signupStep === 'details' ? (
