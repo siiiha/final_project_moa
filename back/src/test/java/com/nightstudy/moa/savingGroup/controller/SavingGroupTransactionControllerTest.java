@@ -22,7 +22,7 @@ class SavingGroupTransactionControllerTest {
             .setControllerAdvice(new GlobalExceptionHandler()).build();
     @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings={"/api/saving-groups/2/account/transactions", "/saving-groups/2/account/transactions"})
     void responseHasOnlyApprovedFieldsAndJwtIdentity(String path) throws Exception {
-        var row = new SavingGroupTransactionResponse(123L, LocalDateTime.of(2026,11,6,12,0), "DEPOSIT", new BigDecimal("10000"),
+        SavingGroupTransactionResponse row = new SavingGroupTransactionResponse(123L, LocalDateTime.of(2026,11,6,12,0), "DEPOSIT", new BigDecimal("10000"),
                 BigDecimal.ZERO, "김영희 회비", "DUES", "FOOD", "REVIEW_PENDING", false);
         when(service.getSavingGroupTransactions(eq(2L),eq(1L),eq(1))).thenReturn(new SavingGroupTransactionListResponse(List.of(row),PageMeta.of(1,10,1)));
         mvc.perform(get(path).requestAttr("memberId",1L).param("memberId","999"))
@@ -45,7 +45,7 @@ class SavingGroupTransactionControllerTest {
     }
     // AI작성: 승인된 모임원은 선택 월의 집계와 최근 여섯 달 추이를 같은 응답으로 받는다.
     @Test void dashboardUsesJwtIdentityAndSelectedMonth() throws Exception {
-        var response = new SavingGroupDashboardResponse(BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ZERO, 1,
+        SavingGroupDashboardResponse response = new SavingGroupDashboardResponse(BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ZERO, 1,
                 List.of(new SavingGroupDashboardResponse.MonthlyTrend("2026-11", BigDecimal.ONE, BigDecimal.ZERO)),
                 List.of(new SavingGroupDashboardResponse.ExpenseCategoryRatio("NEEDS_REVIEW", BigDecimal.ONE)));
         when(service.getSavingGroupDashboard(2L, 1L, YearMonth.of(2026, 11))).thenReturn(response);

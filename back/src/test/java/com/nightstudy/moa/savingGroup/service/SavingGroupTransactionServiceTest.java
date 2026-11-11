@@ -90,7 +90,7 @@ class SavingGroupTransactionServiceTest {
     void keepsReviewRequiredMockWithdrawalEditableAfterCategoryIsSaved() {
         membership("OWNER", "APPROVED");
         account();
-        var now = LocalDateTime.of(2026, 11, 8, 12, 0);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 8, 12, 0);
         when(mapper.selectSavingGroupTransactionCount(3L)).thenReturn(1);
         when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
                 new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
@@ -99,7 +99,7 @@ class SavingGroupTransactionServiceTest {
                 new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.NEEDS_REVIEW, 0.5,
                         CardExpenseClassificationStatus.REVIEW_REQUIRED, CardExpenseClassificationSource.MACHINE_LEARNING, null));
 
-        var item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
+        SavingGroupTransactionResponse item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
         assertThat(item.category()).isEqualTo("FOOD");
         assertThat(item.classificationStatus()).isEqualTo("CONFIRMED");
         assertThat(item.categoryEditable()).isTrue();
@@ -110,7 +110,7 @@ class SavingGroupTransactionServiceTest {
     void reusesStoredClassificationBeforeCallingPython() {
         membership("MEMBER", "APPROVED");
         account();
-        var now = LocalDateTime.of(2026, 11, 8, 12, 0);
+        LocalDateTime now = LocalDateTime.of(2026, 11, 8, 12, 0);
         when(mapper.selectSavingGroupTransactionCount(3L)).thenReturn(1);
         when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
                 new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
@@ -119,7 +119,7 @@ class SavingGroupTransactionServiceTest {
                 new SavingGroupTransactionClassificationRow(123L, "FOOD", "REVIEW_PENDING", new BigDecimal("0.9000"),
                         "MACHINE_LEARNING", null, null));
 
-        var item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
+        SavingGroupTransactionResponse item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
         assertThat(item.category()).isEqualTo("FOOD");
         assertThat(item.classificationStatus()).isEqualTo("REVIEW_PENDING");
         verifyNoInteractions(classifier);
@@ -130,8 +130,8 @@ class SavingGroupTransactionServiceTest {
     void aggregatesDashboardSummaryTrendAndExpenseCategories() {
         membership("MEMBER", "APPROVED");
         account();
-        var november = LocalDateTime.of(2026, 11, 8, 12, 0);
-        var october = LocalDateTime.of(2026, 10, 8, 12, 0);
+        LocalDateTime november = LocalDateTime.of(2026, 11, 8, 12, 0);
+        LocalDateTime october = LocalDateTime.of(2026, 10, 8, 12, 0);
         when(mapper.selectSavingGroupBalance(2L)).thenReturn(new BigDecimal("120000"));
         when(mapper.selectSavingGroupDashboardTransactions(eq(3L), any(), any())).thenReturn(List.of(
                 new SavingGroupTransactionRow(1L, november, "DEPOSIT", new BigDecimal("50000"), new BigDecimal("150000"),
@@ -149,7 +149,7 @@ class SavingGroupTransactionServiceTest {
                 new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.NEEDS_REVIEW, 0.2,
                         CardExpenseClassificationStatus.REVIEW_REQUIRED, CardExpenseClassificationSource.MACHINE_LEARNING, null));
 
-        var dashboard = service.getSavingGroupDashboard(12L, 1L, YearMonth.of(2026, 11));
+        SavingGroupDashboardResponse dashboard = service.getSavingGroupDashboard(12L, 1L, YearMonth.of(2026, 11));
         assertThat(dashboard.currentBalance()).isEqualByComparingTo("120000");
         assertThat(dashboard.monthlyDuesTotal()).isEqualByComparingTo("50000");
         assertThat(dashboard.monthlyExpenseTotal()).isEqualByComparingTo("30000");

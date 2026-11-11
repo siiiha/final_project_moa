@@ -461,23 +461,23 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     @Transactional(readOnly = true)
     public SavingGroupDashboardResponse getSavingGroupDashboard(Long savingGroupId, Long memberId, YearMonth month) {
         Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
-        var account = accountMapper.selectAccount(groupId);
+        EncryptedGroupAccountRow account = accountMapper.selectAccount(groupId);
         if (account == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
         }
         YearMonth firstMonth = month.minusMonths(DASHBOARD_MONTH_COUNT - 1L);
         LocalDateTime start = firstMonth.atDay(1).atStartOfDay();
         LocalDateTime end = month.plusMonths(1).atDay(1).atStartOfDay();
-        var totals = new LinkedHashMap<YearMonth, BigDecimal[]>();
+        LinkedHashMap<YearMonth, BigDecimal[]> totals = new LinkedHashMap<>();
         for (int index = 0; index < DASHBOARD_MONTH_COUNT; index += 1) {
             totals.put(firstMonth.plusMonths(index), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
         }
-        var categoryTotals = new LinkedHashMap<String, BigDecimal>();
+        LinkedHashMap<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
         BigDecimal monthlyDues = BigDecimal.ZERO;
         BigDecimal monthlyExpense = BigDecimal.ZERO;
         int reviewRequiredCount = 0;
 
-        for (var row : savingGroupMapper.selectSavingGroupDashboardTransactions(account.getAccountId(), start, end)) {
+        for (SavingGroupTransactionRow row : savingGroupMapper.selectSavingGroupDashboardTransactions(account.getAccountId(), start, end)) {
             YearMonth transactionMonth = YearMonth.from(row.transactedAt());
             BigDecimal amount = row.amount().abs();
             if ("DEPOSIT".equals(row.transactionType())) {
@@ -486,7 +486,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 continue;
             }
             if (!"EXPENSE".equals(row.purposeType())) continue;
-            var classification = classifyDemoExpense(row);
+            CardExpenseClassifierClient.ClassificationResult classification = classifyDemoExpense(row);
             boolean finalCategorySaved = row.finalCategory() != null && !row.finalCategory().isBlank();
             boolean reviewRequired = !finalCategorySaved && classification != null
                     && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED;
@@ -500,10 +500,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 if (reviewRequired) reviewRequiredCount += 1;
             }
         }
-        var trends = new ArrayList<SavingGroupDashboardResponse.MonthlyTrend>();
+        ArrayList<SavingGroupDashboardResponse.MonthlyTrend> trends = new ArrayList<>();
         totals.forEach((trendMonth, value) -> trends.add(new SavingGroupDashboardResponse.MonthlyTrend(
                 trendMonth.toString(), value[0], value[1])));
-        var ratios = categoryTotals.entrySet().stream()
+        List<SavingGroupDashboardResponse.ExpenseCategoryRatio> ratios = categoryTotals.entrySet().stream()
                 .map(entry -> new SavingGroupDashboardResponse.ExpenseCategoryRatio(entry.getKey(), entry.getValue())).toList();
         return new SavingGroupDashboardResponse(savingGroupMapper.selectSavingGroupBalance(groupId), monthlyDues,
                 monthlyExpense, reviewRequiredCount, trends, ratios);
@@ -533,7 +533,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             if (row == null) {
                 throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_TRANSACTION_NOT_FOUND", "거래내역을 찾을 수 없습니다.");
             }
-            var classification = expenseClassificationService.classifyInCurrentTransaction(row);
+            CardExpenseClassifierClient.ClassificationResult classification = expenseClassificationService.classifyInCurrentTransaction(row);
             if (classification == null) {
                 throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CARD_EXPENSE_CLASSIFIER_UNAVAILABLE",
                         "자동 분류 서비스를 확인할 수 없습니다.");
