@@ -460,7 +460,8 @@ function SmallGroupDetail({
   }).formatToParts(reviewNow);
   const datePart = (type) => koreaDateParts.find((part) => part.type === type)?.value;
   const todayInKorea = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
-  const reviewRestriction = myRole !== 'MEMBER'
+  // AI작성: 공개 후기 조회는 유지하되 로그아웃 직후 이전 MEMBER 역할이 남아도 작성 버튼과 모달을 숨긴다.
+  const reviewRestriction = !hasLogin ? '후기 작성은 로그인 후 승인된 일반 모임원만 가능합니다.' : myRole !== 'MEMBER'
     ? (myRole === 'OWNER' ? '소모임 개설자는 후기를 작성할 수 없습니다.' : '승인된 일반 모임원만 후기를 작성할 수 있습니다.')
     : !group.meetDate ? '모임 날짜가 설정되지 않아 후기를 작성할 수 없습니다.'
       : group.meetDate >= todayInKorea ? '후기는 모임 다음 날부터 작성할 수 있습니다.' : '';

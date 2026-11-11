@@ -110,6 +110,40 @@ class SmallGroupSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // AI작성: 공개 후기의 추가 페이지도 인증 없이 조회되고 페이지 번호가 Service에 전달되는지 검증한다.
+    @Test
+    void publicSmallGroupReviewsAllowAnonymousNextPage() throws Exception {
+        when(smallGroupService.getSmallGroupReviews(eq(1L), isNull(), any()))
+                .thenReturn(new SmallGroupReviewListResponse(List.of(), PageMeta.of(2, 8, 9)));
+
+        mockMvc.perform(get("/api/small-groups/1/reviews").param("page", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.page").value(2));
+
+        var condition = org.mockito.ArgumentCaptor.forClass(
+                com.nightstudy.moa.smallGroup.dto.SmallGroupReviewSearchCondition.class);
+        verify(smallGroupService).getSmallGroupReviews(eq(1L), isNull(), condition.capture());
+        org.assertj.core.api.Assertions.assertThat(condition.getValue().getPage()).isEqualTo(2);
+        verifyNoInteractions(jwtTokenProvider, authSessionService, revokedTokenMapper);
+    }
+
+    // AI작성: 목록 공개 설정이 후기 개별 경로나 수정·삭제 요청으로 확대되지 않는지 검증한다.
+    @Test
+    void reviewItemAndMutationsStillRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/small-groups/1/reviews/9"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/api/small-groups/1/reviews/9")
+                        .contentType("application/json").content("{\"content\":\"수정\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                        "/api/small-groups/1/reviews/9")
+                        .contentType("application/json").content("{\"content\":\"수정\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/small-groups/1/reviews/9"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(smallGroupService);
+    }
+
     // AI작성: 공개 후기 GET 경로가 본인 작성 여부 조회까지 공개하지 않는지 확인한다.
     @Test
     void ownReviewStatusRequiresAuthentication() throws Exception {

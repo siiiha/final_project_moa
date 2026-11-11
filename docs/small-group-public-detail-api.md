@@ -1184,3 +1184,13 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 고정 변경 성공 후 목록만 다시 조회하며 재조회 실패 시 PATCH를 반복하지 않는다. 현재 목록을 확인할 때까지 작성·고정·정렬·페이징을 막고 조회 재시도 버튼을 제공한다.
 - 행 우측 44px 핀 버튼, 고정 배지·별도 영역, 최대 개수 초과 모달을 사용한다. PC만 이번 개선 대상으로 했으며 모바일 전용 개선은 하지 않았다.
 - 스키마는 기존 group_notice의 is_pinned·updated_at·deleted_at을 그대로 재사용하며 DB 변경은 없다.
+
+## 2026-11-11 소모임 후기 공개 조회 및 작성 접근 조건 보완
+
+- AI작성: `GET /api/small-groups/{smallGroupId}/reviews`는 기존 Security 공개 설정과 선택적 회원 ID를 유지한다. 인증 헤더가 없으면 JWT 필터는 요청을 통과시키며, 비로그인 후기 탭과 목록·추가 페이지 조회를 제공한다.
+- 승인된 OWNER·MEMBER는 조회 가능하고 MANAGER는 상태와 관계없이 기존 ACCESS_DENIED 정책을 유지한다. 로그인한 미가입·미승인 사용자의 기존 공개 조회 정책은 변경하지 않았다.
+- 화면은 토큰이 없는 경우 역할 정보가 MEMBER로 남아 있어도 작성 버튼·모달과 본인 작성 여부 조회를 제공하지 않는다. 공개 후기 목록은 계속 표시한다.
+- 작성은 기존대로 로그인한 승인 MEMBER만 모임 다음 날부터 1회 가능하며, OWNER·MANAGER·미승인·미가입·중복 작성 제한을 유지한다.
+- 소모임 후기 수정·삭제 API는 현재 Controller에 없다. 새로 구현하지 않았다. 미구현 개별 후기 경로에 대해서도 비로그인 GET·PUT·PATCH·DELETE가 보안 필터에서 차단되는 회귀 테스트를 추가했다. 이는 수정·삭제 기능 구현이나 작성자 권한 검증을 의미하지 않는다.
+- 검증: 프론트 smallGroups API 테스트 61개 및 프로덕션 빌드 통과. 백엔드 후기 조회·작성 Service/Controller 및 Security 통합 테스트는 Java 17 toolchain 부재로 실행되지 않았다(Java 21 설치). 브라우저·Postman 검증은 미실시다.
+- 수동 검증: 로그아웃 상태에서 소모임 상세 → 후기 탭 → 더 보기 확인. MEMBER로 후기 탭을 연 뒤 로그아웃하여 작성 진입이 사라지는지 확인. OWNER·MEMBER 조회 성공, MANAGER 차단, 비로그인 POST와 /reviews/me의 401을 확인한다.
