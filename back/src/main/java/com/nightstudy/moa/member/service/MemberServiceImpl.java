@@ -149,6 +149,18 @@ public class MemberServiceImpl implements MemberService {
         }
 
         String email = socialSignup ? null : request.getEmail().trim();
+        // AI작성: 일반·소셜 회원가입 모두 완성된 010 휴대전화번호만 허용합니다.
+        String phone = request.getPhone();
+
+        if (phone == null
+                || !phone.trim().matches("^010([0-9]{8}|-[0-9]{4}-[0-9]{4})$")) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_PHONE_NUMBER",
+                    "010으로 시작하는 휴대전화번호 11자리를 입력해 주세요."
+            );
+        }
+
         String nickname = request.getNickname().trim();
 
         if (!socialSignup && memberMapper.countByEmail(email) > 0) {

@@ -587,6 +587,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [isRegionsLoading, setIsRegionsLoading] = useState(true);
   const [regionsError, setRegionsError] = useState('');
   const [nicknameMessage, setNicknameMessage] = useState('');
+  // AI작성: 중복 확인을 통과한 닉네임과 요청 순서를 관리합니다.
+  const [checkedNickname, setCheckedNickname] = useState('');
+  const nicknameCheckVersionRef = useRef(0);
   const [isCheckingNickname, setIsCheckingNickname] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupError, setSignupError] = useState('');
@@ -761,14 +764,17 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     }
   };
 
-  // 현재 입력한 닉네임의 사용 가능 여부를 확인
+   // AI작성: 확인 요청 이후 닉네임이 바뀌면 이전 응답을 적용하지 않습니다.
   const handleDuplicateCheck = async () => {
     if (isCheckingNickname || isSubmitting) return;
 
     const trimmedNickname = nickname.trim();
+    const requestVersion = ++nicknameCheckVersionRef.current;
+
+    setCheckedNickname('');
 
     if (trimmedNickname.length < 2 || trimmedNickname.length > 12) {
-      setNicknameMessage('닉네임은 2~12자로 입력해주세요.');
+      setNicknameMessage('닉네임은 2~12자로 입력해 주세요.');
       return;
     }
 
@@ -778,19 +784,32 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     try {
       const available = await checkNicknameAvailable(trimmedNickname);
 
+      if (requestVersion !== nicknameCheckVersionRef.current) return;
+
       if (typeof available !== 'boolean') {
         throw new Error('중복 확인 결과를 확인할 수 없습니다.');
       }
 
+      setCheckedNickname(available ? trimmedNickname : '');
       setNicknameMessage(
         available
           ? '사용 가능한 닉네임입니다.'
           : '이미 사용 중인 닉네임입니다.',
       );
+
+      if (available) {
+        setSignupError((previous) =>
+          previous === '현재 닉네임의 중복 확인을 완료해 주세요.'
+            ? ''
+            : previous,
+        );
+      }
     } catch (error) {
+      if (requestVersion !== nicknameCheckVersionRef.current) return;
+
       setNicknameMessage(
         error.response?.data?.error?.message ??
-        '닉네임 중복 확인에 실패했습니다.',
+          '닉네임 중복 확인에 실패했습니다.',
       );
     } finally {
       setIsCheckingNickname(false);
@@ -848,9 +867,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       setSignupError('닉네임은 2~12자로 입력해주세요.');
       return;
     }
-
-    if (!trimmedPhone || trimmedPhone.length > 20) {
-      setSignupError('전화번호는 1~20자로 입력해주세요.');
+    // AI작성: 마지막 단계에서 닉네임을 수정한 경우에도 다시 확인하도록 합니다.
+    if (checkedNickname !== trimmedNickname) {
+      setSignupError('현재 닉네임의 중복 확인을 완료해 주세요.');
+      return;
+    }
+    // AI작성: 최종 가입 요청에서도 휴대전화번호 형식을 확인합니다.
+    if (!/^010-\d{4}-\d{4}$/.test(trimmedPhone)) {
+      setSignupError('010으로 시작하는 휴대전화번호 11자리를 입력해 주세요.');
       return;
     }
 
@@ -1062,8 +1086,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     if (!message && includes('gender') && !gender) {
       message = '성별을 선택해 주세요.';
     }
-    if (!message && includes('phone') && (!phone.trim() || phone.trim().length > 20)) {
-      message = '전화번호를 입력해 주세요.';
+    // AI작성: 전화번호를 완성해야 다음 단계로 이동할 수 있습니다.
+    if (!message && includes('phone') && !/^010-\d{4}-\d{4}$/.test(phone.trim())) {
+      message = '010으로 시작하는 휴대전화번호 11자리를 입력해 주세요.';
     }
     if (!message && !isSocialSignup && includes('email') && !emailVerificationToken) {
       message = '이메일 인증을 완료해 주세요.';
@@ -1078,8 +1103,12 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
         message = '비밀번호와 비밀번호 확인이 일치하지 않습니다.';
       }
     }
-    if (!message && includes('nickname') && (nickname.trim().length < 2 || nickname.trim().length > 12)) {
-      message = '닉네임을 2~12자로 입력해 주세요.';
+    if (!message && includes('nickname')) {
+      if (nickname.trim().length < 2 || nickname.trim().length > 12) {
+        message = '닉네임을 2~12자로 입력해 주세요.';
+      } else if (checkedNickname !== nickname.trim()) {
+        message = '현재 닉네임의 중복 확인을 완료해 주세요.';
+      }
     }
     if (!message && includes('region') &&
       !memberRegionOptions.some((region) => region.regionId === Number(regionId) && region.townName)) {
@@ -1439,6 +1468,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             onChange={(event) => {
               setNickname(event.target.value);
               setNicknameMessage('');
+              // AI작성: 닉네임이 바뀌면 이전 확인 결과와 진행 중인 응답을 무효화합니다.
+              setCheckedNickname('');
+              nicknameCheckVersionRef.current += 1;
             }}
             minLength={2}
             maxLength={12}
