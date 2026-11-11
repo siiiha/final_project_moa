@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FiCamera } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -10,6 +10,7 @@ import {
   memberInterestOptions,
   uploadMyProfileImage,
   deleteMyProfileImage,
+  checkNicknameAvailable,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 import ProfileImage from './ProfileImage';
@@ -109,8 +110,21 @@ const FormArea = styled.div`
   display: grid;
   align-content: start;
   gap: 12px;
+
   label {
     word-break: keep-all;
+  }
+
+  /* AI작성: 수정 불가 항목을 회색으로 구분하고 내용 복사는 허용합니다. */
+  input[readonly] {
+    background: #eef2f1;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    cursor: default;
+  }
+
+  input[readonly]:focus {
+    border-color: ${({ theme }) => theme.colors.border};
+    box-shadow: none;
   }
 `;
 
@@ -265,6 +279,73 @@ function EditProfileForm({ initialProfile }) {
 
   // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
   const [photoStatus, setPhotoStatus] = useState('');
+  
+  // AI작성: 입력을 멈춘 뒤 닉네임을 확인하고, 이전 요청의 늦은 응답은 무시합니다.
+  const [nicknameCheck, setNicknameCheck] = useState({
+    value: '',
+    status: 'idle',
+  });
+
+  useEffect(() => {
+    const value = nickname.trim();
+    const originalNickname = (profile?.nickname ?? '').trim();
+
+    if (
+      value === originalNickname ||
+      value.length < 2 ||
+      value.length > 12
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const available = await checkNicknameAvailable(value);
+
+        if (typeof available !== 'boolean') {
+          throw new Error('닉네임 확인 결과가 올바르지 않습니다.');
+        }
+
+        if (!cancelled) {
+          setNicknameCheck({
+            value,
+            status: available ? 'available' : 'unavailable',
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setNicknameCheck({ value, status: 'error' });
+        }
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [nickname, profile?.nickname]);
+  // AI작성: 현재 입력값에 해당하는 확인 결과만 안내합니다.
+  const nicknameValue = nickname.trim();
+
+  const nicknameStatus =
+    nicknameValue === (profile?.nickname ?? '').trim()
+      ? 'idle'
+      : nicknameValue.length < 2 || nicknameValue.length > 12
+        ? 'invalid'
+        : nicknameCheck.value === nicknameValue
+          ? nicknameCheck.status
+          : 'checking';
+
+  const nicknameMessages = {
+    idle: '닉네임은 2~12자로 입력해 주세요.',
+    invalid: '닉네임은 2~12자로 입력해 주세요.',
+    checking: '닉네임을 확인하고 있어요.',
+    available: '사용 가능한 닉네임이에요.',
+    unavailable: '이미 사용 중인 닉네임이에요.',
+    error: '닉네임을 확인하지 못했어요. 잠시 후 다시 입력해 주세요.',
+  };
 
   // AI작성: 기존 선택은 해제할 수 있고, 새 선택은 최대 3개로 제한한다.
   const toggleInterest = (interestId) => {
@@ -481,12 +562,29 @@ function EditProfileForm({ initialProfile }) {
           id="edit-nickname"
           label="닉네임"
           value={nickname}
-          onChange={(event) => setNickname(event.target.value)}
+          onChange={(event) => {
+            setNickname(event.target.value);
+            setNicknameCheck({ value: '', status: 'idle' });
+          }}
           minLength={2}
           maxLength={12}
           required
           disabled={isSaving}
-          helpText="2~12자 · 중복 여부는 저장 시 확인합니다."
+          helpText={
+            <span
+              role="status"
+              style={{
+                color:
+                  nicknameStatus === 'available'
+                    ? '#2E7D32'
+                    : ['invalid', 'unavailable', 'error'].includes(nicknameStatus)
+                      ? '#c9463f'
+                      : '#51625e',
+              }}
+            >
+              {nicknameMessages[nicknameStatus]}
+            </span>
+          }
           inline
           compact
         />
