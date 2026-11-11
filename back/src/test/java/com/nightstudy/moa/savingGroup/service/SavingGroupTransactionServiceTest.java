@@ -7,6 +7,7 @@ import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -102,6 +103,41 @@ class SavingGroupTransactionServiceTest {
         assertThat(item.category()).isEqualTo("FOOD");
         assertThat(item.classificationStatus()).isEqualTo("CONFIRMED");
         assertThat(item.categoryEditable()).isTrue();
+    }
+
+    // AI작성: 확인 필요 지출은 비율에 포함하고, 계금 지급은 일반 지출 집계에서 제외한다.
+    @Test
+    void aggregatesDashboardSummaryTrendAndExpenseCategories() {
+        membership("MEMBER", "APPROVED");
+        account();
+        var november = LocalDateTime.of(2026, 11, 8, 12, 0);
+        var october = LocalDateTime.of(2026, 10, 8, 12, 0);
+        when(mapper.selectSavingGroupBalance(2L)).thenReturn(new BigDecimal("120000"));
+        when(mapper.selectSavingGroupDashboardTransactions(eq(3L), any(), any())).thenReturn(List.of(
+                new SavingGroupTransactionRow(1L, november, "DEPOSIT", new BigDecimal("50000"), new BigDecimal("150000"),
+                        "김영희 회비", "DUES", "MOCK", null),
+                new SavingGroupTransactionRow(2L, november, "WITHDRAWAL", new BigDecimal("20000"), new BigDecimal("130000"),
+                        "동네밥상", "EXPENSE", "MOCK", "FOOD"),
+                new SavingGroupTransactionRow(3L, november, "WITHDRAWAL", new BigDecimal("10000"), new BigDecimal("120000"),
+                        "정체불명 결제", "EXPENSE", "MOCK", null),
+                new SavingGroupTransactionRow(4L, october, "WITHDRAWAL", new BigDecimal("30000"), new BigDecimal("130000"),
+                        "계금 지급", "PAYOUT", "MOCK", null)));
+        when(classifier.classify("동네밥상", new BigDecimal("20000"))).thenReturn(
+                new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.FOOD, 0.9,
+                        CardExpenseClassificationStatus.REVIEW_PENDING, CardExpenseClassificationSource.MACHINE_LEARNING, null));
+        when(classifier.classify("정체불명 결제", new BigDecimal("10000"))).thenReturn(
+                new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.NEEDS_REVIEW, 0.2,
+                        CardExpenseClassificationStatus.REVIEW_REQUIRED, CardExpenseClassificationSource.MACHINE_LEARNING, null));
+
+        var dashboard = service.getSavingGroupDashboard(12L, 1L, YearMonth.of(2026, 11));
+        assertThat(dashboard.currentBalance()).isEqualByComparingTo("120000");
+        assertThat(dashboard.monthlyDuesTotal()).isEqualByComparingTo("50000");
+        assertThat(dashboard.monthlyExpenseTotal()).isEqualByComparingTo("30000");
+        assertThat(dashboard.reviewRequiredWithdrawalCount()).isEqualTo(1);
+        assertThat(dashboard.monthlyTrends()).hasSize(6);
+        assertThat(dashboard.expenseCategoryRatios()).containsExactlyInAnyOrder(
+                new SavingGroupDashboardResponse.ExpenseCategoryRatio("FOOD", new BigDecimal("20000")),
+                new SavingGroupDashboardResponse.ExpenseCategoryRatio("NEEDS_REVIEW", new BigDecimal("10000")));
     }
 
     @ParameterizedTest

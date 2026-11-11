@@ -21,6 +21,9 @@ import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
+import java.time.DateTimeException;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -66,6 +69,21 @@ public class SavingGroupController {
             @Valid @ModelAttribute com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionSearchCondition condition) {
         var result = savingGroupService.getSavingGroupTransactions(savingGroupId, memberId, condition.getPage());
         return ApiResponse.ok(result.items(), result.pageMeta());
+    }
+
+    // AI작성: 선택 월과 최근 여섯 달 추이를 반환하며 소속·승인 여부는 Service에서 검증한다.
+    @GetMapping("/{savingGroupId}/dashboard")
+    public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupDashboardResponse> dashboard(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @RequestParam(name = "month", required = false) String month) {
+        YearMonth targetMonth;
+        try {
+            targetMonth = month == null ? YearMonth.now(ZoneId.of("Asia/Seoul")) : YearMonth.parse(month);
+        } catch (DateTimeException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "조회 월은 YYYY-MM 형식이어야 합니다.");
+        }
+        return ApiResponse.ok(savingGroupService.getSavingGroupDashboard(savingGroupId, memberId, targetMonth));
     }
 
     // AI작성: 화면에서 변경한 확인 필요 출금 항목만 일괄 저장하고 입금·자동 분류 완료 건은 Service가 거부한다.

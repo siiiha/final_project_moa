@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -447,6 +449,57 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         var items = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size)
                 .stream().map(this::toTransactionResponse).toList();
         return new SavingGroupTransactionListResponse(items, meta);
+    }
+
+    // AI작성: 최근 여섯 달의 거래를 월별로 합산하고, 미확정 확인 필요 출금은 별도 분류로 보존한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupDashboardResponse getSavingGroupDashboard(Long savingGroupId, Long memberId, YearMonth month) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
+        var account = accountMapper.selectAccount(groupId);
+        if (account == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+        }
+        YearMonth firstMonth = month.minusMonths(5);
+        LocalDateTime start = firstMonth.atDay(1).atStartOfDay();
+        LocalDateTime end = month.plusMonths(1).atDay(1).atStartOfDay();
+        var totals = new LinkedHashMap<YearMonth, BigDecimal[]>();
+        for (int index = 0; index < 6; index += 1) totals.put(firstMonth.plusMonths(index), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+        var categoryTotals = new LinkedHashMap<String, BigDecimal>();
+        BigDecimal monthlyDues = BigDecimal.ZERO;
+        BigDecimal monthlyExpense = BigDecimal.ZERO;
+        int reviewRequiredCount = 0;
+
+        for (var row : savingGroupMapper.selectSavingGroupDashboardTransactions(account.getAccountId(), start, end)) {
+            YearMonth transactionMonth = YearMonth.from(row.transactedAt());
+            BigDecimal amount = row.amount().abs();
+            if ("DEPOSIT".equals(row.transactionType())) {
+                totals.get(transactionMonth)[0] = totals.get(transactionMonth)[0].add(amount);
+                if (transactionMonth.equals(month)) monthlyDues = monthlyDues.add(amount);
+                continue;
+            }
+            if (!"EXPENSE".equals(row.purposeType())) continue;
+            var classification = classifyDemoExpense(row);
+            boolean finalCategorySaved = row.finalCategory() != null && !row.finalCategory().isBlank();
+            boolean reviewRequired = !finalCategorySaved && classification != null
+                    && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED;
+            String category = finalCategorySaved ? row.finalCategory()
+                    : reviewRequired || classification == null || classification.suggestedCategory() == null
+                        ? CardExpenseCategory.NEEDS_REVIEW.name() : classification.suggestedCategory().name();
+            totals.get(transactionMonth)[1] = totals.get(transactionMonth)[1].add(amount);
+            if (transactionMonth.equals(month)) {
+                monthlyExpense = monthlyExpense.add(amount);
+                categoryTotals.merge(category, amount, BigDecimal::add);
+                if (reviewRequired) reviewRequiredCount += 1;
+            }
+        }
+        var trends = new ArrayList<SavingGroupDashboardResponse.MonthlyTrend>();
+        totals.forEach((trendMonth, value) -> trends.add(new SavingGroupDashboardResponse.MonthlyTrend(
+                trendMonth.toString(), value[0], value[1])));
+        var ratios = categoryTotals.entrySet().stream()
+                .map(entry -> new SavingGroupDashboardResponse.ExpenseCategoryRatio(entry.getKey(), entry.getValue())).toList();
+        return new SavingGroupDashboardResponse(savingGroupMapper.selectSavingGroupBalance(groupId), monthlyDues,
+                monthlyExpense, reviewRequiredCount, trends, ratios);
     }
 
     @Override
