@@ -498,6 +498,23 @@ export async function getSavingGroupTransactions(savingGroupId, { page = 1, sign
   };
 }
 
+// AI작성: 확인이 필요한 출금 거래의 최종 분류만 일괄 전송하고, 권한·대상 검증은 서버가 처리한다.
+export async function updateSavingGroupTransactionCategories(savingGroupId, items, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const allowedCategories = ['FOOD', 'TRANSPORTATION', 'RENTAL', 'SUPPLIES', 'ACTIVITY', 'ACCOMMODATION', 'FEE', 'OTHER'];
+  if (!Array.isArray(items) || items.length < 1 || items.some((item) =>
+    !item || !allowedCategories.includes(item.category))) {
+    throw new Error('저장할 출금 분류를 확인해주세요.');
+  }
+  const body = {
+    items: items.map((item) => ({ transactionId: savingGroupPathId(item.transactionId), category: item.category })),
+  };
+  return savingGroupMemberResponse(
+    () => client.patch(`/saving-groups/${id}/account/transactions/categories`, body, { signal }),
+    '분류 항목을 저장하지 못했습니다. 다시 시도해주세요.'
+  );
+}
+
 // AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
 export async function getSavingGroupAccount(savingGroupId, { signal } = {}) {
   const pathId = savingGroupPathId(savingGroupId);
