@@ -1,5 +1,14 @@
 import client from './client.js';
 
+// AI작성: 거래내역 선택·대시보드 표시에서 같은 지출 분류 코드와 이름을 재사용한다.
+export const savingGroupExpenseCategoryCodes = Object.freeze([
+  'FOOD', 'TRANSPORTATION', 'RENTAL', 'SUPPLIES', 'ACTIVITY', 'ACCOMMODATION', 'FEE', 'OTHER',
+]);
+export const savingGroupExpenseCategoryLabels = Object.freeze({
+  FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비',
+  ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타', NEEDS_REVIEW: '확인 필요',
+});
+
 // AI작성: 현재 순번과 다음 달 예약안을 같은 인증 client로 조회·저장한다.
 function toTurnOrderAssignment(data) {
   if (!data || !/^\d{4}-\d{2}-01$/.test(data.effectiveMonth) || !Number.isSafeInteger(data.startRoundNumber)
@@ -528,9 +537,8 @@ export async function getSavingGroupDashboard(savingGroupId, { month, signal } =
 // AI작성: 확인이 필요한 출금 거래의 최종 분류만 일괄 전송하고, 권한·대상 검증은 서버가 처리한다.
 export async function updateSavingGroupTransactionCategories(savingGroupId, items, { signal } = {}) {
   const id = savingGroupPathId(savingGroupId);
-  const allowedCategories = ['FOOD', 'TRANSPORTATION', 'RENTAL', 'SUPPLIES', 'ACTIVITY', 'ACCOMMODATION', 'FEE', 'OTHER'];
   if (!Array.isArray(items) || items.length < 1 || items.some((item) =>
-    !item || !allowedCategories.includes(item.category))) {
+    !item || !savingGroupExpenseCategoryCodes.includes(item.category))) {
     throw new Error('저장할 출금 분류를 확인해주세요.');
   }
   const body = {

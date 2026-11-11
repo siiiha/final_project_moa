@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
-import { getSavingGroupTransactions, updateSavingGroupTransactionCategories } from '../../api/savingGroups';
+import {
+  getSavingGroupTransactions, savingGroupExpenseCategoryCodes as editableCategoryCodes,
+  savingGroupExpenseCategoryLabels as categoryLabels, updateSavingGroupTransactionCategories,
+} from '../../api/savingGroups';
 
 const Panel = styled.section`
   margin-top: 22px;
@@ -188,12 +191,6 @@ const formatWon = (amount) => `${amount.toLocaleString('ko-KR')}원`;
 
 // AI작성: 장부 목적과 카드 분류 코드에 표시용 이름을 적용한다.
 const purposeLabels = { DUES: '회비', PAYOUT: '계금 지급', EXPENSE: '일반 지출' };
-const categoryLabels = {
-  FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비',
-  ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타',
-  NEEDS_REVIEW: '확인 필요',
-};
-const editableCategoryCodes = ['FOOD', 'TRANSPORTATION', 'RENTAL', 'SUPPLIES', 'ACTIVITY', 'ACCOMMODATION', 'FEE', 'OTHER'];
 
 function getCategoryLabel({ purposeType, category, classificationStatus, transactionType }) {
   if (purposeType === 'DUES' || purposeType === 'PAYOUT') return purposeLabels[purposeType];

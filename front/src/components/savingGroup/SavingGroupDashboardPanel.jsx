@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Bar, BarChart, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { getSavingGroupDashboard, getSavingGroupPaymentStatus } from '../../api/savingGroups';
+import { getSavingGroupDashboard, getSavingGroupPaymentStatus, savingGroupExpenseCategoryLabels } from '../../api/savingGroups';
 import styled from 'styled-components';
 
 const Panel = styled.section`
@@ -152,10 +152,6 @@ const koreanMonth = new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit',
 });
 
-const categoryLabels = {
-  FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비',
-  ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타', NEEDS_REVIEW: '확인 필요',
-};
 const chartColors = ['#2F80ED', '#27AE60', '#F2994A', '#9B51E0', '#EB5757', '#56CCF2', '#BB6BD9', '#6FCF97', '#828282'];
 
 // AI작성: 모든 페이지를 조회하며 회비 기준이 없는 계원이 있으면 합계 표시를 보류한다.
@@ -202,7 +198,7 @@ export function SavingGroupDashboardView({ dashboard, outstanding, canViewOutsta
   const format = (value) => value == null ? '—' : value.toLocaleString('ko-KR') + '원';
   const data = dashboard?.value;
   const categoryData = (data?.expenseCategoryRatios ?? []).map((item) => ({
-    ...item, label: categoryLabels[item.category] ?? '분류 확인 필요',
+    ...item, label: savingGroupExpenseCategoryLabels[item.category] ?? '분류 확인 필요',
   }));
   // AI작성: 실제 0원과 미조회·오류를 구분하고 계주에게만 미납을 표시한다.
   const dashboardSummary = [
