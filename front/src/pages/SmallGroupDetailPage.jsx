@@ -295,9 +295,6 @@ function SmallGroupDetailPage() {
   return (
     <Page>
       <Breadcrumb>소모임 &gt; 소모임 목록 &gt; 소모임 메인</Breadcrumb>
-      {current && !current.error && (
-        <Button type="button" $variant="secondary" onClick={goToList}>소모임 목록으로</Button>
-      )}
       <Content>
         {!current ? <EmptyCard role="status">소모임 정보를 불러오는 중입니다.</EmptyCard>
           : current.error ? (
@@ -316,6 +313,8 @@ function SmallGroupDetailPage() {
               group={group}
               groupId={current.group.groupId}
               smallGroupId={current.group.smallGroupId}
+              // AI작성: 장소 카드 아래 목록 버튼에서도 기존 검색·페이지 복원 함수를 재사용한다.
+              onBack={goToList}
               myRole={current.group.myRole}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               settings={currentSettings?.settings}

@@ -106,7 +106,6 @@ function SmallGroupsPage() {
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState({ items: [], totalElements: 0, totalPages: 0, requestKey: null, error: '' });
   const [categoryState, setCategoryState] = useState({ items: [], loading: true, error: '' });
-  const [categoryRetry, setCategoryRetry] = useState(0);
   const [searchError, setSearchError] = useState('');
   const selectedDistrict = regionState.items.find((item) => item.regionId === Number(districtId));
   const selectedTown = regionState.items.find((item) => item.regionId === Number(townId));
@@ -161,7 +160,7 @@ function SmallGroupsPage() {
         error: error.message || '관심사 목록을 불러오지 못했습니다.' });
     });
     return () => { active = false; controller.abort(); };
-  }, [categoryRetry]);
+  }, []);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -184,11 +183,6 @@ function SmallGroupsPage() {
     setParams({});
     setSearchError('');
     setRetry((value) => value + 1);
-  };
-
-  const handleCategoryRetry = () => {
-    setCategoryState((previous) => ({ ...previous, loading: true, error: '' }));
-    setCategoryRetry((value) => value + 1);
   };
 
   const handleView = (id) => {
@@ -251,12 +245,7 @@ function SmallGroupsPage() {
             }}>지역 다시 불러오기</Button>
           </div>
         )}
-        {categoryState.error && (
-          <div role="alert">
-            <Result>{categoryState.error}</Result>
-            <Button type="button" onClick={handleCategoryRetry}>다시 시도</Button>
-          </div>
-        )}
+        {/* AI작성: 관심사 조회 오류의 로그인 안내·재시도 영역은 공개 소모임 목록에 표시하지 않는다. */}
         {searchError && <Result role="alert">{searchError}</Result>}
 
         {/* AI작성: 목록 로딩·실패 중 이전 결과 건수나 오류에 의한 0건을 표시하지 않는다. */}

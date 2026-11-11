@@ -94,8 +94,12 @@ const Select = styled.select`
   }
 `;
 
+// AI작성: 소개글은 현재 높이를 유지하고 긴 내용은 내부 스크롤로 확인한다.
 const Introduction = styled(Textarea)`
+  height: 96px;
   min-height: 96px;
+  resize: none;
+  overflow-y: auto;
 `;
 
 const Actions = styled.div`
@@ -296,7 +300,16 @@ function SmallGroupSettingsForm({ settings, categories, isSaving, onSubmit, onCa
             </Field>
             <Field>
               정원
-              <Input name="maxMembers" type="number" min={minimumCapacity} max="20" required value={capacity} onChange={(event) => { setCapacity(event.target.value); setFormError(null); }} />
+              <Input name="maxMembers" type="number" min={minimumCapacity} max="20" step="1" required value={capacity}
+                onChange={(event) => {
+                  // AI작성: 직접 입력·붙여넣기도 승인 인원을 포함한 최소 정원~20명으로 보정하고 빈 값은 재입력을 위해 허용한다.
+                  const input = event.target;
+                  const nextCapacity = input.value === '' ? ''
+                    : input.valueAsNumber > 20 ? '20'
+                      : input.valueAsNumber < minimumCapacity ? String(minimumCapacity) : input.value;
+                  setCapacity(nextCapacity);
+                  setFormError(null);
+                }} />
               <Hint>현재 승인 인원은 {settings.approvedMemberCount}명입니다.</Hint>
             </Field>
             <Field>

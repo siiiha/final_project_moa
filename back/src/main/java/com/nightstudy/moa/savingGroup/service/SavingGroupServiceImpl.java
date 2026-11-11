@@ -359,6 +359,19 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         }
         return noticeId;
     }
+    // AI작성: 물리 경로 대신 공개 모임에 연결된 이미지 조회 주소를 전달한다.
+    private String groupImageUrl(SavingGroupRow row) {
+        return row.getGroupImagePath() == null || row.getGroupImagePath().isBlank() ? null
+                : "/api/saving-groups/" + row.getSavingGroupId() + "/image";
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.core.io.Resource getSavingGroupImage(Long savingGroupId) {
+        // AI작성: 공개 상세와 같은 조건으로 심사중·정지·삭제 모임을 제외한다.
+        var row = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+        if (row == null) throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        return com.nightstudy.moa.common.service.FileStorageService.loadGroupImage(row.getGroupImagePath());
+    }
     private static final int PAGE_SIZE = 6;
     // AI작성: 계모임 전체 목록의 페이지 크기와 별개로 공지는 페이지당 4개를 제공한다.
     private static final int NOTICE_PAGE_SIZE = 4;
@@ -1023,6 +1036,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         detail.setPinnedNotices(savingGroupMapper.selectSavingGroupPinnedNotices(groupId));
         // AI작성: 실제 상세 응답에도 유형을 포함해 순번계 전용 추천 버튼을 노출한다.
         detail.setGroupType(row.getGroupType());
+        detail.setGroupImageUrl(groupImageUrl(row));
         return new SavingGroupDetailPageResponse(detail, pageMeta);
     }
 
@@ -1050,11 +1064,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                                 rows.stream().map(SavingGroupRow::getGroupId).distinct().toList())
                         .stream().collect(Collectors.toMap(
                                 SavingGroupMemberCount::getGroupId, SavingGroupMemberCount::getMemberCount));
-        List<SavingGroupSummaryResponse> items = rows.stream().map(row ->
-                new SavingGroupSummaryResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(),
+        List<SavingGroupSummaryResponse> items = rows.stream().map(row -> {
+                var item = new SavingGroupSummaryResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(),
                         row.getDescription(), row.getRegionName(), row.getMaxMembers(),
                         counts.getOrDefault(row.getGroupId(), 0L), row.getDuesAmount(),
-                        row.getDuesDay(), row.getStatus())).toList();
+                        row.getDuesDay(), row.getStatus());
+                item.setGroupImageUrl(groupImageUrl(row));
+                return item;
+        }).toList();
         return new SavingGroupListResponse(items, pageMeta);
     }
 
