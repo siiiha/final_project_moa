@@ -283,7 +283,7 @@ export function SavingGroupTransactionHistoryView({
     type: row.transactionType === 'WITHDRAWAL' ? '출금' : '입금',
     amount: formatWon(row.transactionType === 'WITHDRAWAL' ? -Math.abs(row.amount) : row.amount),
     balance: formatWon(row.balanceAfter),
-    purpose: purposeLabels[row.purposeType] ?? '목적 미확인',
+    description: row.description?.trim() || '내용 확인 필요',
     category: getCategoryLabel(row),
     // AI작성: 재조회 뒤 임시 변경값이 없어도 서버에 저장된 최종 분류를 선택 UI에 그대로 표시한다.
     selectedCategory: row.transactionId == null ? null
@@ -328,7 +328,7 @@ export function SavingGroupTransactionHistoryView({
                   <tr>
                     <th scope="col">일시</th>
                     <th scope="col">구분</th>
-                    <th scope="col">거래 목적</th>
+                    <th scope="col">거래 내용</th>
                     <th scope="col">분류 항목</th>
                     <th scope="col">금액</th>
                     <th scope="col">거래 후 잔액</th>
@@ -339,7 +339,7 @@ export function SavingGroupTransactionHistoryView({
                     <tr key={index}>
                       <td>{transaction.date}</td>
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
-                      <td>{transaction.purpose}</td>
+                      <td>{transaction.description}</td>
                       <td>
                         {transaction.canEditCategory ? (
                           <CategorySelect
@@ -369,7 +369,7 @@ export function SavingGroupTransactionHistoryView({
                   </MobileTop>
                   <MobileInfo>
                     <dt>일시</dt><dd>{transaction.date}</dd>
-                    <dt>거래 목적</dt><dd>{transaction.purpose}</dd>
+                    <dt>거래 내용</dt><dd>{transaction.description}</dd>
                     <dt>분류 항목</dt><dd>
                       {transaction.canEditCategory ? (
                         <CategorySelect
