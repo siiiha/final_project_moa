@@ -31,6 +31,19 @@ const Card = styled.section`
   }
 `;
 
+// AI작성: 사진 카드와 사진 오류를 같은 열에 배치합니다.
+const PhotoColumn = styled.div`
+  align-self: start;
+  display: grid;
+  gap: 12px;
+
+  > p {
+    margin: 0;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+`;
+
 const AvatarPanel = styled.section`
   padding: 26px 18px;
   align-self: start; 
@@ -279,6 +292,8 @@ function EditProfileForm({ initialProfile }) {
 
   // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
   const [photoStatus, setPhotoStatus] = useState('');
+  // AI작성: 사진 오류를 회원정보 수정 오류와 분리합니다.
+  const [photoError, setPhotoError] = useState('');
   
   // AI작성: 입력을 멈춘 뒤 닉네임을 확인하고, 이전 요청의 늦은 응답은 무시합니다.
   const [nicknameCheck, setNicknameCheck] = useState({
@@ -430,15 +445,16 @@ function EditProfileForm({ initialProfile }) {
 
     if (!file || isSaving) return;
 
-    setErrorMessage('');
+    setPhotoError('');
+    setPhotoStatus('');
 
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setErrorMessage('JPG 또는 PNG 사진만 선택해주세요.');
+      setPhotoError('JPG 또는 PNG 사진을 선택해 주세요.');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('사진은 5MB 이하로 선택해주세요.');
+      setPhotoError('사진은 5MB 이하로 선택해 주세요.');
       return;
     }
 
@@ -455,7 +471,8 @@ function EditProfileForm({ initialProfile }) {
           : current,
       );
     } catch (error) {
-      setPhotoStatus('error');
+      // AI작성: 실패해도 기존 사진은 유지하고 카드 아래에 이유를 안내합니다.
+      setPhotoStatus('');
 
       if (error.response?.status === 401) {
         clearToken();
@@ -463,9 +480,9 @@ function EditProfileForm({ initialProfile }) {
         return;
       }
 
-      setErrorMessage(
+      setPhotoError(
         error.response?.data?.error?.message ??
-        '사진을 저장하지 못했습니다.',
+        '사진을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.',
       );
     } finally {
       setIsSaving(false);
@@ -476,7 +493,8 @@ function EditProfileForm({ initialProfile }) {
   const handlePhotoDelete = async () => {
     if (isSaving || !profile?.profileImageUrl) return;
 
-    setErrorMessage('');
+    setPhotoError('');
+    setPhotoStatus('');
     setIsSaving(true);
 
     try {
@@ -495,9 +513,9 @@ function EditProfileForm({ initialProfile }) {
         return;
       }
 
-      setErrorMessage(
+      setPhotoError(
         error.response?.data?.error?.message ??
-        '사진을 삭제하지 못했습니다.',
+        '사진을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.',
       );
     } finally {
       setIsSaving(false);
@@ -510,43 +528,49 @@ function EditProfileForm({ initialProfile }) {
 
   return (
     <Card>
-      <AvatarPanel>
-        <Avatar aria-busy={photoStatus === 'uploading'}>
-          <ProfileImage
-            imageUrl={profile.profileImageUrl}
-            size={72}
-            status={photoStatus}
+      <PhotoColumn>
+        <AvatarPanel>
+          <Avatar aria-busy={photoStatus === 'uploading'}>
+            <ProfileImage
+              imageUrl={profile.profileImageUrl}
+              size={72}
+              status={photoStatus}
+            />
+          </Avatar>
+          <AvatarLabel>프로필 사진</AvatarLabel>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            hidden
+            onChange={handlePhotoChange}
           />
-        </Avatar>
-        <AvatarLabel>프로필 사진</AvatarLabel>
-        <input
-          ref={photoInputRef}
-          type="file"
-          accept="image/jpeg,image/png"
-          hidden
-          onChange={handlePhotoChange}
-        />
-        <AvatarActions>
-          <AvatarButton
-            type="button"
-            disabled={isSaving}
-            onClick={() => photoInputRef.current?.click()}
-          >
-            <FiCamera size={12} aria-hidden="true" /> 사진 변경
-          </AvatarButton>
-          <AvatarButton
-            type="button"
-            $danger
-            disabled={isSaving || !profile.profileImageUrl}
-            onClick={handlePhotoDelete}
-          >
-            삭제
-          </AvatarButton>
-        </AvatarActions>
-        <PhotoHint>
-          <span>JPG·PNG · 최대 5MB</span>
-        </PhotoHint>
-      </AvatarPanel>
+          <AvatarActions>
+            <AvatarButton
+              type="button"
+              disabled={isSaving}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              <FiCamera size={12} aria-hidden="true" /> 사진 변경
+            </AvatarButton>
+            <AvatarButton
+              type="button"
+              $danger
+              disabled={isSaving || !profile.profileImageUrl}
+              onClick={handlePhotoDelete}
+            >
+              삭제
+            </AvatarButton>
+          </AvatarActions>
+          <PhotoHint>
+            <span>JPG·PNG · 최대 5MB</span>
+          </PhotoHint>
+        </AvatarPanel>
+        {/* AI작성: 용량·형식·저장·삭제 오류를 사진 카드 바로 아래에 표시합니다. */}
+        {photoError && (
+          <ErrorNotice role="alert">{photoError}</ErrorNotice>
+        )}
+      </PhotoColumn>
 
       <FormArea as="form" onSubmit={handleUpdateRequest}>
         <TextInput
