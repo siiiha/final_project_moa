@@ -232,7 +232,7 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
     setSaveSucceeded(false);
     setPage(nextPage);
   };
-  // AI작성: OWNER·MANAGER만 확인 필요 상태의 모의 출금 분류를 바꿀 수 있다.
+  // AI작성: OWNER·MANAGER만 서버가 재분류 가능으로 표시한 모의 출금 분류를 바꿀 수 있다.
   const canManageCategories = ['OWNER', 'MANAGER'].includes(myRole);
   const changeCategory = (transactionId, category) => {
     setSaveFailed(false);
@@ -279,8 +279,9 @@ export function SavingGroupTransactionHistoryView({
     purpose: purposeLabels[row.purposeType] ?? '목적 미확인',
     category: getCategoryLabel(row),
     selectedCategory: row.transactionId == null ? null : categoryChanges[row.transactionId] ?? null,
+    // AI작성: 자동 확정 건과 구분하기 위해 상태 문자열 대신 서버의 재분류 가능 여부를 사용한다.
     canEditCategory: canManageCategories && row.transactionId != null
-      && row.transactionType === 'WITHDRAWAL' && row.classificationStatus === 'REVIEW_REQUIRED',
+      && row.transactionType === 'WITHDRAWAL' && row.categoryEditable === true,
   }));
   const totalPages = result?.meta.totalPages ?? 0;
 

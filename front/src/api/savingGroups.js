@@ -490,10 +490,13 @@ export async function getSavingGroupTransactions(savingGroupId, { page = 1, sign
   }
   return {
     // AI작성: 공개 거래 필드와 서버에서 연결한 분류 정보만 화면에 전달한다.
-    items: response.data.map(({ transactionId, transactedAt, transactionType, amount, balanceAfter, purposeType, category, classificationStatus }) => ({
+    items: response.data.map(({ transactionId, transactedAt, transactionType, amount, balanceAfter, purposeType, category, classificationStatus, categoryEditable }) => ({
       transactedAt, transactionType, amount, balanceAfter,
       ...(transactionId !== undefined && { transactionId }),
-      ...(purposeType !== undefined && { purposeType, category, classificationStatus }),
+      ...(purposeType !== undefined && {
+        purposeType, category, classificationStatus,
+        ...(categoryEditable !== undefined && { categoryEditable }),
+      }),
     })),
     meta: response.meta,
   };
