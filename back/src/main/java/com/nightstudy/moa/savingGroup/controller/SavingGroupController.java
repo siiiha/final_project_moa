@@ -40,6 +40,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: Service가 확인한 대표 이미지를 형식에 맞춰 반환한다.
+    @GetMapping("/{savingGroupId}/image")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> image(
+            @PathVariable("savingGroupId") @Positive Long savingGroupId) {
+        var resource = savingGroupService.getSavingGroupImage(savingGroupId);
+        String name = resource.getFilename().toLowerCase(java.util.Locale.ROOT);
+        var type = name.endsWith(".png") ? org.springframework.http.MediaType.IMAGE_PNG
+                : name.endsWith(".webp") ? org.springframework.http.MediaType.parseMediaType("image/webp")
+                : org.springframework.http.MediaType.IMAGE_JPEG;
+        return org.springframework.http.ResponseEntity.ok().contentType(type)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff").body(resource);
+    }
+
     // AI작성: 본인 탈퇴 요청에는 서버가 인증한 회원 ID만 사용한다.
     @DeleteMapping("/{savingGroupId}/members/me")
     public ApiResponse<Void> leaveSavingGroup(

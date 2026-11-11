@@ -716,3 +716,15 @@ test('잘못된 고정 ID와 상태는 전송 전에 차단한다', async () => 
     assert.equal(calls, 0);
   } finally { client.patch = original; }
 });
+
+// AI작성: 이미지 등록 여부에 따라 카드 주소를 전달하고 상세 응답의 주소를 유지한다.
+test('대표 이미지 주소를 카드와 상세 데이터에 보존한다', async () => {
+  assert.equal(toSavingGroupCard({ savingGroupId: 10 }).groupImageUrl, null);
+  const groupImageUrl = '/api/saving-groups/10/image';
+  assert.equal(toSavingGroupCard({ savingGroupId: 10, groupImageUrl }).groupImageUrl, groupImageUrl);
+  const original = client.get;
+  try {
+    client.get = async () => ({ data: { success: true, data: { savingGroupId: 10, groupImageUrl } } });
+    assert.equal((await getSavingGroupDetail('10')).groupImageUrl, groupImageUrl);
+  } finally { client.get = original; }
+});

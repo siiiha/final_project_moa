@@ -13,6 +13,8 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 공개된 계모임의 대표 이미지를 조회한다.
+    org.springframework.core.io.Resource getSavingGroupImage(Long savingGroupId);
     // AI작성: 승인된 모임원의 공용 계좌 거래내역을 페이지로 조회한다.
     // AI작성: 선택한 월의 입금 합계로 회비 납부 상태를 조회한다.
     com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(

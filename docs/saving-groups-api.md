@@ -2356,3 +2356,10 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 - JavaScript 문법 검사와 `git diff --check`는 통과했다. 프론트 빌드는 `@stomp/stompjs` 미설치로 실패했고, 백엔드 테스트는 Gradle이 JDK 17을 찾지 못해 실행되지 않았다.
 - DB 반영, 의존성 설치 및 JDK 17 설정 후 서로 다른 브라우저 프로필에서 같은 계모임의 승인 회원 두 명으로 접속한다. 메시지가 양쪽에 한 번씩 도착하고 새로고침 후에도 조회되는지 확인한다.
 - 비회원 계정으로 방 ID·대화 조회와 직접 구독·전송이 거절되는지 확인한다. 방 이동과 재연결 시 메시지 혼입이나 중복이 없는지도 확인한다. 브라우저와 실제 DB 검증은 미실행이다.
+
+
+<!-- AI작성: 계모임 대표 이미지 조회 계약 -->
+### 대표 이미지
+- 목록·상세 응답에 `groupImageUrl` 추가. 미등록 시 null, 등록 시 `/api/saving-groups/{savingGroupId}/image`.
+- GET `/api/saving-groups/{savingGroupId}/image`: 모집중·진행중이며 삭제되지 않은 모임의 등록 이미지만 공개. 이미지·모임 미존재 시 404.
+- JPG/JPEG·PNG·WEBP Content-Type, no-store, nosniff 적용. 미등록·로딩 실패 시 화면의 기본 영역 표시.
