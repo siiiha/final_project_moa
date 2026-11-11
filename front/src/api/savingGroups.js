@@ -516,31 +516,29 @@ export async function getSavingGroupDashboard(savingGroupId, { month, signal } =
   const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/dashboard`, { params: { month }, signal });
   const data = response?.data;
-  const isAmount = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  const toAmount = (value) => {
+    const amount = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(amount) && amount >= 0 ? amount : 0;
+  };
   const categoryCodes = new Set([...savingGroupExpenseCategoryCodes, 'NEEDS_REVIEW']);
-  const trendMonths = data?.monthlyTrends?.map((item) => item?.month) ?? [];
-  const ratioCategories = data?.expenseCategoryRatios?.map((item) => item?.category) ?? [];
-  if (response?.success !== true || !data || !isAmount(data.currentBalance)
-    || !isAmount(data.monthlyDuesTotal) || !isAmount(data.monthlyExpenseTotal)
-    || !Number.isInteger(data.reviewRequiredWithdrawalCount) || data.reviewRequiredWithdrawalCount < 0
-    || !Array.isArray(data.monthlyTrends) || data.monthlyTrends.length !== 6
-    || data.monthlyTrends.some((item) => !item || !/^\d{4}-(0[1-9]|1[0-2])$/.test(item.month)
-      || !isAmount(item.income) || !isAmount(item.expense))
-    || new Set(trendMonths).size !== trendMonths.length
-    || !Array.isArray(data.expenseCategoryRatios)
-    || data.expenseCategoryRatios.some((item) => !item || !categoryCodes.has(item.category) || !isAmount(item.amount) || item.amount === 0)
-    || new Set(ratioCategories).size !== ratioCategories.length) {
+  if (response?.success !== true || !data) {
     throw new Error('대시보드 응답을 확인할 수 없습니다.');
   }
+  // AI작성: 일부 차트 행의 형식이 달라도 정상 요약 카드까지 비워지지 않도록 값별로 보정한다.
+  const monthlyTrends = Array.isArray(data.monthlyTrends) ? data.monthlyTrends
+    .filter((item) => item && /^\d{4}-(0[1-9]|1[0-2])$/.test(item.month))
+    .map((item) => ({ month: item.month, income: toAmount(item.income), expense: toAmount(item.expense) })) : [];
+  const expenseCategoryRatios = Array.isArray(data.expenseCategoryRatios) ? data.expenseCategoryRatios
+    .filter((item) => item && categoryCodes.has(item.category) && toAmount(item.amount) > 0)
+    .map((item) => ({ category: item.category, amount: toAmount(item.amount) })) : [];
   return {
-    currentBalance: data.currentBalance,
-    monthlyDuesTotal: data.monthlyDuesTotal,
-    monthlyExpenseTotal: data.monthlyExpenseTotal,
-    reviewRequiredWithdrawalCount: data.reviewRequiredWithdrawalCount,
-    monthlyTrends: data.monthlyTrends.map(({ month: trendMonth, income, expense }) => ({
-      month: trendMonth, income, expense,
-    })),
-    expenseCategoryRatios: data.expenseCategoryRatios.map(({ category, amount }) => ({ category, amount })),
+    currentBalance: toAmount(data.currentBalance),
+    monthlyDuesTotal: toAmount(data.monthlyDuesTotal),
+    monthlyExpenseTotal: toAmount(data.monthlyExpenseTotal),
+    reviewRequiredWithdrawalCount: Number.isInteger(data.reviewRequiredWithdrawalCount)
+      && data.reviewRequiredWithdrawalCount >= 0 ? data.reviewRequiredWithdrawalCount : 0,
+    monthlyTrends,
+    expenseCategoryRatios,
   };
 }
 
