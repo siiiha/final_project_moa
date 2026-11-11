@@ -102,8 +102,23 @@ const Select = styled.select`
   }
 `;
 
+// AI작성: 소개글은 현재 높이를 유지하고 긴 내용은 내부 스크롤로 확인한다.
 const Introduction = styled(Textarea)`
+  height: 98px;
   min-height: 98px;
+  resize: none;
+  overflow-y: auto;
+`;
+
+// AI작성: 정원 범위 안내와 검증 오류를 입력란 바로 아래에 표시한다.
+const CapacityHint = styled.span`
+  color: ${({ theme }) => theme.colors.muted};
+  font-weight: 400;
+`;
+
+const CapacityError = styled.span`
+  color: ${({ theme }) => theme.colors.danger};
+  font-weight: 400;
 `;
 
 const Actions = styled.div`
@@ -134,6 +149,8 @@ function SmallGroupCreateForm({
   onCancel,
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // AI작성: 브라우저 기본 검증과 제출 직전 검증에서 같은 정원 안내를 사용한다.
+  const [capacityError, setCapacityError] = useState('');
   const isRegionUnavailable = isRegionLoading || Boolean(regionLoadError) || regions.length === 0;
   // AI작성: 현재 상위 지역에 속한 구·동만 선택하며 동 미선택 시 구의 정규 지역명을 전달한다.
   const [province, setProvince] = useState('');
@@ -152,6 +169,15 @@ function SmallGroupCreateForm({
     event.preventDefault();
     if (isSubmitting || isRegionUnavailable || !selectedRegion?.regionName) return;
 
+    // AI작성: 정원은 서버와 동일한 2~20명 정수만 허용하며 잘못된 값은 전송하지 않는다.
+    const capacityInput = event.currentTarget.elements.namedItem('capacity');
+    const capacity = capacityInput.valueAsNumber;
+    if (!Number.isInteger(capacity) || capacity < 2 || capacity > 20) {
+      setCapacityError('정원은 2명 이상 20명 이하의 정수로 입력해 주세요.');
+      capacityInput.focus();
+      return;
+    }
+    setCapacityError('');
     setIsSubmitting(true);
     try {
       await onSubmit(event);
@@ -238,7 +264,19 @@ function SmallGroupCreateForm({
         <DetailFieldGrid>
           <Field>
             정원
-            <Control name="capacity" type="number" min="2" required inputMode="numeric" placeholder="예: 20" />
+            {/* AI작성: 기본 입력 제약과 오류 안내를 연결하고 입력 수정 시 이전 오류를 지운다. */}
+            <Control name="capacity" type="number" min="2" max="20" step="1" required inputMode="numeric" placeholder="예: 20"
+              aria-describedby="small-group-capacity-hint small-group-capacity-error"
+              aria-invalid={Boolean(capacityError)}
+              onInvalid={() => setCapacityError('정원은 2명 이상 20명 이하의 정수로 입력해 주세요.')}
+              onChange={(event) => {
+                // AI작성: 직접 입력·붙여넣기도 2~20명으로 맞추며 빈 값은 재입력을 위해 허용한다.
+                if (event.target.valueAsNumber > 20) event.target.value = '20';
+                if (event.target.valueAsNumber < 2) event.target.value = '2';
+                setCapacityError('');
+              }} />
+            <CapacityHint id="small-group-capacity-hint">2~20명으로 입력해 주세요.</CapacityHint>
+            <CapacityError id="small-group-capacity-error" role="alert">{capacityError}</CapacityError>
           </Field>
           <Field>
             만남 일정
