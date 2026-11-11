@@ -470,35 +470,13 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '답글 등록에 실패했습니다.');
       }
 
-      // AI작성: 등록된 대댓글을 해당 원댓글의 replies 배열 끝에 추가합니다.
-      setComments((currentComments) =>
-        currentComments.map((comment) =>
-          comment.id === replyingCommentId
-            ? {
-                ...comment,
-                replies: [
-                  ...comment.replies,
-                  {
-                    id: response.data.commentId,
-                    // AI작성: 등록 직후에도 본인 대댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
-                    memberId: response.data.memberId,
-                    // AI작성: 답글도 등록 직후부터 서버가 반환한 닉네임으로 표시합니다.
-                    author: response.data.writerNickname || '알 수 없음',
-                    content: response.data.content,
-                    createdAt: response.data.createdAt,
-                    deleted: false,
-                  },
-                ],
-              }
-            : comment
-        )
-      );
       setReplyingCommentId(null);
       setReplyText('');
       if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
-      setCommentTotal((currentTotal) => currentTotal + 1);
 
       try {
+        // AI작성: 임시 답글의 작성자 정보가 비어 보이지 않도록 서버 목록을 다시 조회합니다.
+        setIsLoadingComments(true);
         await refreshComments();
       } catch (refreshError) {
         setCommentErrorMessage(
@@ -506,6 +484,8 @@ function PostDetailPage() {
             refreshError.message ||
             '답글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
         );
+      } finally {
+        setIsLoadingComments(false);
       }
     } catch (error) {
       setCommentErrorMessage(
