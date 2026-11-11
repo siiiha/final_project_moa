@@ -516,21 +516,31 @@ export async function getSavingGroupDashboard(savingGroupId, { month, signal } =
   const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/dashboard`, { params: { month }, signal });
   const data = response?.data;
-  if (response?.success !== true || !data || !Number.isFinite(Number(data.currentBalance))
-    || !Number.isFinite(Number(data.monthlyDuesTotal)) || !Number.isFinite(Number(data.monthlyExpenseTotal))
+  const isAmount = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  const categoryCodes = new Set([...savingGroupExpenseCategoryCodes, 'NEEDS_REVIEW']);
+  const trendMonths = data?.monthlyTrends?.map((item) => item?.month) ?? [];
+  const ratioCategories = data?.expenseCategoryRatios?.map((item) => item?.category) ?? [];
+  if (response?.success !== true || !data || !isAmount(data.currentBalance)
+    || !isAmount(data.monthlyDuesTotal) || !isAmount(data.monthlyExpenseTotal)
     || !Number.isInteger(data.reviewRequiredWithdrawalCount) || data.reviewRequiredWithdrawalCount < 0
-    || !Array.isArray(data.monthlyTrends) || !Array.isArray(data.expenseCategoryRatios)) {
+    || !Array.isArray(data.monthlyTrends) || data.monthlyTrends.length !== 6
+    || data.monthlyTrends.some((item) => !item || !/^\d{4}-(0[1-9]|1[0-2])$/.test(item.month)
+      || !isAmount(item.income) || !isAmount(item.expense))
+    || new Set(trendMonths).size !== trendMonths.length
+    || !Array.isArray(data.expenseCategoryRatios)
+    || data.expenseCategoryRatios.some((item) => !item || !categoryCodes.has(item.category) || !isAmount(item.amount) || item.amount === 0)
+    || new Set(ratioCategories).size !== ratioCategories.length) {
     throw new Error('대시보드 응답을 확인할 수 없습니다.');
   }
   return {
-    currentBalance: Number(data.currentBalance),
-    monthlyDuesTotal: Number(data.monthlyDuesTotal),
-    monthlyExpenseTotal: Number(data.monthlyExpenseTotal),
+    currentBalance: data.currentBalance,
+    monthlyDuesTotal: data.monthlyDuesTotal,
+    monthlyExpenseTotal: data.monthlyExpenseTotal,
     reviewRequiredWithdrawalCount: data.reviewRequiredWithdrawalCount,
     monthlyTrends: data.monthlyTrends.map(({ month: trendMonth, income, expense }) => ({
-      month: trendMonth, income: Number(income), expense: Number(expense),
+      month: trendMonth, income, expense,
     })),
-    expenseCategoryRatios: data.expenseCategoryRatios.map(({ category, amount }) => ({ category, amount: Number(amount) })),
+    expenseCategoryRatios: data.expenseCategoryRatios.map(({ category, amount }) => ({ category, amount })),
   };
 }
 
