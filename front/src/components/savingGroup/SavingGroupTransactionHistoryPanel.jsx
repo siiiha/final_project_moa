@@ -104,6 +104,17 @@ const Amount = styled.strong`
   font-size: 12px;
 `;
 
+const CategorySelect = styled.select`
+  min-width: 104px;
+  min-height: 34px;
+  padding: 5px 26px 5px 9px;
+  color: ${({ theme }) => theme.colors.text};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.colors.white};
+  font: inherit;
+`;
+
 const MobileList = styled.div`
   margin-top: 14px;
   display: none;
@@ -168,6 +179,7 @@ const categoryLabels = {
   ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타',
   NEEDS_REVIEW: '확인 필요',
 };
+const editableCategoryCodes = ['FOOD', 'TRANSPORTATION', 'RENTAL', 'SUPPLIES', 'ACTIVITY', 'ACCOMMODATION', 'FEE', 'OTHER'];
 
 function getCategoryLabel({ purposeType, category, classificationStatus, transactionType }) {
   if (purposeType === 'DUES' || purposeType === 'PAYOUT') return purposeLabels[purposeType];
@@ -176,10 +188,11 @@ function getCategoryLabel({ purposeType, category, classificationStatus, transac
 }
 
 // AI작성: 서버 페이지를 표시하고 이전 모임·페이지의 응답은 취소한다.
-function SavingGroupTransactionHistoryPanel({ savingGroupId }) {
+function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [categoryChanges, setCategoryChanges] = useState({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -196,20 +209,35 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId }) {
   const loadPage = (nextPage) => {
     setResult(null);
     setFailed(false);
+    setCategoryChanges({});
     setPage(nextPage);
   };
-  return <SavingGroupTransactionHistoryView result={result} failed={failed} page={page} loadPage={loadPage} />;
+  // AI작성: OWNER·MANAGER만 확인 필요 상태의 모의 출금 분류를 바꿀 수 있다.
+  const canManageCategories = ['OWNER', 'MANAGER'].includes(myRole);
+  const changeCategory = (transactionId, category) => {
+    setCategoryChanges((current) => ({ ...current, [transactionId]: category }));
+  };
+  return <SavingGroupTransactionHistoryView
+    result={result} failed={failed} page={page} loadPage={loadPage} canManageCategories={canManageCategories}
+    categoryChanges={categoryChanges} onCategoryChange={changeCategory}
+  />;
 }
 
 // AI작성: 조회 결과에 따라 PC·모바일 목록과 안내 상태를 렌더링한다.
-export function SavingGroupTransactionHistoryView({ result, failed, page, loadPage }) {
+export function SavingGroupTransactionHistoryView({
+  result, failed, page, loadPage, canManageCategories = false, categoryChanges = {}, onCategoryChange,
+}) {
   const transactions = (result?.items ?? []).map((row) => ({
+    transactionId: row.transactionId,
     date: row.transactedAt.replace('T', ' '),
     type: row.transactionType === 'WITHDRAWAL' ? '출금' : '입금',
     amount: formatWon(row.transactionType === 'WITHDRAWAL' ? -Math.abs(row.amount) : row.amount),
     balance: formatWon(row.balanceAfter),
     purpose: purposeLabels[row.purposeType] ?? '목적 미확인',
     category: getCategoryLabel(row),
+    selectedCategory: row.transactionId == null ? null : categoryChanges[row.transactionId] ?? null,
+    canEditCategory: canManageCategories && row.transactionId != null
+      && row.transactionType === 'WITHDRAWAL' && row.classificationStatus === 'REVIEW_REQUIRED',
   }));
   const totalPages = result?.meta.totalPages ?? 0;
 
@@ -247,7 +275,18 @@ export function SavingGroupTransactionHistoryView({ result, failed, page, loadPa
                       <td>{transaction.date}</td>
                       <td><TypeBadge $type={transaction.type}>{transaction.type}</TypeBadge></td>
                       <td>{transaction.purpose}</td>
-                      <td>{transaction.category}</td>
+                      <td>
+                        {transaction.canEditCategory ? (
+                          <CategorySelect
+                            aria-label={`${transaction.date} 출금 분류 항목`}
+                            value={transaction.selectedCategory ?? ''}
+                            onChange={(event) => onCategoryChange?.(transaction.transactionId, event.target.value)}
+                          >
+                            <option value="" disabled>확인 필요</option>
+                            {editableCategoryCodes.map((code) => <option key={code} value={code}>{categoryLabels[code]}</option>)}
+                          </CategorySelect>
+                        ) : transaction.category}
+                      </td>
                       <td><Amount $type={transaction.type}>{transaction.amount}</Amount></td>
                       <td>{transaction.balance}</td>
                     </tr>
@@ -266,7 +305,18 @@ export function SavingGroupTransactionHistoryView({ result, failed, page, loadPa
                   <MobileInfo>
                     <dt>일시</dt><dd>{transaction.date}</dd>
                     <dt>거래 목적</dt><dd>{transaction.purpose}</dd>
-                    <dt>분류 항목</dt><dd>{transaction.category}</dd>
+                    <dt>분류 항목</dt><dd>
+                      {transaction.canEditCategory ? (
+                        <CategorySelect
+                          aria-label={`${transaction.date} 출금 분류 항목`}
+                          value={transaction.selectedCategory ?? ''}
+                          onChange={(event) => onCategoryChange?.(transaction.transactionId, event.target.value)}
+                        >
+                          <option value="" disabled>확인 필요</option>
+                          {editableCategoryCodes.map((code) => <option key={code} value={code}>{categoryLabels[code]}</option>)}
+                        </CategorySelect>
+                      ) : transaction.category}
+                    </dd>
                     <dt>거래 후 잔액</dt><dd>{transaction.balance}</dd>
                   </MobileInfo>
                 </MobileItem>
