@@ -112,12 +112,13 @@
         <!-- AI작성: 지급 완료 기록이 연결된 출금은 계금 지급으로 우선 표시한다. -->
         SELECT ledger.transacted_at, ledger.transaction_type, ledger.amount, ledger.balance_after, ledger.description,
                CASE WHEN ledger.is_dues THEN 'DUES'
+                    WHEN ledger.transaction_type = 'DEPOSIT' THEN 'DUES'
                     WHEN ledger.is_payout THEN 'PAYOUT'
                     WHEN ledger.transaction_type = 'WITHDRAWAL' AND ledger.source_provider = 'MOCK' AND TRIM(ledger.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
-               ledger.source_provider
+               ledger.source_provider, ledger.final_category
         FROM (
             SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount,
-                   gt.balance_after, gt.description, gt.source_provider,
+                   gt.balance_after, gt.description, gt.source_provider, gt.final_category,
                    (gt.transaction_type = 'DEPOSIT' AND EXISTS (
                        SELECT 1 FROM saving_group_mock_deposit_request dr
                        WHERE dr.transaction_id = gt.transaction_id AND dr.account_id = gt.account_id

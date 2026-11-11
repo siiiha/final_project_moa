@@ -2,6 +2,7 @@ package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationStatus;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
@@ -453,11 +454,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
                     "거래내역을 확인할 수 없습니다.");
         var classification = classifyDemoExpense(row);
+        // AI작성: 사용자가 확정한 분류는 매 조회마다 계산하는 자동 분류 결과보다 우선한다.
+        boolean hasFinalCategory = row.finalCategory() != null && !row.finalCategory().isBlank();
         return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(),
                 row.balanceAfter(), row.purposeType(),
-                classification == null || classification.suggestedCategory() == null
+                hasFinalCategory ? row.finalCategory() : classification == null || classification.suggestedCategory() == null
                         ? null : classification.suggestedCategory().name(),
-                classification == null ? null : classification.classificationStatus().name());
+                hasFinalCategory ? CardExpenseClassificationStatus.CONFIRMED.name()
+                        : classification == null ? null : classification.classificationStatus().name());
     }
 
     // AI작성: 데모 일반 출금의 가맹점명을 분류하고 호출 실패 시에도 장부 조회를 유지한다.
