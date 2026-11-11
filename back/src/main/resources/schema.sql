@@ -717,12 +717,29 @@ CREATE TABLE IF NOT EXISTS `group_transaction` (
     `source_transaction_id` VARCHAR(128) NULL COMMENT '거래 제공자의 거래 식별자',
     `transacted_at` DATETIME NOT NULL COMMENT '거래 일시',
     `description` VARCHAR(255) NULL COMMENT '설명',
+    `final_category` VARCHAR(30) NULL COMMENT '사용자가 선택한 최종 지출 분류',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
 
     PRIMARY KEY (`transaction_id`),
     UNIQUE KEY `uq_group_transaction_source`
 (`account_id`, `source_provider`, `source_transaction_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='모임 계좌 거래 내역';
+
+-- 계모임 거래의 자동 분류 결과 저장
+CREATE TABLE IF NOT EXISTS `saving_group_transaction_classification` (
+    `transaction_id` BIGINT NOT NULL COMMENT `거래 ID`,
+    `suggested_category` VARCHAR(30) NULL COMMNET '자동 추천 분류',
+    `classification_status` VARCHAR(30) NOT NULL COMMENT '자동 분류 상태',
+    `confidence` DECIMAL(5,4) NULL COMMENT '분류 신뢰도',
+    `prediction_source` VARCHAR(30) NULL COMMENT '분류 출처',
+    `review_reason` VARCHAR(255) NULL COMMENT '확인 필요 사유',
+    `model_version` VARCHAR(100) NULL COMMENT '분류 모델 버전',
+    `classified_at` DATETIME NOT NULL COMMENT '최ㅊ 분류 일시',
+    `updated_at` DATETIME NOT NULL COMMENT '분류 결과 수정 일시',
+
+    PRIMARY KEY (`transaction_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci COMMENT='계모임 거래 자동 분류 결과';
 
 -- 테스트 입금 요청과 중복 확인 이력을 저장
 CREATE TABLE IF NOT EXISTS `saving_group_mock_deposit_request` (
