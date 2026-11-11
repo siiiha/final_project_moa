@@ -20,6 +20,9 @@ public interface SavingGroupService {
 
     com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionListResponse getSavingGroupTransactions(
             Long savingGroupId, Long memberId, int page);
+    // AI작성: 승인된 모임원이 회비·지출·분류 현황을 한 화면에서 확인할 수 있도록 집계한다.
+    com.nightstudy.moa.savingGroup.dto.SavingGroupDashboardResponse getSavingGroupDashboard(
+            Long savingGroupId, Long memberId, java.time.YearMonth month);
     // AI작성: OWNER·MANAGER만 자동 분류가 어려운 MOCK 출금의 최종 분류를 한 번에 저장한다.
     void updateSavingGroupTransactionCategories(Long savingGroupId, Long memberId,
             com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionCategoryUpdateRequest request);

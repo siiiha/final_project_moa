@@ -138,6 +138,25 @@
         ) ledger
         ORDER BY ledger.transacted_at DESC, ledger.transaction_id DESC
     </select>
+    <!-- AI작성: 지급 완료 출금은 일반 지출에서 제외하고, 대시보드가 분류할 최근 거래만 조회한다. -->
+    <select id="selectSavingGroupDashboardTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
+        SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount, gt.balance_after, gt.description,
+               CASE WHEN gt.transaction_type = 'DEPOSIT' THEN 'DUES'
+                    WHEN gt.transaction_type = 'WITHDRAWAL' AND EXISTS (
+                        SELECT 1 FROM payout_request pr
+                        JOIN meeting_round mr ON mr.round_id = pr.round_id
+                        WHERE pr.transaction_id = gt.transaction_id AND mr.group_id = ga.group_id
+                          AND pr.status = 'COMPLETED'
+                    ) THEN 'PAYOUT'
+                    WHEN gt.transaction_type = 'WITHDRAWAL' AND gt.source_provider = 'MOCK'
+                         AND TRIM(gt.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
+               gt.source_provider, gt.final_category
+        FROM group_transaction gt
+        JOIN group_account ga ON ga.account_id = gt.account_id
+        WHERE gt.account_id = #{accountId}
+          AND gt.transacted_at &gt;= #{start} AND gt.transacted_at &lt; #{end}
+        ORDER BY gt.transacted_at ASC, gt.transaction_id ASC
+    </select>
     <!-- AI작성: 다른 계좌 거래의 분류 수정은 막고, MOCK 일반 출금 여부는 Service가 동일 기준으로 확인한다. -->
     <select id="selectSavingGroupTransactionForCategoryUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
         SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount, gt.balance_after, gt.description,

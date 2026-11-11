@@ -37,6 +37,9 @@ public interface SavingGroupMapper {
     int selectSavingGroupTransactionCount(@Param("accountId") Long accountId);
     List<SavingGroupTransactionRow> selectSavingGroupTransactions(@Param("accountId") Long accountId,
             @Param("offset") long offset, @Param("size") int size);
+    // AI작성: 대시보드는 페이지 제한 없이 최근 여섯 달의 모임 계좌 거래만 집계한다.
+    List<SavingGroupTransactionRow> selectSavingGroupDashboardTransactions(@Param("accountId") Long accountId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
     SavingGroupTransactionRow selectSavingGroupTransactionForCategoryUpdate(@Param("accountId") Long accountId,
             @Param("transactionId") Long transactionId);
     int updateSavingGroupTransactionFinalCategory(@Param("accountId") Long accountId,
