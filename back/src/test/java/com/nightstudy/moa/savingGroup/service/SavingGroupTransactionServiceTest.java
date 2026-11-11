@@ -35,7 +35,7 @@ class SavingGroupTransactionServiceTest {
                 new SavingGroupTransactionRow(now, "DEPOSIT", BigDecimal.TEN, BigDecimal.TEN, "회비", "DUES", "MOCK"),
                 new SavingGroupTransactionRow(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "계금 지급", "PAYOUT", "MOCK"),
                 new SavingGroupTransactionRow(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "외부 거래"),
-                new SavingGroupTransactionRow(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", "MOCK")));
+                new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", "MOCK", null)));
         if (available) {
             when(classifier.classify("동네밥상", BigDecimal.TEN)).thenReturn(
                     new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.FOOD, 0.9,
@@ -47,7 +47,7 @@ class SavingGroupTransactionServiceTest {
 
         var items = service.getSavingGroupTransactions(2L, 1L, 1).items();
         assertThat(items).hasSize(4);
-        assertThat(items.get(3)).isEqualTo(new SavingGroupTransactionResponse(now, "WITHDRAWAL",
+        assertThat(items.get(3)).isEqualTo(new SavingGroupTransactionResponse(123L, now, "WITHDRAWAL",
                 BigDecimal.TEN, BigDecimal.ZERO, "EXPENSE", available ? "FOOD" : null,
                 available ? "REVIEW_PENDING" : null));
         verify(classifier).classify("동네밥상", BigDecimal.TEN);
