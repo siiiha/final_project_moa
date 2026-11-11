@@ -32,6 +32,23 @@ class SavingGroupNoticeCreationControllerTest {
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
+    // AI작성: 이미지 본문·형식·캐시 정책과 미등록 404를 확인한다.
+    @Test
+    void servesRepresentativeImageAndPreservesNotFound() throws Exception {
+        var image = new org.springframework.core.io.ByteArrayResource(new byte[]{1, 2, 3}) {
+            @Override public String getFilename() { return "sample.webp"; }
+        };
+        when(service.getSavingGroupImage(10L)).thenReturn(image);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/saving-groups/10/image"))
+                .andExpect(status().isOk()).andExpect(content().contentType("image/webp"))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        when(service.getSavingGroupImage(10L)).thenThrow(new ApiException(HttpStatus.NOT_FOUND, "GROUP_IMAGE_NOT_FOUND", "이미지가 없습니다."));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/saving-groups/10/image"))
+                .andExpect(status().isNotFound());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/api/saving-groups", "/saving-groups"})
     void createsNoticeWithAuthenticatedMember(String base) throws Exception {

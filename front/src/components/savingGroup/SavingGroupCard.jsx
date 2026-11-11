@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FiCalendar, FiMapPin, FiUsers } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
@@ -22,7 +23,10 @@ const Card = styled(Link)`
   }
 `;
 
+// AI작성: 기존 기본 영역 크기에 대표 이미지를 맞춘다.
 const ImagePlaceholder = styled.div`
+  overflow: hidden;
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
   width: 100%;
   height: 142px;
   background: ${({ theme }) => theme.colors.primarySoft};
@@ -91,6 +95,9 @@ const Meta = styled.p`
 `;
 
 function SavingGroupCard({ group }) {
+  // AI작성: 실패한 주소만 기억해 다른 이미지 주소는 다시 시도한다.
+  const [failedImageUrl, setFailedImageUrl] = useState(null);
+
   // AI작성: 상세 공지 쿼리와 목록 복귀 조건을 분리한다.
   const { search } = useLocation();
   const detailSearch = search ? new URLSearchParams({ listSearch: search }).toString() : '';
@@ -98,7 +105,10 @@ function SavingGroupCard({ group }) {
 
   return (
     <Card to={{ pathname: `/saving-groups/${group.id}`, search: detailSearch }} aria-label={`${group.name} 상세 보기`}>
-      <ImagePlaceholder role="img" aria-label={`${group.name} 대표 이미지 영역`} />
+      {/* AI작성: 미등록·로딩 실패 시 기존 기본 영역을 표시한다. */}
+      <ImagePlaceholder role={group.groupImageUrl && failedImageUrl !== group.groupImageUrl ? undefined : "img"} aria-label={group.groupImageUrl && failedImageUrl !== group.groupImageUrl ? undefined : "등록된 대표 이미지가 없습니다."}>
+        {group.groupImageUrl && failedImageUrl !== group.groupImageUrl && <img src={group.groupImageUrl} alt={group.name + " 대표 이미지"} onError={() => setFailedImageUrl(group.groupImageUrl)} />}
+      </ImagePlaceholder>
       <Body>
         <TopLine>
           <Region>{group.region}</Region>

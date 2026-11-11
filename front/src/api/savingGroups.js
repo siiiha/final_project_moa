@@ -798,6 +798,8 @@ export function toSavingGroupCard(item) {
     // AI작성: 상세 주소는 계모임 고유 ID로 이동한다.
     id: item.savingGroupId,
     name: item.groupName,
+    // AI작성: 등록 이미지가 없으면 기본 영역을 유지한다.
+    groupImageUrl: item.groupImageUrl ?? null,
     description: item.description?.trim() || '소개글이 없습니다.',
     region: item.regionName,
     district: item.regionName,
