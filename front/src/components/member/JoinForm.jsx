@@ -861,7 +861,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       String(today.getDate()).padStart(2, '0'),
     ].join('-');
 
-    if (!birthDate || birthDate >= todayText) {
+    // AI작성: 최종 가입 요청에서도 생년월일의 허용 범위를 확인합니다.
+    if (!birthDate || birthDate < '1900-01-01' || birthDate >= todayText) {
       setSignupError('올바른 생년월일을 입력해 주세요.');
       return;
     }
@@ -1047,8 +1048,13 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       const date = new Date(`${birthDate}T00:00:00Z`);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== birthDate ||
-        new Date(`${birthDate}T00:00:00`) >= today) {
+      // AI작성: 생년월일은 1900년 1월 1일부터 오늘 이전까지만 허용합니다.
+      if (
+        Number.isNaN(date.getTime()) ||
+        date.toISOString().slice(0, 10) !== birthDate ||
+        birthDate < '1900-01-01' ||
+        new Date(`${birthDate}T00:00:00`) >= today
+      ) {
         message = '올바른 생년월일을 입력해 주세요.';
       }
     }
