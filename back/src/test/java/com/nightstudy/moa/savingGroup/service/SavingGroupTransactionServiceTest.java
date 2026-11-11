@@ -48,7 +48,7 @@ class SavingGroupTransactionServiceTest {
         var items = service.getSavingGroupTransactions(2L, 1L, 1).items();
         assertThat(items).hasSize(4);
         assertThat(items.get(3)).isEqualTo(new SavingGroupTransactionResponse(123L, now, "WITHDRAWAL",
-                BigDecimal.TEN, BigDecimal.ZERO, "EXPENSE", available ? "FOOD" : null,
+                BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", available ? "FOOD" : null,
                 available ? "REVIEW_PENDING" : null, false));
         verify(classifier).classify("동네밥상", BigDecimal.TEN);
         verifyNoMoreInteractions(classifier);
