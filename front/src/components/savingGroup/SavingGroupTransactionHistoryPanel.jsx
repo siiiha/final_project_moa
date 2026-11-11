@@ -166,6 +166,13 @@ const Empty = styled.p`
   font-size: 13px;
 `;
 
+const SaveMessage = styled.p`
+  margin-top: 12px;
+  color: ${({ $failed, theme }) => ($failed ? theme.colors.danger : theme.colors.primary)};
+  font-size: 12px;
+  font-weight: 700;
+`;
+
 const Pagination = styled.nav`
   margin-top: 18px;
   display: flex;
@@ -202,6 +209,8 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
   const [categoryChanges, setCategoryChanges] = useState({});
   const [savingCategories, setSavingCategories] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -213,19 +222,21 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
         if (!controller.signal.aborted) setFailed(true);
       });
     return () => controller.abort();
-  }, [savingGroupId, page]);
+  }, [savingGroupId, page, refreshKey]);
 
   const loadPage = (nextPage) => {
     setResult(null);
     setFailed(false);
     setCategoryChanges({});
     setSaveFailed(false);
+    setSaveSucceeded(false);
     setPage(nextPage);
   };
   // AI작성: OWNER·MANAGER만 확인 필요 상태의 모의 출금 분류를 바꿀 수 있다.
   const canManageCategories = ['OWNER', 'MANAGER'].includes(myRole);
   const changeCategory = (transactionId, category) => {
     setSaveFailed(false);
+    setSaveSucceeded(false);
     setCategoryChanges((current) => ({ ...current, [transactionId]: category }));
   };
   // AI작성: 행별 저장 대신 선택한 확인 필요 출금 분류를 한 번에 서버로 전달한다.
@@ -235,6 +246,11 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
     setSavingCategories(true);
     try {
       await updateSavingGroupTransactionCategories(savingGroupId, items);
+      // AI작성: 저장 결과는 서버의 최신 분류를 다시 조회해 화면의 임시 선택 상태와 분리한다.
+      setCategoryChanges({});
+      setSaveFailed(false);
+      setSaveSucceeded(true);
+      setRefreshKey((current) => current + 1);
     } catch {
       setSaveFailed(true);
     } finally {
@@ -244,7 +260,7 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
   return <SavingGroupTransactionHistoryView
     result={result} failed={failed} page={page} loadPage={loadPage} canManageCategories={canManageCategories}
     categoryChanges={categoryChanges} onCategoryChange={changeCategory} savingCategories={savingCategories}
-    onSaveCategoryChanges={saveCategoryChanges} saveFailed={saveFailed}
+    onSaveCategoryChanges={saveCategoryChanges} saveFailed={saveFailed} saveSucceeded={saveSucceeded}
   />;
 }
 
@@ -252,7 +268,7 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
 export function SavingGroupTransactionHistoryView({
   result, failed, page, loadPage, canManageCategories = false, categoryChanges = {}, onCategoryChange,
   savingCategories = false, onSaveCategoryChanges,
-  saveFailed = false,
+  saveFailed = false, saveSucceeded = false,
 }) {
   const transactions = (result?.items ?? []).map((row) => ({
     transactionId: row.transactionId,
@@ -289,7 +305,8 @@ export function SavingGroupTransactionHistoryView({
             </Button>
           )}
         </ListTitleRow>
-        {saveFailed && <Empty role="alert">분류 항목을 저장하지 못했어요. 다시 시도해주세요.</Empty>}
+        {saveFailed && <SaveMessage $failed role="alert">분류 항목을 저장하지 못했어요. 다시 시도해주세요.</SaveMessage>}
+        {saveSucceeded && <SaveMessage role="status">분류 항목을 저장했습니다.</SaveMessage>}
         {failed && <Empty role="alert">거래내역을 불러오지 못했어요.</Empty>}
         {!failed && !result && <Empty role="status">거래내역을 불러오는 중이에요.</Empty>}
         {result && !transactions.length && <Empty>아직 거래내역이 없어요.</Empty>}
