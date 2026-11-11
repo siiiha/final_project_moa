@@ -246,7 +246,14 @@ function SavingGroupTransactionHistoryPanel({ savingGroupId, myRole }) {
     setSavingCategories(true);
     try {
       await updateSavingGroupTransactionCategories(savingGroupId, items);
-      // AI작성: 저장 결과는 서버의 최신 분류를 다시 조회해 화면의 임시 선택 상태와 분리한다.
+      // AI작성: 재조회 응답을 기다리는 동안에도 저장한 분류를 즉시 반영해 이전 값이 깜빡이지 않게 한다.
+      setResult((current) => current == null ? current : {
+        ...current,
+        items: current.items.map((row) => {
+          const changed = items.find((item) => String(item.transactionId) === String(row.transactionId));
+          return changed == null ? row : { ...row, category: changed.category, classificationStatus: 'CONFIRMED' };
+        }),
+      });
       setCategoryChanges({});
       setSaveFailed(false);
       setSaveSucceeded(true);
