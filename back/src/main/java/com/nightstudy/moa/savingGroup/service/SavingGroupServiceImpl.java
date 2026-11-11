@@ -503,7 +503,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 hasFinalCategory ? row.finalCategory() : classification == null || classification.suggestedCategory() == null
                         ? null : classification.suggestedCategory().name(),
                 hasFinalCategory ? CardExpenseClassificationStatus.CONFIRMED.name()
-                        : classification == null ? null : classification.classificationStatus().name());
+                        : classification == null ? null : classification.classificationStatus().name(),
+                // AI작성: 자동 확정 건은 제외하고, 원래 확인이 필요했던 MOCK 출금만 재분류를 허용한다.
+                classification != null && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED);
     }
 
     // AI작성: 데모 일반 출금의 가맹점명을 분류하고 호출 실패 시에도 장부 조회를 유지한다.
