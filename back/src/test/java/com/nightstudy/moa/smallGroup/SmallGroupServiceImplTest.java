@@ -807,7 +807,7 @@ class SmallGroupServiceImplTest {
     private SmallGroupJoinRequestRow joinRequestRow(String membershipStatus) {
         SmallGroupJoinRequestRow row = new SmallGroupJoinRequestRow();
         row.setCrewMemberId("9007199254740993");
-        row.setApplicant("가**");
+        row.setApplicant("테스트닉네임");
         row.setRegionName("서울");
         row.setIdentityVerified(true);
         row.setRegionVerified(true);

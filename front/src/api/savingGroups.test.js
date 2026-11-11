@@ -495,20 +495,22 @@ function ok(config, data = null, meta = null) {
   return { data: { success: true, data, meta, error: null }, status: 200, headers: {}, config };
 }
 
-test('신청 목록은 서버 필터와 페이지를 전달하고 마스킹 이름·문자열 ID를 유지한다', async () => {
+test('신청 목록은 이름 원문·닉네임·문자열 ID와 서버 필터·페이지를 유지한다', async () => {
   const controller = new AbortController();
   await withAdapter(async (config) => {
     assert.equal(config.url, '/saving-groups/12/join-requests');
     assert.equal(config.params.status, 'PENDING');
     assert.equal(config.params.page, 2);
     assert.equal(config.signal, controller.signal);
-    return ok(config, [{ crewMemberId: '9007199254740993', applicant: '가**', regionName: '서울',
+    return ok(config, [{ crewMemberId: '9007199254740993', applicant: '테스트이름', nickname: '테스트닉네임', regionName: '서울',
       identityVerified: true, regionVerified: true, applicationMessage: null, membershipStatus: 'PENDING' }],
     { page: 2, size: 10, total: 11, totalPages: 2 });
   }, async () => {
     const result = await getSavingGroupJoinRequests('12', { status: 'PENDING', page: 2, signal: controller.signal });
     assert.equal(result.items[0].id, '9007199254740993');
-    assert.equal(result.items[0].applicant, '가**');
+    // AI작성: 이름 원문과 닉네임이 화면 데이터까지 유지되는지 검증한다.
+    assert.equal(result.items[0].applicant, '테스트이름');
+    assert.equal(result.items[0].nickname, '테스트닉네임');
     assert.equal(result.items[0].status, '대기');
     assert.equal(result.items[0].verification, '본인·지역 인증 완료');
     assert.equal(result.items[0].message, '신청 메시지가 없습니다.');

@@ -303,7 +303,8 @@ function SmallGroupJoinRequestList({
                 </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col">신청자</th>
+                    {/* AI작성: 신청자 정보는 닉네임만 표시한다. */}
+                    <th scope="col">닉네임</th>
                     <th scope="col">지역</th>
                     <th scope="col">신청 메시지</th>
                     <th scope="col">상태</th>

@@ -724,6 +724,8 @@ export async function getSavingGroupJoinRequests(savingGroupId, { status, page =
     items: result.data.map((item) => ({
       id: savingGroupPathId(item.crewMemberId),
       applicant: item.applicant || '이름 미등록',
+      // AI작성: 서버의 닉네임을 이름과 구분해 PC·모바일 목록에 전달한다.
+      nickname: item.nickname || '닉네임 미등록',
       verification:
         item.identityVerified && item.regionVerified
           ? '본인·지역 인증 완료'

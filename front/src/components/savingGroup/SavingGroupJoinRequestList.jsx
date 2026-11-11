@@ -343,6 +343,8 @@ function SavingGroupJoinRequestList({
                       </td>
                       <td>
                         <Applicant>{request.applicant}</Applicant>
+                        {/* AI작성: 이름 원문과 닉네임을 구분해 표시한다. */}
+                        <div>닉네임: {request.nickname}</div>
                         <VerificationBadge>{request.verification}</VerificationBadge>
                       </td>
                       <td>{request.regionInterest}</td>
@@ -369,6 +371,8 @@ function SavingGroupJoinRequestList({
                       />
                       <div>
                         <Applicant>{request.applicant}</Applicant>
+                        {/* AI작성: 모바일에서도 PC와 같은 신청자 정보를 제공한다. */}
+                        <div>닉네임: {request.nickname}</div>
                         <VerificationBadge>{request.verification}</VerificationBadge>
                       </div>
                     </MobileApplicant>

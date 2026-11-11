@@ -1473,3 +1473,18 @@
 
 - AI작성: 검색어·필터·페이지를 목록 URL에 연결하고 상세의 목록 복귀에서 복원한다. 이전·다음은 5페이지 묶음의 경계로 이동한다.
 - 검증: 프론트 빌드와 git diff --check를 실행했다. 브라우저의 목록 복귀와 묶음 경계 동작은 별도 확인이 필요하다.
+
+
+<!-- AI작성: 신청자 정보 표시 수정의 합의·변경 범위·검증 결과를 기록한다. -->
+## 2026-11-11 신청 목록의 신청자 정보 표시 수정
+
+- 목적: 계모임 신청 목록에 이름 원문과 닉네임을 표시하고, 소모임 신청 목록에는 닉네임만 표시하여 API와 화면 정보를 일치시킨다.
+- 사용자 확인: 계모임 이름 원문 공개 및 소모임 닉네임만 표시를 승인했다. 기존 개인정보 마스킹 규칙의 이번 예외는 계모임 신청자 이름에 한정한다.
+- AI 제안·작성: 계모임 DTO에 nickname을 추가하고 목록 SQL에서 이름 원문·닉네임을 조회한다. 소모임 SQL의 applicant는 닉네임으로 변경하여 실명을 조회하지 않는다. 기존 API 필드명·경로는 유지한다. API 변환 및 PC·모바일 표시, 누락 닉네임 안내, 테스트와 API 명세를 갱신했다.
+- 권한 확인: 계모임은 groups 소유자와 승인된 OWNER 관계를 함께 검증하고, 소모임은 groups 생성자와 승인된 OWNER 관계를 함께 검증한다. 관리자·회계·일반회원의 조회 권한은 추가하지 않았다. 연락처·생년월일·계좌 정보는 추가 반환하지 않는다.
+- 작업 브랜치: 현재 체크아웃된 fix/application-member-display에서 작업했다(최초 요청의 displays와 철자 차이 있음).
+- 변경 파일: SavingGroupJoinRequestRow.java, SmallGroupJoinRequestRow.java, SavingGroupMapper.xml, SmallGroupMapper.xml, savingGroups.js/test.js, smallGroups.js/test.js, SavingGroupJoinRequestList.jsx, SmallGroupJoinRequestList.jsx, SmallGroupJoinRequestControllerTest.java, SmallGroupServiceImplTest.java, docs/saving-groups-api.md, docs/small-group-public-detail-api.md, 본 기록 수정. SavingGroupJoinRequestList.test.js 추가. 삭제 없음.
+- 검증: 프론트 API 테스트 및 실제 JSX SSR 테스트 112개 통과. npm run build 통과(큰 번들 경고 있음). 두 Mapper XML 파싱 및 git diff --check 통과.
+- 백엔드 검증 한계: SmallGroupJoinRequestControllerTest·SmallGroupServiceImplTest·SmallGroupSecurityIntegrationTest 실행을 시도했으나 Java 17 도구 체인을 찾지 못해 테스트 시작 전 실패했다. 실제 MySQL·JWT·브라우저 수동 검증은 미실시다.
+- 개발자 검토·수정: 공개 범위는 사용자 확인 완료. 코드 검토와 실제 환경 동작 확인은 아직 필요하다.
+- 수동 검증: 각 모임의 승인된 OWNER로 신청 목록 GET 응답과 PC·모바일을 비교한다. 계모임은 이름 원문·닉네임, 소모임은 applicant의 닉네임과 실명 미포함을 확인한다. 비로그인 401, 비OWNER 403, 필터·페이지·빈 결과·닉네임 누락·승인·거절 후 재조회를 확인한다.

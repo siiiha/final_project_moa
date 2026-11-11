@@ -708,7 +708,7 @@ test('소모임 가입 신청 목록은 상태·페이지·취소 신호를 API�
           success: true,
           data: [{
             crewMemberId: '9007199254740993',
-            applicant: '가**',
+            applicant: '테스트닉네임',
             regionName: '서울',
             applicationMessage: '함께하고 싶습니다.',
             membershipStatus: 'PENDING',
@@ -722,7 +722,7 @@ test('소모임 가입 신청 목록은 상태·페이지·취소 신호를 API�
     assert.deepEqual(await getSmallGroupJoinRequests(7, { status: 'PENDING', page: 2, signal }), {
       items: [{
         id: '9007199254740993',
-        applicant: '가**',
+        applicant: '테스트닉네임',
         regionInterest: '서울',
         message: '함께하고 싶습니다.',
         status: '대기',
