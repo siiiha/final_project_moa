@@ -154,6 +154,15 @@ const koreanMonth = new Intl.DateTimeFormat('sv-SE', {
 
 const chartColors = ['#2F80ED', '#27AE60', '#F2994A', '#9B51E0', '#EB5757', '#56CCF2', '#BB6BD9', '#6FCF97', '#828282'];
 
+// AI작성: 소액은 원 단위로 보존하고 큰 금액만 만 원 단위로 줄여 차트 축의 반올림 오해를 막는다.
+const formatChartAxisAmount = (value) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '';
+  if (Math.abs(amount) < 10000) return `${amount.toLocaleString('ko-KR')}원`;
+  const tenThousand = amount / 10000;
+  return `${Number.isInteger(tenThousand) ? tenThousand : tenThousand.toFixed(1)}만`;
+};
+
 // AI작성: 모든 페이지를 조회하며 회비 기준이 없는 계원이 있으면 합계 표시를 보류한다.
 export async function loadOutstanding(savingGroupId, month, signal, loadPage = getSavingGroupPaymentStatus) {
   let total = 0;
@@ -242,7 +251,7 @@ export function SavingGroupDashboardView({ dashboard, outstanding, canViewOutsta
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.monthlyTrends} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                   <XAxis dataKey="month" tickFormatter={(value) => `${value.slice(5)}월`} />
-                  <YAxis tickFormatter={(value) => `${Math.round(value / 10000)}만`} />
+                  <YAxis tickFormatter={formatChartAxisAmount} />
                   <Tooltip formatter={(value) => format(Number(value))} labelFormatter={(value) => `${value} 수입·지출`} />
                   <Legend />
                   <Bar dataKey="income" name="수입" fill="#2F80ED" radius={[4, 4, 0, 0]} />
