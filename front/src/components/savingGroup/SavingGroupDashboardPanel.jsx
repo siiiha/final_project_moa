@@ -201,7 +201,6 @@ export function SavingGroupDashboardView({ balance, outstanding, canViewOutstand
     ...(canViewOutstanding ? [{ id: 'overdue', label: '미납', value: format(outstanding?.value) }] : []),
     { id: 'expense', label: '이번 달 지출', value: '—' },
     { id: 'reviewRequired', label: '확인 필요 출금', value: '—' },
-    { id: 'payout', label: '계금 지급', value: '—' },
   ];
 
   return (
