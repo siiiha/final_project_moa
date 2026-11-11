@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Date;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -69,8 +71,10 @@ class SmallGroupSecurityIntegrationTest {
     @MockitoBean
     private AuthSessionService authSessionService;
 
-    @Test
-    void publicSmallGroupDetailAllowsAnonymousRequest() throws Exception {
+    // AI작성: 실제 브라우저처럼 쿼리 문자열을 URL에 포함해 공개 정규식의 회귀를 검증한다.
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/small-groups/1", "/api/small-groups/1?noticePage=1&noticeSort=LATEST"})
+    void publicSmallGroupDetailAllowsAnonymousRequest(String url) throws Exception {
         SmallGroupDetailResponse response = new SmallGroupDetailResponse(
                 1L, 2L, "동네 걷기", "함께 걷는 소모임입니다.", "서울", "운동",
                 LocalDate.of(2026, 11, 1), "한강 공원", 10, 2L,
@@ -81,7 +85,7 @@ class SmallGroupSecurityIntegrationTest {
                 .thenReturn(new com.nightstudy.moa.smallGroup.dto.SmallGroupNoticeListResponse(List.of(), PageMeta.of(1, 4, 0), List.of()));
 
         // AI작성: 비로그인 공개 상세도 신청 불가 여부와 사유를 정상 응답으로 전달한다.
-        mockMvc.perform(get("/api/small-groups/1"))
+        mockMvc.perform(get(url))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.canApply").value(false))
                 .andExpect(jsonPath("$.data.joinRestrictionCode").value("UNAUTHORIZED"));
@@ -110,21 +114,46 @@ class SmallGroupSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // AI작성: 공개 후기의 추가 페이지도 인증 없이 조회되고 페이지 번호가 Service에 전달되는지 검증한다.
-    @Test
-    void publicSmallGroupReviewsAllowAnonymousNextPage() throws Exception {
+    // AI작성: param()만으로는 쿼리 문자열이 생성되지 않으므로 실제 URL로 첫 페이지와 추가 페이지를 검증한다.
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2})
+    void publicSmallGroupReviewsAllowAnonymousNextPage(int page) throws Exception {
         when(smallGroupService.getSmallGroupReviews(eq(1L), isNull(), any()))
-                .thenReturn(new SmallGroupReviewListResponse(List.of(), PageMeta.of(2, 8, 9)));
+                .thenReturn(new SmallGroupReviewListResponse(List.of(), PageMeta.of(page, 8, 9)));
 
-        mockMvc.perform(get("/api/small-groups/1/reviews").param("page", "2"))
+        mockMvc.perform(get("/api/small-groups/1/reviews?page=" + page))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.meta.page").value(2));
+                .andExpect(jsonPath("$.meta.page").value(page));
 
         var condition = org.mockito.ArgumentCaptor.forClass(
                 com.nightstudy.moa.smallGroup.dto.SmallGroupReviewSearchCondition.class);
         verify(smallGroupService).getSmallGroupReviews(eq(1L), isNull(), condition.capture());
-        org.assertj.core.api.Assertions.assertThat(condition.getValue().getPage()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(condition.getValue().getPage()).isEqualTo(page);
         verifyNoInteractions(jwtTokenProvider, authSessionService, revokedTokenMapper);
+    }
+
+    // AI작성: 쿼리 허용이 하위 경로·비숫자 ID·인증 전용 API까지 공개하지 않는지 확인한다.
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/small-groups/1/reviews/me?page=1",
+            "/api/small-groups/1/settings?noticePage=1",
+            "/api/small-groups/1/votes?page=1",
+            "/api/small-groups/regions?noticePage=1",
+            "/api/small-groups/abc?noticePage=1",
+            "/api/small-groups/1/reviews/9?page=1"
+    })
+    void queryStringDoesNotExposeProtectedPaths(String url) throws Exception {
+        mockMvc.perform(get(url)).andExpect(status().isUnauthorized());
+        verifyNoInteractions(smallGroupService);
+    }
+
+    // AI작성: 공개 목록과 동일한 쿼리가 있어도 POST 작성 요청은 인증이 필요하다.
+    @Test
+    void reviewCreateWithQueryStillRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/small-groups/1/reviews?page=1")
+                        .contentType("application/json").content("{\"rating\":4.5,\"content\":\"즐거웠어요\"}"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(smallGroupService);
     }
 
     // AI작성: 목록 공개 설정이 후기 개별 경로나 수정·삭제 요청으로 확대되지 않는지 검증한다.

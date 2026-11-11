@@ -1194,3 +1194,11 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 소모임 후기 수정·삭제 API는 현재 Controller에 없다. 새로 구현하지 않았다. 미구현 개별 후기 경로에 대해서도 비로그인 GET·PUT·PATCH·DELETE가 보안 필터에서 차단되는 회귀 테스트를 추가했다. 이는 수정·삭제 기능 구현이나 작성자 권한 검증을 의미하지 않는다.
 - 검증: 프론트 smallGroups API 테스트 61개 및 프로덕션 빌드 통과. 백엔드 후기 조회·작성 Service/Controller 및 Security 통합 테스트는 Java 17 toolchain 부재로 실행되지 않았다(Java 21 설치). 브라우저·Postman 검증은 미실시다.
 - 수동 검증: 로그아웃 상태에서 소모임 상세 → 후기 탭 → 더 보기 확인. MEMBER로 후기 탭을 연 뒤 로그아웃하여 작성 진입이 사라지는지 확인. OWNER·MEMBER 조회 성공, MANAGER 차단, 비로그인 POST와 /reviews/me의 401을 확인한다.
+
+### 2026-11-11 쿼리 문자열 포함 공개 조회 차단 정정
+
+- AI작성: 앞선 기록에서 공개 GET 설정만으로 비로그인 상세·후기 조회가 정상이라고 판단한 부분을 정정한다. RegexRequestMatcher는 쿼리 문자열까지 비교하므로 기존 끝 고정 패턴은 프론트의 noticePage·noticeSort·page가 포함된 요청을 허용하지 못했다.
+- 상세와 후기 목록 GET 패턴에 선택적 쿼리 문자열을 허용했다. 숫자 ID 및 정확한 경로 제한을 유지하며 POST·/reviews/me·설정·투표 등 보호 경로는 공개하지 않는다. Service의 MANAGER 차단과 작성 승인·역할·날짜·중복 검증은 변경하지 않았다.
+- 기존 보안 테스트의 param() 기반 요청을 실제 URL 쿼리 요청으로 보완했다. 상세의 쿼리 유무, 후기 첫·추가 페이지, 쿼리를 붙인 보호 경로와 POST 인증 요구를 검증하도록 구성했다.
+- 검증: Java 정규식으로 공개 URL 5개 및 보호 URL 6개 경계 확인 통과. Gradle Security·후기 조회/작성 Service 테스트는 Java 17 toolchain 부재로 실행 전 중단됐다. 정규식 검사는 필터 체인 통합 테스트 통과를 의미하지 않는다. 브라우저·Postman 검증은 미실시다.
+- 수동 검증: 비로그인으로 목록 → 상세 → 후기 → 더 보기를 확인한다. 상세 GET의 noticePage·noticeSort 및 후기 GET의 page 포함 요청이 200인지, POST /reviews?page=1 및 GET /reviews/me?page=1이 401인지 확인한다. 실제 모임 데이터로 OWNER·MEMBER 조회 및 MANAGER 차단도 확인한다.
