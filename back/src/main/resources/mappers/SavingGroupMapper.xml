@@ -138,6 +138,20 @@
         ) ledger
         ORDER BY ledger.transacted_at DESC, ledger.transaction_id DESC
     </select>
+    <!-- AI작성: 다른 계좌 거래의 분류 수정은 막고, MOCK 일반 출금 여부는 Service가 동일 기준으로 확인한다. -->
+    <select id="selectSavingGroupTransactionForCategoryUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
+        SELECT gt.transacted_at, gt.transaction_type, gt.amount, gt.balance_after, gt.description,
+               CASE WHEN gt.transaction_type = 'WITHDRAWAL' AND gt.source_provider = 'MOCK'
+                         AND TRIM(gt.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
+               gt.source_provider, gt.final_category
+        FROM group_transaction gt
+        WHERE gt.account_id = #{accountId} AND gt.transaction_id = #{transactionId}
+    </select>
+    <update id="updateSavingGroupTransactionFinalCategory">
+        UPDATE group_transaction
+        SET final_category = #{finalCategory}
+        WHERE account_id = #{accountId} AND transaction_id = #{transactionId}
+    </update>
     <!-- AI작성: savingGroupId를 내부 groupId로 해석하고 기존 회원·지급 처리와 모임 잠금을 공유한다. -->
     <select id="selectTurnOrderGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">
         SELECT sg.saving_group_id, sg.group_id, sg.saving_group_type AS group_type,

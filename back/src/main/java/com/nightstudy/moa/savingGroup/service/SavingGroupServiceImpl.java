@@ -1,6 +1,7 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseCategory;
 import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient;
 import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationStatus;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
@@ -446,6 +447,47 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         var items = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size)
                 .stream().map(this::toTransactionResponse).toList();
         return new SavingGroupTransactionListResponse(items, meta);
+    }
+
+    @Override
+    @Transactional
+    public void updateSavingGroupTransactionCategories(Long savingGroupId, Long memberId,
+            SavingGroupTransactionCategoryUpdateRequest request) {
+        var access = requireSavingGroupAccountMember(savingGroupId, memberId);
+        if (!List.of("OWNER", "MANAGER").contains(access.role())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_TRANSACTION_CATEGORY_FORBIDDEN",
+                    "계주 또는 회계만 지출 항목을 변경할 수 있습니다.");
+        }
+        var account = accountMapper.selectAccount(access.groupId());
+        if (account == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+        }
+
+        for (var item : request.items()) {
+            if (item.category() == CardExpenseCategory.NEEDS_REVIEW) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TRANSACTION_CATEGORY_INVALID",
+                        "확인 필요는 최종 지출 항목으로 저장할 수 없습니다.");
+            }
+            var row = savingGroupMapper.selectSavingGroupTransactionForCategoryUpdate(
+                    account.getAccountId(), item.transactionId());
+            if (row == null) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_TRANSACTION_NOT_FOUND", "거래내역을 찾을 수 없습니다.");
+            }
+            var classification = classifyDemoExpense(row);
+            if (classification == null) {
+                throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CARD_EXPENSE_CLASSIFIER_UNAVAILABLE",
+                        "자동 분류 서비스를 확인할 수 없습니다.");
+            }
+            if (classification.classificationStatus() != CardExpenseClassificationStatus.REVIEW_REQUIRED) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TRANSACTION_CATEGORY_NOT_REVIEW_REQUIRED",
+                        "확인 필요한 출금만 지출 항목을 변경할 수 있습니다.");
+            }
+            if (savingGroupMapper.updateSavingGroupTransactionFinalCategory(
+                    account.getAccountId(), item.transactionId(), item.category().name()) != 1) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TRANSACTION_CATEGORY_UPDATE_CONFLICT",
+                        "거래내역이 변경되어 지출 항목을 저장하지 못했습니다.");
+            }
+        }
     }
 
     // AI작성: 잘못된 장부 행은 원본 메모나 거래 정보를 공개하지 않고 조회 오류로 처리한다.
