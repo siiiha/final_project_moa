@@ -40,8 +40,11 @@ export function connectSavingGroupChat(roomId, authVersion, callbacks) {
     onConnect: () => {
       connection.subscribe(`/topic/chat/rooms/${roomId}`, (frame) =>
         callbacks.onMessage(JSON.parse(frame.body)));
-      connection.subscribe('/user/queue/errors', (frame) =>
-        callbacks.onError(JSON.parse(frame.body).error?.message || '메시지를 보내지 못했습니다.'));
+      // AI작성: 기존 문구 인자를 유지하며 제한 상태 재조회에 필요한 오류 코드도 전달한다.
+      connection.subscribe('/user/queue/errors', (frame) => {
+        const error = JSON.parse(frame.body).error;
+        callbacks.onError(error?.message || '메시지를 보내지 못했습니다.', error?.code);
+      });
       callbacks.onConnect();
     },
     onStompError: (frame) => {
