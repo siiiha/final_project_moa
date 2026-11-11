@@ -692,7 +692,8 @@ function PostDetailPage() {
       </TitleRow>
       <Content>
         {deleteErrorMessage && <ActionError role="alert">{deleteErrorMessage}</ActionError>}
-        {commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}
+        {/* AI작성: 비로그인 회원에게는 댓글 조회의 인증 오류를 게시글 상세 상단에 표시하지 않는다. */}
+        {token && commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}
         <PostDetail
           post={post}
           memberId={memberId}
