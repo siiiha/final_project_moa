@@ -9,7 +9,10 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionClassificationRo
 import com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import java.math.BigDecimal;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CardExpenseClassificationService {
     private final SavingGroupMapper savingGroupMapper;
     private final CardExpenseClassifierClient classifierClient;
+    // AI작성: 같은 거래가 동시에 조회되어도 Python 분류 요청은 한 번만 실행한다.
+    private final Set<Long> pendingTransactionIds = ConcurrentHashMap.newKeySet();
 
     public CardExpenseClassificationService(
             SavingGroupMapper savingGroupMapper,
@@ -45,6 +50,21 @@ public class CardExpenseClassificationService {
             return saved == null ? null : toStoredClassification(saved);
         } catch (ApiException exception) {
             return null;
+        }
+    }
+
+    // AI작성: 거래 목록은 저장된 분류만 즉시 반환하고 새 분류는 응답 이후에 저장한다.
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void classifyAndSaveAsync(SavingGroupTransactionRow row) {
+        if (!"EXPENSE".equals(row.purposeType()) || !"MOCK".equals(row.sourceProvider()) || row.transactionId() == null
+                || !pendingTransactionIds.add(row.transactionId())) {
+            return;
+        }
+        try {
+            classifyAndSave(row);
+        } finally {
+            pendingTransactionIds.remove(row.transactionId());
         }
     }
 

@@ -555,7 +555,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
                     "거래내역을 확인할 수 없습니다.");
-        var classification = classifyDemoExpense(row);
+        CardExpenseClassifierClient.ClassificationResult classification = findStoredClassificationOrSchedule(row);
         // AI작성: 사용자가 확정한 분류는 매 조회마다 계산하는 자동 분류 결과보다 우선한다.
         boolean hasFinalCategory = row.finalCategory() != null && !row.finalCategory().isBlank();
         return new SavingGroupTransactionResponse(row.transactionId(), row.transactedAt(), row.transactionType(), row.amount(),
@@ -571,6 +571,15 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 읽기 전용 조회와 분류 결과 저장 트랜잭션을 분리한 전용 서비스에 위임한다.
     private CardExpenseClassifierClient.ClassificationResult classifyDemoExpense(SavingGroupTransactionRow row) {
         return expenseClassificationService.classify(row);
+    }
+
+    // AI작성: 거래 목록에서는 저장값만 바로 사용하고, 없는 자동 분류는 비동기로 요청한다.
+    private CardExpenseClassifierClient.ClassificationResult findStoredClassificationOrSchedule(SavingGroupTransactionRow row) {
+        CardExpenseClassifierClient.ClassificationResult classification = expenseClassificationService.findStoredClassification(row);
+        if (classification == null) {
+            expenseClassificationService.classifyAndSaveAsync(row);
+        }
+        return classification;
     }
 
     @Override

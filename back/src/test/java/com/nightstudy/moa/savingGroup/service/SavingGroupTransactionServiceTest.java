@@ -48,9 +48,9 @@ class SavingGroupTransactionServiceTest {
 
         var items = service.getSavingGroupTransactions(2L, 1L, 1).items();
         assertThat(items).hasSize(4);
+        // AI작성: 첫 목록 응답은 자동 분류 완료를 기다리지 않고 저장 전 상태를 반환한다.
         assertThat(items.get(3)).isEqualTo(new SavingGroupTransactionResponse(123L, now, "WITHDRAWAL",
-                BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", available ? "FOOD" : null,
-                available ? "REVIEW_PENDING" : null, false));
+                BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", null, null, false));
         verify(classifier).classify("동네밥상", BigDecimal.TEN);
         verifyNoMoreInteractions(classifier);
     }
@@ -95,9 +95,9 @@ class SavingGroupTransactionServiceTest {
         when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
                 new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
                         "동네밥상", "EXPENSE", "MOCK", "FOOD")));
-        when(classifier.classify("동네밥상", BigDecimal.TEN)).thenReturn(
-                new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.NEEDS_REVIEW, 0.5,
-                        CardExpenseClassificationStatus.REVIEW_REQUIRED, CardExpenseClassificationSource.MACHINE_LEARNING, null));
+        when(mapper.selectSavingGroupTransactionClassification(123L)).thenReturn(
+                new SavingGroupTransactionClassificationRow(123L, "NEEDS_REVIEW", "REVIEW_REQUIRED",
+                        new BigDecimal("0.5000"), "MACHINE_LEARNING", null, null));
 
         SavingGroupTransactionResponse item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
         assertThat(item.category()).isEqualTo("FOOD");
