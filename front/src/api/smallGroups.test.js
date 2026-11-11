@@ -710,7 +710,8 @@ test('소모임 가입 신청 목록은 상태·페이지·취소 신호를 API�
             crewMemberId: '9007199254740993',
             applicant: '테스트닉네임',
             regionName: '서울',
-            applicationMessage: '함께하고 싶습니다.',
+            identityVerified: true,
+            regionVerified: true,
             membershipStatus: 'PENDING',
           }],
           meta: { page: 2, size: 10, total: 11, totalPages: 2 },
@@ -724,7 +725,8 @@ test('소모임 가입 신청 목록은 상태·페이지·취소 신호를 API�
         id: '9007199254740993',
         applicant: '테스트닉네임',
         regionInterest: '서울',
-        message: '함께하고 싶습니다.',
+        // AI작성: 인증 상태를 표시하며 신청 메시지는 목록 데이터에서 제외한다.
+        verification: '본인·지역 인증 완료',
         status: '대기',
       }],
       meta: { page: 2, size: 10, total: 11, totalPages: 2 },
@@ -1258,4 +1260,24 @@ test('소모임 전체·시·구·동 검색은 선택 단계만 전달하고 �
     client.get = async () => { throw canceled; };
     await assert.rejects(() => getSmallGroups({ signal }), (error) => error === canceled);
   } finally { client.get = original; }
+});
+
+
+// AI작성: 인증 여부 조합을 실제 API 변환으로 검증하며 신청 메시지 제거와 닉네임 누락 안내를 확인한다.
+test('소모임 신청자 인증 네 가지 상태와 닉네임 누락을 구분한다', async () => {
+  const originalGet = client.get;
+  try {
+    const states = [[true, true, '본인·지역 인증 완료'], [true, false, '본인 인증 완료'],
+      [false, true, '지역 인증 완료'], [false, false, '인증 미완료']];
+    for (const [identityVerified, regionVerified, expected] of states) {
+      client.get = async () => ({ data: { success: true, data: [{ crewMemberId: '1',
+        identityVerified, regionVerified, applicationMessage: '표시하지 않을 내용' }], meta: { totalPages: 1 } } });
+      const { items } = await getSmallGroupJoinRequests(7);
+      assert.equal(items[0].verification, expected);
+      assert.equal(items[0].applicant, '닉네임 미등록');
+      assert.equal(Object.hasOwn(items[0], 'message'), false);
+    }
+  } finally {
+    client.get = originalGet;
+  }
 });

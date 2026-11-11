@@ -819,8 +819,12 @@ export async function getSmallGroupJoinRequests(smallGroupId, { status, page = 1
         id: smallGroupJoinRequestPathId(item.crewMemberId),
         // AI작성: applicant는 서버에서 제공한 닉네임이며 실명으로 대체하지 않는다.
         applicant: item.applicant || '닉네임 미등록',
+        // AI작성: 서버의 두 인증 여부를 계모임과 동일한 네 가지 상태로 표시한다.
+        verification: item.identityVerified && item.regionVerified
+          ? '본인·지역 인증 완료'
+          : item.identityVerified ? '본인 인증 완료'
+            : item.regionVerified ? '지역 인증 완료' : '인증 미완료',
         regionInterest: item.regionName || '지역 미등록',
-        message: item.applicationMessage || '신청 메시지가 없습니다.',
         status: { PENDING: '대기', APPROVED: '승인', REJECTED: '거절' }[item.membershipStatus] || '상태 확인 필요',
       })),
       meta,

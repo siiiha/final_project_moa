@@ -14,6 +14,5 @@ public class SmallGroupJoinRequestRow {
     private String regionName;
     private boolean identityVerified;
     private boolean regionVerified;
-    private String applicationMessage;
     private String membershipStatus;
 }

@@ -811,7 +811,7 @@ class SmallGroupServiceImplTest {
         row.setRegionName("서울");
         row.setIdentityVerified(true);
         row.setRegionVerified(true);
-        row.setApplicationMessage("함께하고 싶습니다.");
+        // AI작성: 가입 신청 목록은 신청 메시지를 반환하지 않는다.
         row.setMembershipStatus(membershipStatus);
         return row;
     }

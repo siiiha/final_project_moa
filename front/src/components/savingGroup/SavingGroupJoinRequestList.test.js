@@ -31,9 +31,18 @@ test('계모임은 이름과 닉네임, 소모임은 닉네임만 PC·모바일�
     assert.equal(saving.match(/applicant@example.com/g)?.length, 2);
     assert.doesNotMatch(saving, /신청 메시지|신청합니다\./);
     assert.match(saving, /신청자<\/th>[\s\S]*?이메일<\/th>[\s\S]*?지역<\/th>[\s\S]*?상태<\/th>[\s\S]*?처리<\/th>/);
-    const small = render(Small, { ...props, requests: [{ ...request, applicant: '테스트닉네임' }] });
-    assert.equal(small.match(/테스트닉네임/g)?.length, 2);
+    const small = render(Small, { ...props, requests: [{ ...request, applicant: '테스트닉네임', verification: '본인·지역 인증 완료' }] });
+    // AI작성: 소모임은 PC·모바일 모두 닉네임 레이블 없이 값만 표시한다.
+    assert.equal(small.match(/>테스트닉네임<\/strong>/g)?.length, 2);
+    assert.doesNotMatch(small, /닉네임:/);
     assert.doesNotMatch(small, /테스트이름/);
+    // AI작성: 소모임도 인증 배지·선택 칸을 제공하고 메시지·이메일은 표시하지 않는다.
+    assert.equal(small.match(/본인·지역 인증 완료/g)?.length, 2);
+    assert.equal(small.match(/type="checkbox"/g)?.length, 3);
+    assert.doesNotMatch(small, /신청 메시지|신청합니다\.|applicant@example.com/);
+    assert.match(small, /닉네임<\/th>[\s\S]*?지역<\/th>[\s\S]*?상태<\/th>[\s\S]*?처리<\/th>/);
+    const completed = render(Small, { ...props, requests: [{ ...request, status: '승인' }] });
+    assert.equal(completed.match(/type="checkbox"[^>]*disabled/g)?.length, 3);
   } finally {
     await server.close();
   }
