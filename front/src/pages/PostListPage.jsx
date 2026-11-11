@@ -233,6 +233,9 @@ function PostListPage() {
     { length: Math.min(PAGE_BUTTON_COUNT, totalPages - pageStart + 1) },
     (_, index) => pageStart + index
   );
+  // AI작성: 이전·다음 버튼은 한 페이지가 아니라 5개 단위 페이지 묶음의 경계로 이동한다.
+  const previousGroupPage = pageStart - 1;
+  const nextGroupPage = pageStart + PAGE_BUTTON_COUNT;
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -285,6 +288,9 @@ function PostListPage() {
             totalCount={totalCount}
             currentPage={currentPage}
             pageNumbers={pageNumbers}
+            previousGroupPage={previousGroupPage}
+            nextGroupPage={nextGroupPage}
+            totalPages={totalPages}
             onPageChange={handlePageChange}
             onPostClick={handlePostClick}
           />
