@@ -105,6 +105,26 @@ class SavingGroupTransactionServiceTest {
         assertThat(item.categoryEditable()).isTrue();
     }
 
+    // AI작성: 이미 저장한 자동 분류 결과는 Python API 호출 없이 거래내역에 재사용한다.
+    @Test
+    void reusesStoredClassificationBeforeCallingPython() {
+        membership("MEMBER", "APPROVED");
+        account();
+        var now = LocalDateTime.of(2026, 11, 8, 12, 0);
+        when(mapper.selectSavingGroupTransactionCount(3L)).thenReturn(1);
+        when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
+                new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
+                        "동네밥상", "EXPENSE", "MOCK", null)));
+        when(mapper.selectSavingGroupTransactionClassification(123L)).thenReturn(
+                new SavingGroupTransactionClassificationRow(123L, "FOOD", "REVIEW_PENDING", new BigDecimal("0.9000"),
+                        "MACHINE_LEARNING", null, null));
+
+        var item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
+        assertThat(item.category()).isEqualTo("FOOD");
+        assertThat(item.classificationStatus()).isEqualTo("REVIEW_PENDING");
+        verifyNoInteractions(classifier);
+    }
+
     // AI작성: 확인 필요 지출은 비율에 포함하고, 계금 지급은 일반 지출 집계에서 제외한다.
     @Test
     void aggregatesDashboardSummaryTrendAndExpenseCategories() {

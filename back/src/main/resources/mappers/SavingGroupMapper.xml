@@ -157,6 +157,22 @@
           AND gt.transacted_at &gt;= #{start} AND gt.transacted_at &lt; #{end}
         ORDER BY gt.transacted_at ASC, gt.transaction_id ASC
     </select>
+    <!-- AI작성: 최종 분류와 별개로 최초 자동 분류 결과를 보관해 Python 재호출을 줄인다. -->
+    <select id="selectSavingGroupTransactionClassification" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionClassificationRow">
+        SELECT transaction_id, suggested_category, classification_status, confidence,
+               prediction_source, review_reason, model_version
+        FROM saving_group_transaction_classification
+        WHERE transaction_id = #{transactionId}
+    </select>
+    <insert id="insertSavingGroupTransactionClassification">
+        INSERT INTO saving_group_transaction_classification (
+            transaction_id, suggested_category, classification_status, confidence,
+            prediction_source, review_reason, model_version, classified_at, updated_at
+        ) VALUES (
+            #{transactionId}, #{suggestedCategory}, #{classificationStatus}, #{confidence},
+            #{predictionSource}, #{reviewReason}, #{modelVersion}, NOW(), NOW()
+        ) ON DUPLICATE KEY UPDATE transaction_id = VALUES(transaction_id)
+    </insert>
     <!-- AI작성: 다른 계좌 거래의 분류 수정은 막고, MOCK 일반 출금 여부는 Service가 동일 기준으로 확인한다. -->
     <select id="selectSavingGroupTransactionForCategoryUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
         SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount, gt.balance_after, gt.description,

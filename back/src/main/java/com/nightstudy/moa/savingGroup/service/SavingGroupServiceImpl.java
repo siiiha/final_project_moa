@@ -4,6 +4,7 @@ import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseCategory;
 import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient;
 import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationStatus;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationSource;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
@@ -567,9 +568,36 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             return null;
         }
         try {
-            return classifierClient.classify(row.description().strip(), row.amount());
+            var saved = row.transactionId() == null ? null
+                    : savingGroupMapper.selectSavingGroupTransactionClassification(row.transactionId());
+            if (saved != null) return toStoredClassification(saved);
+            var classification = classifierClient.classify(row.description().strip(), row.amount());
+            if (row.transactionId() != null) {
+                savingGroupMapper.insertSavingGroupTransactionClassification(new SavingGroupTransactionClassificationRow(
+                        row.transactionId(), classification.suggestedCategory() == null ? null : classification.suggestedCategory().name(),
+                        classification.classificationStatus().name(),
+                        classification.confidence() == null ? null : BigDecimal.valueOf(classification.confidence()),
+                        classification.classificationSource().name(), classification.reviewReason(), null));
+            }
+            return classification;
         } catch (ApiException exception) {
             return null;
+        }
+    }
+
+    // AI작성: 저장값은 Python 응답과 같은 타입으로 복원해 기존 거래내역·대시보드 계산식을 재사용한다.
+    private CardExpenseClassifierClient.ClassificationResult toStoredClassification(
+            SavingGroupTransactionClassificationRow classification) {
+        try {
+            return new CardExpenseClassifierClient.ClassificationResult(
+                    classification.suggestedCategory() == null ? null : CardExpenseCategory.valueOf(classification.suggestedCategory()),
+                    classification.confidence() == null ? null : classification.confidence().doubleValue(),
+                    CardExpenseClassificationStatus.valueOf(classification.classificationStatus()),
+                    CardExpenseClassificationSource.valueOf(classification.predictionSource()),
+                    classification.reviewReason());
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "CARD_EXPENSE_CLASSIFIER_RESPONSE_INVALID",
+                    "저장된 자동 분류 결과를 확인할 수 없습니다.");
         }
     }
 
