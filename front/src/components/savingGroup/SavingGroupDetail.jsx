@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 // AI작성: 공지 상세 링크에 현재 페이지와 정렬 조건을 전달하는 함수를 가져온다.
 import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination, toSavingGroupNoticeSearch } from '../../api/savingGroups.js';
@@ -154,7 +154,10 @@ const CardTitle = styled.h2`
   letter-spacing: -0.7px;
 `;
 
+// AI작성: 기존 기본 영역 크기에 대표 이미지를 맞춘다.
 const ImagePlaceholder = styled.div`
+  overflow: hidden;
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
   height: 168px;
   margin-top: 14px;
   background: ${({ theme }) => theme.colors.primarySoft};
@@ -307,6 +310,9 @@ const ActionButton = styled(Button)`
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh,
   noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry,
   noticePinState, onNoticePinChange, accountPanel, onLeave }) {
+  // AI작성: 실패한 주소만 기억해 다른 이미지 주소는 다시 시도한다.
+  const [failedImageUrl, setFailedImageUrl] = useState(null);
+
   // AI작성: 일반 공지 네 개의 페이지 번호만 계산하며 기존 계모임 전체 목록 계산과 분리한다.
   const noticePages = getSavingGroupNoticePagination(noticePagination.page, noticePagination.totalPages);
   const pinnedNotices = group.pinnedNotices ?? [];
@@ -437,6 +443,10 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           <MainColumn>
             <Card>
               <CardTitle>모임 소개</CardTitle>
+{/* AI작성: 미등록·로딩 실패 시 기존 기본 영역을 표시한다. */}
+              <ImagePlaceholder role={group.groupImageUrl && failedImageUrl !== group.groupImageUrl ? undefined : "img"} aria-label={group.groupImageUrl && failedImageUrl !== group.groupImageUrl ? undefined : "등록된 대표 이미지가 없습니다."}>
+                {group.groupImageUrl && failedImageUrl !== group.groupImageUrl && <img src={group.groupImageUrl} alt={group.groupName + " 대표 이미지"} onError={() => setFailedImageUrl(group.groupImageUrl)} />}
+              </ImagePlaceholder>
               <Content>{group.description?.trim() || '소개글이 없습니다.'}</Content>
             </Card>
             <Card>

@@ -46,6 +46,22 @@ class SavingGroupJoinAvailabilityServiceTest {
         lenient().when(mapper.selectSavingGroupJoinMember(30L)).thenReturn(member);
     }
 
+    // AI작성: 공개 응답은 저장 경로를 노출하지 않으며 누락·잘못된 경로는 404로 처리한다.
+    @Test
+    void representativeImageUsesPublicUrlAndRejectsMissingOrInvalidFiles() {
+        assertThat(service.getSavingGroupDetail(10L, null).getGroupImageUrl()).isNull();
+        row.setGroupImagePath("/uploads/groups/12345678-1234-1234-1234-123456789abc.png");
+        assertThat(service.getSavingGroupDetail(10L, null).getGroupImageUrl())
+                .isEqualTo("/api/saving-groups/10/image");
+        for (String path : new String[]{"", "/uploads/groups/../../secret.png", "/uploads/groups/test.svg"}) {
+            row.setGroupImagePath(path);
+            assertThat(catchThrowableOfType(() -> service.getSavingGroupImage(10L), ApiException.class))
+                    .isNotNull();
+        }
+        when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(null);
+        assertThat(catchThrowableOfType(() -> service.getSavingGroupImage(10L), ApiException.class)).isNotNull();
+    }
+
     @Test
     void anonymousDetailRemainsPublicButCannotApply() {
         SavingGroupDetailResponse response = service.getSavingGroupDetail(10L, null);

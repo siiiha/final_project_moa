@@ -724,6 +724,10 @@ export async function getSavingGroupJoinRequests(savingGroupId, { status, page =
     items: result.data.map((item) => ({
       id: savingGroupPathId(item.crewMemberId),
       applicant: item.applicant || '이름 미등록',
+      // AI작성: 서버의 닉네임을 이름과 구분해 PC·모바일 목록에 전달한다.
+      nickname: item.nickname || '닉네임 미등록',
+      // AI작성: 공개 합의된 이메일 원문을 표시하고 신청 메시지는 사용하지 않는다.
+      email: item.email || '이메일 미등록',
       verification:
         item.identityVerified && item.regionVerified
           ? '본인·지역 인증 완료'
@@ -733,7 +737,6 @@ export async function getSavingGroupJoinRequests(savingGroupId, { status, page =
               ? '지역 인증 완료'
               : '인증 미완료',
       regionInterest: item.regionName || '지역 미등록',
-      message: item.applicationMessage || '신청 메시지가 없습니다.',
       status: { PENDING: '대기', APPROVED: '승인', REJECTED: '거절' }[item.membershipStatus] || '상태 확인 필요',
     })),
     meta: result.meta,
@@ -795,6 +798,8 @@ export function toSavingGroupCard(item) {
     // AI작성: 상세 주소는 계모임 고유 ID로 이동한다.
     id: item.savingGroupId,
     name: item.groupName,
+    // AI작성: 등록 이미지가 없으면 기본 영역을 유지한다.
+    groupImageUrl: item.groupImageUrl ?? null,
     description: item.description?.trim() || '소개글이 없습니다.',
     region: item.regionName,
     district: item.regionName,

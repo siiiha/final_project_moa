@@ -597,11 +597,12 @@ TODO: 추방 사유·추방일·추방자·별도 이력·순번·회비·공동
   "success": true,
   "data": [{
     "crewMemberId": "9007199254740993",
-    "applicant": "가**",
+    "applicant": "테스트이름",
+    "nickname": "테스트닉네임",
+    "email": "applicant@example.com",
     "regionName": "서울",
     "identityVerified": true,
     "regionVerified": false,
-    "applicationMessage": null,
     "membershipStatus": "PENDING"
   }],
   "meta": {"page": 1, "size": 10, "total": 1, "totalPages": 1, "offset": 0},
@@ -610,9 +611,10 @@ TODO: 추방 사유·추방일·추방자·별도 이력·순번·회비·공동
 ```
 
 - crewMemberId는 BIGINT 정밀도 손실을 막기 위해 문자열이다. 프론트는 Number로 변환하지 않고 승인 경로에 전달한다.
-- 이름은 SQL에서 첫 글자 외 나머지를 *로 마스킹한다. 1글자 이름에도 *를 붙인다. 서버에 이름 원문을 반환하지 않는다.
-- 회원 ID·연락처·생년월일·계좌·인증 시각 원문은 조회·반환하지 않는다. 지역명과 인증 완료 여부만 제공한다. 관심사는 이번 목록 응답에 추가하지 않는다.
-- 신청 메시지는 기존 application_message를 표시하며 React의 텍스트 렌더링을 사용한다. HTML로 삽입하지 않는다. 메시지의 자유 입력 내용에 대한 별도 자동 개인정보 탐지 정책은 이번 범위에 없다.
+<!-- AI작성: 신청자 공개 합의에 따라 이름·닉네임·이메일 원문을 제공한다. -->
+- 승인된 해당 모임 계주에게만 `applicant`(이름 원문), `nickname`(닉네임), `email`(이메일 원문)을 반환한다. 사용자 합의에 따라 이름과 이메일을 마스킹하지 않는다. 누락 시 각각 이름 미등록·닉네임 미등록·이메일 미등록으로 안내한다. 관리자·회계·계원·다른 모임 계주에게 조회 권한을 확대하지 않는다.
+- 회원 ID·전화번호·생년월일·계좌·인증 시각 원문은 조회·반환하지 않는다. 지역명과 인증 완료 여부는 기존대로 제공한다. 관심사는 추가하지 않는다.
+- 가입 신청 시 메시지를 입력하지 않으므로 목록에서 `applicationMessage`를 조회·반환하지 않는다. 표 순서는 체크표시 → 신청자 → 이메일 → 지역 → 상태 → 처리다. 신청자 영역에는 이름: 값, 닉네임: 값, 실제 인증 상태 배지를 표시한다. 모바일에도 같은 정보를 제공하며 긴 이메일은 줄바꿈한다. 닉네임의 저장값은 변형하지 않는다.
 
 ### 프론트 동작
 
@@ -2340,7 +2342,7 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 
 | 구분 | 경로 | 동작 |
 |---|---|---|
-| REST GET | `/api/saving-groups/{savingGroupId}/chat-room` | 채팅방 ID와 현재 회원의 관리자 제재·도배 제한 상태 객체를 조회한다. 아래 2026-11-11 추가 계약을 따른다. |
+| REST GET | `/api/saving-groups/{savingGroupId}/chat-room` | 계모임 상세 ID로 채팅방 ID를 조회한다. 응답의 `data`는 방 ID다. |
 | REST GET | `/api/v1/chat/rooms/{roomId}/messages` | 이전 대화를 조회한다. `size` 기본값은 30, 허용 범위는 1~100이다. `beforeId`를 지정하면 해당 ID보다 앞선 메시지를 조회한다. 결과는 메시지 ID 오름차순이다. |
 | WebSocket | `/ws` | STOMP CONNECT의 `Authorization: Bearer <accessToken>` 헤더로 인증한다. |
 | STOMP SEND | `/app/chat/rooms/{roomId}` | JSON 본문 `{"content":"안녕하세요"}`를 전송한다. 공백만 있는 본문과 1,000자 초과 본문을 거절한다. |
@@ -2356,6 +2358,13 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 - JavaScript 문법 검사와 `git diff --check`는 통과했다. 프론트 빌드는 `@stomp/stompjs` 미설치로 실패했고, 백엔드 테스트는 Gradle이 JDK 17을 찾지 못해 실행되지 않았다.
 - DB 반영, 의존성 설치 및 JDK 17 설정 후 서로 다른 브라우저 프로필에서 같은 계모임의 승인 회원 두 명으로 접속한다. 메시지가 양쪽에 한 번씩 도착하고 새로고침 후에도 조회되는지 확인한다.
 - 비회원 계정으로 방 ID·대화 조회와 직접 구독·전송이 거절되는지 확인한다. 방 이동과 재연결 시 메시지 혼입이나 중복이 없는지도 확인한다. 브라우저와 실제 DB 검증은 미실행이다.
+
+
+<!-- AI작성: 계모임 대표 이미지 조회 계약 -->
+### 대표 이미지
+- 목록·상세 응답에 `groupImageUrl` 추가. 미등록 시 null, 등록 시 `/api/saving-groups/{savingGroupId}/image`.
+- GET `/api/saving-groups/{savingGroupId}/image`: 모집중·진행중이며 삭제되지 않은 모임의 등록 이미지만 공개. 이미지·모임 미존재 시 404.
+- JPG/JPEG·PNG·WEBP Content-Type, no-store, nosniff 적용. 미등록·로딩 실패 시 화면의 기본 영역 표시.
 
 ### 계모임 채팅 도배 제한 (2026-11-11)
 
