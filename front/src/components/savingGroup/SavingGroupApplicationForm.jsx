@@ -4,6 +4,14 @@ import styled from 'styled-components';
 import Button from '../common/Button';
 import Textarea from '../common/Textarea';
 
+// AI작성: 소개글 높이를 유지하고 긴 내용은 내부 스크롤로 확인한다.
+const Introduction = styled(Textarea)`
+  height: 142px;
+  min-height: 142px;
+  resize: none;
+  overflow-y: auto;
+`;
+
 const Card = styled.section`
   padding: 22px;
   background: ${({ theme }) => theme.colors.white};
@@ -287,11 +295,13 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
     }
     // AI작성: 개설 요청에 담기는 원본 숫자값으로 범위를 검증한다.
     const fields = new FormData(event.currentTarget);
-    const maxMembers = Number(fields.get('maxMembers'));
+    const capacityInput = event.currentTarget.elements.namedItem('maxMembers');
+    const maxMembers = capacityInput.valueAsNumber;
     const duesAmount = Number(fields.get('duesAmount'));
     const nextErrors = {};
     if (!Number.isInteger(maxMembers) || maxMembers < 4 || maxMembers > 20) {
       nextErrors.maxMembers = memberRangeMessage;
+      capacityInput.focus();
     }
     if (!Number.isInteger(duesAmount) || duesAmount < 10_000 || duesAmount > 1_000_000) {
       nextErrors.duesAmount = duesRangeMessage;
@@ -354,11 +364,14 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
           <Field>
             모집 인원
             <Input
-              name="maxMembers" required inputMode="numeric" pattern="[0-9]+" placeholder="예: 10명"
+              name="maxMembers" type="number" min="4" max="20" step="1" required inputMode="numeric" placeholder="예: 10명"
               aria-invalid={Boolean(amountErrors.maxMembers)}
               aria-describedby={amountErrors.maxMembers ? 'creation-member-range' : undefined}
+              onInvalid={() => setAmountErrors((previous) => ({ ...previous, maxMembers: memberRangeMessage }))}
               onChange={(event) => {
-                // AI작성: 정원 값이 입력된 상태에서 범위를 벗어날 때만 오류를 표시한다.
+                // AI작성: 소모임처럼 범위 밖 입력을 보정하고 재입력을 위한 빈 값은 허용한다.
+                if (event.target.valueAsNumber > 20) event.target.value = '20';
+                if (event.target.valueAsNumber < 4) event.target.value = '4';
                 const value = event.target.value;
                 const count = Number(value);
                 const error = value !== '' && (!/^[0-9]+$/.test(value) || count < 4 || count > 20)
@@ -461,7 +474,7 @@ function SavingGroupApplicationForm({ regions, regionsLoading, regionsError, onR
 
         <FullField>
           계모임 소개
-          <Textarea name="description" maxLength="50" required placeholder="계모임의 목적과 활동 내용을 소개해주세요" />
+          <Introduction name="description" maxLength="50" required placeholder="계모임의 목적과 활동 내용을 소개해주세요" />
         </FullField>
 
         <FullField as="div">

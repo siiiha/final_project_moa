@@ -119,6 +119,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/saving-groups",
+                                // AI작성: 목록의 대표 이미지 GET만 공개한다.
+                                "/api/saving-groups/{savingGroupId:[0-9]+}/image",
                                 "/api/small-groups",
                                 "/api/community/list",
                                 "/api/community/categories"

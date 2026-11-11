@@ -47,6 +47,15 @@ const Form = styled.form`
   gap: 17px;
 `;
 
+// AI작성: 오류를 빨간색으로 표시하고, 안내 공간을 일정하게 유지합니다.
+const LoginFeedback = styled.p`
+  min-height: 36px;
+  margin: -8px 0;
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: 13px;
+  line-height: 18px;
+`;
+
 const LoginButton = styled(Button)`
   width: 100%;
   min-height: 52px;
@@ -71,8 +80,7 @@ const RecoveryLink = styled(Link)`
   color: ${({ theme }) => theme.colors.primary};
   font-size: 14px;
   font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  text-decoration: none;
 
   &:focus-visible {
     outline: 2px solid ${({ theme }) => theme.colors.primary};
@@ -356,9 +364,9 @@ function LoginForm() {
           isVisible={isPasswordVisible}
           onToggleVisibility={() => setIsPasswordVisible((visible) => !visible)}
         />
-        <div style={{ minHeight: '2.8em', lineHeight: 1.4 }}>
-          {errorMessage && <p role="alert">{errorMessage}</p>}
-        </div>
+        <LoginFeedback role={errorMessage ? 'alert' : undefined}>
+          {errorMessage}
+        </LoginFeedback>
         <LoginButton type="submit" disabled={isSubmitting}>
           {isSubmitting ? '로그인 중…' : '로그인'}
         </LoginButton>

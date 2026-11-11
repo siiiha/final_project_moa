@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import styled from 'styled-components';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
+import Checkbox from '../common/Checkbox';
 
 const Filters = styled.nav`
   margin-top: 16px;
@@ -105,9 +107,11 @@ const Table = styled.table`
     font-weight: 700;
   }
 
+  /* AI작성: 닉네임·지역은 제목과 내용을 왼쪽에 맞추고 체크·상태·처리는 가운데 정렬한다. */
+  th:nth-child(2),
   td:nth-child(2),
-  td:nth-child(3),
-  td:nth-child(4) {
+  th:nth-child(3),
+  td:nth-child(3) {
     text-align: left;
   }
 
@@ -119,6 +123,15 @@ const Table = styled.table`
 const Applicant = styled.strong`
   color: ${({ theme }) => theme.colors.text};
   font-size: 12px;
+`;
+
+// AI작성: 계모임과 동일한 인증 배지를 닉네임 아래 표시한다.
+const VerificationBadge = styled(Badge)`
+  margin-top: 5px;
+  min-height: 20px;
+  padding: 3px 6px;
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 9px;
 `;
 
 const StatusBadge = styled(Badge)`
@@ -258,6 +271,19 @@ function SmallGroupJoinRequestList({
   isProcessing,
   actionError,
 }) {
+  // AI작성: 새 조회 결과에서는 선택을 초기화하고 현재 페이지의 대기 신청만 선택한다.
+  const [selection, setSelection] = useState({ requests: null, ids: [] });
+  const selectedIds = selection.requests === requests ? selection.ids : [];
+  const pendingIds = requests.filter(request => request.status === '대기').map(request => request.id);
+  const blocked = isLoading || Boolean(errorMessage) || isProcessing;
+  const allSelected = pendingIds.length > 0 && pendingIds.every(id => selectedIds.includes(id));
+  const toggleRequest = (id) => {
+    if (blocked || !pendingIds.includes(id)) return;
+    setSelection({ requests, ids: selectedIds.includes(id) ? selectedIds.filter(value => value !== id) : [...selectedIds, id] });
+  };
+  const toggleAll = () => {
+    if (!blocked) setSelection({ requests, ids: allSelected ? [] : pendingIds });
+  };
   return (
     <>
       <Filters aria-label="소모임 가입 신청 상태 필터">
@@ -295,17 +321,19 @@ function SmallGroupJoinRequestList({
             <TableWrap>
               <Table>
                 <colgroup>
-                  <col width="20%" />
-                  <col width="20%" />
-                  <col width="25%" />
+                  {/* AI작성: 메시지 열을 제거하고 지역을 넓히며 처리 열의 여유 폭을 줄인다. */}
+                  <col width="7%" />
+                  <col width="30%" />
+                  <col width="33%" />
                   <col width="15%" />
-                  <col width="20%" />
+                  <col width="15%" />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th scope="col">신청자</th>
+                    <th scope="col"><Checkbox id="small-join-request-all" aria-label="대기 신청 전체 선택" checked={allSelected} disabled={blocked || pendingIds.length === 0} onChange={toggleAll} /></th>
+                    {/* AI작성: 신청자 정보는 닉네임만 표시한다. */}
+                    <th scope="col">닉네임</th>
                     <th scope="col">지역</th>
-                    <th scope="col">신청 메시지</th>
                     <th scope="col">상태</th>
                     <th scope="col">처리</th>
                   </tr>
@@ -313,9 +341,13 @@ function SmallGroupJoinRequestList({
                 <tbody>
                   {requests.map((request) => (
                     <tr key={request.id}>
-                      <td><Applicant>{request.applicant}</Applicant></td>
+                      <td><Checkbox id={`small-join-request-${request.id}`} aria-label={`${request.applicant} 선택`} checked={selectedIds.includes(request.id)} disabled={blocked || request.status !== '대기'} onChange={() => toggleRequest(request.id)} /></td>
+                      <td>
+                        {/* AI작성: 닉네임 레이블 없이 값만 표시하고 인증 배지는 유지한다. */}
+                        <div><Applicant>{request.applicant}</Applicant></div>
+                        <VerificationBadge>{request.verification}</VerificationBadge>
+                      </td>
                       <td>{request.regionInterest}</td>
-                      <td>{request.message}</td>
                       <td><StatusBadge $status={request.status}>{request.status}</StatusBadge></td>
                       <td>
                         <RequestActions
@@ -337,10 +369,17 @@ function SmallGroupJoinRequestList({
               {requests.map((request) => (
                 <MobileItem key={request.id}>
                   <MobileTop>
-                    <MobileApplicant><Applicant>{request.applicant}</Applicant></MobileApplicant>
+                    <MobileApplicant>
+                      <Checkbox id={`mobile-small-join-request-${request.id}`} aria-label={`${request.applicant} 선택`} checked={selectedIds.includes(request.id)} disabled={blocked || request.status !== '대기'} onChange={() => toggleRequest(request.id)} />
+                      <div>
+                        {/* AI작성: 모바일에서도 닉네임 값만 표시한다. */}
+                        <div><Applicant>{request.applicant}</Applicant></div>
+                        <VerificationBadge>{request.verification}</VerificationBadge>
+                      </div>
+                    </MobileApplicant>
                     <StatusBadge $status={request.status}>{request.status}</StatusBadge>
                   </MobileTop>
-                  <MobileInfo>{request.regionInterest}<br />{request.message}</MobileInfo>
+                  <MobileInfo>지역: {request.regionInterest}</MobileInfo>
                   <MobileActions>
                     <RequestActions
                       request={request}
