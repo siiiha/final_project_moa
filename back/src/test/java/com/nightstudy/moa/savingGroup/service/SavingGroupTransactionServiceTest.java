@@ -49,7 +49,7 @@ class SavingGroupTransactionServiceTest {
         assertThat(items).hasSize(4);
         assertThat(items.get(3)).isEqualTo(new SavingGroupTransactionResponse(123L, now, "WITHDRAWAL",
                 BigDecimal.TEN, BigDecimal.ZERO, "EXPENSE", available ? "FOOD" : null,
-                available ? "REVIEW_PENDING" : null));
+                available ? "REVIEW_PENDING" : null, false));
         verify(classifier).classify("동네밥상", BigDecimal.TEN);
         verifyNoMoreInteractions(classifier);
     }
@@ -82,6 +82,26 @@ class SavingGroupTransactionServiceTest {
         var result = service.getSavingGroupTransactions(12L, 1L, 2);
         assertThat(result.items()).containsExactly(new SavingGroupTransactionResponse(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO));
         assertThat(result.pageMeta().getTotalPages()).isEqualTo(2);
+    }
+
+    // AI작성: 확인 필요 출금은 사용자가 저장한 최종 분류가 있어도 다시 수정할 수 있다.
+    @Test
+    void keepsReviewRequiredMockWithdrawalEditableAfterCategoryIsSaved() {
+        membership("OWNER", "APPROVED");
+        account();
+        var now = LocalDateTime.of(2026, 11, 8, 12, 0);
+        when(mapper.selectSavingGroupTransactionCount(3L)).thenReturn(1);
+        when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
+                new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
+                        "동네밥상", "EXPENSE", "MOCK", "FOOD")));
+        when(classifier.classify("동네밥상", BigDecimal.TEN)).thenReturn(
+                new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.NEEDS_REVIEW, 0.5,
+                        CardExpenseClassificationStatus.REVIEW_REQUIRED, CardExpenseClassificationSource.MACHINE_LEARNING, null));
+
+        var item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
+        assertThat(item.category()).isEqualTo("FOOD");
+        assertThat(item.classificationStatus()).isEqualTo("CONFIRMED");
+        assertThat(item.categoryEditable()).isTrue();
     }
 
     @ParameterizedTest
