@@ -68,6 +68,16 @@ public class SavingGroupController {
         return ApiResponse.ok(result.items(), result.pageMeta());
     }
 
+    // AI작성: 화면에서 변경한 확인 필요 출금 항목만 일괄 저장하고 입금·자동 분류 완료 건은 Service가 거부한다.
+    @PatchMapping("/{savingGroupId}/account/transactions/categories")
+    public ApiResponse<Void> updateTransactionCategories(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionCategoryUpdateRequest request) {
+        savingGroupService.updateSavingGroupTransactionCategories(savingGroupId, memberId, request);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 계주 전용 조회 결과를 기존 목록 응답 형식으로 반환한다.
     @GetMapping("/{savingGroupId}/dues/payment-status")
     public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusResponse>> paymentStatus(

@@ -37,6 +37,10 @@ public interface SavingGroupMapper {
     int selectSavingGroupTransactionCount(@Param("accountId") Long accountId);
     List<SavingGroupTransactionRow> selectSavingGroupTransactions(@Param("accountId") Long accountId,
             @Param("offset") long offset, @Param("size") int size);
+    SavingGroupTransactionRow selectSavingGroupTransactionForCategoryUpdate(@Param("accountId") Long accountId,
+            @Param("transactionId") Long transactionId);
+    int updateSavingGroupTransactionFinalCategory(@Param("accountId") Long accountId,
+            @Param("transactionId") Long transactionId, @Param("finalCategory") String finalCategory);
     // AI작성: 공통 모임 잠금 아래 예약 목록을 통째로 저장하며 실제 회차·지급 원장은 변경하지 않는다.
     SavingGroupTurnOrderPlanRow selectTurnOrderGroupForUpdate(@Param("savingGroupId") Long savingGroupId);
     List<SavingGroupTurnOrderAssignmentRow> selectTurnOrderAssignmentMembers(@Param("groupId") Long groupId);

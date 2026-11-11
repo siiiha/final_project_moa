@@ -20,6 +20,9 @@ public interface SavingGroupService {
 
     com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionListResponse getSavingGroupTransactions(
             Long savingGroupId, Long memberId, int page);
+    // AI작성: OWNER·MANAGER만 자동 분류가 어려운 MOCK 출금의 최종 분류를 한 번에 저장한다.
+    void updateSavingGroupTransactionCategories(Long savingGroupId, Long memberId,
+            com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionCategoryUpdateRequest request);
     // AI작성: 승인 계주에게 전체 승인 회원의 무작위 모의 순번을 제안하며 저장하지 않는다.
     java.util.List<com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderRecommendationResponse>
             getTurnOrderRecommendations(Long savingGroupId, Long memberId);
