@@ -57,7 +57,7 @@ export default function PortOneFindAccountPage() {
         <Main>
             <Card>
                 <h1>아이디 찾기</h1>
-                <Description>본인인증으로 모아에 가입한 계정을 확인할 수 있어요.</Description>
+                                <Description>모아에서 본인인증을 완료한 계정의 아이디만 찾을 수 있어요.</Description>
 
                 <Actions>
                     {message && <Message $error role="alert">{message}</Message>}
