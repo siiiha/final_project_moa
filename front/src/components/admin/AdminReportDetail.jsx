@@ -163,7 +163,7 @@ const DeleteOption = styled.label`
 `;
 
 // AI작성: 신고 사건 정보와 처리 입력 영역을 분리해 관리자에게 처리 대상과 결과를 명확히 안내한다.
-function AdminReportDetail({ report, action, restrictionScope, restrictionType, deleteTargetContent, processReason, submitting, onActionChange, onRestrictionTypeChange, onDeleteTargetContentChange, onProcessReasonChange, onSubmit, onBack }) {
+function AdminReportDetail({ report, action, restrictionScope, restrictionType, deleteTargetContent, processReason, submitting, onActionChange, onRestrictionTypeChange, onDeleteTargetContentChange, onProcessReasonChange, onSubmit, onDeleteReportedContent, onBack }) {
   const pending = report.statusCode === 'PENDING';
   const contentReport = ['POST', 'COMMENT'].includes(report.typeCode);
   const restrictionLabel = restrictionScope === 'CONTENT' ? '게시글·댓글 작성 제한'
@@ -192,6 +192,12 @@ function AdminReportDetail({ report, action, restrictionScope, restrictionType, 
             <TargetMeta>작성자: {report.targetContent.writer}</TargetMeta>
             <TargetText>{report.targetContent.content || '내용을 확인할 수 없습니다.'}</TargetText>
           </TargetPreview>
+          {!pending && report.statusCode === 'CONFIRMED' && contentReport && !report.targetContent.deleted && (
+            <Actions>
+              {/* AI작성: 승인 당시 삭제하지 않은 콘텐츠도 신고 상세에서 근거를 확인한 뒤 사후 삭제할 수 있게 한다. */}
+              <Button type="button" $variant="danger" onClick={onDeleteReportedContent}>신고 콘텐츠 삭제</Button>
+            </Actions>
+          )}
         </>
       )}
       <SectionTitle>개별 신고 내용</SectionTitle>

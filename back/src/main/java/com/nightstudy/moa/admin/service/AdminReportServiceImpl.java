@@ -168,6 +168,31 @@ public class AdminReportServiceImpl implements AdminReportService {
 
     @Override
     @Transactional
+    // AI작성: 승인된 게시글·댓글 신고의 대상만 잠금 확인 후 후속 삭제하며, 임의 콘텐츠 삭제를 막는다.
+    public void deleteApprovedReportedContent(Long reportId) {
+        AdminReportListItemResponse report = adminReportMapper.selectReportForUpdate(reportId);
+        if (report == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "REPORT_NOT_FOUND", "신고를 찾을 수 없습니다.");
+        }
+        if (!"CONFIRMED".equals(report.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "REPORT_CONTENT_DELETE_REQUIRES_CONFIRMATION",
+                    "승인된 신고의 콘텐츠만 삭제할 수 있습니다.");
+        }
+
+        int deletedCount = switch (report.getReportType()) {
+            case "POST" -> adminReportMapper.deleteReportedPost(reportId);
+            case "COMMENT" -> adminReportMapper.deleteReportedComment(reportId);
+            default -> throw new ApiException(HttpStatus.BAD_REQUEST, "REPORT_CONTENT_DELETE_NOT_ALLOWED",
+                    "게시글 또는 댓글 신고의 콘텐츠만 삭제할 수 있습니다.");
+        };
+        if (deletedCount != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "REPORT_CONTENT_ALREADY_DELETED",
+                    "이미 삭제되었거나 삭제할 수 없는 신고 콘텐츠입니다.");
+        }
+    }
+
+    @Override
+    @Transactional
     // AI작성: 스케줄러가 호출하면 만료된 기간제 제한을 일괄 해제하고 처리 건수를 반환한다.
     // 서비스 단위의 DB변경이라 @Transactional을 붙였는데 UPDATE는 한 번만 일어나서... 삭제해도 무방합니다.
     public int releaseExpiredMemberRestrictions() {
