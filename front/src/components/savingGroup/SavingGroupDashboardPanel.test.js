@@ -4,8 +4,8 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 
-// AI작성: 대시보드 표시와 전체 페이지 미납 합산을 실제 모듈에서 검증한다.
-test('회비 대시보드는 조회 상태와 계주 전용 미납 합계를 구분한다', async () => {
+// AI작성: 대시보드 집계 표시와 전체 페이지 미납 합산을 실제 모듈에서 검증한다.
+test('회비 대시보드는 집계 조회 상태와 계주 전용 미납 합계를 구분한다', async () => {
   const vite = await createServer({
     configFile: false, server: { middlewareMode: true, hmr: false }, appType: 'custom',
     ssr: { noExternal: ['styled-components'] }, oxc: { jsx: { runtime: 'automatic' } },
@@ -18,12 +18,16 @@ test('회비 대시보드는 조회 상태와 계주 전용 미납 합계를 구
     );
     const render = (props) => renderToStaticMarkup(React.createElement(ThemeProvider, { theme },
       React.createElement(View, props)));
-    assert.match(render({}), /role="status"/);
-    assert.match(render({ balance: { value: null } }), /거래내역이 없습니다/);
-    const failure = render({ balance: { failed: true } });
+    const dashboard = {
+      currentBalance: 80000, monthlyDuesTotal: 50000, monthlyExpenseTotal: 20000, reviewRequiredWithdrawalCount: 1,
+      monthlyTrends: [{ month: '2026-11', income: 50000, expense: 20000 }],
+      expenseCategoryRatios: [{ category: 'FOOD', amount: 20000 }],
+    };
+    assert.match(render({}), /대시보드를 불러오는 중/);
+    const failure = render({ dashboard: { failed: true } });
     assert.match(failure, /role="alert"/);
-    assert.doesNotMatch(failure, />0원</);
-    assert.match(render({ balance: { value: 0 } }), />0원</);
+    const renderedDashboard = render({ dashboard: { value: dashboard } });
+    for (const value of ['80,000원', '50,000원', '20,000원', '1건']) assert.match(renderedDashboard, new RegExp(value));
     assert.doesNotMatch(render({ outstanding: { value: 31000 } }), /미납|31,000원/);
     assert.match(render({ canViewOutstanding: true, outstanding: { value: null } }), /회비 기준 확인/);
 

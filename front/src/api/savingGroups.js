@@ -1,5 +1,14 @@
 import client from './client.js';
 
+// AI작성: 거래내역 선택·대시보드 표시에서 같은 지출 분류 코드와 이름을 재사용한다.
+export const savingGroupExpenseCategoryCodes = Object.freeze([
+  'FOOD', 'TRANSPORTATION', 'RENTAL', 'SUPPLIES', 'ACTIVITY', 'ACCOMMODATION', 'FEE', 'OTHER',
+]);
+export const savingGroupExpenseCategoryLabels = Object.freeze({
+  FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비',
+  ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타', NEEDS_REVIEW: '확인 필요',
+});
+
 // AI작성: 현재 순번과 다음 달 예약안을 같은 인증 client로 조회·저장한다.
 function toTurnOrderAssignment(data) {
   if (!data || !/^\d{4}-\d{2}-01$/.test(data.effectiveMonth) || !Number.isSafeInteger(data.startRoundNumber)
@@ -490,12 +499,65 @@ export async function getSavingGroupTransactions(savingGroupId, { page = 1, sign
   }
   return {
     // AI작성: 공개 거래 필드와 서버에서 연결한 분류 정보만 화면에 전달한다.
-    items: response.data.map(({ transactedAt, transactionType, amount, balanceAfter, purposeType, category, classificationStatus }) => ({
-      transactedAt, transactionType, amount, balanceAfter,
-      ...(purposeType !== undefined && { purposeType, category, classificationStatus }),
+    items: response.data.map(({ transactionId, transactedAt, transactionType, amount, balanceAfter, description, purposeType, category, classificationStatus, categoryEditable }) => ({
+      transactedAt, transactionType, amount, balanceAfter, description,
+      ...(transactionId !== undefined && { transactionId }),
+      ...(purposeType !== undefined && {
+        purposeType, category, classificationStatus,
+        ...(categoryEditable !== undefined && { categoryEditable }),
+      }),
     })),
     meta: response.meta,
   };
+}
+
+// AI작성: 대시보드 전용 집계는 거래 페이지를 반복 조회하지 않고 서버가 계산한 최근 여섯 달 데이터만 사용한다.
+export async function getSavingGroupDashboard(savingGroupId, { month, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const { data: response } = await client.get(`/saving-groups/${id}/dashboard`, { params: { month }, signal });
+  const data = response?.data;
+  const toNumber = (value) => {
+    const amount = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(amount) ? amount : 0;
+  };
+  const toNonNegativeAmount = (value) => Math.max(0, toNumber(value));
+  const categoryCodes = new Set([...savingGroupExpenseCategoryCodes, 'NEEDS_REVIEW']);
+  if (response?.success !== true || !data) {
+    throw new Error('대시보드 응답을 확인할 수 없습니다.');
+  }
+  // AI작성: 일부 차트 행의 형식이 달라도 정상 요약 카드까지 비워지지 않도록 값별로 보정한다.
+  const monthlyTrends = Array.isArray(data.monthlyTrends) ? data.monthlyTrends
+    .filter((item) => item && /^\d{4}-(0[1-9]|1[0-2])$/.test(item.month))
+    .map((item) => ({ month: item.month, income: toNonNegativeAmount(item.income), expense: toNonNegativeAmount(item.expense) })) : [];
+  const expenseCategoryRatios = Array.isArray(data.expenseCategoryRatios) ? data.expenseCategoryRatios
+    .filter((item) => item && categoryCodes.has(item.category) && toNonNegativeAmount(item.amount) > 0)
+    .map((item) => ({ category: item.category, amount: toNonNegativeAmount(item.amount) })) : [];
+  return {
+    // AI작성: 내부 장부 잔액은 출금이 입금을 초과하면 음수가 될 수 있으므로 그대로 표시한다.
+    currentBalance: toNumber(data.currentBalance),
+    monthlyDuesTotal: toNonNegativeAmount(data.monthlyDuesTotal),
+    monthlyExpenseTotal: toNonNegativeAmount(data.monthlyExpenseTotal),
+    reviewRequiredWithdrawalCount: Number.isInteger(data.reviewRequiredWithdrawalCount)
+      && data.reviewRequiredWithdrawalCount >= 0 ? data.reviewRequiredWithdrawalCount : 0,
+    monthlyTrends,
+    expenseCategoryRatios,
+  };
+}
+
+// AI작성: 확인이 필요한 출금 거래의 최종 분류만 일괄 전송하고, 권한·대상 검증은 서버가 처리한다.
+export async function updateSavingGroupTransactionCategories(savingGroupId, items, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  if (!Array.isArray(items) || items.length < 1 || items.some((item) =>
+    !item || !savingGroupExpenseCategoryCodes.includes(item.category))) {
+    throw new Error('저장할 출금 분류를 확인해주세요.');
+  }
+  const body = {
+    items: items.map((item) => ({ transactionId: savingGroupPathId(item.transactionId), category: item.category })),
+  };
+  return savingGroupMemberResponse(
+    () => client.patch(`/saving-groups/${id}/account/transactions/categories`, body, { signal }),
+    '분류 항목을 저장하지 못했습니다. 다시 시도해주세요.'
+  );
 }
 
 // AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.

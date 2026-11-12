@@ -108,35 +108,87 @@
         SELECT COUNT(*) FROM group_transaction WHERE account_id = #{accountId}
     </select>
 
+    <!-- AI작성: 거래 목록·대시보드가 같은 목적 판별 규칙을 사용해 분류 기준이 달라지지 않게 한다. -->
+    <sql id="savingGroupTransactionColumns">
+        gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount, gt.balance_after, gt.description,
+        CASE WHEN gt.transaction_type = 'DEPOSIT' THEN 'DUES'
+             WHEN gt.transaction_type = 'WITHDRAWAL' AND EXISTS (
+                 SELECT 1 FROM payout_request pr
+                 JOIN meeting_round mr ON mr.round_id = pr.round_id
+                 WHERE pr.transaction_id = gt.transaction_id AND mr.group_id = ga.group_id
+                   AND pr.status = 'COMPLETED'
+             ) THEN 'PAYOUT'
+             WHEN gt.transaction_type = 'WITHDRAWAL' AND gt.source_provider = 'MOCK'
+                  AND TRIM(gt.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
+        gt.source_provider, gt.final_category
+    </sql>
     <select id="selectSavingGroupTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
-        <!-- AI작성: 지급 완료 기록이 연결된 출금은 계금 지급으로 우선 표시한다. -->
-        SELECT ledger.transacted_at, ledger.transaction_type, ledger.amount, ledger.balance_after, ledger.description,
-               CASE WHEN ledger.is_dues THEN 'DUES'
-                    WHEN ledger.is_payout THEN 'PAYOUT'
-                    WHEN ledger.transaction_type = 'WITHDRAWAL' AND ledger.source_provider = 'MOCK' AND TRIM(ledger.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
-               ledger.source_provider
-        FROM (
-            SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount,
-                   gt.balance_after, gt.description, gt.source_provider,
-                   (gt.transaction_type = 'DEPOSIT' AND EXISTS (
-                       SELECT 1 FROM saving_group_mock_deposit_request dr
-                       WHERE dr.transaction_id = gt.transaction_id AND dr.account_id = gt.account_id
-                         AND dr.status = 'COMPLETED'
-                   )) AS is_dues,
-                   (gt.transaction_type = 'WITHDRAWAL' AND EXISTS (
-                       SELECT 1 FROM payout_request pr
-                       JOIN meeting_round mr ON mr.round_id = pr.round_id
-                       WHERE pr.transaction_id = gt.transaction_id AND mr.group_id = ga.group_id
-                         AND pr.status = 'COMPLETED'
-                   )) AS is_payout
-            FROM group_transaction gt
-            JOIN group_account ga ON ga.account_id = gt.account_id
-            WHERE gt.account_id = #{accountId}
-            ORDER BY transacted_at DESC, transaction_id DESC
-            LIMIT #{size} OFFSET #{offset}
-        ) ledger
-        ORDER BY ledger.transacted_at DESC, ledger.transaction_id DESC
+        SELECT <include refid="savingGroupTransactionColumns"/>
+        FROM group_transaction gt
+        JOIN group_account ga ON ga.account_id = gt.account_id
+        WHERE gt.account_id = #{accountId}
+        ORDER BY gt.transacted_at DESC, gt.transaction_id DESC
+        LIMIT #{size} OFFSET #{offset}
     </select>
+    <!-- AI작성: 지급 완료 출금은 일반 지출에서 제외하고, 대시보드가 분류할 최근 거래만 조회한다. -->
+    <select id="selectSavingGroupDashboardTransactions" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
+        SELECT <include refid="savingGroupTransactionColumns"/>
+        FROM group_transaction gt
+        JOIN group_account ga ON ga.account_id = gt.account_id
+        WHERE gt.account_id = #{accountId}
+          AND gt.transacted_at &gt;= #{start} AND gt.transacted_at &lt; #{end}
+        ORDER BY gt.transacted_at ASC, gt.transaction_id ASC
+    </select>
+    <!-- AI작성: 원장 합계보다 실제 거래 화면의 최신 balance_after를 우선해 현재 잔액을 표시한다. -->
+    <select id="selectSavingGroupLatestTransactionBalance" resultType="java.math.BigDecimal">
+        SELECT COALESCE((
+            SELECT gt.balance_after
+            FROM group_transaction gt
+            WHERE gt.account_id = #{accountId} AND gt.balance_after IS NOT NULL
+            ORDER BY gt.transacted_at DESC, gt.transaction_id DESC
+            LIMIT 1
+        ), 0)
+    </select>
+    <!-- AI작성: 최종 분류와 별개로 최초 자동 분류 결과를 보관해 Python 재호출을 줄인다. -->
+    <select id="selectSavingGroupTransactionClassification" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionClassificationRow">
+        SELECT transaction_id, suggested_category, classification_status, confidence,
+               prediction_source, review_reason, model_version
+        FROM saving_group_transaction_classification
+        WHERE transaction_id = #{transactionId}
+    </select>
+    <!-- AI작성: 현재 화면의 MOCK 지출만 IN 조건으로 조회해 원격 DB 왕복을 한 번으로 줄인다. -->
+    <select id="selectSavingGroupTransactionClassifications" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionClassificationRow">
+        SELECT transaction_id, suggested_category, classification_status, confidence,
+               prediction_source, review_reason, model_version
+        FROM saving_group_transaction_classification
+        WHERE transaction_id IN
+        <foreach collection="transactionIds" item="transactionId" open="(" separator="," close=")">
+            #{transactionId}
+        </foreach>
+    </select>
+    <insert id="insertSavingGroupTransactionClassification">
+        INSERT INTO saving_group_transaction_classification (
+            transaction_id, suggested_category, classification_status, confidence,
+            prediction_source, review_reason, model_version, classified_at, updated_at
+        ) VALUES (
+            #{transactionId}, #{suggestedCategory}, #{classificationStatus}, #{confidence},
+            #{predictionSource}, #{reviewReason}, #{modelVersion}, NOW(), NOW()
+        ) ON DUPLICATE KEY UPDATE transaction_id = VALUES(transaction_id)
+    </insert>
+    <!-- AI작성: 다른 계좌 거래의 분류 수정은 막고, MOCK 일반 출금 여부는 Service가 동일 기준으로 확인한다. -->
+    <select id="selectSavingGroupTransactionForCategoryUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionRow">
+        SELECT gt.transaction_id, gt.transacted_at, gt.transaction_type, gt.amount, gt.balance_after, gt.description,
+               CASE WHEN gt.transaction_type = 'WITHDRAWAL' AND gt.source_provider = 'MOCK'
+                         AND TRIM(gt.description) &lt;&gt; '' THEN 'EXPENSE' END AS purpose_type,
+               gt.source_provider, gt.final_category
+        FROM group_transaction gt
+        WHERE gt.account_id = #{accountId} AND gt.transaction_id = #{transactionId}
+    </select>
+    <update id="updateSavingGroupTransactionFinalCategory">
+        UPDATE group_transaction
+        SET final_category = #{finalCategory}
+        WHERE account_id = #{accountId} AND transaction_id = #{transactionId}
+    </update>
     <!-- AI작성: savingGroupId를 내부 groupId로 해석하고 기존 회원·지급 처리와 모임 잠금을 공유한다. -->
     <select id="selectTurnOrderGroupForUpdate" resultType="com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderPlanRow">
         SELECT sg.saving_group_id, sg.group_id, sg.saving_group_type AS group_type,

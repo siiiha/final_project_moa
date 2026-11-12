@@ -1,7 +1,10 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseCategory;
 import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationStatus;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationSource;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
@@ -14,9 +17,12 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,6 +32,9 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 대시보드 추이는 현재 월을 포함한 최근 여섯 달만 보여주며, 집계 범위를 한곳에서 관리한다.
+    private static final int DASHBOARD_MONTH_COUNT = 6;
+
     // AI작성: 같은 읽기 스냅샷의 모임·회원·회비로 계산하며 실제 순번·회차·지급 상태는 변경하지 않는다.
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
@@ -455,35 +464,143 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         var meta = PageMeta.of(page, size, total);
         long offset = (page - 1L) * size;
         if (offset >= total) return new SavingGroupTransactionListResponse(List.of(), meta);
-        var items = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size)
-                .stream().map(this::toTransactionResponse).toList();
+        List<SavingGroupTransactionRow> rows = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size);
+        Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications =
+                expenseClassificationService.findStoredClassifications(rows);
+        List<SavingGroupTransactionResponse> items = rows.stream()
+                .map(row -> toTransactionResponse(row, classifications.get(row.transactionId())))
+                .toList();
         return new SavingGroupTransactionListResponse(items, meta);
     }
 
+    // AI작성: 최근 여섯 달의 거래를 월별로 합산하고, 미확정 확인 필요 출금은 별도 분류로 보존한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupDashboardResponse getSavingGroupDashboard(Long savingGroupId, Long memberId, YearMonth month) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
+        EncryptedGroupAccountRow account = accountMapper.selectAccount(groupId);
+        if (account == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+        }
+        YearMonth firstMonth = month.minusMonths(DASHBOARD_MONTH_COUNT - 1L);
+        LocalDateTime start = firstMonth.atDay(1).atStartOfDay();
+        LocalDateTime end = month.plusMonths(1).atDay(1).atStartOfDay();
+        LinkedHashMap<YearMonth, BigDecimal[]> totals = new LinkedHashMap<>();
+        for (int index = 0; index < DASHBOARD_MONTH_COUNT; index += 1) {
+            totals.put(firstMonth.plusMonths(index), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+        }
+        LinkedHashMap<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
+        BigDecimal monthlyDues = BigDecimal.ZERO;
+        BigDecimal monthlyExpense = BigDecimal.ZERO;
+        int reviewRequiredCount = 0;
+
+        List<SavingGroupTransactionRow> rows = savingGroupMapper.selectSavingGroupDashboardTransactions(account.getAccountId(), start, end);
+        Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications =
+                expenseClassificationService.findStoredClassifications(rows);
+        for (SavingGroupTransactionRow row : rows) {
+            // AI작성: 오래된 원장에 날짜·금액이 누락돼도 대시보드 전체 조회를 실패시키지 않는다.
+            if (row.transactedAt() == null || row.amount() == null) {
+                continue;
+            }
+            YearMonth transactionMonth = YearMonth.from(row.transactedAt());
+            BigDecimal amount = row.amount().abs();
+            if ("DEPOSIT".equals(row.transactionType())) {
+                totals.get(transactionMonth)[0] = totals.get(transactionMonth)[0].add(amount);
+                if (transactionMonth.equals(month)) monthlyDues = monthlyDues.add(amount);
+                continue;
+            }
+            if (!"EXPENSE".equals(row.purposeType())) continue;
+            CardExpenseClassifierClient.ClassificationResult classification = classifications.get(row.transactionId());
+            boolean finalCategorySaved = row.finalCategory() != null && !row.finalCategory().isBlank();
+            boolean reviewRequired = !finalCategorySaved && classification != null
+                    && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED;
+            String category = finalCategorySaved ? row.finalCategory()
+                    : reviewRequired || classification == null || classification.suggestedCategory() == null
+                        ? CardExpenseCategory.NEEDS_REVIEW.name() : classification.suggestedCategory().name();
+            totals.get(transactionMonth)[1] = totals.get(transactionMonth)[1].add(amount);
+            if (transactionMonth.equals(month)) {
+                monthlyExpense = monthlyExpense.add(amount);
+                categoryTotals.merge(category, amount, BigDecimal::add);
+                if (reviewRequired) reviewRequiredCount += 1;
+            }
+        }
+        ArrayList<SavingGroupDashboardResponse.MonthlyTrend> trends = new ArrayList<>();
+        totals.forEach((trendMonth, value) -> trends.add(new SavingGroupDashboardResponse.MonthlyTrend(
+                trendMonth.toString(), value[0], value[1])));
+        List<SavingGroupDashboardResponse.ExpenseCategoryRatio> ratios = categoryTotals.entrySet().stream()
+                .map(entry -> new SavingGroupDashboardResponse.ExpenseCategoryRatio(entry.getKey(), entry.getValue())).toList();
+        BigDecimal currentBalance = savingGroupMapper.selectSavingGroupLatestTransactionBalance(account.getAccountId());
+        return new SavingGroupDashboardResponse(currentBalance == null ? BigDecimal.ZERO : currentBalance, monthlyDues,
+                monthlyExpense, reviewRequiredCount, trends, ratios);
+    }
+
+    @Override
+    @Transactional
+    public void updateSavingGroupTransactionCategories(Long savingGroupId, Long memberId,
+            SavingGroupTransactionCategoryUpdateRequest request) {
+        var access = requireSavingGroupAccountMember(savingGroupId, memberId);
+        if (!List.of("OWNER", "MANAGER").contains(access.role())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_TRANSACTION_CATEGORY_FORBIDDEN",
+                    "계주 또는 회계만 지출 항목을 변경할 수 있습니다.");
+        }
+        var account = accountMapper.selectAccount(access.groupId());
+        if (account == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+        }
+
+        for (var item : request.items()) {
+            if (item.category() == CardExpenseCategory.NEEDS_REVIEW) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TRANSACTION_CATEGORY_INVALID",
+                        "확인 필요는 최종 지출 항목으로 저장할 수 없습니다.");
+            }
+            var row = savingGroupMapper.selectSavingGroupTransactionForCategoryUpdate(
+                    account.getAccountId(), item.transactionId());
+            if (row == null) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_TRANSACTION_NOT_FOUND", "거래내역을 찾을 수 없습니다.");
+            }
+            CardExpenseClassifierClient.ClassificationResult classification = expenseClassificationService.classifyInCurrentTransaction(row);
+            if (classification == null) {
+                throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CARD_EXPENSE_CLASSIFIER_UNAVAILABLE",
+                        "자동 분류 서비스를 확인할 수 없습니다.");
+            }
+            if (classification.classificationStatus() != CardExpenseClassificationStatus.REVIEW_REQUIRED) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TRANSACTION_CATEGORY_NOT_REVIEW_REQUIRED",
+                        "확인 필요한 출금만 지출 항목을 변경할 수 있습니다.");
+            }
+            if (savingGroupMapper.updateSavingGroupTransactionFinalCategory(
+                    account.getAccountId(), item.transactionId(), item.category().name()) != 1) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TRANSACTION_CATEGORY_UPDATE_CONFLICT",
+                        "거래내역이 변경되어 지출 항목을 저장하지 못했습니다.");
+            }
+        }
+    }
+
     // AI작성: 잘못된 장부 행은 원본 메모나 거래 정보를 공개하지 않고 조회 오류로 처리한다.
-    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row) {
+    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row,
+            CardExpenseClassifierClient.ClassificationResult classification) {
         if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
                     "거래내역을 확인할 수 없습니다.");
-        var classification = classifyDemoExpense(row);
-        return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(),
-                row.balanceAfter(), row.purposeType(),
-                classification == null || classification.suggestedCategory() == null
+        if (classification == null) {
+            expenseClassificationService.classifyAndSaveAsync(row);
+        }
+        // AI작성: 사용자가 확정한 분류는 매 조회마다 계산하는 자동 분류 결과보다 우선한다.
+        boolean hasFinalCategory = row.finalCategory() != null && !row.finalCategory().isBlank();
+        return new SavingGroupTransactionResponse(row.transactionId(), row.transactedAt(), row.transactionType(), row.amount(),
+                row.balanceAfter(), row.description(), row.purposeType(),
+                hasFinalCategory ? row.finalCategory() : classification == null || classification.suggestedCategory() == null
                         ? null : classification.suggestedCategory().name(),
-                classification == null ? null : classification.classificationStatus().name());
+                hasFinalCategory ? CardExpenseClassificationStatus.CONFIRMED.name()
+                        : classification == null ? null : classification.classificationStatus().name(),
+                // AI작성: 자동 확정 건은 제외하고, 원래 확인이 필요했던 MOCK 출금만 재분류를 허용한다.
+                classification != null && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED);
     }
 
-    // AI작성: 데모 일반 출금의 가맹점명을 분류하고 호출 실패 시에도 장부 조회를 유지한다.
+    // AI작성: 읽기 전용 조회와 분류 결과 저장 트랜잭션을 분리한 전용 서비스에 위임한다.
     private CardExpenseClassifierClient.ClassificationResult classifyDemoExpense(SavingGroupTransactionRow row) {
-        if (!"EXPENSE".equals(row.purposeType()) || !"MOCK".equals(row.sourceProvider())) {
-            return null;
-        }
-        try {
-            return classifierClient.classify(row.description().strip(), row.amount());
-        } catch (ApiException exception) {
-            return null;
-        }
+        return expenseClassificationService.classify(row);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -963,9 +1080,25 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         return new SavingGroupJoinDecisionTarget(request, target);
     }
 
-    // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
-    private final CardExpenseClassifierClient classifierClient;
+    // AI작성: 실제 실행에서는 Spring 프록시가 적용된 쓰기 전용 분류 서비스를 주입받는다.
+    private final CardExpenseClassificationService expenseClassificationService;
 
+    @Autowired
+    public SavingGroupServiceImpl(
+            SavingGroupMapper savingGroupMapper,
+            VirtualAccountStorageMapper accountMapper,
+            AccountNumberCipher accountCipher,
+            NotificationService notificationService,
+            CardExpenseClassificationService expenseClassificationService
+    ) {
+        this.savingGroupMapper = savingGroupMapper;
+        this.accountMapper = accountMapper;
+        this.accountCipher = accountCipher;
+        this.notificationService = notificationService;
+        this.expenseClassificationService = expenseClassificationService;
+    }
+
+    // AI작성: 기존 단위 테스트와 직접 생성 호출의 호환성을 유지하며 분류 로직은 전용 서비스로 통일한다.
     public SavingGroupServiceImpl(
             SavingGroupMapper savingGroupMapper,
             VirtualAccountStorageMapper accountMapper,
@@ -973,11 +1106,8 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             NotificationService notificationService,
             CardExpenseClassifierClient classifierClient
     ) {
-        this.savingGroupMapper = savingGroupMapper;
-        this.accountMapper = accountMapper;
-        this.accountCipher = accountCipher;
-        this.notificationService = notificationService;
-        this.classifierClient = classifierClient;
+        this(savingGroupMapper, accountMapper, accountCipher, notificationService,
+                new CardExpenseClassificationService(savingGroupMapper, classifierClient));
     }
 
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.

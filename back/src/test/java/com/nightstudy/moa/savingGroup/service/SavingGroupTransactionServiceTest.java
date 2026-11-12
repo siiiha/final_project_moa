@@ -7,6 +7,7 @@ import com.nightstudy.moa.savingGroup.dto.*;
 import com.nightstudy.moa.savingGroup.mapper.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,7 +36,7 @@ class SavingGroupTransactionServiceTest {
                 new SavingGroupTransactionRow(now, "DEPOSIT", BigDecimal.TEN, BigDecimal.TEN, "회비", "DUES", "MOCK"),
                 new SavingGroupTransactionRow(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "계금 지급", "PAYOUT", "MOCK"),
                 new SavingGroupTransactionRow(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "외부 거래"),
-                new SavingGroupTransactionRow(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", "MOCK")));
+                new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", "MOCK", null)));
         if (available) {
             when(classifier.classify("동네밥상", BigDecimal.TEN)).thenReturn(
                     new CardExpenseClassifierClient.ClassificationResult(CardExpenseCategory.FOOD, 0.9,
@@ -47,9 +48,9 @@ class SavingGroupTransactionServiceTest {
 
         var items = service.getSavingGroupTransactions(2L, 1L, 1).items();
         assertThat(items).hasSize(4);
-        assertThat(items.get(3)).isEqualTo(new SavingGroupTransactionResponse(now, "WITHDRAWAL",
-                BigDecimal.TEN, BigDecimal.ZERO, "EXPENSE", available ? "FOOD" : null,
-                available ? "REVIEW_PENDING" : null));
+        // AI작성: 첫 목록 응답은 자동 분류 완료를 기다리지 않고 저장 전 상태를 반환한다.
+        assertThat(items.get(3)).isEqualTo(new SavingGroupTransactionResponse(123L, now, "WITHDRAWAL",
+                BigDecimal.TEN, BigDecimal.ZERO, "동네밥상", "EXPENSE", null, null, false));
         verify(classifier).classify("동네밥상", BigDecimal.TEN);
         verifyNoMoreInteractions(classifier);
     }
@@ -82,6 +83,80 @@ class SavingGroupTransactionServiceTest {
         var result = service.getSavingGroupTransactions(12L, 1L, 2);
         assertThat(result.items()).containsExactly(new SavingGroupTransactionResponse(now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO));
         assertThat(result.pageMeta().getTotalPages()).isEqualTo(2);
+    }
+
+    // AI작성: 확인 필요 출금은 사용자가 저장한 최종 분류가 있어도 다시 수정할 수 있다.
+    @Test
+    void keepsReviewRequiredMockWithdrawalEditableAfterCategoryIsSaved() {
+        membership("OWNER", "APPROVED");
+        account();
+        LocalDateTime now = LocalDateTime.of(2026, 11, 8, 12, 0);
+        when(mapper.selectSavingGroupTransactionCount(3L)).thenReturn(1);
+        when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
+                new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
+                        "동네밥상", "EXPENSE", "MOCK", "FOOD")));
+        when(mapper.selectSavingGroupTransactionClassifications(List.of(123L))).thenReturn(List.of(
+                new SavingGroupTransactionClassificationRow(123L, "NEEDS_REVIEW", "REVIEW_REQUIRED",
+                        new BigDecimal("0.5000"), "MACHINE_LEARNING", null, null)));
+
+        SavingGroupTransactionResponse item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
+        assertThat(item.category()).isEqualTo("FOOD");
+        assertThat(item.classificationStatus()).isEqualTo("CONFIRMED");
+        assertThat(item.categoryEditable()).isTrue();
+    }
+
+    // AI작성: 이미 저장한 자동 분류 결과는 Python API 호출 없이 거래내역에 재사용한다.
+    @Test
+    void reusesStoredClassificationBeforeCallingPython() {
+        membership("MEMBER", "APPROVED");
+        account();
+        LocalDateTime now = LocalDateTime.of(2026, 11, 8, 12, 0);
+        when(mapper.selectSavingGroupTransactionCount(3L)).thenReturn(1);
+        when(mapper.selectSavingGroupTransactions(3L, 0L, 10)).thenReturn(List.of(
+                new SavingGroupTransactionRow(123L, now, "WITHDRAWAL", BigDecimal.TEN, BigDecimal.ZERO,
+                        "동네밥상", "EXPENSE", "MOCK", null)));
+        when(mapper.selectSavingGroupTransactionClassifications(List.of(123L))).thenReturn(List.of(
+                new SavingGroupTransactionClassificationRow(123L, "FOOD", "REVIEW_PENDING", new BigDecimal("0.9000"),
+                        "MACHINE_LEARNING", null, null)));
+
+        SavingGroupTransactionResponse item = service.getSavingGroupTransactions(12L, 1L, 1).items().getFirst();
+        assertThat(item.category()).isEqualTo("FOOD");
+        assertThat(item.classificationStatus()).isEqualTo("REVIEW_PENDING");
+        verifyNoInteractions(classifier);
+    }
+
+    // AI작성: 확인 필요 지출은 비율에 포함하고, 계금 지급은 일반 지출 집계에서 제외한다.
+    @Test
+    void aggregatesDashboardSummaryTrendAndExpenseCategories() {
+        membership("MEMBER", "APPROVED");
+        account();
+        LocalDateTime november = LocalDateTime.of(2026, 11, 8, 12, 0);
+        LocalDateTime october = LocalDateTime.of(2026, 10, 8, 12, 0);
+        when(mapper.selectSavingGroupLatestTransactionBalance(3L)).thenReturn(new BigDecimal("120000"));
+        when(mapper.selectSavingGroupDashboardTransactions(eq(3L), any(), any())).thenReturn(List.of(
+                new SavingGroupTransactionRow(1L, november, "DEPOSIT", new BigDecimal("50000"), new BigDecimal("150000"),
+                        "김영희 회비", "DUES", "MOCK", null),
+                new SavingGroupTransactionRow(2L, november, "WITHDRAWAL", new BigDecimal("20000"), new BigDecimal("130000"),
+                        "동네밥상", "EXPENSE", "MOCK", "FOOD"),
+                new SavingGroupTransactionRow(3L, november, "WITHDRAWAL", new BigDecimal("10000"), new BigDecimal("120000"),
+                        "정체불명 결제", "EXPENSE", "MOCK", null),
+                new SavingGroupTransactionRow(4L, october, "WITHDRAWAL", new BigDecimal("30000"), new BigDecimal("130000"),
+                        "계금 지급", "PAYOUT", "MOCK", null)));
+        when(mapper.selectSavingGroupTransactionClassifications(List.of(2L, 3L))).thenReturn(List.of(
+                new SavingGroupTransactionClassificationRow(2L, "FOOD", "REVIEW_PENDING", new BigDecimal("0.9000"),
+                        "MACHINE_LEARNING", null, null),
+                new SavingGroupTransactionClassificationRow(3L, "NEEDS_REVIEW", "REVIEW_REQUIRED", new BigDecimal("0.2000"),
+                        "MACHINE_LEARNING", null, null)));
+
+        SavingGroupDashboardResponse dashboard = service.getSavingGroupDashboard(12L, 1L, YearMonth.of(2026, 11));
+        assertThat(dashboard.currentBalance()).isEqualByComparingTo("120000");
+        assertThat(dashboard.monthlyDuesTotal()).isEqualByComparingTo("50000");
+        assertThat(dashboard.monthlyExpenseTotal()).isEqualByComparingTo("30000");
+        assertThat(dashboard.reviewRequiredWithdrawalCount()).isEqualTo(1);
+        assertThat(dashboard.monthlyTrends()).hasSize(6);
+        assertThat(dashboard.expenseCategoryRatios()).containsExactlyInAnyOrder(
+                new SavingGroupDashboardResponse.ExpenseCategoryRatio("FOOD", new BigDecimal("20000")),
+                new SavingGroupDashboardResponse.ExpenseCategoryRatio("NEEDS_REVIEW", new BigDecimal("10000")));
     }
 
     @ParameterizedTest
