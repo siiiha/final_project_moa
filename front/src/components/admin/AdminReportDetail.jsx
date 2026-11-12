@@ -75,7 +75,8 @@ const Field = styled.label`
   font-size: 12px;
   font-weight: 700;
   select, textarea { width: 100%; padding: 10px 12px; color: ${({ theme }) => theme.colors.text}; background: ${({ theme }) => theme.colors.white}; border: 1px solid ${({ theme }) => theme.colors.border}; border-radius: ${({ theme }) => theme.radius.sm}; font: inherit; }
-  textarea { min-height: 92px; resize: vertical; }
+  /* AI작성: 관리자 처리 사유 입력칸은 화면 구성과 확인 모달 크기를 유지하도록 드래그 변경을 막는다. */
+  textarea { min-height: 92px; resize: none; }
 `;
 
 // AI작성: 승인 처리에 필요한 선택 항목을 한 줄에 배치해 관리자가 값을 빠르게 비교할 수 있게 한다.
