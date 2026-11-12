@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import AdminPostFilterBar from '../components/admin/AdminPostFilterBar';
 import AdminPostTable from '../components/admin/AdminPostTable';
+import PostFilterBar from '../components/post/PostFilterBar';
 import Badge from '../components/common/Badge';
 import ConfirmModal from '../components/common/ConfirmModal';
 import AdminPageLayout from '../components/layout/AdminPageLayout';
 import { deleteAdminPost, getAdminPosts } from '../api/adminPosts';
+import { getPostCategories } from '../api/postApi';
 
 const PAGE_SIZE = 10;
 
@@ -18,6 +19,10 @@ const AdminBadge = styled(Badge)`
 function AdminPostsPage() {
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
+  const [categories, setCategories] = useState([{ categoryName: '전체보기', categoryId: null }]);
+  const [category, setCategory] = useState('전체보기');
+  const [condition, setCondition] = useState('제목+내용');
+  const [sort, setSort] = useState('최신순');
   const [posts, setPosts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageMeta, setPageMeta] = useState({ total: 0, totalPages: 0 });
@@ -30,14 +35,27 @@ function AdminPostsPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    // AI작성: 일반 게시판과 동일한 카테고리 탭을 관리자 화면에서도 제공한다.
+    getPostCategories().then((response) => {
+      if (response.success) setCategories([{ categoryName: '전체보기', categoryId: null }, ...(response.data || [])]);
+    }).catch(() => setCategories([{ categoryName: '전체보기', categoryId: null }]));
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     async function loadPosts() {
       setLoading(true);
       setErrorMessage('');
       try {
+        const selectedCategory = categories.find((item) => item.categoryName === category);
+        const searchType = { 제목: 'title', 내용: 'content', 작성자: 'writer' }[condition];
+        const order = sort === '과거순' ? 'asc' : sort === '조회수 순' ? 'views' : 'desc';
         const result = await getAdminPosts({
           keyword: submittedQuery,
+          categoryId: selectedCategory?.categoryId,
+          searchType,
+          order,
           page: currentPage,
           size: PAGE_SIZE,
           signal: controller.signal,
@@ -61,7 +79,7 @@ function AdminPostsPage() {
 
     loadPosts();
     return () => controller.abort();
-  }, [currentPage, reloadKey, submittedQuery]);
+  }, [categories, category, condition, currentPage, reloadKey, sort, submittedQuery]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -97,9 +115,16 @@ function AdminPostsPage() {
         headingAddon={<AdminBadge>관리자 전용</AdminBadge>}
         contentPaddingTop
       >
-          <AdminPostFilterBar
-            query={query}
-            onQueryChange={setQuery}
+          <PostFilterBar
+            categories={categories.map((item) => item.categoryName)}
+            category={category}
+            condition={condition}
+            keyword={query}
+            sort={sort}
+            onCategoryChange={(value) => { setCategory(value); setCurrentPage(1); }}
+            onConditionChange={(value) => { setCondition(value); setCurrentPage(1); }}
+            onKeywordChange={setQuery}
+            onSortChange={(value) => { setSort(value); setCurrentPage(1); }}
             onSearch={handleSearch}
           />
           {errorMessage && <p role="alert">{errorMessage}</p>}

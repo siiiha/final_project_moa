@@ -57,19 +57,22 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 18%;
+    width: 14%;
   }
   th:nth-child(2) {
-    width: 47%;
+    width: 39%;
   }
   th:nth-child(3) {
-    width: 15%;
+    width: 13%;
   }
   th:nth-child(4) {
-    width: 12%;
+    width: 13%;
   }
   th:nth-child(5) {
-    width: 8%;
+    width: 9%;
+  }
+  th:nth-child(6) {
+    width: 12%;
   }
 
   /* AI작성: 긴 게시글 제목은 내용값만 왼쪽 정렬해 읽기 쉽게 표시한다. */
@@ -193,6 +196,7 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                   <th scope="col">제목</th>
                   <th scope="col">작성자</th>
                   <th scope="col">작성일</th>
+                  <th scope="col">조회</th>
                   <th scope="col">관리</th>
                 </tr>
               </thead>
@@ -203,13 +207,14 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                       <PostCategoryBadge category={post.category} />
                     </td>
                     <td data-label="제목">
-                      <PostTitle>{post.title}</PostTitle>
+                      <PostTitle>{post.title}{post.commentCount > 0 && ` [${post.commentCount}]`}</PostTitle>
                     </td>
                     <td data-label="작성자">{post.author}</td>
                     <td data-label="작성일">
                       {/* AI작성: 게시글 작성 시점의 연도와 날짜 안내 문구가 잘리지 않도록 전체 값을 표시한다. */}
                       {post.date}
                     </td>
+                    <td data-label="조회">{post.views}</td>
                     <td data-label="관리">
                       <ActionArea>
                         <ActionButton type="button" $variant="danger" onClick={() => onDelete(post.id)}>
