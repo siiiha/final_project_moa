@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
 
@@ -78,6 +78,76 @@ const ListActions = styled.div`
   margin-top: 10px;
   display: flex;
   justify-content: flex-end;
+`;
+
+// AI작성: 긴 게시글과 댓글 사이를 빠르게 이동할 수 있도록 본문 옆에 고정 네비게이터를 배치한다.
+const DetailLayout = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  align-items: start;
+  gap: 16px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+`;
+
+const DetailBody = styled.div`
+  min-width: 0;
+`;
+
+const FloatingNavigator = styled.nav`
+  position: sticky;
+  top: 104px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.md};
+  box-shadow: ${({ theme }) => theme.shadow.card};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    position: static;
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    padding: 8px;
+  }
+`;
+
+const NavigatorButton = styled.button`
+  min-height: 48px;
+  padding: 7px 5px;
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primarySoft};
+  border: 1px solid transparent;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.colors.white};
+    background: ${({ theme }) => theme.colors.primary};
+    outline: none;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex: 1;
+    min-height: 42px;
+    padding: 7px 10px;
+  }
+`;
+
+const ScrollAnchor = styled.div`
+  height: 1px;
+  scroll-margin-top: 104px;
 `;
 
 const Comments = styled.section`
@@ -331,6 +401,13 @@ function PostDetail({
   onReport,
   onBack,
 }) {
+  const pageTopRef = useRef(null);
+  const contentEndRef = useRef(null);
+  const pageBottomRef = useRef(null);
+
+  // AI작성: 버튼 선택 시 긴 화면 안에서 목적 위치로 부드럽게 이동한다.
+  const moveTo = (targetRef) => {
+    targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const [visibleReplyCounts, setVisibleReplyCounts] = useState({});
   const getVisibleReplyCount = (commentId) => visibleReplyCounts[commentId] || REPLIES_PER_LOAD;
 
@@ -344,7 +421,9 @@ function PostDetail({
   };
 
   return (
-    <>
+    <DetailLayout>
+      <DetailBody>
+      <ScrollAnchor ref={pageTopRef} />
       <ArticleCard>
         <Meta>
           {post.author} · {post.date} · 조회 {post.views}
@@ -357,6 +436,7 @@ function PostDetail({
             ))}
           </PostImages>
         )}
+        <ScrollAnchor ref={contentEndRef} />
         <PostActions>
           {Number(post.writerId) === Number(memberId) ? <>
             <Button type="button" $size="small" onClick={onEdit}>수정</Button>
@@ -580,7 +660,14 @@ function PostDetail({
           </CommentSubmitButton>
         </CommentForm>
       </Comments>
-    </>
+      <ScrollAnchor ref={pageBottomRef} />
+      </DetailBody>
+      <FloatingNavigator aria-label="게시글 위치 이동">
+        <NavigatorButton type="button" onClick={() => moveTo(pageTopRef)}>↑ 맨 위</NavigatorButton>
+        <NavigatorButton type="button" onClick={() => moveTo(contentEndRef)}>본문 끝</NavigatorButton>
+        <NavigatorButton type="button" onClick={() => moveTo(pageBottomRef)}>↓ 맨 아래</NavigatorButton>
+      </FloatingNavigator>
+    </DetailLayout>
   );
 }
 

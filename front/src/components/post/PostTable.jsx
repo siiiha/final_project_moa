@@ -120,7 +120,17 @@ const PageButton = styled(Button)`
   min-width: 30px;
 `;
 
-function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, onPostClick }) {
+function PostTable({
+  posts,
+  totalCount,
+  currentPage,
+  pageNumbers,
+  previousGroupPage,
+  nextGroupPage,
+  totalPages,
+  onPageChange,
+  onPostClick,
+}) {
   return (
     <>
       <Card>
@@ -174,8 +184,8 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
             type="button"
             $variant="secondary"
             $size="small"
-            disabled={currentPage === 1}
-            onClick={() => onPageChange(currentPage - 1)}
+            disabled={previousGroupPage < 1}
+            onClick={() => onPageChange(previousGroupPage)}
           >
             이전
           </PageButton>
@@ -195,8 +205,8 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
             type="button"
             $variant="secondary"
             $size="small"
-            disabled={currentPage === pageNumbers[pageNumbers.length - 1]}
-            onClick={() => onPageChange(currentPage + 1)}
+            disabled={nextGroupPage > totalPages}
+            onClick={() => onPageChange(nextGroupPage)}
           >
             다음
           </PageButton>
