@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 const Card = styled.article`
-  min-height: 260px;
+  min-height: 180px;
   padding: 24px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
   background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
