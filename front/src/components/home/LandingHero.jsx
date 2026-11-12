@@ -12,9 +12,13 @@ const Hero = styled.section`
   align-items: center;
   background: ${({ theme }) => theme.colors.heroBackground};
   border-radius: ${({ theme }) => theme.radius.lg};
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    min-height: 410px;
-    padding: 42px 30px;
+    /* AI작성: 작은 화면에서는 글과 사진을 세로로 배치합니다. */
+  @media (max-width: 1050px) {
+    min-height: auto;
+    padding: 32px 24px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 24px;
   }
 `;
 const Content = styled.div`
@@ -49,80 +53,54 @@ const Actions = styled.div`
   display: flex;
   gap: 10px;
 `;
+// AI작성: 사진 가장자리에 민트색 그라데이션을 겹쳐 배경과 연결합니다.
 const Visual = styled.div`
   position: absolute;
-  right: 48px;
-  top: 50%;
-  width: 360px;
-  height: 280px;
-  transform: translateY(-50%);
-  pointer-events: none;
-  opacity: 0.72;
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    border-radius: 50%;
-    background: ${({ theme }) => theme.colors.primarySoft};
-  }
-  &::before {
-    width: 230px;
-    height: 230px;
-    right: 8px;
-    top: 22px;
-  }
-  &::after {
-    width: 144px;
-    height: 144px;
-    left: 8px;
-    bottom: 8px;
-    background: rgba(202, 231, 220, 0.62);
-  }
-  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
-    right: -116px;
-    opacity: 0.55;
-  }
-`;
-const Leaf = styled.span`
-  position: absolute;
-  right: 100px;
-  top: 60px;
-  width: 105px;
-  height: 164px;
-  border-radius: 100% 0 100% 0;
-  background: ${({ theme }) => theme.colors.primary};
-  opacity: 0.1;
-  transform: rotate(-24deg);
-`;
-const MiniCard = styled.span`
-  position: absolute;
+  top: 0;
   right: 0;
-  bottom: 38px;
-  width: 180px;
-  height: 102px;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: rgba(255, 255, 255, 0.62);
-  box-shadow: ${({ theme }) => theme.shadow.card};
-  &::before,
+  width: 54%;
+  height: 100%;
+  pointer-events: none;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+  }
+
   &::after {
     content: '';
     position: absolute;
-    left: 18px;
-    height: 8px;
-    border-radius: ${({ theme }) => theme.radius.pill};
-    background: ${({ theme }) => theme.colors.primary};
-    opacity: 0.18;
+    inset: 0;
+    background:
+      linear-gradient(
+        90deg,
+        ${({ theme }) => theme.colors.heroBackground} 0%,
+        transparent 24%,
+        transparent 88%,
+        ${({ theme }) => theme.colors.heroBackground} 100%
+      ),
+      linear-gradient(
+        180deg,
+        ${({ theme }) => theme.colors.heroBackground} 0%,
+        transparent 16%,
+        transparent 84%,
+        ${({ theme }) => theme.colors.heroBackground} 100%
+      );
   }
-  &::before {
-    top: 25px;
-    width: 76px;
-  }
-  &::after {
-    top: 45px;
-    width: 118px;
+
+  /* AI작성: 좁은 화면에서는 사진을 글 아래에 배치합니다. */
+  @media (max-width: 1050px) {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    height: clamp(180px, 35vw, 280px);
   }
 `;
+
 function LandingHero() {
   // 헤더와 같은 로그인 상태로 홈 버튼 표시 
   const token = useAuthStore((state) => state.token);
@@ -138,7 +116,7 @@ function LandingHero() {
         </Title>
         <Description>계모임부터 취미 소모임, 생활 정보까지 믿을 수 있는 이웃과 함께하세요.</Description>
         <Actions>
-                    <Button
+          <Button
             as={Link}
             to={isLoggedIn ? '/saving-groups' : '/member/join'}
           >
@@ -154,9 +132,15 @@ function LandingHero() {
           </Button>
         </Actions>
       </Content>
-      <Visual aria-label="이웃 모임을 상징하는 대표 이미지" role="img">
-        <Leaf />
-        <MiniCard />
+      {/* AI작성: 이웃 모임 사진을 배너 배경과 자연스럽게 연결합니다. */}
+      <Visual aria-hidden="true">
+        <img
+          src="/moa-neighbors-illustration.png"
+          alt=""
+          width={1536}
+          height={1024}
+          decoding="async"
+        />
       </Visual>
     </Hero>
   );
