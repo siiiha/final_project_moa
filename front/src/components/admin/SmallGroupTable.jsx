@@ -269,8 +269,8 @@ function SmallGroupTable({
             <PageButton
               type="button"
               $active={false}
-              disabled={currentPage === 1}
-              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 5}
+              onClick={() => onPageChange(Math.floor((currentPage - 1) / 5) * 5)}
               aria-label="이전 페이지"
             >
               이전
@@ -289,8 +289,8 @@ function SmallGroupTable({
             <PageButton
               type="button"
               $active={false}
-              disabled={currentPage === totalPages}
-              onClick={() => onPageChange(currentPage + 1)}
+              disabled={Math.ceil(currentPage / 5) * 5 >= totalPages}
+              onClick={() => onPageChange(Math.min(totalPages, (Math.floor((currentPage - 1) / 5) + 1) * 5 + 1))}
               aria-label="다음 페이지"
             >
               다음

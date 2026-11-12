@@ -248,8 +248,8 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
             <Pagination aria-label="관리자 댓글 목록 페이지">
               <PageButton
                 type="button"
-                onClick={() => onPageChange(currentPage - 1)}
-                disabled={currentPage === 1}
+                onClick={() => onPageChange(Math.floor((currentPage - 1) / 5) * 5)}
+                disabled={currentPage <= 5}
                 aria-label="이전 페이지"
               >
                 이전
@@ -267,8 +267,8 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
               ))}
               <PageButton
                 type="button"
-                onClick={() => onPageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
+                onClick={() => onPageChange(Math.min(totalPages, (Math.floor((currentPage - 1) / 5) + 1) * 5 + 1))}
+                disabled={Math.ceil(currentPage / 5) * 5 >= totalPages}
                 aria-label="다음 페이지"
               >
                 다음

@@ -320,8 +320,8 @@ function AdminMemberTable({
           <PageButton
             type="button"
             $variant="secondary"
-            disabled={currentPage <= 1}
-            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 5}
+            onClick={() => onPageChange(Math.floor((currentPage - 1) / 5) * 5)}
           >
             이전
           </PageButton>
@@ -339,8 +339,8 @@ function AdminMemberTable({
           <PageButton
             type="button"
             $variant="secondary"
-            disabled={currentPage >= totalPages}
-            onClick={() => onPageChange(currentPage + 1)}
+            disabled={Math.ceil(currentPage / 5) * 5 >= totalPages}
+            onClick={() => onPageChange(Math.min(totalPages, (Math.floor((currentPage - 1) / 5) + 1) * 5 + 1))}
           >
             다음
           </PageButton>
