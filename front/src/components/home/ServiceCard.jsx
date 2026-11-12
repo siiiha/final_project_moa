@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-const Card = styled.article`
+// AI작성: 카드 전체를 기존 목록 페이지로 연결합니다.
+const Card = styled(Link)`
+  text-decoration: none;
+  color: ${({ theme }) => theme.colors.text};
   min-height: 180px;
   padding: 24px;
   display: flex;
@@ -21,8 +24,9 @@ const Card = styled.article`
     }
   }
 
-  &:focus-within {
-    border-color: ${({ theme }) => theme.colors.primary};
+    &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.primary};
+    outline-offset: 3px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -44,7 +48,7 @@ const Description = styled.p`
   letter-spacing: -0.45px;
   line-height: 1.6;
 `;
-const MoreButton = styled(Link)`
+const MoreButton = styled.span`
   width: fit-content;
   margin-top: 13px;
   padding: 0;
@@ -60,10 +64,10 @@ const MoreButton = styled(Link)`
 // AI작성: 서비스 카드에서 전달받은 목록 페이지로 이동합니다.
 function ServiceCard({ title, description, actionLabel, to }) {
   return (
-    <Card>
+    <Card to={to} aria-label={`${title} ${actionLabel}`}>
       <Title>{title}</Title>
       <Description>{description}</Description>
-      <MoreButton to={to} aria-label={`${title} ${actionLabel}`}>
+      <MoreButton>
         {actionLabel} ›
       </MoreButton>
     </Card>
