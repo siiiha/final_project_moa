@@ -408,6 +408,8 @@ function PostDetail({
   // AI작성: 버튼 선택 시 긴 화면 안에서 목적 위치로 부드럽게 이동한다.
   const moveTo = (targetRef) => {
     targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }; // AI작성: 스크롤 이동 함수의 범위를 닫아 이후 댓글 상태가 컴포넌트 범위에 위치하도록 합니다.
+
   const [visibleReplyCounts, setVisibleReplyCounts] = useState({});
   const getVisibleReplyCount = (commentId) => visibleReplyCounts[commentId] || REPLIES_PER_LOAD;
 
