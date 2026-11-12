@@ -1346,6 +1346,7 @@
         <include refid="savingGroupApplicationApplicantName"/>,
         r.region_name,
         CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
+        ma.processed_at,
         ma.status,
         ma.type
         <include refid="creationApplicationFromWhere"/>
