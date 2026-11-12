@@ -63,30 +63,27 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 19%;
+    width: 24%;
   }
   th:nth-child(2) {
-    width: 23%;
+    width: 24%;
   }
   th:nth-child(3) {
-    width: 13%;
+    width: 12%;
   }
   th:nth-child(4) {
-    width: 10%;
+    width: 16%;
   }
   th:nth-child(5) {
-    width: 11%;
+    width: 12%;
   }
   th:nth-child(6) {
     width: 12%;
   }
-  th:nth-child(7) {
-    width: 12%;
-  }
 
   /* AI작성: 활동 지역은 길이가 달라 비교하기 쉽도록 제목과 값을 왼쪽 정렬한다. */
-  th:nth-child(3),
-  td:nth-child(3) {
+  th:nth-child(2),
+  td:nth-child(2) {
     text-align: left;
   }
 
@@ -213,7 +210,6 @@ function SavingGroupTable({
           <thead>
             <tr>
               <th scope="col">계모임명</th>
-              <th scope="col">소개</th>
               <th scope="col">활동 지역</th>
               <th scope="col">계원 수</th>
               <th scope="col">개설일</th>
@@ -224,7 +220,7 @@ function SavingGroupTable({
           <tbody>
             {loading || errorMessage || groups.length === 0 ? (
               <tr>
-                <Empty colSpan="7">
+                <Empty colSpan="6">
                   {loading ? '계모임 목록을 불러오는 중입니다.' : errorMessage || '검색 조건에 맞는 계모임이 없습니다.'}
                 </Empty>
               </tr>
@@ -239,7 +235,6 @@ function SavingGroupTable({
                     <td data-label="계모임명">
                       <GroupName>{group.name}</GroupName>
                     </td>
-                    <td data-label="소개">{group.description}</td>
                     <td data-label="활동 지역">{group.region}</td>
                     <td data-label="계원 수">{group.members}명</td>
                     <td data-label="개설일">{group.openedAt}</td>
