@@ -162,9 +162,17 @@ const Status = styled.span`
   min-width: 37px;
   justify-content: center;
   padding: 3px 6px;
-  /* AI작성: 일부 기능 제재와 계정 이용 정지를 동일한 위험 색상으로 구분한다. */
-  color: ${({ $status, theme }) => (['제재', '이용 정지'].includes($status) ? theme.colors.danger : theme.colors.primary)};
-  background: ${({ $status, theme }) => (['제재', '이용 정지'].includes($status) ? theme.colors.dangerSoft : theme.colors.primarySoft)};
+  /* AI작성: 제재·이용 정지는 위험색, 탈퇴는 비활성 상태를 나타내는 회색으로 구분한다. */
+  color: ${({ $status, theme }) => {
+    if (['제재', '이용 정지'].includes($status)) return theme.colors.danger;
+    if ($status === '탈퇴') return theme.colors.muted;
+    return theme.colors.primary;
+  }};
+  background: ${({ $status, theme }) => {
+    if (['제재', '이용 정지'].includes($status)) return theme.colors.dangerSoft;
+    if ($status === '탈퇴') return theme.colors.background;
+    return theme.colors.primarySoft;
+  }};
   border-radius: ${({ theme }) => theme.radius.pill};
   font-size: 10px;
   font-weight: 700;
