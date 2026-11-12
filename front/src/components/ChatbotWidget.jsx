@@ -4,6 +4,18 @@ import { LuArrowUp, LuSprout } from 'react-icons/lu';
 import { sendChatbotMessage } from '../api/chatbot';
 import FloatingChatbotButton from './FloatingChatbotButton';
 
+// AI작성: 백엔드와 같은 규칙으로 질문 말풍선의 개인정보를 가립니다.
+// 화면 표시용이며, AI 전달 전의 백엔드 마스킹은 별도로 유지합니다.
+function maskChatbotMessage(message) {
+    return message
+        .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[이메일]')
+        .replace(/(?<!\d)\d{6}[- ]?[1-8]\d{6}(?!\d)/g, '[주민등록번호]')
+        .replace(/(?<!\d)01[016789][- ]?\d{3,4}[- ]?\d{4}(?!\d)/g, '[전화번호]')
+        .replace(/(?<!\d)\d{4}(?:[- ]?\d{4}){3}(?!\d)/g, '[카드번호]')
+        .replace(/(?<![\d-])\d{2,6}-\d{2,6}-\d{2,8}(?:-\d{1,6})?(?![\d-])/g, '[계좌번호]');
+}
+
+
 const Widget = styled.aside`
   position: fixed;
   right: 16px;
@@ -223,7 +235,7 @@ export default function ChatbotWidget() {
         // 전송한 질문을 먼저 표시하고 입력창을 비웁니다.
         setMessages((previous) => [
             ...previous,
-            { speaker: '나', text: message },
+            { speaker: '나', text: maskChatbotMessage(message) },
         ]);
         setQuestion('');
 
