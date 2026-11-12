@@ -5,12 +5,19 @@ import styled from 'styled-components';
 const Card = styled(Link)`
   text-decoration: none;
   color: ${({ theme }) => theme.colors.text};
-  min-height: 180px;
+  min-height: 160px;
   padding: 24px;
+    /* AI작성: 카드 내부에서 그림을 크게 배치하고 경계 밖은 숨깁니다. */
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  background: ${({ theme }) => theme.colors.white};
+    background: linear-gradient(
+    115deg,
+    ${({ theme }) => theme.colors.white} 45%,
+    ${({ theme }) => theme.colors.primarySoft} 100%
+  );
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
   box-shadow: ${({ theme }) => theme.shadow.card};
@@ -61,15 +68,54 @@ const MoreButton = styled.span`
     text-decoration: underline;
   }
 `;
-// AI작성: 서비스 카드에서 전달받은 목록 페이지로 이동합니다.
-function ServiceCard({ title, description, actionLabel, to }) {
+
+// AI작성: 안내 글은 그림보다 앞쪽의 왼쪽 영역에 표시합니다.
+const CardContent = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 60%;
+  min-width: 0;
+`;
+
+// AI작성: 그림을 카드 오른쪽 아래에 크게 배치합니다.
+const Illustration = styled.img`
+  position: absolute;
+  right: -8px;
+  bottom: -30px;
+  width: 58%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+
+  /* AI작성: 그림 왼쪽 경계를 부드럽게 연결합니다. */
+  -webkit-mask-image: linear-gradient(
+    to right, transparent, black 24%
+  );
+  mask-image: linear-gradient(
+    to right, transparent, black 24%
+  );
+`;
+
+// AI작성: 왼쪽에는 안내를, 오른쪽에는 서비스별 그림을 표시합니다.
+function ServiceCard({ title, description, actionLabel, to, image }) {
   return (
     <Card to={to} aria-label={`${title} ${actionLabel}`}>
-      <Title>{title}</Title>
-      <Description>{description}</Description>
-      <MoreButton>
-        {actionLabel} ›
-      </MoreButton>
+      <CardContent>
+        <Title>{title}</Title>
+        <Description>{description}</Description>
+        <MoreButton>{actionLabel} ›</MoreButton>
+      </CardContent>
+
+      {image && (
+        <Illustration
+          src={image}
+          alt=""
+          width={1280}
+          height={1280}
+          loading="lazy"
+          decoding="async"
+        />
+      )}
     </Card>
   );
 }
