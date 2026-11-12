@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import AdminPostTable from '../components/admin/AdminPostTable';
 import PostFilterBar from '../components/post/PostFilterBar';
@@ -17,6 +18,7 @@ const AdminBadge = styled(Badge)`
 `;
 
 function AdminPostsPage() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [categories, setCategories] = useState([{ categoryName: '전체보기', categoryId: null }]);
@@ -134,6 +136,7 @@ function AdminPostsPage() {
             currentPage={currentPage}
             totalPages={pageMeta.totalPages}
             onPageChange={setCurrentPage}
+            onPostClick={(postId) => navigate(`/post/${postId}`)}
             onDelete={(postId) => {
               setDeleteErrorMessage('');
               setDeleteTarget(postId);

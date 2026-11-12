@@ -126,13 +126,23 @@ const Table = styled.table`
   }
 `;
 
-const PostTitle = styled.strong`
+const PostTitle = styled.button`
+  width: 100%;
   overflow: hidden;
   display: block;
   color: ${({ theme }) => theme.colors.text};
+  background: transparent;
+  border: 0;
   font-size: 12px;
+  font-weight: 400;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: underline;
+  }
 `;
 
 const ActionArea = styled.div`
@@ -180,7 +190,7 @@ function getPageNumbers(currentPage, totalPages) {
   return Array.from({ length }, (_, index) => start + index);
 }
 
-function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onDelete, loading }) {
+function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onPostClick, onDelete, loading }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
@@ -207,7 +217,10 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                       <PostCategoryBadge category={post.category} />
                     </td>
                     <td data-label="제목">
-                      <PostTitle>{post.title}{post.commentCount > 0 && ` [${post.commentCount}]`}</PostTitle>
+                      {/* AI작성: 관리 목록에서도 제목을 누르면 일반 게시글 상세를 확인할 수 있게 한다. */}
+                      <PostTitle type="button" onClick={() => onPostClick(post.id)}>
+                        {post.title}{post.commentCount > 0 && ` [${post.commentCount}]`}
+                      </PostTitle>
                     </td>
                     <td data-label="작성자">{post.author}</td>
                     <td data-label="작성일">
