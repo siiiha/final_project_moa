@@ -216,7 +216,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
               <th scope="col">신청자</th>
               <th scope="col">희망 지역</th>
               <th scope="col">신청일</th>
-              <th scope="col">심사 일시</th>
+              <th scope="col">심사일</th>
               <th scope="col">상태</th>
               <th scope="col">심사</th>
             </tr>
@@ -236,7 +236,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
                   <td data-label="신청자">{application.applicant}</td>
                   <td data-label="희망 지역">{application.region}</td>
                   <td data-label="신청일">{application.appliedAt}</td>
-                  <td data-label="심사 일시">{application.processedAt}</td>
+                  <td data-label="심사일">{application.processedAt}</td>
                   <td data-label="상태">
                     <Status $status={application.status}>{application.status}</Status>
                   </td>
