@@ -2,6 +2,7 @@ package com.nightstudy.moa.notification.dto;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -28,11 +29,12 @@ public class NotificationResponse {
                 notification.getReadAt() != null,
                 // 읽은 시간이 있으면 true
                 // 읽은 시간이 없으면 false
-                // AI작성: 시간대 없는 DB 일시를 한국 시간으로 명시해 접속 환경에 따른 9시간 오차를 방지합니다.
+                // AI작성: UTC로 저장된 DATETIME을 실제 시점으로 변환한 뒤 한국 표준시 오프셋을 포함해 응답한다.
                 notification.getCreatedAt() == null
                         ? null
                         : notification.getCreatedAt()
-                                .atZone(KOREA_ZONE_ID)
+                                .atOffset(ZoneOffset.UTC)
+                                .atZoneSameInstant(KOREA_ZONE_ID)
                                 .toOffsetDateTime()
         );
     } // from 메서드 종료
