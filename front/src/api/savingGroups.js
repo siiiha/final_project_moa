@@ -368,10 +368,10 @@ function formatApplicationDate(value) {
 }
 
 // AI작성: 관리자 심사 화면에서 개설·삭제 신청을 같은 API로 조회하고 화면 필드로 변환한다.
-export async function getSavingGroupCreationApplications({ status, type, keyword, page = 1, signal } = {}) {
+export async function getSavingGroupCreationApplications({ status, type, sort = 'LATEST', keyword, page = 1, signal } = {}) {
   try {
     const response = await client.get('/admin/saving-group-applications', {
-      params: { status: status || undefined, type: type || undefined, keyword: keyword || undefined, page },
+      params: { status: status || undefined, type: type || undefined, sort, keyword: keyword || undefined, page },
       signal,
     });
     if (!response.data?.success || !Array.isArray(response.data.data) || !response.data.meta) {
