@@ -11,6 +11,24 @@ const Card = styled.article`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
   box-shadow: ${({ theme }) => theme.shadow.card};
+    /* AI작성: 카드에 은은한 강조 효과를 적용합니다. */
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+
+  @media (hover: hover) {
+    &:hover {
+      border-color: ${({ theme }) => theme.colors.primary};
+      box-shadow: 0 6px 18px rgb(22 110 92 / 10%);
+    }
+  }
+
+  &:focus-within {
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
 `;
 const Title = styled.h3`
   color: ${({ theme }) => theme.colors.text};
@@ -33,7 +51,7 @@ const MoreButton = styled(Link)`
   color: ${({ theme }) => theme.colors.primary};
   background: transparent;
   border: 0;
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 700;
   &:hover {
     text-decoration: underline;
