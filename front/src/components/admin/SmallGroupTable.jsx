@@ -63,16 +63,16 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 19%;
+    width: 18%;
   }
   th:nth-child(2) {
     width: 10%;
   }
   th:nth-child(3) {
-    width: 12%;
+    width: 15%;
   }
   th:nth-child(4) {
-    width: 15%;
+    width: 13%;
   }
   th:nth-child(5) {
     width: 10%;
@@ -217,7 +217,7 @@ function SmallGroupTable({
             <tr>
               <th scope="col">소모임명</th>
               <th scope="col">카테고리</th>
-              <th scope="col">모임장</th>
+              <th scope="col">모임장 정보</th>
               <th scope="col">활동 지역</th>
               <th scope="col">참여자 수</th>
               <th scope="col">개설일</th>
@@ -244,7 +244,7 @@ function SmallGroupTable({
                       <GroupName>{group.name}</GroupName>
                     </td>
                     <td data-label="카테고리">{group.category}</td>
-                    <td data-label="모임장">{group.leader}</td>
+                    <td data-label="모임장 정보">{group.leader}</td>
                     <td data-label="활동 지역">{group.region}</td>
                     <td data-label="참여자 수">{group.participants}명</td>
                     <td data-label="개설일">{group.openedAt}</td>

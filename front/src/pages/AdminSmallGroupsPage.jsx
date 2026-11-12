@@ -61,6 +61,13 @@ const ErrorMessage = styled.p`
   font-size: 12px;
 `;
 
+function formatLeaderInfo(name, nickname) {
+  if (!name && !nickname) return '-';
+  if (!name) return nickname;
+  if (!nickname) return name;
+  return `${name}(${nickname})`;
+}
+
 function AdminSmallGroupsPage() {
   const [groups, setGroups] = useState([]);
   const [status, setStatus] = useState('전체');
@@ -139,7 +146,7 @@ function AdminSmallGroupsPage() {
           id: group.smallGroupId,
           name: group.groupName,
           category: group.likeCategory || '-',
-          leader: group.creatorNickname || '-',
+          leader: formatLeaderInfo(group.creatorName, group.creatorNickname),
           region: group.regionName,
           participants: group.memberCount ?? 0,
           // AI작성: 소모임 생성 시각을 관리자 목록의 개설일 표시 형식으로 변환한다.

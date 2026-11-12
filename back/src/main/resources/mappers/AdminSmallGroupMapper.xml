@@ -60,6 +60,7 @@
                sg.like_category,
                sg.meet_date,
                sg.location,
+               creator.name AS creator_name,
                creator.nickname AS creator_nickname,
                sg.status,
                g.created_at

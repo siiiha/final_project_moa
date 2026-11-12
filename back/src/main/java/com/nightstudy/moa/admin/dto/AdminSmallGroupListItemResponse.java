@@ -20,6 +20,7 @@ public class AdminSmallGroupListItemResponse {
     private String likeCategory;
     private LocalDate meetDate;
     private String location;
+    private String creatorName;
     private String creatorNickname;
     private String status;
     private long memberCount;
