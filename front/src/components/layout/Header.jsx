@@ -90,7 +90,7 @@ const Actions = styled.div`
   gap: 16px;
   > a:not(${Button}) {
     color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
   }
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -103,7 +103,7 @@ const Actions = styled.div`
 const SignupButton = styled(Button)`
   min-height: 30px;
   padding: 6px 11px;
-  font-size: 11px;
+  font-size: 13px;
 `;
 
 const LoggedInActions = styled.div`
@@ -115,7 +115,7 @@ const LoggedInActions = styled.div`
   a,
   button {
     color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
   }
 
