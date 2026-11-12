@@ -232,11 +232,10 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
   "success": true,
   "data": [{
     "crewMemberId": "9007199254740993",
-    "applicant": "가**",
+    "applicant": "테스트닉네임",
     "regionName": "서울",
     "identityVerified": true,
     "regionVerified": false,
-    "applicationMessage": "함께하고 싶습니다.",
     "membershipStatus": "PENDING"
   }],
   "meta": {
@@ -251,8 +250,12 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 ```
 
 - `crewMemberId`는 BIGINT 정밀도 손실 방지를 위해 문자열이다.
-- `applicant`는 SQL에서 첫 글자를 제외한 나머지를 `*`로 마스킹한다. 회원 ID·연락처·생년월일·계좌 정보·인증 시각 원문은 반환하지 않는다.
-- `applicationMessage`는 기존 `group_member.application_message`만 반환한다. 관심사 정보는 데이터 구조에 없으므로 목록에 추가하지 않는다.
+<!-- AI작성: 소모임 신청자 공개 범위를 닉네임으로 한정한다. -->
+- `applicant`는 마스킹하지 않은 닉네임이며 실명은 조회·반환하지 않는다. PC·모바일에 닉네임을 표시하고 누락 시 닉네임 미등록으로 안내한다. 기존 해당 모임 개설자(OWNER + APPROVED) 권한을 유지하며 관리자·MANAGER·일반회원에게 확대하지 않는다. 회원 ID·연락처·생년월일·계좌 정보·인증 시각 원문은 반환하지 않는다.
+<!-- AI작성: 신청 메시지를 제거하고 실제 인증 상태와 선택 체크박스를 제공한다. -->
+- 가입 신청 목록은 `applicationMessage`를 조회·반환하지 않는다. PC 표는 체크표시 → 닉네임 → 지역 → 상태 → 처리 순서이며 너비는 7%·30%·33%·15%·15%다. 닉네임과 지역은 제목·내용 모두 왼쪽 정렬하고 나머지는 가운데 정렬한다.
+- 닉네임 아래에 identityVerified/regionVerified에 따른 본인·지역 인증 완료, 본인 인증 완료, 지역 인증 완료, 인증 미완료 배지를 표시한다. 모바일에도 닉네임·인증 배지·선택 체크박스·지역을 표시한다. 이메일·실명은 추가하지 않는다.
+- 현재 페이지의 대기 신청만 개별·전체 선택할 수 있다. 목록 재조회 시 선택을 초기화하며 요청 중·오류 시 선택을 차단한다. 선택 승인 기능은 기존대로 준비 중이며 비활성 상태다.
 
 ### 조회 기준·정렬·오류
 
@@ -273,7 +276,7 @@ Service는 하나의 트랜잭션에서 회원, 소모임, 기존 관계, 승인
 - `getSmallGroupJoinRequests(smallGroupId, { status, page, signal })`는 서버 필터·정렬·페이징을 그대로 사용하고 Mock 데이터나 클라이언트 재정렬을 하지 않는다.
 - OWNER 신청 목록 탭은 로딩·오류·재시도·빈 결과·페이지 이동을 표시한다. 개별 승인·거절 성공 뒤에는 서버 목록을 다시 조회하며, 선택 승인은 비활성으로 표시한다.
 - Service 테스트는 정상·빈 결과·페이지·상태 필터·비개설자·없는 소모임·비로그인·잘못된 상태·페이지를 검증한다. Controller와 Security 테스트는 JWT request attribute 전달, 공통 응답, 인증 누락을 검증한다.
-- 실제 MySQL과 JWT 환경에서 개설자·비개설자·MANAGER·삭제 소모임, 이름 마스킹·정렬·범위 초과 페이지를 확인해야 한다.
+- 실제 MySQL과 JWT 환경에서 개설자·비개설자·MANAGER·삭제 소모임, 닉네임 표시·실명 미반환·정렬·범위 초과 페이지를 확인해야 한다.
 
 ---
 
@@ -1184,3 +1187,21 @@ HTTP 200, 기존 `ApiResponse<List<SmallGroupReviewListItemResponse>>`와 `PageM
 - 고정 변경 성공 후 목록만 다시 조회하며 재조회 실패 시 PATCH를 반복하지 않는다. 현재 목록을 확인할 때까지 작성·고정·정렬·페이징을 막고 조회 재시도 버튼을 제공한다.
 - 행 우측 44px 핀 버튼, 고정 배지·별도 영역, 최대 개수 초과 모달을 사용한다. PC만 이번 개선 대상으로 했으며 모바일 전용 개선은 하지 않았다.
 - 스키마는 기존 group_notice의 is_pinned·updated_at·deleted_at을 그대로 재사용하며 DB 변경은 없다.
+
+## 2026-11-11 소모임 후기 공개 조회 및 작성 접근 조건 보완
+
+- AI작성: `GET /api/small-groups/{smallGroupId}/reviews`는 기존 Security 공개 설정과 선택적 회원 ID를 유지한다. 인증 헤더가 없으면 JWT 필터는 요청을 통과시키며, 비로그인 후기 탭과 목록·추가 페이지 조회를 제공한다.
+- 승인된 OWNER·MEMBER는 조회 가능하고 MANAGER는 상태와 관계없이 기존 ACCESS_DENIED 정책을 유지한다. 로그인한 미가입·미승인 사용자의 기존 공개 조회 정책은 변경하지 않았다.
+- 화면은 토큰이 없는 경우 역할 정보가 MEMBER로 남아 있어도 작성 버튼·모달과 본인 작성 여부 조회를 제공하지 않는다. 공개 후기 목록은 계속 표시한다.
+- 작성은 기존대로 로그인한 승인 MEMBER만 모임 다음 날부터 1회 가능하며, OWNER·MANAGER·미승인·미가입·중복 작성 제한을 유지한다.
+- 소모임 후기 수정·삭제 API는 현재 Controller에 없다. 새로 구현하지 않았다. 미구현 개별 후기 경로에 대해서도 비로그인 GET·PUT·PATCH·DELETE가 보안 필터에서 차단되는 회귀 테스트를 추가했다. 이는 수정·삭제 기능 구현이나 작성자 권한 검증을 의미하지 않는다.
+- 검증: 프론트 smallGroups API 테스트 61개 및 프로덕션 빌드 통과. 백엔드 후기 조회·작성 Service/Controller 및 Security 통합 테스트는 Java 17 toolchain 부재로 실행되지 않았다(Java 21 설치). 브라우저·Postman 검증은 미실시다.
+- 수동 검증: 로그아웃 상태에서 소모임 상세 → 후기 탭 → 더 보기 확인. MEMBER로 후기 탭을 연 뒤 로그아웃하여 작성 진입이 사라지는지 확인. OWNER·MEMBER 조회 성공, MANAGER 차단, 비로그인 POST와 /reviews/me의 401을 확인한다.
+
+### 2026-11-11 쿼리 문자열 포함 공개 조회 차단 정정
+
+- AI작성: 앞선 기록에서 공개 GET 설정만으로 비로그인 상세·후기 조회가 정상이라고 판단한 부분을 정정한다. RegexRequestMatcher는 쿼리 문자열까지 비교하므로 기존 끝 고정 패턴은 프론트의 noticePage·noticeSort·page가 포함된 요청을 허용하지 못했다.
+- 상세와 후기 목록 GET 패턴에 선택적 쿼리 문자열을 허용했다. 숫자 ID 및 정확한 경로 제한을 유지하며 POST·/reviews/me·설정·투표 등 보호 경로는 공개하지 않는다. Service의 MANAGER 차단과 작성 승인·역할·날짜·중복 검증은 변경하지 않았다.
+- 기존 보안 테스트의 param() 기반 요청을 실제 URL 쿼리 요청으로 보완했다. 상세의 쿼리 유무, 후기 첫·추가 페이지, 쿼리를 붙인 보호 경로와 POST 인증 요구를 검증하도록 구성했다.
+- 검증: Java 정규식으로 공개 URL 5개 및 보호 URL 6개 경계 확인 통과. Gradle Security·후기 조회/작성 Service 테스트는 Java 17 toolchain 부재로 실행 전 중단됐다. 정규식 검사는 필터 체인 통합 테스트 통과를 의미하지 않는다. 브라우저·Postman 검증은 미실시다.
+- 수동 검증: 비로그인으로 목록 → 상세 → 후기 → 더 보기를 확인한다. 상세 GET의 noticePage·noticeSort 및 후기 GET의 page 포함 요청이 200인지, POST /reviews?page=1 및 GET /reviews/me?page=1이 401인지 확인한다. 실제 모임 데이터로 OWNER·MEMBER 조회 및 MANAGER 차단도 확인한다.

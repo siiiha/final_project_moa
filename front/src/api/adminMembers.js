@@ -25,6 +25,14 @@ function formatRestrictionScope(scope) {
   }[scope] || '확인 필요';
 }
 
+function formatVerificationStatus(identityVerifiedAt, regionVerifiedAt) {
+  // AI작성: 관리자 목록에서 미완료 인증 종류를 바로 확인할 수 있도록 인증 조합별 문구를 반환한다.
+  if (identityVerifiedAt && regionVerifiedAt) return '인증 완료';
+  if (identityVerifiedAt) return '본인 인증 완료';
+  if (regionVerifiedAt) return '지역 인증 완료';
+  return '인증 필요';
+}
+
 function maskPhone(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length < 7) return '-';
@@ -44,7 +52,7 @@ function mapMember(member) {
     name: member.name || '-',
     email: member.email || '-',
     region: member.regionName,
-    verified: member.identityVerifiedAt && member.regionVerifiedAt ? '인증 완료' : '인증 필요',
+    verified: formatVerificationStatus(member.identityVerifiedAt, member.regionVerifiedAt),
     joinedAt: formatAdminDate(member.createdAt, { fallback: '-', compact: false }),
     // AI작성: 계정 이용 정지를 우선 표시하고 ACTIVE 회원의 기능 제한은 제재로 구분한다.
     status: formatStatus(member.accountStatus, restrictionScopes.length > 0),

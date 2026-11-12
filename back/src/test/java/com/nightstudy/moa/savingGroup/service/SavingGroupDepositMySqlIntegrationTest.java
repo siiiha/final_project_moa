@@ -43,8 +43,8 @@ class SavingGroupDepositMySqlIntegrationTest {
         var created = new ArrayList<String>();
         // AI작성: 런타임 스키마 변경이 아닌 테스트 전용 최소 구조이며 실제 전체 제약 적용은 DB 담당자가 검증한다.
         Map<String, String> ddl = new LinkedHashMap<>();
-        ddl.put("groups", "group_id BIGINT PRIMARY KEY, deleted_at DATETIME NULL");
-        ddl.put("saving_group", "group_id BIGINT PRIMARY KEY, saving_group_type VARCHAR(20), status VARCHAR(2), start_date DATE");
+        ddl.put("groups", "group_id BIGINT PRIMARY KEY, deleted_at DATETIME NULL, max_members INT, member_id BIGINT");
+        ddl.put("saving_group", "saving_group_id BIGINT PRIMARY KEY, group_id BIGINT, saving_group_type VARCHAR(20), status VARCHAR(2), start_date DATE");
         ddl.put("members", "member_id BIGINT PRIMARY KEY, deleted_at DATETIME NULL");
         ddl.put("group_member", "crew_member_id BIGINT PRIMARY KEY, group_id BIGINT, member_id BIGINT, member_role VARCHAR(20), membership_status VARCHAR(20)");
         ddl.put("group_account", "account_id BIGINT PRIMARY KEY, group_id BIGINT UNIQUE");
@@ -55,8 +55,8 @@ class SavingGroupDepositMySqlIntegrationTest {
             for (var entry : ddl.entrySet()) {
                 jdbc.execute("CREATE TABLE `" + entry.getKey() + "` (" + entry.getValue() + ") ENGINE=InnoDB"); created.add(entry.getKey());
             }
-            jdbc.execute("INSERT INTO `groups` VALUES (10,NULL)");
-            jdbc.execute("INSERT INTO saving_group VALUES (10,'친목계','02',CURRENT_DATE)");
+            jdbc.execute("INSERT INTO `groups` VALUES (10,NULL,10,20)");
+            jdbc.execute("INSERT INTO saving_group VALUES (11,10,'친목계','02',CURRENT_DATE)");
             jdbc.execute("INSERT INTO members VALUES (20,NULL)");
             jdbc.execute("INSERT INTO group_member VALUES (1,10,20,'MEMBER','APPROVED')");
             jdbc.execute("INSERT INTO group_account VALUES (30,10)");
@@ -78,7 +78,7 @@ class SavingGroupDepositMySqlIntegrationTest {
             var futures = new ArrayList<Future<SavingGroupDepositResponse>>();
             for (int i = 0; i < 2; i++) {
                 String key = "mock-concurrent-key-" + i;
-                futures.add(executor.submit(() -> { gate.await(); return service.deposit(10L, 20L, new SavingGroupDepositRequest(new BigDecimal("1000"), key)); }));
+                futures.add(executor.submit(() -> { gate.await(); return service.deposit(11L, 20L, new SavingGroupDepositRequest(new BigDecimal("1000"), key)); }));
             }
             gate.countDown();
             var responses = List.of(futures.get(0).get(15, TimeUnit.SECONDS), futures.get(1).get(15, TimeUnit.SECONDS));
@@ -86,7 +86,7 @@ class SavingGroupDepositMySqlIntegrationTest {
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM group_transaction", Integer.class)).isEqualTo(1);
             int pendingIndex = responses.get(0).status().equals("PENDING_CONFIRMATION") ? 0 : 1;
             var confirm = new SavingGroupDepositConfirmRequest("mock-concurrent-key-" + pendingIndex, responses.get(pendingIndex).confirmationToken());
-            service.confirm(10L, 20L, confirm); service.confirm(10L, 20L, confirm);
+            service.confirm(11L, 20L, confirm); service.confirm(11L, 20L, confirm);
             assertThat(mapper.selectSavingGroupBalance(10L)).isEqualByComparingTo("2000");
             assertThat(jdbc.queryForList("SELECT balance_after FROM group_transaction ORDER BY transaction_id", BigDecimal.class))
                     .usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)

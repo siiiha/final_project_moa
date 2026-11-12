@@ -10,10 +10,13 @@ import lombok.Getter;
 @Getter
 @RequiredArgsConstructor
 public class SavingGroupDetailResponse {
+    // AI작성: 기존 생성자를 유지하며 공개 이미지 주소를 전달한다.
+    @lombok.Setter
+    private String groupImageUrl;
     // AI작성: 기존 생성자 호환을 유지하며 Service가 조회한 유형을 전달한다.
     @Setter
     private String groupType;
-    // AI작성: 상세 URL은 groupId를 사용하지만 가입 신청은 savingGroupId가 필요해 함께 반환한다.
+    // AI작성: 상세 URL에는 계모임 ID를 사용하고 공통 모임 신고에는 공통 모임 ID를 사용한다.
     private final Long savingGroupId;
     private final Long groupId;
     private final String groupName;

@@ -1,6 +1,7 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination } from '../../api/savingGroups.js';
+// AI작성: 공지 상세 링크에 현재 페이지와 정렬 조건을 전달하는 함수를 가져온다.
+import { formatSavingGroupAmount, getSavingGroupMenus, getSavingGroupNoticePagination, toSavingGroupNoticeSearch } from '../../api/savingGroups.js';
 import SavingGroupChatPanel from './SavingGroupChatPanel.jsx';
 import { FiBell, FiMapPin, FiTrendingUp, FiUsers } from 'react-icons/fi';
 // AI작성: 기존 react-icons 패키지의 테두리·채움 핀으로 일반·고정 상태를 구분한다.
@@ -153,7 +154,10 @@ const CardTitle = styled.h2`
   letter-spacing: -0.7px;
 `;
 
+// AI작성: 기존 기본 영역 크기에 대표 이미지를 맞춘다.
 const ImagePlaceholder = styled.div`
+  overflow: hidden;
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
   height: 168px;
   margin-top: 14px;
   background: ${({ theme }) => theme.colors.primarySoft};
@@ -306,6 +310,9 @@ const ActionButton = styled(Button)`
 function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJoinSubmitting, onBack, onNoticeRefresh,
   noticePagination, noticeLoading, noticeError, onNoticePageChange, onNoticeSortChange, onNoticeRetry,
   noticePinState, onNoticePinChange, accountPanel, onLeave }) {
+  // AI작성: 실패한 주소만 기억해 다른 이미지 주소는 다시 시도한다.
+  const [failedImageUrl, setFailedImageUrl] = useState(null);
+
   // AI작성: 일반 공지 네 개의 페이지 번호만 계산하며 기존 계모임 전체 목록 계산과 분리한다.
   const noticePages = getSavingGroupNoticePagination(noticePagination.page, noticePagination.totalPages);
   const pinnedNotices = group.pinnedNotices ?? [];
@@ -330,7 +337,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
         <NoticeRow role="row" $pinned={pinned} $withPin={canPinNotice} key={notice.noticeId}>
           <span role="cell">
             {pinned && <PinnedNoticeBadge>고정</PinnedNoticeBadge>}{' '}
-            {canReadNotice ? <NoticeLink to={`/saving-groups/${group.groupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
+            {canReadNotice ? <NoticeLink to={`/saving-groups/${group.savingGroupId}/notices/${notice.noticeId}?${toSavingGroupNoticeSearch(noticePagination.page, noticePagination.sort)}`}>
               {notice.title}</NoticeLink> : notice.title}
           </span>
           <span role="cell">{notice.writerNickname || '작성자 정보 없음'}</span>
@@ -388,7 +395,7 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           activeMenu={currentMenu}
           onMenuChange={onMenuChange}
           allowedMenus={allowedMenus}
-          settingsPath={`/saving-groups/${group.groupId}/settings`}
+          settingsPath={`/saving-groups/${group.savingGroupId}/settings`}
         />
       </HeaderCard>
 
@@ -400,32 +407,35 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           {group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' && ['01', '02'].includes(group.status)
             ? <SavingGroupMembersPanel
                 /* AI작성: ID 종류를 구분하고 모임·권한 변경 시 이전 편집/요청 상태를 폐기한다. */
-                key={JSON.stringify([group.savingGroupId, group.groupId, group.myRole, group.membershipStatus, group.status])}
-                savingGroupId={String(group.savingGroupId)} groupId={group.groupId} groupType={group.groupType}
+                key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus, group.status])}
+                savingGroupId={String(group.savingGroupId)} groupType={group.groupType}
                 myRole={group.myRole} membershipStatus={group.membershipStatus} status={group.status} />
             : <p>모집중 또는 진행중인 계모임의 계주만 계원을 관리할 수 있습니다.</p>}
         </MembersContent>
       ) : currentMenu === 'payment' && group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED' ? (
-        <SavingGroupPaymentStatusPanel key={group.groupId} groupId={group.groupId} />
+        <SavingGroupPaymentStatusPanel key={group.savingGroupId} savingGroupId={group.savingGroupId} />
       ) : currentMenu === 'calendar' ? (
         /* AI작성: 다른 계모임이나 역할로 전환하면 이전 캘린더 조회 상태를 폐기한다. */
         <SavingGroupCalendarPanel
-          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
-          groupId={group.groupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
+          key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus])}
+          savingGroupId={group.savingGroupId} loadMonth={getSavingGroupCalendar} createEvent={createSavingGroupCalendarEvent}
           deleteEvent={deleteSavingGroupCalendarEvent}
         />
       ) : currentMenu === 'dues' ? (
         /* AI작성: 모임이나 권한이 바뀌면 대시보드 조회 상태를 초기화한다. */
         <SavingGroupDashboardPanel
-          key={JSON.stringify([group.groupId, group.myRole, group.membershipStatus])}
-          groupId={group.groupId}
+          key={JSON.stringify([group.savingGroupId, group.myRole, group.membershipStatus])}
+          savingGroupId={group.savingGroupId}
           canViewOutstanding={group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED'}
         />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel key={group.groupId} groupId={group.groupId} />
+        /* AI작성: OWNER·MANAGER에게만 확인 필요 출금의 분류 선택 권한을 전달한다. */
+        <SavingGroupTransactionHistoryPanel
+          key={group.savingGroupId} savingGroupId={group.savingGroupId} myRole={group.myRole}
+        />
       ) : currentMenu === 'payoutRequest' ? (
-        /* AI작성: 공개 상세의 유형 추정 대신 서버가 공통 groupId로 권한·현재 회차를 판단한다. */
-        <SavingGroupPayoutRequestPanel groupId={group.groupId} />
+        /* AI작성: 공개 상세의 유형 추정 대신 서버가 savingGroupId로 계모임을 찾고 권한과 회차를 판단한다. */
+        <SavingGroupPayoutRequestPanel savingGroupId={group.savingGroupId} />
       ) : currentMenu === 'joinRequests' ? (
         <JoinRequestsContent>
           {/* AI작성: 화면 모임이 바뀌면 요청·승인 상태를 초기화하고 API가 요구하는 savingGroupId로 실제 신청만 조회한다. */}
@@ -436,6 +446,10 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           <MainColumn>
             <Card>
               <CardTitle>모임 소개</CardTitle>
+{/* AI작성: 미등록·로딩 실패 시 기존 기본 영역을 표시한다. */}
+              <ImagePlaceholder role={group.groupImageUrl && failedImageUrl !== group.groupImageUrl ? undefined : "img"} aria-label={group.groupImageUrl && failedImageUrl !== group.groupImageUrl ? undefined : "등록된 대표 이미지가 없습니다."}>
+                {group.groupImageUrl && failedImageUrl !== group.groupImageUrl && <img src={group.groupImageUrl} alt={group.groupName + " 대표 이미지"} onError={() => setFailedImageUrl(group.groupImageUrl)} />}
+              </ImagePlaceholder>
               <Content>{group.description?.trim() || '소개글이 없습니다.'}</Content>
             </Card>
             <Card>

@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.report.dto.MemberReportRecord;
 import com.nightstudy.moa.report.dto.ReportCaseRecord;
 import com.nightstudy.moa.report.dto.ReportStatus;
@@ -16,6 +18,7 @@ import com.nightstudy.moa.report.dto.ReportCreateRequest;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.dto.ReportType;
 import com.nightstudy.moa.report.mapper.ReportMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,6 +30,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReportServiceImplTest {
     @Mock
     private ReportMapper reportMapper;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private ReportServiceImpl reportService;
@@ -48,6 +54,7 @@ class ReportServiceImplTest {
             memberReport.setReportId(200L);
             return 1;
         });
+        when(reportMapper.selectActiveAdminIds()).thenReturn(List.of(11L, 12L));
 
         Long reportId = reportService.createReport(1L, request);
 
@@ -60,6 +67,18 @@ class ReportServiceImplTest {
                 memberReport.getCaseId().equals(100L)
                         && memberReport.getReporterId().equals(1L)
                         && memberReport.getReason().equals("광고성 게시글입니다.")));
+        verify(notificationService).send(
+                11L,
+                NotificationType.REPORT_RECEIVED,
+                "새로운 신고가 접수되었습니다. 내용을 확인해 주세요.",
+                "/admin/reposts/100"
+        );
+        verify(notificationService).send(
+                12L,
+                NotificationType.REPORT_RECEIVED,
+                "새로운 신고가 접수되었습니다. 내용을 확인해 주세요.",
+                "/admin/reposts/100"
+        );
     }
 
     @Test

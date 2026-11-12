@@ -20,7 +20,7 @@ class SavingGroupNoticeDeletionServiceTest {
     @InjectMocks SavingGroupServiceImpl service;
     void target(String status) {
         var row = new SavingGroupJoinTargetRow(); row.setGroupId(20L); row.setStatus(status);
-        when(mapper.selectSavingGroupNoticeTargetForUpdate(20L)).thenReturn(row);
+        when(mapper.selectSavingGroupNoticeTargetForUpdate(10L)).thenReturn(row);
     }
     void relation(String role, String status) {
         var row = new SavingGroupMembershipRelationRow(); row.setMemberRole(role); row.setMembershipStatus(status);
@@ -30,7 +30,7 @@ class SavingGroupNoticeDeletionServiceTest {
         when(mapper.selectSavingGroupNoticeForUpdate(20L, 40L))
                 .thenReturn(new SavingGroupNoticeDetailResponse(40L, "제목", "내용", writer, null, null));
     }
-    void delete() { service.deleteSavingGroupNotice(20L, 40L, 30L); }
+    void delete() { service.deleteSavingGroupNotice(10L, 40L, 30L); }
     void failure(String code) {
         assertThat(catchThrowableOfType(this::delete, ApiException.class).getCode()).isEqualTo(code);
         verify(mapper, never()).deleteSavingGroupNotice(any(), any(), any());
@@ -41,7 +41,7 @@ class SavingGroupNoticeDeletionServiceTest {
         when(mapper.deleteSavingGroupNotice(20L, 40L, 30L)).thenReturn(1);
         delete();
         var order = inOrder(mapper);
-        order.verify(mapper).selectSavingGroupNoticeTargetForUpdate(20L);
+        order.verify(mapper).selectSavingGroupNoticeTargetForUpdate(10L);
         order.verify(mapper).selectSavingGroupMembershipForUpdate(20L, 30L);
         order.verify(mapper).selectSavingGroupNoticeForUpdate(20L, 40L);
         order.verify(mapper).deleteSavingGroupNotice(20L, 40L, 30L);
@@ -71,7 +71,7 @@ class SavingGroupNoticeDeletionServiceTest {
         assertThat(catchThrowableOfType(this::delete, ApiException.class).getCode()).isEqualTo("SAVING_GROUP_NOTICE_DELETE_FAILED");
     }
     @Test void rejectsUnauthenticatedMember() {
-        assertThat(catchThrowableOfType(() -> service.deleteSavingGroupNotice(20L, 40L, null), ApiException.class).getCode()).isEqualTo("UNAUTHORIZED");
+        assertThat(catchThrowableOfType(() -> service.deleteSavingGroupNotice(10L, 40L, null), ApiException.class).getCode()).isEqualTo("UNAUTHORIZED");
         verifyNoInteractions(mapper);
     }
     // AI작성: 같은 Service에서 수정→삭제 이후 미삭제 조회가 없으면 재수정·재삭제 모두 거절하는 연계 동작을 검증한다.
@@ -81,9 +81,9 @@ class SavingGroupNoticeDeletionServiceTest {
         when(mapper.selectSavingGroupNoticeForUpdate(20L, 40L)).thenReturn(original, original, null, null);
         when(mapper.updateSavingGroupNotice(20L, 40L, "수정", "내용")).thenReturn(1);
         when(mapper.deleteSavingGroupNotice(20L, 40L, 30L)).thenReturn(1);
-        assertThat(service.updateSavingGroupNotice(20L, 40L, 30L, "수정", "내용")).isEqualTo(40L);
+        assertThat(service.updateSavingGroupNotice(10L, 40L, 30L, "수정", "내용")).isEqualTo(40L);
         delete();
-        assertThat(catchThrowableOfType(() -> service.updateSavingGroupNotice(20L, 40L, 30L, "재수정", "내용"), ApiException.class).getCode())
+        assertThat(catchThrowableOfType(() -> service.updateSavingGroupNotice(10L, 40L, 30L, "재수정", "내용"), ApiException.class).getCode())
                 .isEqualTo("SAVING_GROUP_NOTICE_NOT_FOUND");
         assertThat(catchThrowableOfType(this::delete, ApiException.class).getCode()).isEqualTo("SAVING_GROUP_NOTICE_NOT_FOUND");
         verify(mapper, times(1)).deleteSavingGroupNotice(20L, 40L, 30L);

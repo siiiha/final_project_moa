@@ -7,7 +7,7 @@ import { logoutMember } from '../../api/member';
 import useAuthStore, { isAdminToken } from '../../store/authStore';
 
 const Shell = styled.header`
-  height: 56px;
+  height: 72px;
   background: ${({ theme }) => theme.colors.white};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 `;
@@ -27,7 +27,7 @@ const Brand = styled(Link)`
   align-items: center;
   gap: 7px;
   color: ${({ theme }) => theme.colors.primary};
-  font-size: 18px;
+  font-size: 25px;
   font-weight: 800;
   letter-spacing: -0.7px;
 `;
@@ -67,11 +67,16 @@ const Navigation = styled.nav`
   }
 `;
 const NavigationLink = styled(Link)`
-  padding: 6px 10px;
+    /* AI작성: 메뉴의 클릭 영역을 넓혀 이용하기 편하게 표시합니다. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px;
+  white-space: nowrap;
   color: ${({ $active, theme }) => ($active ? theme.colors.primary : theme.colors.text)};
   background: ${({ $active, theme }) => ($active ? theme.colors.primarySoft : 'transparent')};
   border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: 13px;
+  font-size: 18px;
   font-weight: ${({ $active }) => ($active ? 800 : 600)};
 
   &:hover {
@@ -85,7 +90,7 @@ const Actions = styled.div`
   gap: 16px;
   > a:not(${Button}) {
     color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
   }
   @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
@@ -98,7 +103,7 @@ const Actions = styled.div`
 const SignupButton = styled(Button)`
   min-height: 30px;
   padding: 6px 11px;
-  font-size: 11px;
+  font-size: 13px;
 `;
 
 const LoggedInActions = styled.div`
@@ -110,7 +115,7 @@ const LoggedInActions = styled.div`
   a,
   button {
     color: ${({ theme }) => theme.colors.secondaryText};
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
   }
 

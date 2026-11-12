@@ -11,6 +11,7 @@ import {
   updateComment,
 } from '../api/postApi';
 import PostDetail from '../components/post/PostDetail';
+import PostCategoryBadge from '../components/post/PostCategoryBadge';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
 import ReportModal from '../components/common/ReportModal';
@@ -18,6 +19,16 @@ import useAuthStore from '../store/authStore';
 import { createReport } from '../api/reports';
 
 const COMMENTS_PER_PAGE = 20;
+const COMMENT_PAGE_BUTTON_COUNT = 5;
+
+// AI작성: 일반 공백 외 제로폭·형식 공백만 붙여넣은 경우에도 댓글 내용을 비어 있는 값으로 처리합니다.
+const normalizeCommentContent = (content) => {
+  const trimmedContent = content.trim();
+
+  return /^[\u200B-\u200D\u2060\uFEFF\u180E\u3164]*$/u.test(trimmedContent)
+    ? ''
+    : trimmedContent;
+};
 
 // AI작성: 로그인 JWT의 subject는 백엔드가 발급한 회원 번호이므로 댓글 작성 권한 비교에 사용한다.
 const getMemberIdFromToken = (token) => {
@@ -37,19 +48,6 @@ const getMemberIdFromToken = (token) => {
     return null;
   }
 };
-
-// AI작성: 더보기로 가져온 과거 댓글과 방금 작성한 댓글이 시간 순서대로 표시되도록 정렬합니다.
-const sortCommentsByCreatedAt = (comments) =>
-  [...comments].sort((first, second) => {
-    const firstTime = Date.parse(first.createdAt || '');
-    const secondTime = Date.parse(second.createdAt || '');
-
-    if (Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime !== secondTime) {
-      return firstTime - secondTime;
-    }
-
-    return Number(first.id) - Number(second.id);
-  });
 
 // AI작성: 백엔드 댓글 응답을 화면 컴포넌트의 표시 형식으로 변환합니다.
 const mapComment = (comment) => ({
@@ -81,8 +79,16 @@ const Breadcrumb = styled.p`
   font-size: 11px;
 `;
 
-const Title = styled.h1`
+const TitleRow = styled.div`
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+const Title = styled.h1`
+  margin: 0;
   color: ${({ theme }) => theme.colors.text};
   font-size: 24px;
   font-weight: 800;
@@ -130,11 +136,11 @@ function PostDetailPage() {
   const [commentTotalPages, setCommentTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
-  const [isLoadingMoreComments, setIsLoadingMoreComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [replyingCommentId, setReplyingCommentId] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [newReplyParentId, setNewReplyParentId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [isUpdatingComment, setIsUpdatingComment] = useState(false);
@@ -147,9 +153,13 @@ function PostDetailPage() {
   const [reportErrorMessage, setReportErrorMessage] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportNotice, setReportNotice] = useState('');
+  const [inputNotice, setInputNotice] = useState('');
   const postDetailRequestRef = useRef(null);
   const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
   const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
+
+  // AI작성: 목록에서 전달받은 URL 조건을 유지해 필터·검색·페이징 상태를 복원한다.
+  const goToPostList = () => navigate(`/post/list${location.search}`);
 
   // AI작성: 같은 회원이 같은 게시글에서 작성하던 댓글과 대댓글을 새로고침 후 복원합니다.
   useEffect(() => {
@@ -302,40 +312,37 @@ function PostDetailPage() {
     };
   }, [id]);
 
-  const handleLoadMoreComments = async () => {
-    if (isLoadingMoreComments || commentPage >= commentTotalPages) return;
+  // AI작성: 숫자 메뉴를 누르면 누적하지 않고 선택한 페이지의 댓글 목록만 표시합니다.
+  const handleCommentPageChange = async (page) => {
+    if (isLoadingComments || page < 1 || page > commentTotalPages || page === commentPage) return;
 
-    setIsLoadingMoreComments(true);
+    setIsLoadingComments(true);
     setCommentErrorMessage('');
 
     try {
-      const nextPage = commentPage + 1;
-      const response = await getComments(id, { page: nextPage, size: COMMENTS_PER_PAGE });
+      const response = await getComments(id, { page, size: COMMENTS_PER_PAGE });
       if (!response.success) {
-        throw new Error(response.error?.message || '댓글을 더 불러오지 못했습니다.');
+        throw new Error(response.error?.message || '댓글을 불러오지 못했습니다.');
       }
 
-      // AI작성: 댓글 더보기는 읽던 흐름을 유지하고 모바일에서도 쉽게 사용하도록 기존 목록 뒤에 추가합니다.
-      setComments((currentComments) => {
-        const currentCommentIds = new Set(currentComments.map((comment) => comment.id));
-        const newComments = (response.data?.comments || [])
-          .map(mapComment)
-          .filter((comment) => !currentCommentIds.has(comment.id));
-
-        // AI작성: 새 댓글을 먼저 화면에 추가한 상태에서도 다음 페이지와 합친 뒤 작성 시간순을 유지합니다.
-        return sortCommentsByCreatedAt([...currentComments, ...newComments]);
-      });
-      setCommentPage(response.meta?.page || nextPage);
-      setCommentTotal(response.data?.totalCommentCount ?? commentTotal);
-      setCommentTotalPages(response.meta?.totalPages || commentTotalPages);
+      setComments((response.data?.comments || []).map(mapComment));
+      setCommentPage(response.meta?.page || page);
+      setCommentTotal(response.data?.totalCommentCount || 0);
+      setCommentTotalPages(response.meta?.totalPages || 0);
     } catch (error) {
       setCommentErrorMessage(
-        error.response?.data?.error?.message || error.message || '댓글을 더 불러오지 못했습니다.'
+        error.response?.data?.error?.message || error.message || '댓글을 불러오지 못했습니다.'
       );
     } finally {
-      setIsLoadingMoreComments(false);
+      setIsLoadingComments(false);
     }
   };
+
+  const commentPageStart = Math.floor((commentPage - 1) / COMMENT_PAGE_BUTTON_COUNT) * COMMENT_PAGE_BUTTON_COUNT + 1;
+  const commentPageNumbers = Array.from(
+    { length: Math.min(COMMENT_PAGE_BUTTON_COUNT, Math.max(0, commentTotalPages - commentPageStart + 1)) },
+    (_, index) => commentPageStart + index,
+  );
 
   const handleEdit = () => {
     navigate(`/post/${id}/edit`);
@@ -358,7 +365,7 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '게시글 삭제에 실패했습니다.');
       }
 
-      navigate('/post/list');
+      goToPostList();
     } catch (error) {
       setIsDeleteModalOpen(false);
       setDeleteErrorMessage(
@@ -369,9 +376,21 @@ function PostDetailPage() {
     }
   };
 
-  // AI작성: 댓글 등록 후 서버의 최신 댓글 목록과 전체 개수를 다시 동기화합니다.
-  const refreshComments = async () => {
-    const response = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
+  // AI작성: 새 원댓글은 마지막 페이지에서 보이도록 서버의 최신 페이지 정보를 기준으로 다시 조회합니다.
+  const refreshComments = async ({ moveToLastPage = false, page = commentPage } = {}) => {
+    const firstPageResponse = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
+    if (!firstPageResponse.success) {
+      throw new Error(firstPageResponse.error?.message || '최신 댓글을 불러오지 못했습니다.');
+    }
+
+    const lastPage = Math.max(1, firstPageResponse.meta?.totalPages || 1);
+    const response = moveToLastPage && lastPage > 1
+      ? await getComments(id, { page: lastPage, size: COMMENTS_PER_PAGE })
+      // AI작성: 대댓글 등록 후에는 사용자가 보던 댓글 페이지를 그대로 다시 조회한다.
+      : page === 1
+        ? firstPageResponse
+        : await getComments(id, { page, size: COMMENTS_PER_PAGE });
+
     if (!response.success) {
       throw new Error(response.error?.message || '최신 댓글을 불러오지 못했습니다.');
     }
@@ -388,8 +407,13 @@ function PostDetailPage() {
       goToLogin();
       return;
     }
-    const trimmedComment = commentText.trim();
-    if (!trimmedComment || isSubmittingComment) return;
+    const trimmedComment = normalizeCommentContent(commentText);
+    if (!trimmedComment) {
+      // AI작성: 브라우저 기본 필수 입력 안내 대신 공백 입력 사유를 모달로 알린다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (isSubmittingComment) return;
 
     setIsSubmittingComment(true);
     setCommentErrorMessage('');
@@ -403,30 +427,21 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '댓글 등록에 실패했습니다.');
       }
 
-      setComments((currentComments) => [
-        ...currentComments,
-        {
-          id: response.data.commentId,
-          // AI작성: 등록 직후에도 본인 댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
-          memberId: response.data.memberId,
-          author: '나',
-          content: response.data.content,
-          createdAt: response.data.createdAt,
-          replies: [],
-        },
-      ]);
       setCommentText('');
       if (commentDraftKey) sessionStorage.removeItem(commentDraftKey);
-      setCommentTotal((currentTotal) => currentTotal + 1);
 
       try {
-        await refreshComments();
+        // AI작성: 현재 페이지에 임시 댓글을 붙이지 않고 마지막 페이지의 서버 결과만 표시합니다.
+        setIsLoadingComments(true);
+        await refreshComments({ moveToLastPage: true });
       } catch (refreshError) {
         setCommentErrorMessage(
           refreshError.response?.data?.error?.message ||
             refreshError.message ||
             '댓글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
         );
+      } finally {
+        setIsLoadingComments(false);
       }
     } catch (error) {
       setCommentErrorMessage(
@@ -463,8 +478,13 @@ function PostDetailPage() {
 
   const handleReplySubmit = async (event) => {
     event.preventDefault();
-    const trimmedReply = replyText.trim();
-    if (!replyingCommentId || !trimmedReply || isSubmittingReply) return;
+    const trimmedReply = normalizeCommentContent(replyText);
+    if (!trimmedReply) {
+      // AI작성: 대댓글도 공백·한글 채움 문자만 입력하면 공통 안내 모달을 표시한다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (!replyingCommentId || isSubmittingReply) return;
 
     setIsSubmittingReply(true);
     setCommentErrorMessage('');
@@ -477,34 +497,15 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '답글 등록에 실패했습니다.');
       }
 
-      // AI작성: 등록된 대댓글을 해당 원댓글의 replies 배열 끝에 추가합니다.
-      setComments((currentComments) =>
-        currentComments.map((comment) =>
-          comment.id === replyingCommentId
-            ? {
-                ...comment,
-                replies: [
-                  ...comment.replies,
-                  {
-                    id: response.data.commentId,
-                    // AI작성: 등록 직후에도 본인 대댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
-                    memberId: response.data.memberId,
-                    author: '나',
-                    content: response.data.content,
-                    createdAt: response.data.createdAt,
-                    deleted: false,
-                  },
-                ],
-              }
-            : comment
-        )
-      );
       setReplyingCommentId(null);
       setReplyText('');
       if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
-      setCommentTotal((currentTotal) => currentTotal + 1);
+      // AI작성: 접힌 답글 목록에서는 새로 등록한 답글을 더보기 안내로 찾을 수 있게 부모 번호를 보관합니다.
+      setNewReplyParentId(replyingCommentId);
 
       try {
+        // AI작성: 임시 답글의 작성자 정보가 비어 보이지 않도록 서버 목록을 다시 조회합니다.
+        setIsLoadingComments(true);
         await refreshComments();
       } catch (refreshError) {
         setCommentErrorMessage(
@@ -512,6 +513,8 @@ function PostDetailPage() {
             refreshError.message ||
             '답글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
         );
+      } finally {
+        setIsLoadingComments(false);
       }
     } catch (error) {
       setCommentErrorMessage(
@@ -519,6 +522,12 @@ function PostDetailPage() {
       );
     } finally {
       setIsSubmittingReply(false);
+    }
+  };
+
+  const handleReplyMoreViewed = (commentId) => {
+    if (newReplyParentId === commentId) {
+      setNewReplyParentId(null);
     }
   };
 
@@ -534,8 +543,13 @@ function PostDetailPage() {
       goToLogin();
       return;
     }
-    const trimmedComment = editingCommentText.trim();
-    if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
+    const trimmedComment = normalizeCommentContent(editingCommentText);
+    if (!trimmedComment) {
+      // AI작성: 댓글·대댓글 수정에서도 빈 내용 저장을 모달로 안내한다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (!editingCommentId || isUpdatingComment) return;
 
     setIsUpdatingComment(true);
     setCommentErrorMessage('');
@@ -677,7 +691,7 @@ function PostDetailPage() {
         <EmptyCard>
           <p>{isLoading ? '게시글을 불러오는 중입니다.' : errorMessage || '존재하지 않거나 삭제된 게시글입니다.'}</p>
           {!isLoading && (
-            <Button type="button" $variant="secondary" onClick={() => navigate('/post/list')}>
+            <Button type="button" $variant="secondary" onClick={goToPostList}>
               목록으로
             </Button>
           )}
@@ -689,21 +703,28 @@ function PostDetailPage() {
   return (
     <Page>
       <Breadcrumb>게시판 &gt; 게시글 상세</Breadcrumb>
-      <Title>{post.title}</Title>
+      <TitleRow>
+        <Title>{post.title}</Title>
+        <PostCategoryBadge category={post.category} size="detail" />
+      </TitleRow>
       <Content>
         {deleteErrorMessage && <ActionError role="alert">{deleteErrorMessage}</ActionError>}
-        {commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}
+        {/* AI작성: 비로그인 회원에게는 댓글 조회의 인증 오류를 게시글 상세 상단에 표시하지 않는다. */}
+        {token && commentErrorMessage && <ActionError role="alert">{commentErrorMessage}</ActionError>}
         <PostDetail
           post={post}
           memberId={memberId}
           comments={isLoadingComments ? [] : comments}
           commentTotal={commentTotal}
-          hasMoreComments={commentPage < commentTotalPages}
-          isLoadingMoreComments={isLoadingMoreComments}
+          isLoadingComments={isLoadingComments}
+          commentPage={commentPage}
+          commentPageNumbers={commentPageNumbers}
+          commentTotalPages={commentTotalPages}
           isSubmittingComment={isSubmittingComment}
           replyingCommentId={replyingCommentId}
           replyText={replyText}
           isSubmittingReply={isSubmittingReply}
+          newReplyParentId={newReplyParentId}
           editingCommentId={editingCommentId}
           editingCommentText={editingCommentText}
           isUpdatingComment={isUpdatingComment}
@@ -714,16 +735,17 @@ function PostDetailPage() {
           onReplyChange={handleReplyChange}
           onReplySubmit={handleReplySubmit}
           onReplyCancel={handleReplyCancel}
+          onReplyMoreViewed={handleReplyMoreViewed}
           onCommentEditStart={handleCommentEditStart}
           onCommentEditChange={setEditingCommentText}
           onCommentEditSubmit={handleCommentEditSubmit}
           onCommentEditCancel={handleCommentEditCancel}
           onCommentDelete={handleCommentDelete}
-          onLoadMoreComments={handleLoadMoreComments}
+          onCommentPageChange={handleCommentPageChange}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onReport={handleReportStart}
-          onBack={() => navigate('/post/list')}
+          onBack={goToPostList}
         />
       </Content>
       {isDeleteModalOpen && (
@@ -773,6 +795,16 @@ function PostDetailPage() {
           showCancel={false}
           onConfirm={() => setReportNotice('')}
           onCancel={() => setReportNotice('')}
+        />
+      )}
+      {inputNotice && (
+        <ConfirmModal
+          title="입력 내용을 확인해 주세요"
+          description={inputNotice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setInputNotice('')}
+          onCancel={() => setInputNotice('')}
         />
       )}
     </Page>

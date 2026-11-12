@@ -1,9 +1,19 @@
 import client from './client.js';
 
+// AI작성: 거래내역 선택·대시보드 표시에서 같은 지출 분류 코드와 이름을 재사용한다.
+export const savingGroupExpenseCategoryCodes = Object.freeze([
+  'FOOD', 'TRANSPORTATION', 'RENTAL', 'SUPPLIES', 'ACTIVITY', 'ACCOMMODATION', 'FEE', 'OTHER',
+]);
+export const savingGroupExpenseCategoryLabels = Object.freeze({
+  FOOD: '식비', TRANSPORTATION: '교통비', RENTAL: '대관료', SUPPLIES: '물품비',
+  ACTIVITY: '활동비', ACCOMMODATION: '숙박비', FEE: '수수료', OTHER: '기타', NEEDS_REVIEW: '확인 필요',
+});
+
 // AI작성: 현재 순번과 다음 달 예약안을 같은 인증 client로 조회·저장한다.
 function toTurnOrderAssignment(data) {
   if (!data || !/^\d{4}-\d{2}-01$/.test(data.effectiveMonth) || !Number.isSafeInteger(data.startRoundNumber)
     || data.startRoundNumber < 1 || typeof data.scheduled !== 'boolean' || typeof data.needsReassignment !== 'boolean'
+    || (data.scheduled && (data.startRoundNumber < 2 || data.currentRoundNumber !== data.startRoundNumber - 1))
     || !Array.isArray(data.members)) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
   const ids = new Set();
   const members = data.members.map((row) => {
@@ -13,10 +23,12 @@ function toTurnOrderAssignment(data) {
         value => value != null && (!Number.isSafeInteger(value) || value < 1))) throw new Error('순번 지정 응답을 확인하지 못했습니다.');
     ids.add(memberId);
     return { memberId, nickname: row.nickname, role: row.role, paid: row.paid,
-      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null };
+      currentSequenceNumber: row.currentSequenceNumber ?? null, plannedSequenceNumber: row.plannedSequenceNumber ?? null,
+      fixedReason: row.fixedReason ?? null };
   });
   return { effectiveMonth: data.effectiveMonth, startRoundNumber: data.startRoundNumber,
-    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members };
+    scheduled: data.scheduled, needsReassignment: data.needsReassignment, members,
+    currentRoundNumber: data.currentRoundNumber ?? null };
 }
 
 export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
@@ -26,9 +38,11 @@ export async function getSavingGroupTurnOrders(savingGroupId, { signal } = {}) {
   return toTurnOrderAssignment(result.data);
 }
 
-export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal } = {}) {
+// AI작성: 진행 중인 순번계는 조회 당시 회차를 함께 보내 서버에서 변경 여부를 확인한다.
+export async function updateSavingGroupTurnOrders(savingGroupId, turnOrders, { signal, currentRoundNumber } = {}) {
+  const body = currentRoundNumber == null ? { turnOrders } : { turnOrders, currentRoundNumber };
   const result = await savingGroupMemberResponse(
-    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, { turnOrders }, { signal }),
+    () => client.put(`/saving-groups/${savingGroupPathId(savingGroupId)}/turn-orders`, body, { signal }),
     '순번 저장 결과를 확인하지 못했습니다. 다시 조회해주세요.');
   return toTurnOrderAssignment(result.data);
 }
@@ -50,7 +64,7 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
     let memberId;
     try { memberId = savingGroupPathId(row?.memberId); } catch { throw invalid(); }
     if (ids.has(memberId) || !Number.isSafeInteger(row.recommendedTurnOrder)
-      || row.recommendedTurnOrder < 1 || row.recommendedTurnOrder > rows.length
+      || row.recommendedTurnOrder < 1
       || orders.has(row.recommendedTurnOrder) || typeof row.nickname !== 'string' || !row.nickname.trim()
       || !Number.isSafeInteger(row.expectedPayoutAmount) || row.expectedPayoutAmount < 1
       || row.expectedPayoutAmount > 9999999999999) throw invalid();
@@ -58,12 +72,16 @@ export async function getSavingGroupTurnOrderRecommendations(savingGroupId, { si
     return { memberId, nickname: row.nickname, recommendedTurnOrder: row.recommendedTurnOrder,
       expectedPayoutAmount: row.expectedPayoutAmount };
   });
-  return items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+  // AI작성: 진행 중에는 다음 회차부터 시작하므로 정렬한 실제 회차의 연속성을 확인한다.
+  items.sort((a, b) => a.recommendedTurnOrder - b.recommendedTurnOrder);
+  if (items.some((item, index) => index > 0
+    && item.recommendedTurnOrder !== items[index - 1].recommendedTurnOrder + 1)) throw invalid();
+  return items;
 }
 
 // AI작성: 원문 계좌번호 없이 서버가 모임 계좌를 결정하고 같은 요청 키로 재전송을 구분한다.
-export async function requestSavingGroupDeposit(groupId, { amount, requestKey }, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function requestSavingGroupDeposit(savingGroupId, { amount, requestKey }, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   if (!Number.isSafeInteger(amount) || amount < 1 || amount > 9999999999999) {
     throw new Error('금액은 1원 이상의 원 단위 정수로 입력해주세요.');
   }
@@ -76,8 +94,8 @@ export async function requestSavingGroupDeposit(groupId, { amount, requestKey },
 }
 
 // AI작성: 확인값은 메모리에서만 전달하며 재시도는 동일한 요청·확인값을 사용한다.
-export async function confirmSavingGroupDeposit(groupId, { requestKey, confirmationToken }, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function confirmSavingGroupDeposit(savingGroupId, { requestKey, confirmationToken }, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   validateDepositKey(requestKey);
   if (typeof confirmationToken !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(confirmationToken)) {
     throw new Error('입금 확인 정보를 다시 확인해주세요.');
@@ -185,9 +203,9 @@ export async function leaveSavingGroup(savingGroupId) {
   );
 }
 
-// AI작성: 추방은 공통 groupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
-export async function expelSavingGroupMember(groupId, memberId, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+// AI작성: 추방은 savingGroupId를 사용하며 처리자·사유 본문 없이 기존 JWT client로 요청한다.
+export async function expelSavingGroupMember(savingGroupId, memberId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const targetId = savingGroupPathId(memberId);
   const result = await savingGroupMemberResponse(
     () => client.patch(`/saving-groups/${id}/members/${targetId}/expel`, undefined, { signal }),
@@ -212,14 +230,14 @@ async function payoutCall(operation) {
   }
 }
 
-export async function getSavingGroupPayoutOptions(groupId, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupPayoutOptions(savingGroupId, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   return payoutCall(() => client.get(`/saving-groups/${id}/payout-requests/options`, { signal }));
 }
 
 // AI작성: 순번계는 빈 폼을 보내고 친목계만 금액·제목·영수증을 전달한다. multipart 경계는 브라우저가 생성한다.
-export async function createSavingGroupPayout(groupId, { amount, title, receipt } = {}, { signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function createSavingGroupPayout(savingGroupId, { amount, title, receipt } = {}, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const body = new FormData();
   if (amount != null) body.append('amount', String(amount));
   if (title != null) body.append('title', title);
@@ -359,10 +377,10 @@ function formatApplicationDate(value) {
 }
 
 // AI작성: 관리자 심사 화면에서 개설·삭제 신청을 같은 API로 조회하고 화면 필드로 변환한다.
-export async function getSavingGroupCreationApplications({ status, type, keyword, page = 1, signal } = {}) {
+export async function getSavingGroupCreationApplications({ status, type, sort = 'LATEST', keyword, page = 1, signal } = {}) {
   try {
     const response = await client.get('/admin/saving-group-applications', {
-      params: { status: status || undefined, type: type || undefined, keyword: keyword || undefined, page },
+      params: { status: status || undefined, type: type || undefined, sort, keyword: keyword || undefined, page },
       signal,
     });
     if (!response.data?.success || !Array.isArray(response.data.data) || !response.data.meta) {
@@ -378,6 +396,8 @@ export async function getSavingGroupCreationApplications({ status, type, keyword
         applicant: item.applicantName,
         region: item.regionName,
         appliedAt: formatApplicationDate(item.appliedAt),
+        // AI작성: 목록에서는 심사 완료일만 표시하고 대기 건은 하이픈으로 구분한다.
+        processedAt: item.processedAt ? formatApplicationDate(item.processedAt) : '-',
         status: savingGroupReviewStatusLabel[item.status] || '상태 확인 필요',
         type: item.type,
         reviewType: savingGroupReviewTypeLabel[item.type] || '유형 확인 필요',
@@ -420,8 +440,8 @@ export async function approveSavingGroupCreationApplication(approvalId) {
 }
 
 // AI작성: 계모임 공유 일정은 기존 인증 클라이언트로 조회하고 등록한다.
-export async function getSavingGroupCalendar(groupId, { month, signal }) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupCalendar(savingGroupId, { month, signal }) {
+  const id = savingGroupPathId(savingGroupId);
   try {
     const { data: response } = await client.get(`/saving-groups/${id}/calendar`, { params: { month }, signal });
     if (response?.success !== true || !Array.isArray(response.data?.events)) {
@@ -433,8 +453,8 @@ export async function getSavingGroupCalendar(groupId, { month, signal }) {
   }
 }
 
-export async function createSavingGroupCalendarEvent(groupId, event) {
-  const id = savingGroupPathId(groupId);
+export async function createSavingGroupCalendarEvent(savingGroupId, event) {
+  const id = savingGroupPathId(savingGroupId);
   try {
     const { data: response } = await client.post(`/saving-groups/${id}/calendar/events`, event);
     if (response?.success !== true || !response.data?.id) {
@@ -447,8 +467,8 @@ export async function createSavingGroupCalendarEvent(groupId, event) {
 }
 
 // AI작성: 일정 ID를 문자열로 유지하고 모임 범위 삭제 API를 호출한다.
-export async function deleteSavingGroupCalendarEvent(groupId, scheduleId) {
-  const id = savingGroupPathId(groupId);
+export async function deleteSavingGroupCalendarEvent(savingGroupId, scheduleId) {
+  const id = savingGroupPathId(savingGroupId);
   const eventId = savingGroupPathId(scheduleId);
   try {
     const { data: response } = await client.delete(`/saving-groups/${id}/calendar/events/${eventId}`);
@@ -459,8 +479,8 @@ export async function deleteSavingGroupCalendarEvent(groupId, scheduleId) {
 }
 
 // AI작성: 선택 월과 페이지를 계주 전용 납부 현황 API에 전달한다.
-export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, signal }) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupPaymentStatus(savingGroupId, { month, page = 1, signal }) {
+  const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/dues/payment-status`, {
     params: { month, page }, signal,
   });
@@ -471,8 +491,8 @@ export async function getSavingGroupPaymentStatus(groupId, { month, page = 1, si
 }
 
 /** AI작성: 공용 계좌 장부의 공개 필드와 서버 페이지 정보만 화면에 전달한다. */
-export async function getSavingGroupTransactions(groupId, { page = 1, signal } = {}) {
-  const id = savingGroupPathId(groupId);
+export async function getSavingGroupTransactions(savingGroupId, { page = 1, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
   const { data: response } = await client.get(`/saving-groups/${id}/account/transactions`, {
     params: { page }, signal,
   });
@@ -480,16 +500,71 @@ export async function getSavingGroupTransactions(groupId, { page = 1, signal } =
     throw new Error('거래내역 응답을 확인할 수 없습니다.');
   }
   return {
-    items: response.data.map(({ transactedAt, transactionType, amount, balanceAfter }) => ({
-      transactedAt, transactionType, amount, balanceAfter,
+    // AI작성: 공개 거래 필드와 서버에서 연결한 분류 정보만 화면에 전달한다.
+    items: response.data.map(({ transactionId, transactedAt, transactionType, amount, balanceAfter, description, purposeType, category, classificationStatus, categoryEditable }) => ({
+      transactedAt, transactionType, amount, balanceAfter, description,
+      ...(transactionId !== undefined && { transactionId }),
+      ...(purposeType !== undefined && {
+        purposeType, category, classificationStatus,
+        ...(categoryEditable !== undefined && { categoryEditable }),
+      }),
     })),
     meta: response.meta,
   };
 }
 
+// AI작성: 대시보드 전용 집계는 거래 페이지를 반복 조회하지 않고 서버가 계산한 최근 여섯 달 데이터만 사용한다.
+export async function getSavingGroupDashboard(savingGroupId, { month, signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  const { data: response } = await client.get(`/saving-groups/${id}/dashboard`, { params: { month }, signal });
+  const data = response?.data;
+  const toNumber = (value) => {
+    const amount = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(amount) ? amount : 0;
+  };
+  const toNonNegativeAmount = (value) => Math.max(0, toNumber(value));
+  const categoryCodes = new Set([...savingGroupExpenseCategoryCodes, 'NEEDS_REVIEW']);
+  if (response?.success !== true || !data) {
+    throw new Error('대시보드 응답을 확인할 수 없습니다.');
+  }
+  // AI작성: 일부 차트 행의 형식이 달라도 정상 요약 카드까지 비워지지 않도록 값별로 보정한다.
+  const monthlyTrends = Array.isArray(data.monthlyTrends) ? data.monthlyTrends
+    .filter((item) => item && /^\d{4}-(0[1-9]|1[0-2])$/.test(item.month))
+    .map((item) => ({ month: item.month, income: toNonNegativeAmount(item.income), expense: toNonNegativeAmount(item.expense) })) : [];
+  const expenseCategoryRatios = Array.isArray(data.expenseCategoryRatios) ? data.expenseCategoryRatios
+    .filter((item) => item && categoryCodes.has(item.category) && toNonNegativeAmount(item.amount) > 0)
+    .map((item) => ({ category: item.category, amount: toNonNegativeAmount(item.amount) })) : [];
+  return {
+    // AI작성: 내부 장부 잔액은 출금이 입금을 초과하면 음수가 될 수 있으므로 그대로 표시한다.
+    currentBalance: toNumber(data.currentBalance),
+    monthlyDuesTotal: toNonNegativeAmount(data.monthlyDuesTotal),
+    monthlyExpenseTotal: toNonNegativeAmount(data.monthlyExpenseTotal),
+    reviewRequiredWithdrawalCount: Number.isInteger(data.reviewRequiredWithdrawalCount)
+      && data.reviewRequiredWithdrawalCount >= 0 ? data.reviewRequiredWithdrawalCount : 0,
+    monthlyTrends,
+    expenseCategoryRatios,
+  };
+}
+
+// AI작성: 확인이 필요한 출금 거래의 최종 분류만 일괄 전송하고, 권한·대상 검증은 서버가 처리한다.
+export async function updateSavingGroupTransactionCategories(savingGroupId, items, { signal } = {}) {
+  const id = savingGroupPathId(savingGroupId);
+  if (!Array.isArray(items) || items.length < 1 || items.some((item) =>
+    !item || !savingGroupExpenseCategoryCodes.includes(item.category))) {
+    throw new Error('저장할 출금 분류를 확인해주세요.');
+  }
+  const body = {
+    items: items.map((item) => ({ transactionId: savingGroupPathId(item.transactionId), category: item.category })),
+  };
+  return savingGroupMemberResponse(
+    () => client.patch(`/saving-groups/${id}/account/transactions/categories`, body, { signal }),
+    '분류 항목을 저장하지 못했습니다. 다시 시도해주세요.'
+  );
+}
+
 // AI작성: 공개 상세와 분리된 회원 전용 API에서 마스킹 필드만 선택해 반환한다.
-export async function getSavingGroupAccount(groupId, { signal } = {}) {
-  const pathId = savingGroupPathId(groupId);
+export async function getSavingGroupAccount(savingGroupId, { signal } = {}) {
+  const pathId = savingGroupPathId(savingGroupId);
   const failure = (detail, status) => Object.assign(new Error(detail?.message || '계좌 정보를 불러오지 못했습니다.'), {
     name: 'SavingGroupAccountError', code: detail?.code || 'SAVING_GROUP_ACCOUNT_READ_FAILED', status,
   });
@@ -583,11 +658,11 @@ export async function createSavingGroupNotice(savingGroupId, { title, content },
 
 // AI작성: 고정 변경 오류의 서버 코드·문구·상태를 유지해 권한 변경과 최대 개수 초과를 안내한다.
 // AI작성: 수정 오류를 작성·고정 오류와 구분하고 서버 코드·상태 및 취소 원본을 유지한다.
-export async function updateSavingGroupNotice(groupId, noticeId, { title, content }, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function updateSavingGroupNotice(savingGroupId, noticeId, { title, content }, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.put(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { title, content }, { signal });
+    const response = await client.put(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { title, content }, { signal });
     if (response.data?.success !== true) throw { response };
     return response.data.data;
   } catch (error) {
@@ -601,11 +676,11 @@ export async function updateSavingGroupNotice(groupId, noticeId, { title, conten
 }
 
 // AI작성: 작성자는 요청으로 받지 않고 공통 인증 client로 삭제하며 오류·취소를 보존한다.
-export async function deleteSavingGroupNotice(groupId, noticeId, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function deleteSavingGroupNotice(savingGroupId, noticeId, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.delete(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    const response = await client.delete(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { signal });
     if (response.data?.success !== true) throw { response };
     return response.data.data;
   } catch (error) {
@@ -627,12 +702,12 @@ function toSavingGroupNoticePinError(error, status) {
 }
 
 // AI작성: 토글 대신 목표 상태를 전달해 응답 유실 후 재요청에서도 상태가 뒤집히지 않게 한다.
-export async function updateSavingGroupNoticePinned(groupId, noticeId, pinned, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function updateSavingGroupNoticePinned(savingGroupId, noticeId, pinned, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   if (typeof pinned !== 'boolean') throw toSavingGroupNoticePinError({ code: 'BAD_REQUEST', message: '고정 여부를 확인해 주세요.' }, 400);
   try {
-    const response = await client.patch(`/saving-groups/${groupPathId}/notices/${noticePathId}/pin`, { pinned }, { signal });
+    const response = await client.patch(`/saving-groups/${savingGroupPath}/notices/${noticePathId}/pin`, { pinned }, { signal });
     if (response.data?.success !== true) throw toSavingGroupNoticePinError(response.data?.error, response.status);
     return response.data.data;
   } catch (error) {
@@ -651,11 +726,11 @@ function toSavingGroupNoticeDetailError(error, status) {
 }
 
 // AI작성: 공통 groupId와 공지 ID를 문자열로 유지하며 인증·요청 취소는 기존 client를 재사용한다.
-export async function getSavingGroupNoticeDetail(groupId, noticeId, { signal } = {}) {
-  const groupPathId = savingGroupPathId(groupId);
+export async function getSavingGroupNoticeDetail(savingGroupId, noticeId, { signal } = {}) {
+  const savingGroupPath = savingGroupPathId(savingGroupId);
   const noticePathId = savingGroupPathId(noticeId);
   try {
-    const response = await client.get(`/saving-groups/${groupPathId}/notices/${noticePathId}`, { signal });
+    const response = await client.get(`/saving-groups/${savingGroupPath}/notices/${noticePathId}`, { signal });
     if (response.data?.success !== true) {
       throw toSavingGroupNoticeDetailError(response.data?.error, response.status);
     }
@@ -713,6 +788,10 @@ export async function getSavingGroupJoinRequests(savingGroupId, { status, page =
     items: result.data.map((item) => ({
       id: savingGroupPathId(item.crewMemberId),
       applicant: item.applicant || '이름 미등록',
+      // AI작성: 서버의 닉네임을 이름과 구분해 PC·모바일 목록에 전달한다.
+      nickname: item.nickname || '닉네임 미등록',
+      // AI작성: 공개 합의된 이메일 원문을 표시하고 신청 메시지는 사용하지 않는다.
+      email: item.email || '이메일 미등록',
       verification:
         item.identityVerified && item.regionVerified
           ? '본인·지역 인증 완료'
@@ -722,7 +801,6 @@ export async function getSavingGroupJoinRequests(savingGroupId, { status, page =
               ? '지역 인증 완료'
               : '인증 미완료',
       regionInterest: item.regionName || '지역 미등록',
-      message: item.applicationMessage || '신청 메시지가 없습니다.',
       status: { PENDING: '대기', APPROVED: '승인', REJECTED: '거절' }[item.membershipStatus] || '상태 확인 필요',
     })),
     meta: result.meta,
@@ -781,8 +859,11 @@ export function toSavingGroupCard(item) {
         ? '회비 확인 필요'
         : `월 ${amount.toLocaleString('ko-KR')}원`;
   return {
-    id: item.groupId,
+    // AI작성: 상세 주소는 계모임 고유 ID로 이동한다.
+    id: item.savingGroupId,
     name: item.groupName,
+    // AI작성: 등록 이미지가 없으면 기본 영역을 유지한다.
+    groupImageUrl: item.groupImageUrl ?? null,
     description: item.description?.trim() || '소개글이 없습니다.',
     region: item.regionName,
     district: item.regionName,

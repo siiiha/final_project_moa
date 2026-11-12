@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FiCamera } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -10,6 +10,7 @@ import {
   memberInterestOptions,
   uploadMyProfileImage,
   deleteMyProfileImage,
+  checkNicknameAvailable,
 } from '../../api/member';
 import useAuthStore from '../../store/authStore';
 import ProfileImage from './ProfileImage';
@@ -27,6 +28,19 @@ const Card = styled.section`
 
   @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
     grid-template-columns: 1fr;
+  }
+`;
+
+// AI작성: 사진 카드와 사진 오류를 같은 열에 배치합니다.
+const PhotoColumn = styled.div`
+  align-self: start;
+  display: grid;
+  gap: 12px;
+
+  > p {
+    margin: 0;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
   }
 `;
 
@@ -63,21 +77,6 @@ const Avatar = styled.div`
     object-fit: cover;
     object-position: center;
   }
-`;
-
-// AI작성: 사진 등록 상태를 프로필 사진 위에 표시합니다.
-const PhotoStatus = styled.span`
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.88);
-  color: ${({ theme }) => theme.colors.primary};
-  font-size: 14px;
-  font-weight: 700;
-  text-align: center;
 `;
 
 const AvatarLabel = styled.strong`
@@ -124,8 +123,21 @@ const FormArea = styled.div`
   display: grid;
   align-content: start;
   gap: 12px;
+
   label {
     word-break: keep-all;
+  }
+
+  /* AI작성: 수정 불가 항목을 회색으로 구분하고 내용 복사는 허용합니다. */
+  input[readonly] {
+    background: #eef2f1;
+    color: ${({ theme }) => theme.colors.secondaryText};
+    cursor: default;
+  }
+
+  input[readonly]:focus {
+    border-color: ${({ theme }) => theme.colors.border};
+    box-shadow: none;
   }
 `;
 
@@ -280,6 +292,75 @@ function EditProfileForm({ initialProfile }) {
 
   // AI작성: 사진 등록 진행 상태와 실패 상태를 관리합니다.
   const [photoStatus, setPhotoStatus] = useState('');
+  // AI작성: 사진 오류를 회원정보 수정 오류와 분리합니다.
+  const [photoError, setPhotoError] = useState('');
+  
+  // AI작성: 입력을 멈춘 뒤 닉네임을 확인하고, 이전 요청의 늦은 응답은 무시합니다.
+  const [nicknameCheck, setNicknameCheck] = useState({
+    value: '',
+    status: 'idle',
+  });
+
+  useEffect(() => {
+    const value = nickname.trim();
+    const originalNickname = (profile?.nickname ?? '').trim();
+
+    if (
+      value === originalNickname ||
+      value.length < 2 ||
+      value.length > 12
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const available = await checkNicknameAvailable(value);
+
+        if (typeof available !== 'boolean') {
+          throw new Error('닉네임 확인 결과가 올바르지 않습니다.');
+        }
+
+        if (!cancelled) {
+          setNicknameCheck({
+            value,
+            status: available ? 'available' : 'unavailable',
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setNicknameCheck({ value, status: 'error' });
+        }
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [nickname, profile?.nickname]);
+  // AI작성: 현재 입력값에 해당하는 확인 결과만 안내합니다.
+  const nicknameValue = nickname.trim();
+
+  const nicknameStatus =
+    nicknameValue === (profile?.nickname ?? '').trim()
+      ? 'idle'
+      : nicknameValue.length < 2 || nicknameValue.length > 12
+        ? 'invalid'
+        : nicknameCheck.value === nicknameValue
+          ? nicknameCheck.status
+          : 'checking';
+
+  const nicknameMessages = {
+    idle: '닉네임은 2~12자로 입력해 주세요.',
+    invalid: '닉네임은 2~12자로 입력해 주세요.',
+    checking: '닉네임을 확인하고 있어요.',
+    available: '사용 가능한 닉네임이에요.',
+    unavailable: '이미 사용 중인 닉네임이에요.',
+    error: '닉네임을 확인하지 못했어요. 잠시 후 다시 입력해 주세요.',
+  };
 
   // AI작성: 기존 선택은 해제할 수 있고, 새 선택은 최대 3개로 제한한다.
   const toggleInterest = (interestId) => {
@@ -364,15 +445,16 @@ function EditProfileForm({ initialProfile }) {
 
     if (!file || isSaving) return;
 
-    setErrorMessage('');
+    setPhotoError('');
+    setPhotoStatus('');
 
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setErrorMessage('JPG 또는 PNG 사진만 선택해주세요.');
+      setPhotoError('JPG 또는 PNG 사진을 선택해 주세요.');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('사진은 5MB 이하로 선택해주세요.');
+      setPhotoError('사진은 5MB 이하로 선택해 주세요.');
       return;
     }
 
@@ -389,7 +471,8 @@ function EditProfileForm({ initialProfile }) {
           : current,
       );
     } catch (error) {
-      setPhotoStatus('error');
+      // AI작성: 실패해도 기존 사진은 유지하고 카드 아래에 이유를 안내합니다.
+      setPhotoStatus('');
 
       if (error.response?.status === 401) {
         clearToken();
@@ -397,9 +480,9 @@ function EditProfileForm({ initialProfile }) {
         return;
       }
 
-      setErrorMessage(
+      setPhotoError(
         error.response?.data?.error?.message ??
-        '사진을 저장하지 못했습니다.',
+        '사진을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.',
       );
     } finally {
       setIsSaving(false);
@@ -410,7 +493,8 @@ function EditProfileForm({ initialProfile }) {
   const handlePhotoDelete = async () => {
     if (isSaving || !profile?.profileImageUrl) return;
 
-    setErrorMessage('');
+    setPhotoError('');
+    setPhotoStatus('');
     setIsSaving(true);
 
     try {
@@ -429,9 +513,9 @@ function EditProfileForm({ initialProfile }) {
         return;
       }
 
-      setErrorMessage(
+      setPhotoError(
         error.response?.data?.error?.message ??
-        '사진을 삭제하지 못했습니다.',
+        '사진을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.',
       );
     } finally {
       setIsSaving(false);
@@ -444,50 +528,49 @@ function EditProfileForm({ initialProfile }) {
 
   return (
     <Card>
-      <AvatarPanel>
-        <Avatar aria-busy={photoStatus === 'uploading'}>
-          <ProfileImage imageUrl={profile.profileImageUrl} />
-
-          {photoStatus && (
-            <PhotoStatus
-              role={photoStatus === 'error' ? 'alert' : 'status'}
+      <PhotoColumn>
+        <AvatarPanel>
+          <Avatar aria-busy={photoStatus === 'uploading'}>
+            <ProfileImage
+              imageUrl={profile.profileImageUrl}
+              size={72}
+              status={photoStatus}
+            />
+          </Avatar>
+          <AvatarLabel>프로필 사진</AvatarLabel>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            hidden
+            onChange={handlePhotoChange}
+          />
+          <AvatarActions>
+            <AvatarButton
+              type="button"
+              disabled={isSaving}
+              onClick={() => photoInputRef.current?.click()}
             >
-              {photoStatus === 'uploading'
-                ? '사진을 준비하고 있어요'
-                : '사진을 변경하지 못했어요'}
-            </PhotoStatus>
-          )}
-        </Avatar>
-        <AvatarLabel>프로필 사진</AvatarLabel>
-        <input
-          ref={photoInputRef}
-          type="file"
-          accept="image/jpeg,image/png"
-          hidden
-          onChange={handlePhotoChange}
-        />
-        <AvatarActions>
-          <AvatarButton
-            type="button"
-            disabled={isSaving}
-            onClick={() => photoInputRef.current?.click()}
-          >
-            <FiCamera size={12} aria-hidden="true" /> 사진 변경
-          </AvatarButton>
-          <AvatarButton
-            type="button"
-            $danger
-            disabled={isSaving || !profile.profileImageUrl}
-            onClick={handlePhotoDelete}
-          >
-            삭제
-          </AvatarButton>
-        </AvatarActions>
-        <PhotoHint>
-          선택한 사진은 자동으로 저장돼요.
-          <span>JPG·PNG · 최대 5MB</span>
-        </PhotoHint>
-      </AvatarPanel>
+              <FiCamera size={12} aria-hidden="true" /> 사진 변경
+            </AvatarButton>
+            <AvatarButton
+              type="button"
+              $danger
+              disabled={isSaving || !profile.profileImageUrl}
+              onClick={handlePhotoDelete}
+            >
+              삭제
+            </AvatarButton>
+          </AvatarActions>
+          <PhotoHint>
+            <span>JPG·PNG · 최대 5MB</span>
+          </PhotoHint>
+        </AvatarPanel>
+        {/* AI작성: 용량·형식·저장·삭제 오류를 사진 카드 바로 아래에 표시합니다. */}
+        {photoError && (
+          <ErrorNotice role="alert">{photoError}</ErrorNotice>
+        )}
+      </PhotoColumn>
 
       <FormArea as="form" onSubmit={handleUpdateRequest}>
         <TextInput
@@ -503,12 +586,29 @@ function EditProfileForm({ initialProfile }) {
           id="edit-nickname"
           label="닉네임"
           value={nickname}
-          onChange={(event) => setNickname(event.target.value)}
+          onChange={(event) => {
+            setNickname(event.target.value);
+            setNicknameCheck({ value: '', status: 'idle' });
+          }}
           minLength={2}
           maxLength={12}
           required
           disabled={isSaving}
-          helpText="2~12자 · 중복 여부는 저장 시 확인합니다."
+          helpText={
+            <span
+              role="status"
+              style={{
+                color:
+                  nicknameStatus === 'available'
+                    ? '#2E7D32'
+                    : ['invalid', 'unavailable', 'error'].includes(nicknameStatus)
+                      ? '#c9463f'
+                      : '#51625e',
+              }}
+            >
+              {nicknameMessages[nicknameStatus]}
+            </span>
+          }
           inline
           compact
         />

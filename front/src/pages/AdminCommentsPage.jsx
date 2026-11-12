@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import AdminCommentFilterBar from '../components/admin/AdminCommentFilterBar';
 import AdminCommentTable from '../components/admin/AdminCommentTable';
@@ -25,6 +26,7 @@ const ErrorMessage = styled.p`
 `;
 
 function AdminCommentsPage() {
+  const navigate = useNavigate();
   const [comments, setComments] = useState([]);
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
@@ -126,6 +128,7 @@ function AdminCommentsPage() {
             currentPage={currentPage}
             totalPages={pageMeta.totalPages}
             onPageChange={setCurrentPage}
+            onCommentClick={(postId) => navigate(`/post/${postId}`)}
             onDelete={handleDeleteRequest}
             loading={loading}
             deleting={deleting}

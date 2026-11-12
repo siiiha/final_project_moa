@@ -4,6 +4,7 @@ import com.nightstudy.moa.common.dto.ApiResponse;
 import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupChatMessage;
 import com.nightstudy.moa.savingGroup.service.SavingGroupChatService;
+import com.nightstudy.moa.savingGroup.dto.SavingGroupChatRoomResponse;
 import java.security.Principal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +25,8 @@ public class SavingGroupChatController {
     private final SimpMessagingTemplate messaging;
 
     @GetMapping("/api/saving-groups/{savingGroupId}/chat-room")
-    public ApiResponse<Long> room(@PathVariable long savingGroupId, @AuthenticationPrincipal Long memberId) {
-        return ApiResponse.ok(chatService.findRoomId(savingGroupId, memberId));
+    public ApiResponse<SavingGroupChatRoomResponse> room(@PathVariable long savingGroupId, @AuthenticationPrincipal Long memberId) {
+        return ApiResponse.ok(chatService.findRoom(savingGroupId, memberId));
     }
 
     @GetMapping("/api/v1/chat/rooms/{roomId}/messages")
@@ -42,6 +43,7 @@ public class SavingGroupChatController {
             SavingGroupChatMessage message = chatService.save(roomId, Long.valueOf(principal.getName()), request.content());
             messaging.convertAndSend("/topic/chat/rooms/" + roomId, message);
         } catch (ApiException exception) {
+            // AI작성: 도배 제한도 기존 개인 오류 큐로 전달하며 제한 시간은 채팅방 조회로 확인한다.
             messaging.convertAndSendToUser(principal.getName(), "/queue/errors",
                     ApiResponse.fail(exception.getCode(), exception.getMessage()));
         }

@@ -16,9 +16,11 @@ class SavingGroupAccountServiceTest {
     SavingGroupMapper mapper = mock(SavingGroupMapper.class);
     VirtualAccountStorageMapper accounts = mock(VirtualAccountStorageMapper.class);
     AccountNumberCipher cipher = AccountNumberCipherTest.cipher();
-    SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper, accounts, cipher, org.mockito.Mockito.mock(NotificationService.class));
+    SavingGroupServiceImpl service = new SavingGroupServiceImpl(mapper, accounts, cipher, org.mockito.Mockito.mock(NotificationService.class), org.mockito.Mockito.mock(com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient.class));
     void member(String role, String status) {
-        when(mapper.selectSavingGroupDetail(2L)).thenReturn(new SavingGroupRow());
+        var target = new SavingGroupRow();
+        target.setGroupId(2L);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(12L)).thenReturn(target);
         var relation = new SavingGroupMembershipRelationRow(); relation.setMemberRole(role); relation.setMembershipStatus(status);
         when(mapper.selectSavingGroupMembership(2L, 1L)).thenReturn(relation);
     }
@@ -28,26 +30,28 @@ class SavingGroupAccountServiceTest {
         var account = new EncryptedGroupAccountRow(); account.setBankCode("00");
         account.setAccountNumber(cipher.encrypt(2L, "X000000000000"));
         when(accounts.selectAccount(2L)).thenReturn(account); when(mapper.selectSavingGroupBalance(2L)).thenReturn(BigDecimal.ZERO);
-        var result = service.getSavingGroupAccount(2L, 1L);
+        var result = service.getSavingGroupAccount(12L, 1L);
         assertThat(result.issued()).isTrue(); assertThat(result.maskedAccountNumber()).isEqualTo("*********0000");
         assertThat(result.balance()).isEqualByComparingTo(BigDecimal.ZERO);
     }
     @ParameterizedTest @ValueSource(strings = {"PENDING", "REJECTED", "LEFT", "EXPELLED"})
     void deniesUnapprovedMembership(String status) {
         member("MEMBER", status);
-        assertThatThrownBy(() -> service.getSavingGroupAccount(2L, 1L)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.getSavingGroupAccount(12L, 1L)).isInstanceOf(ApiException.class);
         verifyNoInteractions(accounts);
     }
     @Test void distinguishesNotIssuedAndAuthentication() {
-        assertThatThrownBy(() -> service.getSavingGroupAccount(2L, null)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.getSavingGroupAccount(12L, null)).isInstanceOf(ApiException.class);
         verifyNoInteractions(mapper, accounts);
         member("MEMBER", "APPROVED");
-        assertThat(service.getSavingGroupAccount(2L, 1L).issued()).isFalse();
+        assertThat(service.getSavingGroupAccount(12L, 1L).issued()).isFalse();
     }
     @Test void missingGroupOrOtherGroupMemberCannotReadAccount() {
-        assertThatThrownBy(() -> service.getSavingGroupAccount(2L, 1L)).isInstanceOf(ApiException.class);
-        when(mapper.selectSavingGroupDetail(2L)).thenReturn(new SavingGroupRow());
-        assertThatThrownBy(() -> service.getSavingGroupAccount(2L, 1L)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> service.getSavingGroupAccount(12L, 1L)).isInstanceOf(ApiException.class);
+        var target = new SavingGroupRow();
+        target.setGroupId(2L);
+        when(mapper.selectSavingGroupDetailBySavingGroupId(12L)).thenReturn(target);
+        assertThatThrownBy(() -> service.getSavingGroupAccount(12L, 1L)).isInstanceOf(ApiException.class);
         verifyNoInteractions(accounts);
     }
 }

@@ -37,6 +37,21 @@ public interface SavingGroupMapper {
     int selectSavingGroupTransactionCount(@Param("accountId") Long accountId);
     List<SavingGroupTransactionRow> selectSavingGroupTransactions(@Param("accountId") Long accountId,
             @Param("offset") long offset, @Param("size") int size);
+    // AI작성: 대시보드는 페이지 제한 없이 최근 여섯 달의 모임 계좌 거래만 집계한다.
+    List<SavingGroupTransactionRow> selectSavingGroupDashboardTransactions(@Param("accountId") Long accountId,
+            @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+    // AI작성: 대시보드 현재 잔액은 거래 화면과 같은 최신 거래 후 잔액을 사용한다.
+    java.math.BigDecimal selectSavingGroupLatestTransactionBalance(@Param("accountId") Long accountId);
+    // AI작성: 같은 거래의 ML 결과는 한 번만 저장하고 이후 거래내역·대시보드에서 재사용한다.
+    SavingGroupTransactionClassificationRow selectSavingGroupTransactionClassification(@Param("transactionId") Long transactionId);
+    // AI작성: 목록·대시보드의 거래 ID를 한 번에 조회해 건별 분류 SELECT를 방지한다.
+    List<SavingGroupTransactionClassificationRow> selectSavingGroupTransactionClassifications(
+            @Param("transactionIds") List<Long> transactionIds);
+    int insertSavingGroupTransactionClassification(SavingGroupTransactionClassificationRow classification);
+    SavingGroupTransactionRow selectSavingGroupTransactionForCategoryUpdate(@Param("accountId") Long accountId,
+            @Param("transactionId") Long transactionId);
+    int updateSavingGroupTransactionFinalCategory(@Param("accountId") Long accountId,
+            @Param("transactionId") Long transactionId, @Param("finalCategory") String finalCategory);
     // AI작성: 공통 모임 잠금 아래 예약 목록을 통째로 저장하며 실제 회차·지급 원장은 변경하지 않는다.
     SavingGroupTurnOrderPlanRow selectTurnOrderGroupForUpdate(@Param("savingGroupId") Long savingGroupId);
     List<SavingGroupTurnOrderAssignmentRow> selectTurnOrderAssignmentMembers(@Param("groupId") Long groupId);
@@ -54,7 +69,9 @@ public interface SavingGroupMapper {
     boolean existsUpcomingTurnOrderPayout(@Param("groupId") Long groupId, @Param("startRound") int startRound);
     // AI작성: 추천에는 현재 승인된 모든 역할을 포함하며 저장 SQL은 추가하지 않는다.
     SavingGroupTurnOrderContextRow selectTurnOrderRecommendationContext(@Param("savingGroupId") Long savingGroupId);
-    List<SavingGroupTurnOrderMemberRow> selectTurnOrderRecommendationMembers(@Param("groupId") Long groupId);
+    // AI작성: 진행 중에는 서울 기준 적용월까지의 예약을 읽기 잠금 없이 조회한다.
+    List<SavingGroupTurnOrderMemberRow> selectTurnOrderRecommendationMembers(@Param("groupId") Long groupId,
+            @Param("savingGroupId") Long savingGroupId, @Param("month") java.time.LocalDate month);
     // AI작성: 모임 잠금 후 현재 읽기로 재전송·최초 5분 기준·확인 소비를 직렬화한다.
     Long selectDepositAccountForUpdate(@Param("groupId") Long groupId);
     LocalDateTime selectDepositNow();
@@ -76,7 +93,7 @@ public interface SavingGroupMapper {
     List<SavingGroupMemberResponse> selectSavingGroupMembers(
             @Param("groupId") Long groupId, @Param("keywordPattern") String keywordPattern, @Param("offset") int offset);
     // AI작성: 모임 잠금으로 같은 모임의 중복 검사와 저장을 직렬화한다. DB 컬럼 적용 후 사용한다.
-    SavingGroupPayoutTargetRow selectPayoutTargetForUpdate(@Param("groupId") Long groupId);
+    SavingGroupPayoutTargetRow selectPayoutTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
     // AI작성: 지급 요청을 실제 심사할 수 있는 승인 계주의 회원 번호만 조회한다.
     List<Long> selectSavingGroupPayoutReviewerIds(@Param("groupId") Long groupId);
     Integer selectPayoutSequence(@Param("groupId") Long groupId, @Param("memberId") Long memberId);
@@ -154,7 +171,9 @@ public interface SavingGroupMapper {
 
     // 목록 검색 조건에 맞는 공개 계모임의 총 개수를 조회한다.
     // AI작성: 일대다 데이터를 분리 조회하여 공지 수가 계원 집계에 영향을 주지 않게 한다.
-    SavingGroupRow selectSavingGroupDetail(@Param("groupId") Long groupId);
+    // AI작성: 상세 URL의 계모임 ID로 두 식별값을 조회한다.
+    SavingGroupRow selectSavingGroupDetailBySavingGroupId(@Param("savingGroupId") Long savingGroupId);
+
     long selectDetailMemberCount(@Param("groupId") Long groupId);
     List<SavingGroupNoticeSummaryResponse> selectRecentNotices(@Param("groupId") Long groupId);
     // AI작성: 모임 존재 여부는 Service에서 확인하며 고정 공지를 제외한 일반 공지 개수를 조회한다.
@@ -165,7 +184,7 @@ public interface SavingGroupMapper {
     // AI작성: 모든 페이지 상단의 고정 공지는 기존 공지 요약 DTO로 별도 조회한다.
     List<SavingGroupNoticeSummaryResponse> selectSavingGroupPinnedNotices(@Param("groupId") Long groupId);
     // AI작성: 고정 변경은 이 모임 잠금 후 기존 회원 관계 잠금·공지 잠금 순서로 수행해 동시 지정을 직렬화한다.
-    SavingGroupJoinTargetRow selectSavingGroupNoticeTargetForUpdate(@Param("groupId") Long groupId);
+    SavingGroupJoinTargetRow selectSavingGroupNoticeTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
     SavingGroupNoticePinRow selectSavingGroupNoticePinForUpdate(
             @Param("groupId") Long groupId, @Param("noticeId") Long noticeId);
     // AI작성: 집계 대신 현재 읽기의 고정 ID 목록 크기를 사용해 이전 스냅샷으로 인한 두 개 제한 초과를 방지한다.
@@ -272,7 +291,7 @@ public interface SavingGroupMapper {
     int updateSavingGroupStatus(
             @Param("groupId") Long groupId, @Param("status") String status);
     // AI작성: URL의 groupId로 계모임과 생성 계주를 잠가 추방 권한 검증에 사용한다.
-    SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(@Param("groupId") Long groupId);
+    SavingGroupJoinTargetRow selectSavingGroupExpulsionTargetForUpdate(@Param("savingGroupId") Long savingGroupId);
 
     // AI작성: 승인 상태인 기존 계원 관계 한 건만 추방 상태로 조건부 변경한다.
     int expelApprovedSavingGroupMember(@Param("crewMemberId") Long crewMemberId,

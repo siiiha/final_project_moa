@@ -12,6 +12,8 @@ import lombok.Setter;
 public class SavingGroupRow {
     // AI작성: 상세 화면의 순번계 전용 기능 노출에 사용하는 저장된 모임 유형이다.
     private String groupType;
+    // AI작성: 개설 시 저장한 이미지 경로를 조회한다.
+    private String groupImagePath;
     private Long savingGroupId;
     private Long groupId;
     private String groupName;

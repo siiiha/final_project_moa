@@ -329,7 +329,7 @@ test('지역 코드는 01~10 순서이며 카드는 기존 필드와 표시 형�
   const card = toSavingGroupCard({ savingGroupId: 101, groupId: 42, groupName: '테스트', description: '소개',
     regionName: '서울', maxMembers: 8, memberCount: 5, duesAmount: '50000.00', duesDay: 25, status: '01' });
   assert.equal(card.members, '5 / 8명');
-  assert.equal(card.id, 42);
+  assert.equal(card.id, 101);
   assert.equal(card.monthlyDues, '월 50,000원');
   assert.equal(card.nextDate, '매월 25일');
   assert.equal(card.status, '모집중');
@@ -495,23 +495,27 @@ function ok(config, data = null, meta = null) {
   return { data: { success: true, data, meta, error: null }, status: 200, headers: {}, config };
 }
 
-test('신청 목록은 서버 필터와 페이지를 전달하고 마스킹 이름·문자열 ID를 유지한다', async () => {
+test('신청 목록은 이름 원문·닉네임·문자열 ID와 서버 필터·페이지를 유지한다', async () => {
   const controller = new AbortController();
   await withAdapter(async (config) => {
     assert.equal(config.url, '/saving-groups/12/join-requests');
     assert.equal(config.params.status, 'PENDING');
     assert.equal(config.params.page, 2);
     assert.equal(config.signal, controller.signal);
-    return ok(config, [{ crewMemberId: '9007199254740993', applicant: '가**', regionName: '서울',
-      identityVerified: true, regionVerified: true, applicationMessage: null, membershipStatus: 'PENDING' }],
+    return ok(config, [{ crewMemberId: '9007199254740993', applicant: '테스트이름', nickname: '테스트닉네임', regionName: '서울',
+      identityVerified: true, regionVerified: true, email: 'applicant@example.com', membershipStatus: 'PENDING' }],
     { page: 2, size: 10, total: 11, totalPages: 2 });
   }, async () => {
     const result = await getSavingGroupJoinRequests('12', { status: 'PENDING', page: 2, signal: controller.signal });
     assert.equal(result.items[0].id, '9007199254740993');
-    assert.equal(result.items[0].applicant, '가**');
+    // AI작성: 이름 원문과 닉네임이 화면 데이터까지 유지되는지 검증한다.
+    assert.equal(result.items[0].applicant, '테스트이름');
+    assert.equal(result.items[0].nickname, '테스트닉네임');
     assert.equal(result.items[0].status, '대기');
     assert.equal(result.items[0].verification, '본인·지역 인증 완료');
-    assert.equal(result.items[0].message, '신청 메시지가 없습니다.');
+    // AI작성: 이메일 원문을 유지하고 사용하지 않는 신청 메시지는 전달하지 않는다.
+    assert.equal(result.items[0].email, 'applicant@example.com');
+    assert.equal(Object.hasOwn(result.items[0], 'message'), false);
     assert.equal(result.meta.total, 11);
   });
 });
@@ -715,4 +719,16 @@ test('잘못된 고정 ID와 상태는 전송 전에 차단한다', async () => 
     for (const pinned of [null, undefined, 'true', 1]) await assert.rejects(() => updateSavingGroupNoticePinned(20, 40, pinned));
     assert.equal(calls, 0);
   } finally { client.patch = original; }
+});
+
+// AI작성: 이미지 등록 여부에 따라 카드 주소를 전달하고 상세 응답의 주소를 유지한다.
+test('대표 이미지 주소를 카드와 상세 데이터에 보존한다', async () => {
+  assert.equal(toSavingGroupCard({ savingGroupId: 10 }).groupImageUrl, null);
+  const groupImageUrl = '/api/saving-groups/10/image';
+  assert.equal(toSavingGroupCard({ savingGroupId: 10, groupImageUrl }).groupImageUrl, groupImageUrl);
+  const original = client.get;
+  try {
+    client.get = async () => ({ data: { success: true, data: { savingGroupId: 10, groupImageUrl } } });
+    assert.equal((await getSavingGroupDetail('10')).groupImageUrl, groupImageUrl);
+  } finally { client.get = original; }
 });

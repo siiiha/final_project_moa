@@ -706,77 +706,6 @@ CREATE TABLE IF NOT EXISTS `interest` (
 	`interest_name`	VARCHAR(50)	NOT NULL COMMENT '관심사 이름',
 	PRIMARY KEY (`interest_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='관심사';
-CREATE TABLE IF NOT EXISTS card_expense_upload (
-    upload_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '카드 명세서 업로드 ID',
-    group_id BIGINT NOT NULL COMMENT '모임 ID',
-    uploaded_by BIGINT NOT NULL COMMENT '업로드 회원 ID',
-    uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '업로드 일시',
-
-    PRIMARY KEY (upload_id),
-
-    CONSTRAINT fk_card_expense_upload_group
-        FOREIGN KEY (group_id)
-        REFERENCES `groups` (group_id),
-
-    CONSTRAINT fk_card_expense_upload_member
-        FOREIGN KEY (uploaded_by)
-        REFERENCES members (member_id),
-
-    INDEX ix_card_expense_upload_group_uploaded
-        (group_id, uploaded_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='카드 명세서 업로드';
-
-
-CREATE TABLE IF NOT EXISTS card_expense (
-    card_expense_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '카드 지출 ID',
-    upload_id BIGINT NOT NULL COMMENT '카드 명세서 업로드 ID',
-
-    used_date DATE NOT NULL COMMENT '카드 사용일',
-    merchant_name VARCHAR(255) NOT NULL COMMENT '가맹점 이름',
-    amount DECIMAL(15,2) NOT NULL COMMENT '금액',
-
-    approval_status ENUM('APPROVED', 'CANCELED') NOT NULL COMMENT '카드 결제 승인 상태',
-
-    suggested_category VARCHAR(30) NULL COMMENT '자동 추천 분류',
-    final_category VARCHAR(30) NULL COMMENT '사용자 최종 분류',
-
-    classification_status ENUM(
-        'REVIEW_PENDING',
-        'REVIEW_REQUIRED',
-        'CONFIRMED',
-        'CANCEL_PENDING'
-    ) NOT NULL COMMENT '지출 분류 처리 상태',
-
-    confidence_score DECIMAL(5,4) NULL COMMENT '분류 확신도',
-
-    classification_source ENUM(
-        'KEYWORD_RULE',
-        'MACHINE_LEARNING',
-        'PAYMENT_PROVIDER',
-        'USER'
-    ) NULL COMMENT '분류 결과 출처',
-
-    review_reason VARCHAR(500) NULL COMMENT '확인 필요 사유',
-
-    confirmed_by BIGINT NULL COMMENT '확정 회원 ID',
-    confirmed_at DATETIME NULL COMMENT '확정 일시',
-
-    PRIMARY KEY (card_expense_id),
-
-    CONSTRAINT fk_card_expense_upload
-        FOREIGN KEY (upload_id)
-        REFERENCES card_expense_upload (upload_id),
-
-    CONSTRAINT fk_card_expense_confirmed_member
-        FOREIGN KEY (confirmed_by)
-        REFERENCES members (member_id),
-
-    INDEX ix_card_expense_upload_status
-        (upload_id, classification_status),
-
-    INDEX ix_card_expense_status_confirmed
-        (classification_status, confirmed_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='카드 지출';
 
 CREATE TABLE IF NOT EXISTS `group_transaction` (
     `transaction_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '거래 ID',
@@ -788,13 +717,32 @@ CREATE TABLE IF NOT EXISTS `group_transaction` (
     `source_transaction_id` VARCHAR(128) NULL COMMENT '거래 제공자의 거래 식별자',
     `transacted_at` DATETIME NOT NULL COMMENT '거래 일시',
     `description` VARCHAR(255) NULL COMMENT '설명',
+    `final_category` VARCHAR(30) NULL COMMENT '사용자가 선택한 최종 지출 분류',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
+
     PRIMARY KEY (`transaction_id`),
     UNIQUE KEY `uq_group_transaction_source`
 (`account_id`, `source_provider`, `source_transaction_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='모임 계좌 거래 내역';
 
--- AI작성: 테스트 입금 요청과 중복 확인 이력을 저장합니다.
+-- 계모임 거래의 자동 분류 결과 저장
+-- AI작성: COMMENT 문자열 표기와 키워드 오타, 최초 분류 일시 설명을 수정함.
+CREATE TABLE IF NOT EXISTS `saving_group_transaction_classification` (
+    `transaction_id` BIGINT NOT NULL COMMENT '거래 ID',
+    `suggested_category` VARCHAR(30) NULL COMMENT '자동 추천 분류',
+    `classification_status` VARCHAR(30) NOT NULL COMMENT '자동 분류 상태',
+    `confidence` DECIMAL(5,4) NULL COMMENT '분류 신뢰도',
+    `prediction_source` VARCHAR(30) NULL COMMENT '분류 출처',
+    `review_reason` VARCHAR(255) NULL COMMENT '확인 필요 사유',
+    `model_version` VARCHAR(100) NULL COMMENT '분류 모델 버전',
+    `classified_at` DATETIME NOT NULL COMMENT '최초 분류 일시',
+    `updated_at` DATETIME NOT NULL COMMENT '분류 결과 수정 일시',
+
+    PRIMARY KEY (`transaction_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci COMMENT='계모임 거래 자동 분류 결과';
+
+-- 테스트 입금 요청과 중복 확인 이력을 저장
 CREATE TABLE IF NOT EXISTS `saving_group_mock_deposit_request` (
     `deposit_request_id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '테스트 입금 요청 ID',
     `account_id` BIGINT NOT NULL COMMENT '모임 계좌 ID',
@@ -862,31 +810,6 @@ CREATE TABLE IF NOT EXISTS `saving_group_mock_deposit_request` (
               OR `confirmation_expires_at` > `requested_at`
           )
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='계모임 테스트 입금 요청';
-
-CREATE TABLE IF NOT EXISTS `transaction_anomaly_analysis` (
-    `transaction_id` BIGINT NOT NULL COMMENT '거래 ID',
-    `revision_no` INT NOT NULL COMMENT '분석 차수',
-    `input_fingerprint` CHAR(64) NOT NULL COMMENT '분석 입력 데이터 지문',
-    `status` ENUM('PENDING', 'COMPLETED', 'FAILED')
-    NOT NULL DEFAULT 'PENDING' COMMENT '처리 상태',
-    `anomaly_score` DOUBLE NULL COMMENT '이상 징후 점수',
-    `threshold` DOUBLE NULL COMMENT '이상 징후 판단 기준값',
-    `is_anomaly` BOOLEAN NULL COMMENT '이상 징후 여부',
-    `cold_start` BOOLEAN NULL COMMENT '초기 데이터 부족 여부',
-    `quality_flags` JSON NOT NULL COMMENT '데이터 품질 표시 정보',
-    `model_version` VARCHAR(128) NULL COMMENT '분석 모델 버전',
-    `feature_schema_version` VARCHAR(64) NULL COMMENT '분석 특성 구조 버전',
-    `analyzed_at` DATETIME(6) NULL COMMENT '분석 일시',
-    `error_code` VARCHAR(64) NULL COMMENT '오류 코드',
-    `created_at` DATETIME(6) NOT NULL
-    DEFAULT CURRENT_TIMESTAMP(6) COMMENT '생성 일시',
-    PRIMARY KEY (`transaction_id`, `revision_no`),
-    KEY `ix_transaction_anomaly_analysis_status_created`
-(`status`, `created_at`),
-    CONSTRAINT `fk_transaction_anomaly_analysis_transaction`
-    FOREIGN KEY (`transaction_id`)
-    REFERENCES `group_transaction` (`transaction_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='거래 이상 징후 분석';
 
 CREATE TABLE IF NOT EXISTS `post` (
 	`post_id`	BIGINT	NOT NULL AUTO_INCREMENT COMMENT '게시글 ID',

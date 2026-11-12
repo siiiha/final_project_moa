@@ -97,9 +97,9 @@ class SavingGroupCalendarMySqlIntegrationTest {
             }
             var createdTables = new java.util.ArrayList<String>();
             try {
-                statement.execute("CREATE TABLE `groups` (group_id BIGINT PRIMARY KEY, deleted_at DATETIME) ENGINE=InnoDB");
+                statement.execute("CREATE TABLE `groups` (group_id BIGINT PRIMARY KEY, deleted_at DATETIME, max_members INT, member_id BIGINT) ENGINE=InnoDB");
                 createdTables.add("`groups`");
-                statement.execute("CREATE TABLE saving_group (group_id BIGINT PRIMARY KEY, status VARCHAR(2)) ENGINE=InnoDB");
+                statement.execute("CREATE TABLE saving_group (saving_group_id BIGINT PRIMARY KEY, group_id BIGINT, status VARCHAR(2)) ENGINE=InnoDB");
                 createdTables.add("saving_group");
                 statement.execute("""
                         CREATE TABLE group_member (crew_member_id BIGINT PRIMARY KEY, group_id BIGINT,
@@ -111,8 +111,8 @@ class SavingGroupCalendarMySqlIntegrationTest {
                           writer_id BIGINT, title VARCHAR(100), event_date DATETIME) ENGINE=InnoDB
                         """);
                 createdTables.add("group_event");
-                statement.execute("INSERT INTO `groups` VALUES (10,NULL)");
-                statement.execute("INSERT INTO saving_group VALUES (10,'02')");
+                statement.execute("INSERT INTO `groups` VALUES (10,NULL,10,30)");
+                statement.execute("INSERT INTO saving_group VALUES (20,10,'02')");
                 statement.execute("INSERT INTO group_member VALUES (1,10,30,'OWNER','APPROVED'),(2,10,31,'MANAGER','APPROVED')");
                 try (var session = factory.openSession()) {
                     var mapper = session.getMapper(SavingGroupMapper.class);
@@ -136,7 +136,7 @@ class SavingGroupCalendarMySqlIntegrationTest {
                     assertThat(mapper.countCalendarEvents(10L, start, start.plusDays(1))).isEqualTo(10);
                     // AI작성: 실제 행을 삭제한 뒤 새 트랜잭션에서 등록 한도가 회복되는지 확인한다.
                     Long id = mapper.selectCalendarEvents(10L, start, start.plusDays(1)).get(0).scheduleId();
-                    new SavingGroupCalendarServiceImpl(mapper).delete(10L, 31L, id);
+                    new SavingGroupCalendarServiceImpl(mapper, org.mockito.Mockito.mock(com.nightstudy.moa.notification.service.NotificationService.class)).delete(20L, 31L, id);
                     assertThat(mapper.selectCalendarEvents(10L, start, start.plusDays(1)))
                             .noneMatch(row -> row.scheduleId().equals(id));
                     session.commit();
@@ -147,7 +147,7 @@ class SavingGroupCalendarMySqlIntegrationTest {
                 }
                 try (var session = factory.openSession()) {
                     var mapper = session.getMapper(SavingGroupMapper.class);
-                    new SavingGroupCalendarServiceImpl(mapper).create(10L, 30L,
+                    new SavingGroupCalendarServiceImpl(mapper, org.mockito.Mockito.mock(com.nightstudy.moa.notification.service.NotificationService.class)).create(20L, 30L,
                             new CreateRequest("삭제 후 등록", start.toLocalDate(), LocalTime.NOON));
                     assertThat(mapper.countCalendarEvents(10L, start, start.plusDays(1))).isEqualTo(10);
                     session.commit();
@@ -163,9 +163,10 @@ class SavingGroupCalendarMySqlIntegrationTest {
             try (var session = factory.openSession(TransactionIsolationLevel.REPEATABLE_READ)) {
                 ready.countDown();
                 assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-                var service = new SavingGroupCalendarServiceImpl(session.getMapper(SavingGroupMapper.class));
+                var service = new SavingGroupCalendarServiceImpl(session.getMapper(SavingGroupMapper.class),
+                        org.mockito.Mockito.mock(com.nightstudy.moa.notification.service.NotificationService.class));
                 try {
-                    service.create(10L, memberId, new CreateRequest("마지막 일정", start.toLocalDate(), LocalTime.NOON));
+                    service.create(20L, memberId, new CreateRequest("마지막 일정", start.toLocalDate(), LocalTime.NOON));
                     session.commit();
                     return HttpStatus.CREATED;
                 } catch (ApiException error) {

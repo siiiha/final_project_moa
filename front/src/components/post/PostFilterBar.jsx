@@ -129,6 +129,8 @@ function PostFilterBar({
             <option value="제목+내용">제목 + 내용</option>
             <option value="제목">제목</option>
             <option value="내용">내용</option>
+            {/* AI작성: 백엔드의 writer 검색 조건을 선택할 수 있도록 작성자 항목을 제공합니다. */}
+            <option value="작성자">작성자</option>
           </Select>
         </Field>
         <Field>
@@ -144,6 +146,7 @@ function PostFilterBar({
           <Select value={sort} onChange={(event) => onSortChange(event.target.value)}>
             <option value="최신순">최신순</option>
             <option value="과거순">과거순</option>
+            <option value="조회수 순">조회수 순</option>
           </Select>
         </Field>
         <FormActions>

@@ -1,6 +1,8 @@
 package com.nightstudy.moa.report.service;
 
 import com.nightstudy.moa.common.exception.ApiException;
+import com.nightstudy.moa.notification.dto.NotificationType;
+import com.nightstudy.moa.notification.service.NotificationService;
 import com.nightstudy.moa.report.dto.MemberReportRecord;
 import com.nightstudy.moa.report.dto.ReportCaseRecord;
 import com.nightstudy.moa.report.dto.ReportCreateRequest;
@@ -16,9 +18,14 @@ import org.springframework.transaction.annotation.Transactional;
 // AI작성: 신고 대상·본인·중복 여부를 검증하고 사건과 개별 신고를 한 트랜잭션으로 저장한다.
 public class ReportServiceImpl implements ReportService {
     private final ReportMapper reportMapper;
+    private final NotificationService notificationService;
 
-    public ReportServiceImpl(ReportMapper reportMapper) {
+    public ReportServiceImpl(
+            ReportMapper reportMapper,
+            NotificationService notificationService
+    ) {
         this.reportMapper = reportMapper;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -70,6 +77,15 @@ public class ReportServiceImpl implements ReportService {
         } catch (DuplicateKeyException e) {
             throw duplicateReportException();
         }
+
+        // AI작성: 신고 유형과 관계없이 모든 활성 관리자에게 신고 사건 상세 화면 링크를 알린다.
+        String targetUrl = "/admin/reposts/" + caseId;
+        reportMapper.selectActiveAdminIds().forEach(adminId -> notificationService.send(
+                adminId,
+                NotificationType.REPORT_RECEIVED,
+                "새로운 신고가 접수되었습니다. 내용을 확인해 주세요.",
+                targetUrl
+        ));
         return memberReport.getReportId();
     }
 

@@ -177,6 +177,13 @@ const GenderDialog = styled.dialog`
 const InterestCard = styled(SectionCard)`
   margin-top: 16px;
 
+  /* AI작성: 관심사 헤더에 적용된 큰 제목 여백을 제거합니다. */
+  > header > h2 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
   > div {
     padding: 15px 18px;
   }
@@ -375,6 +382,66 @@ const SignupFieldGroup = styled.div`
   }
 `;
 
+// AI작성: 마지막 단계에서는 이전 입력 정보를 접어 관심사 선택에 집중하도록 합니다.
+const PreviousInformation = styled.details`
+  margin-top: 4px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px;
+
+  > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 72px;
+    padding: 16px;
+    box-sizing: border-box;
+    list-style: none;
+    cursor: pointer;
+    color: ${({ theme }) => theme.colors.text};
+
+    &::-webkit-details-marker { display: none; }
+    &:focus-visible {
+      outline: 2px solid ${({ theme }) => theme.colors.primary};
+      outline-offset: 3px;
+      border-radius: 12px;
+    }
+    strong { display: block; font-size: 15px; }
+    small {
+      display: block;
+      margin-top: 5px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: ${({ theme }) => theme.colors.secondaryText};
+    }
+  }
+
+  .review-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    font-size: 13px;
+    color: ${({ theme }) => theme.colors.primary};
+  }
+  .review-action::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+  }
+  .review-close { display: none; }
+  &[open] .review-open { display: none; }
+  &[open] .review-close { display: inline; }
+  &[open] .review-action::after { transform: rotate(225deg); }
+  > div {
+    padding: 20px 16px 0;
+    border-top: 1px solid ${({ theme }) => theme.colors.border};
+  }
+`;
+
 const SignupInputCard = styled.section`
   box-sizing: border-box;
   width: 100%;
@@ -479,6 +546,8 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [gender, setGender] = useState('');
   const genderDialogRef = useRef(null);
   const signupCardRef = useRef(null);
+  // AI작성: 검증 오류가 있으면 접힌 입력 정보를 펼칩니다.
+  const previousInformationRef = useRef(null);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [agreements, setAgreements] = useState({});
   const [signupStep, setSignupStep] = useState('terms');
@@ -518,6 +587,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const [isRegionsLoading, setIsRegionsLoading] = useState(true);
   const [regionsError, setRegionsError] = useState('');
   const [nicknameMessage, setNicknameMessage] = useState('');
+  // AI작성: 중복 확인을 통과한 닉네임과 요청 순서를 관리합니다.
+  const [checkedNickname, setCheckedNickname] = useState('');
+  const nicknameCheckVersionRef = useRef(0);
   const [isCheckingNickname, setIsCheckingNickname] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupError, setSignupError] = useState('');
@@ -692,14 +764,17 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     }
   };
 
-  // 현재 입력한 닉네임의 사용 가능 여부를 확인
+  // AI작성: 확인 요청 이후 닉네임이 바뀌면 이전 응답을 적용하지 않습니다.
   const handleDuplicateCheck = async () => {
     if (isCheckingNickname || isSubmitting) return;
 
     const trimmedNickname = nickname.trim();
+    const requestVersion = ++nicknameCheckVersionRef.current;
+
+    setCheckedNickname('');
 
     if (trimmedNickname.length < 2 || trimmedNickname.length > 12) {
-      setNicknameMessage('닉네임은 2~12자로 입력해주세요.');
+      setNicknameMessage('닉네임은 2~12자로 입력해 주세요.');
       return;
     }
 
@@ -709,16 +784,28 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     try {
       const available = await checkNicknameAvailable(trimmedNickname);
 
+      if (requestVersion !== nicknameCheckVersionRef.current) return;
+
       if (typeof available !== 'boolean') {
         throw new Error('중복 확인 결과를 확인할 수 없습니다.');
       }
 
+      setCheckedNickname(available ? trimmedNickname : '');
       setNicknameMessage(
         available
           ? '사용 가능한 닉네임입니다.'
-          : '이미 사용 중인 닉네임입니다.',
+          : '중복된 닉네임입니다. 다른 닉네임을 입력해 주세요.',
+      );
+
+      // AI작성: 중복 여부와 관계없이 이전 재확인 안내를 지우고 실제 결과를 표시합니다.
+      setSignupError((previous) =>
+        previous === '현재 닉네임의 중복 확인을 완료해 주세요.'
+          ? ''
+          : previous,
       );
     } catch (error) {
+      if (requestVersion !== nicknameCheckVersionRef.current) return;
+
       setNicknameMessage(
         error.response?.data?.error?.message ??
         '닉네임 중복 확인에 실패했습니다.',
@@ -779,9 +866,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       setSignupError('닉네임은 2~12자로 입력해주세요.');
       return;
     }
-
-    if (!trimmedPhone || trimmedPhone.length > 20) {
-      setSignupError('전화번호는 1~20자로 입력해주세요.');
+    // AI작성: 마지막 단계에서 닉네임을 수정한 경우에도 다시 확인하도록 합니다.
+    if (checkedNickname !== trimmedNickname) {
+      setSignupError('현재 닉네임의 중복 확인을 완료해 주세요.');
+      return;
+    }
+    // AI작성: 최종 가입 요청에서도 휴대전화번호 형식을 확인합니다.
+    if (!/^010-\d{4}-\d{4}$/.test(trimmedPhone)) {
+      setSignupError('010으로 시작하는 휴대전화번호 11자리를 입력해 주세요.');
       return;
     }
 
@@ -792,8 +884,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       String(today.getDate()).padStart(2, '0'),
     ].join('-');
 
-    if (!birthDate || birthDate >= todayText) {
-      setSignupError('생년월일은 오늘보다 이전 날짜여야 합니다.');
+    // AI작성: 최종 가입 요청에서도 생년월일의 허용 범위를 확인합니다.
+    if (!birthDate || birthDate < '1900-01-01' || birthDate >= todayText) {
+      setSignupError('올바른 생년월일을 입력해 주세요.');
       return;
     }
 
@@ -978,17 +1071,23 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       const date = new Date(`${birthDate}T00:00:00Z`);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== birthDate ||
-        new Date(`${birthDate}T00:00:00`) >= today) {
-        message = '오늘보다 이전의 올바른 생년월일을 입력해 주세요.';
+      // AI작성: 생년월일은 1900년 1월 1일부터 오늘 이전까지만 허용합니다.
+      if (
+        Number.isNaN(date.getTime()) ||
+        date.toISOString().slice(0, 10) !== birthDate ||
+        birthDate < '1900-01-01' ||
+        new Date(`${birthDate}T00:00:00`) >= today
+      ) {
+        message = '올바른 생년월일을 입력해 주세요.';
       }
     }
 
     if (!message && includes('gender') && !gender) {
       message = '성별을 선택해 주세요.';
     }
-    if (!message && includes('phone') && (!phone.trim() || phone.trim().length > 20)) {
-      message = '전화번호를 입력해 주세요.';
+    // AI작성: 전화번호를 완성해야 다음 단계로 이동할 수 있습니다.
+    if (!message && includes('phone') && !/^010-\d{4}-\d{4}$/.test(phone.trim())) {
+      message = '010으로 시작하는 휴대전화번호 11자리를 입력해 주세요.';
     }
     if (!message && !isSocialSignup && includes('email') && !emailVerificationToken) {
       message = '이메일 인증을 완료해 주세요.';
@@ -1003,8 +1102,12 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
         message = '비밀번호와 비밀번호 확인이 일치하지 않습니다.';
       }
     }
-    if (!message && includes('nickname') && (nickname.trim().length < 2 || nickname.trim().length > 12)) {
-      message = '닉네임을 2~12자로 입력해 주세요.';
+    if (!message && includes('nickname')) {
+      if (nickname.trim().length < 2 || nickname.trim().length > 12) {
+        message = '닉네임을 2~12자로 입력해 주세요.';
+      } else if (checkedNickname !== nickname.trim()) {
+        message = '현재 닉네임의 중복 확인을 완료해 주세요.';
+      }
     }
     if (!message && includes('region') &&
       !memberRegionOptions.some((region) => region.regionId === Number(regionId) && region.townName)) {
@@ -1038,19 +1141,50 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     if (!message) setSignupStep(steps[stepIndex + 1]);
   };
 
+  // AI작성: 숨겨진 입력칸의 오류를 사용자가 확인하고 수정할 수 있도록 합니다.
+  const revealPreviousInformation = () => {
+    const review = previousInformationRef.current;
+    if (!review) return;
+    review.open = true;
+    window.requestAnimationFrame(() => {
+      const invalidInput = review.querySelector(':invalid, [aria-invalid="true"]');
+      if (invalidInput) {
+        invalidInput.focus();
+        invalidInput.scrollIntoView({ block: 'center' });
+      } else {
+        review.scrollIntoView({ block: 'start' });
+      }
+    });
+  };
+
   const submitSignup = (event) => {
     event.preventDefault();
     if (signupStep !== 'details') return;
-    if (!validatePasswordFields()) return;
+    if (!validatePasswordFields()) {
+      revealPreviousInformation();
+      return;
+    }
 
     const message = getStepError();
     if (message) {
       setSignupError(message);
+      revealPreviousInformation();
       return;
     }
 
     return handleSubmit(event);
   };
+  // AI작성: 생년월일 오류를 입력칸 아래에서만 표시합니다.
+  const hasBirthDateError =
+    signupError === '올바른 생년월일을 입력해 주세요.';
+
+  // AI작성: 전화번호 형식 오류를 구분합니다.
+  const hasPhoneError =
+    signupError === '010으로 시작하는 휴대전화번호 11자리를 입력해 주세요.';
+
+  // AI작성: 닉네임 중복 재확인이 필요한 오류를 구분합니다.
+  const hasNicknameError =
+    signupError === '현재 닉네임의 중복 확인을 완료해 주세요.';
 
   const fields = {
     name: (
@@ -1089,7 +1223,16 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             setSignupError('');
           }}
         />
-        {signupStep === 'birthDate' && (<p id="signup-birth-hint">생년월일은 8자리 숫자로 입력해 주세요.</p>)}
+        {/* AI작성: 생년월일 오류는 기본 안내 위치에서 빨간색으로 표시합니다. */}
+        {hasBirthDateError ? (
+          <EmailFeedback id="signup-birth-hint" role="alert">
+            {signupError}
+          </EmailFeedback>
+        ) : signupStep === 'birthDate' ? (
+          <p id="signup-birth-hint">
+            생년월일은 8자리 숫자로 입력해 주세요.
+          </p>
+        ) : null}
       </>
     ),
     gender: (
@@ -1150,10 +1293,18 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             const parts = [digits.slice(0, 3), digits.slice(3, 7), digits.slice(7)];
 
             setPhone(parts.filter(Boolean).join('-'));
+            if (hasPhoneError) setSignupError('');
           }}
           required
         />
-        {signupStep === 'phone' && (<p id="signup-phone-hint">사용 중인 전화번호를 입력해 주세요.</p>)}
+        {/* AI작성: 전화번호 오류는 기본 안내를 대신해 빨간색으로 표시합니다. */}
+        {hasPhoneError ? (
+          <EmailFeedback id="signup-phone-hint" role="alert">
+            {signupError}
+          </EmailFeedback>
+        ) : signupStep === 'phone' ? (
+          <p id="signup-phone-hint">사용 중인 전화번호를 입력해 주세요.</p>
+        ) : null}
       </>
     ),
     email: (
@@ -1207,7 +1358,19 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }
                 inline
                 compact
-                helpText="메일로 받은 인증번호를 입력해주세요."
+                helpText={
+                  // AI작성: 인증 완료 안내를 기존 입력 안내 위치에 표시합니다.
+                  emailVerificationToken ? (
+                    <span
+                      role="status"
+                      style={{ color: '#2E7D32', fontWeight: 600 }}
+                    >
+                      이메일 인증이 완료됐어요.
+                    </span>
+                  ) : (
+                    '메일로 받은 인증번호를 입력해 주세요.'
+                  )
+                }
                 action={
                   <VerifyButton
                     type="button"
@@ -1225,7 +1388,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                 }
               />
 
-              {emailMessage && <p role="status">{emailMessage}</p>}
+              {emailMessage && !emailVerificationToken && (
+                <p role="status">{emailMessage}</p>
+              )}
               {verificationRequestId && !emailVerificationToken && (
                 remainingSeconds > 0 ? (
                   <p
@@ -1318,6 +1483,10 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             onChange={(event) => {
               setNickname(event.target.value);
               setNicknameMessage('');
+              if (hasNicknameError) setSignupError('');
+              // AI작성: 닉네임이 바뀌면 이전 확인 결과와 진행 중인 응답을 무효화합니다.
+              setCheckedNickname('');
+              nicknameCheckVersionRef.current += 1;
             }}
             minLength={2}
             maxLength={12}
@@ -1336,9 +1505,28 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             }
           />
 
-          {nicknameMessage && <p role="status">{nicknameMessage}</p>}
         </FieldList>
-        {signupStep === 'nickname' && (<p>모아에서 사용할 닉네임을 2~12자로 입력해 주세요.</p>)}
+        {/* AI작성: 중복 재확인 오류도 닉네임 안내 위치에 표시합니다. */}
+        {hasNicknameError ? (
+          <EmailFeedback role="alert">{signupError}</EmailFeedback>
+        ) : (signupStep === 'nickname' || nicknameMessage) ? (
+          <p role={nicknameMessage ? 'status' : undefined}>
+            {nicknameMessage ? (
+              <span
+                style={{
+                  color:
+                    nicknameMessage === '사용 가능한 닉네임입니다.'
+                      ? '#2E7D32'
+                      : '#c9463f',
+                }}
+              >
+                {nicknameMessage}
+              </span>
+            ) : (
+              '모아에서 사용할 닉네임을 2~12자로 입력해 주세요.'
+            )}
+          </p>
+        ) : null}
       </>
     ),
     region: (
@@ -1597,15 +1785,52 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             aria-labelledby="signup-current-title"
           >
             <h2 id="signup-current-title">{titles[signupStep]}</h2>
-            {steps.slice(0, stepIndex + 1).reverse().map((step) => (
-              <SignupFieldGroup key={step}>{fields[step]}</SignupFieldGroup>
-            ))}
 
-            {signupError && <p role="alert">{signupError}</p>}
+            {/* AI작성: 마지막 단계에서만 이전 입력 정보를 접고, 기존 입력칸을 그대로 재사용합니다. */}
+            {signupStep === 'details' ? (
+              <>
+                <SignupFieldGroup key="details">{fields.details}</SignupFieldGroup>
+                <PreviousInformation
+                  ref={previousInformationRef}
+                  onInvalidCapture={revealPreviousInformation}
+                >
+                  <summary>
+                    <span>
+                      <strong>입력한 정보 확인</strong>
+                      <small>이름·연락처·활동 지역</small>
+                    </span>
+                    <span className="review-action">
+                      <span className="review-open">펼치기</span>
+                      <span className="review-close">접기</span>
+                    </span>
+                  </summary>
+                  <div>
+                    {steps.slice(0, stepIndex).reverse().map((step) => (
+                      <SignupFieldGroup key={step}>
+                        {fields[step]}
+                      </SignupFieldGroup>
+                    ))}
+                  </div>
+                </PreviousInformation>
+              </>
+            ) : (
+              steps.slice(0, stepIndex + 1).reverse().map((step) => (
+                <SignupFieldGroup key={step}>
+                  {fields[step]}
+                </SignupFieldGroup>
+              ))
+            )}
+
+            {signupError && !hasBirthDateError && !hasPhoneError && !hasNicknameError && (
+              <p role="alert">{signupError}</p>
+            )}
+
+            {/* AI작성: 관심사를 선택하고 입력 정보를 확인한 뒤 가입하도록 버튼을 아래에 배치합니다. */}
             {signupStep === 'details' ? (
               <SubmitButton
                 key="signup-submit"
                 type="submit"
+                style={{ marginTop: 24 }}
                 disabled={
                   isSubmitting ||
                   isEmailBusy ||
@@ -1615,13 +1840,16 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
                   memberTermOptions.length === 0
                 }
               >
-                {isSubmitting ? '가입 처리 중…' : '회원가입'}
+                {isSubmitting ? '가입 처리 중…' : '가입 완료'}
               </SubmitButton>
             ) : (
               <SubmitButton
                 key="signup-next"
                 type="button"
-                disabled={isEmailBusy || (signupStep === 'email' && !emailVerificationToken)}
+                disabled={
+                  isEmailBusy ||
+                  (signupStep === 'email' && !emailVerificationToken)
+                }
                 onClick={advanceSignup}
               >
                 다음

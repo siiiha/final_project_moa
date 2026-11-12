@@ -15,6 +15,8 @@ const ALL_CATEGORY_NAME = '전체보기';
 const SEARCH_TYPE_BY_CONDITION = {
   '제목': 'title',
   '내용': 'content',
+  // AI작성: 작성자 조건은 백엔드의 닉네임 검색값인 writer로 전달합니다.
+  '작성자': 'writer',
 };
 
 const Page = styled.div`
@@ -172,6 +174,7 @@ function PostListPage() {
             author: post.writerNickname || '알 수 없음',
             date: post.createdAtStr || '',
             views: post.viewCount,
+            commentCount: post.commentCount || 0,
           }))
         );
         setTotalCount(response.meta?.total || 0);
@@ -230,6 +233,9 @@ function PostListPage() {
     { length: Math.min(PAGE_BUTTON_COUNT, totalPages - pageStart + 1) },
     (_, index) => pageStart + index
   );
+  // AI작성: 이전·다음 버튼은 한 페이지가 아니라 5개 단위 페이지 묶음의 경계로 이동한다.
+  const previousGroupPage = pageStart - 1;
+  const nextGroupPage = pageStart + PAGE_BUTTON_COUNT;
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -237,7 +243,8 @@ function PostListPage() {
   };
 
   const handlePostClick = (postId) => {
-    navigate(`/post/${postId}`);
+    // AI작성: 상세에서 목록으로 돌아올 때 필터·검색·정렬·페이지 조건을 복원할 수 있도록 URL 조건을 함께 전달한다.
+    navigate(`/post/${postId}${location.search}`);
   };
 
   const handleWrite = () => {
@@ -281,6 +288,9 @@ function PostListPage() {
             totalCount={totalCount}
             currentPage={currentPage}
             pageNumbers={pageNumbers}
+            previousGroupPage={previousGroupPage}
+            nextGroupPage={nextGroupPage}
+            totalPages={totalPages}
             onPageChange={handlePageChange}
             onPostClick={handlePostClick}
           />

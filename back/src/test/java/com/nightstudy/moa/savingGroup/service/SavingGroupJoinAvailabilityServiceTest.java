@@ -41,14 +41,30 @@ class SavingGroupJoinAvailabilityServiceTest {
         member.setIdentityVerifiedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
         
         // AI작성: 제한 우선순위에 따라 일부 조회는 생략되므로 공통 기본값만 lenient로 설정한다.
-        lenient().when(mapper.selectSavingGroupDetail(20L)).thenReturn(row);
+        lenient().when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(row);
         lenient().when(mapper.selectDetailMemberCount(20L)).thenReturn(2L);
         lenient().when(mapper.selectSavingGroupJoinMember(30L)).thenReturn(member);
     }
 
+    // AI작성: 공개 응답은 저장 경로를 노출하지 않으며 누락·잘못된 경로는 404로 처리한다.
+    @Test
+    void representativeImageUsesPublicUrlAndRejectsMissingOrInvalidFiles() {
+        assertThat(service.getSavingGroupDetail(10L, null).getGroupImageUrl()).isNull();
+        row.setGroupImagePath("/uploads/groups/12345678-1234-1234-1234-123456789abc.png");
+        assertThat(service.getSavingGroupDetail(10L, null).getGroupImageUrl())
+                .isEqualTo("/api/saving-groups/10/image");
+        for (String path : new String[]{"", "/uploads/groups/../../secret.png", "/uploads/groups/test.svg"}) {
+            row.setGroupImagePath(path);
+            assertThat(catchThrowableOfType(() -> service.getSavingGroupImage(10L), ApiException.class))
+                    .isNotNull();
+        }
+        when(mapper.selectSavingGroupDetailBySavingGroupId(10L)).thenReturn(null);
+        assertThat(catchThrowableOfType(() -> service.getSavingGroupImage(10L), ApiException.class)).isNotNull();
+    }
+
     @Test
     void anonymousDetailRemainsPublicButCannotApply() {
-        SavingGroupDetailResponse response = service.getSavingGroupDetail(20L, null);
+        SavingGroupDetailResponse response = service.getSavingGroupDetail(10L, null);
         assertThat(response.isCanApply()).isFalse();
         assertThat(response.getMembershipStatus()).isNull();
         assertThat(response.getJoinRestrictionCode()).isEqualTo("UNAUTHORIZED");
@@ -179,7 +195,7 @@ class SavingGroupJoinAvailabilityServiceTest {
         }
     }
 
-    private SavingGroupDetailResponse detail() { return service.getSavingGroupDetail(20L, 30L); }
+    private SavingGroupDetailResponse detail() { return service.getSavingGroupDetail(10L, 30L); }
 
     private void setRelation(String status) {
         SavingGroupMembershipRelationRow relation = new SavingGroupMembershipRelationRow();

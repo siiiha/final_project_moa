@@ -13,18 +13,26 @@ import com.nightstudy.moa.savingGroup.dto.SavingGroupSettingsResponse;
 
 // AI작성: 공개 계모임 목록 조회 계약이다.
 public interface SavingGroupService {
+    // AI작성: 공개된 계모임의 대표 이미지를 조회한다.
+    org.springframework.core.io.Resource getSavingGroupImage(Long savingGroupId);
     // AI작성: 승인된 모임원의 공용 계좌 거래내역을 페이지로 조회한다.
     // AI작성: 선택한 월의 입금 합계로 회비 납부 상태를 조회한다.
     com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(
-            Long groupId, Long memberId, java.time.YearMonth month, int page);
+            Long savingGroupId, Long memberId, java.time.YearMonth month, int page);
 
     com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionListResponse getSavingGroupTransactions(
-            Long groupId, Long memberId, int page);
+            Long savingGroupId, Long memberId, int page);
+    // AI작성: 승인된 모임원이 회비·지출·분류 현황을 한 화면에서 확인할 수 있도록 집계한다.
+    com.nightstudy.moa.savingGroup.dto.SavingGroupDashboardResponse getSavingGroupDashboard(
+            Long savingGroupId, Long memberId, java.time.YearMonth month);
+    // AI작성: OWNER·MANAGER만 자동 분류가 어려운 MOCK 출금의 최종 분류를 한 번에 저장한다.
+    void updateSavingGroupTransactionCategories(Long savingGroupId, Long memberId,
+            com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionCategoryUpdateRequest request);
     // AI작성: 승인 계주에게 전체 승인 회원의 무작위 모의 순번을 제안하며 저장하지 않는다.
     java.util.List<com.nightstudy.moa.savingGroup.dto.SavingGroupTurnOrderRecommendationResponse>
             getTurnOrderRecommendations(Long savingGroupId, Long memberId);
     // AI작성: 승인 모임원에게만 계좌 마스킹 정보와 내부 장부 잔액을 제공한다.
-    com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId);
+    com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse getSavingGroupAccount(Long savingGroupId, Long memberId);
     // AI작성: 승인 계주만 기존 계원의 MEMBER·MANAGER 역할을 변경하며 회계는 최대 한 명이다.
     void updateSavingGroupMemberRole(Long savingGroupId, Long targetMemberId, Long memberId, String role);
     // AI작성: 승인 계주에게만 최대 20명의 계원을 10명 단위로 제공한다.
@@ -40,11 +48,11 @@ public interface SavingGroupService {
     void approveSavingGroupPayoutRequest(Long savingGroupId, Long requestId, Long memberId);
     void rejectSavingGroupPayoutRequest(Long savingGroupId, Long requestId, Long memberId, String rejectReason);
     // AI작성: 현재 승인된 공지 작성자만 소속 공지를 논리 삭제한다.
-    void deleteSavingGroupNotice(Long groupId, Long noticeId, Long memberId);
+    void deleteSavingGroupNotice(Long savingGroupId, Long noticeId, Long memberId);
     // AI작성: 공통 groupId 기준으로 승인 운영진인 작성자 본인의 제목·내용 전체 수정을 처리한다.
-    Long updateSavingGroupNotice(Long groupId, Long noticeId, Long memberId, String title, String content);
+    Long updateSavingGroupNotice(Long savingGroupId, Long noticeId, Long memberId, String title, String content);
     // AI작성: 승인된 OWNER·MANAGER만 공지 고정을 변경하며 모임당 최대 두 개를 같은 트랜잭션에서 검증한다.
-    void updateSavingGroupNoticePinned(Long groupId, Long noticeId, Long memberId, Boolean pinned);
+    void updateSavingGroupNoticePinned(Long savingGroupId, Long noticeId, Long memberId, Boolean pinned);
     // AI작성: 공통 groupId에 속한 공지 상세를 해당 모임의 승인된 회원에게만 제공한다.
     SavingGroupNoticeDetailResponse getSavingGroupNoticeDetail(
             Long groupId, Long noticeId, Long memberId);
@@ -53,10 +61,10 @@ public interface SavingGroupService {
     void createSavingGroupNotice(Long savingGroupId, Long memberId, String title, String content);
 
     // AI작성: memberId는 인증 계층에서 검증된 ID 또는 비로그인의 null만 받는다.
-    SavingGroupDetailResponse getSavingGroupDetail(Long groupId, Long memberId);
+    SavingGroupDetailResponse getSavingGroupDetail(Long savingGroupId, Long memberId);
     // AI작성: 기존 상세 데이터와 공지 전용 PageMeta를 함께 반환하며 공개 조회 권한은 유지한다.
     SavingGroupDetailPageResponse getSavingGroupDetail(
-            Long groupId, Long memberId, SavingGroupNoticeSearchCondition condition);
+            Long savingGroupId, Long memberId, SavingGroupNoticeSearchCondition condition);
     // AI작성: 승인된 계주에게만 신청 목록을 제공하며 상태·페이지는 서버에서 검증한다.
     SavingGroupJoinRequestListResponse getSavingGroupJoinRequests(
             Long savingGroupId, Long memberId, String status, int page);
@@ -68,7 +76,7 @@ public interface SavingGroupService {
     void rejectSavingGroupJoin(Long savingGroupId, Long crewMemberId, Long memberId);
 
     // AI작성: 계주는 자신의 계모임에 승인된 계원의 관계 상태만 추방으로 변경할 수 있다.
-    void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId);
+    void expelApprovedSavingGroupMember(Long savingGroupId, Long targetMemberId, Long memberId);
 
     // AI작성: 계주는 승인 후 시작 전인 자신의 계모임만 소프트 삭제할 수 있다.
     void deleteSavingGroup(Long savingGroupId, Long memberId);

@@ -5,6 +5,7 @@ import com.nightstudy.moa.report.dto.ReportCaseRecord;
 import com.nightstudy.moa.report.dto.ReportStatus;
 import com.nightstudy.moa.report.dto.ReportTarget;
 import com.nightstudy.moa.report.dto.ReportType;
+import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -31,4 +32,7 @@ public interface ReportMapper {
     int insertReportCase(ReportCaseRecord reportCase);
 
     int insertMemberReport(MemberReportRecord memberReport);
+
+    // AI작성: 탈퇴하지 않은 시스템 관리자에게 새 신고 알림을 전송하기 위한 수신자 목록을 조회한다.
+    List<Long> selectActiveAdminIds();
 }

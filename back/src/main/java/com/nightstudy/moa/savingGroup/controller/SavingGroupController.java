@@ -21,6 +21,9 @@ import java.util.List;
 import com.nightstudy.moa.savingGroup.dto.SavingGroupSearchCondition;
 import com.nightstudy.moa.savingGroup.service.SavingGroupService;
 import jakarta.validation.Valid;
+import java.time.DateTimeException;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -40,6 +43,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/saving-groups", "/api/saving-groups"})
 public class SavingGroupController {
+    // AI작성: Service가 확인한 대표 이미지를 형식에 맞춰 반환한다.
+    @GetMapping("/{savingGroupId}/image")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> image(
+            @PathVariable("savingGroupId") @Positive Long savingGroupId) {
+        var resource = savingGroupService.getSavingGroupImage(savingGroupId);
+        String name = resource.getFilename().toLowerCase(java.util.Locale.ROOT);
+        var type = name.endsWith(".png") ? org.springframework.http.MediaType.IMAGE_PNG
+                : name.endsWith(".webp") ? org.springframework.http.MediaType.parseMediaType("image/webp")
+                : org.springframework.http.MediaType.IMAGE_JPEG;
+        return org.springframework.http.ResponseEntity.ok().contentType(type)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff").body(resource);
+    }
+
     // AI작성: 본인 탈퇴 요청에는 서버가 인증한 회원 ID만 사용한다.
     @DeleteMapping("/{savingGroupId}/members/me")
     public ApiResponse<Void> leaveSavingGroup(
@@ -68,6 +85,31 @@ public class SavingGroupController {
         return ApiResponse.ok(result.items(), result.pageMeta());
     }
 
+    // AI작성: 선택 월과 최근 여섯 달 추이를 반환하며 소속·승인 여부는 Service에서 검증한다.
+    @GetMapping("/{savingGroupId}/dashboard")
+    public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupDashboardResponse> dashboard(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @RequestParam(name = "month", required = false) String month) {
+        YearMonth targetMonth;
+        try {
+            targetMonth = month == null ? YearMonth.now(ZoneId.of("Asia/Seoul")) : YearMonth.parse(month);
+        } catch (DateTimeException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "조회 월은 YYYY-MM 형식이어야 합니다.");
+        }
+        return ApiResponse.ok(savingGroupService.getSavingGroupDashboard(savingGroupId, memberId, targetMonth));
+    }
+
+    // AI작성: 화면에서 변경한 확인 필요 출금 항목만 일괄 저장하고 입금·자동 분류 완료 건은 Service가 거부한다.
+    @PatchMapping("/{savingGroupId}/account/transactions/categories")
+    public ApiResponse<Void> updateTransactionCategories(
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
+            @RequestAttribute(name = "memberId", required = false) Long memberId,
+            @Valid @RequestBody com.nightstudy.moa.savingGroup.dto.SavingGroupTransactionCategoryUpdateRequest request) {
+        savingGroupService.updateSavingGroupTransactionCategories(savingGroupId, memberId, request);
+        return ApiResponse.ok();
+    }
+
     // AI작성: 계주 전용 조회 결과를 기존 목록 응답 형식으로 반환한다.
     @GetMapping("/{savingGroupId}/dues/payment-status")
     public ApiResponse<List<com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusResponse>> paymentStatus(
@@ -80,19 +122,19 @@ public class SavingGroupController {
     }
 
     // AI작성: 계좌 원문 없이 회원 전용 정보를 반환하며 모임 소속 검증은 Service에서 수행한다.
-    @GetMapping("/{groupId}/account")
+    @GetMapping("/{savingGroupId}/account")
     public ApiResponse<com.nightstudy.moa.savingGroup.dto.SavingGroupAccountResponse> account(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupAccount(groupId, memberId));
+        return ApiResponse.ok(savingGroupService.getSavingGroupAccount(savingGroupId, memberId));
     }
     // AI작성: 기존 추방 경로를 연결하고 인증 사용자·소속·권한·상태 판단은 Service에 위임한다.
-    @PatchMapping("/{groupId}/members/{memberId}/expel")
+    @PatchMapping("/{savingGroupId}/members/{memberId}/expel")
     public ApiResponse<Void> expelMember(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @PathVariable("memberId") @Positive(message = "회원 ID는 1 이상이어야 합니다.") Long targetMemberId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        savingGroupService.expelApprovedSavingGroupMember(groupId, targetMemberId, memberId);
+        savingGroupService.expelApprovedSavingGroupMember(savingGroupId, targetMemberId, memberId);
         return ApiResponse.ok();
     }
     // AI작성: 대상 회원과 역할만 전달하고 처리자·권한·모임 소속은 Service에서 검증한다.
@@ -144,22 +186,22 @@ public class SavingGroupController {
         return ApiResponse.ok();
     }
     // AI작성: 요청 본문이나 작성자 입력 없이 JWT 회원과 경로 ID만 Service로 전달한다.
-    @DeleteMapping("/{groupId}/notices/{noticeId}")
+    @DeleteMapping("/{savingGroupId}/notices/{noticeId}")
     public ApiResponse<Void> deleteNotice(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        savingGroupService.deleteSavingGroupNotice(groupId, noticeId, memberId);
+        savingGroupService.deleteSavingGroupNotice(savingGroupId, noticeId, memberId);
         return ApiResponse.ok();
     }
-    // AI작성: 기존 상세·고정 API와 동일하게 경로 ID는 공통 groupId이고 인증 회원은 JWT 속성만 사용한다.
-    @PutMapping("/{groupId}/notices/{noticeId}")
+    // AI작성: 기존 상세·고정 API와 동일하게 경로 ID는 savingGroupId이고 인증 회원은 JWT 속성만 사용한다.
+    @PutMapping("/{savingGroupId}/notices/{noticeId}")
     public ApiResponse<Long> updateNotice(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @Valid @RequestBody SavingGroupNoticeUpdateRequest request) {
-        return ApiResponse.ok(savingGroupService.updateSavingGroupNotice(groupId, noticeId, memberId,
+        return ApiResponse.ok(savingGroupService.updateSavingGroupNotice(savingGroupId, noticeId, memberId,
                 request.getTitle(), request.getContent()));
     }
     private final SavingGroupService savingGroupService;
@@ -170,23 +212,23 @@ public class SavingGroupController {
     }
 
     // AI작성: 명시적 고정 상태와 양수 ID만 전달하며 권한·최대 개수는 Service 트랜잭션에서 검증한다.
-    @PatchMapping("/{groupId}/notices/{noticeId}/pin")
+    @PatchMapping("/{savingGroupId}/notices/{noticeId}/pin")
     public ApiResponse<Void> pinNotice(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @Valid @RequestBody SavingGroupNoticePinRequest request) {
-        savingGroupService.updateSavingGroupNoticePinned(groupId, noticeId, memberId, request.getPinned());
+        savingGroupService.updateSavingGroupNoticePinned(savingGroupId, noticeId, memberId, request.getPinned());
         return ApiResponse.ok();
     }
 
-    // AI작성: 경로의 groupId는 공통 모임 ID이며 공지 소속·승인 회원 권한은 Service에서 검증한다.
-    @GetMapping("/{groupId}/notices/{noticeId}")
+    // AI작성: 경로의 savingGroupId는 계모임 ID이며 공지 소속·승인 회원 권한은 Service에서 검증한다.
+    @GetMapping("/{savingGroupId}/notices/{noticeId}")
     public ApiResponse<SavingGroupNoticeDetailResponse> noticeDetail(
-            @PathVariable("groupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long groupId,
+            @PathVariable("savingGroupId") @Positive(message = "모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @PathVariable("noticeId") @Positive(message = "공지 ID는 1 이상이어야 합니다.") Long noticeId,
             @RequestAttribute(name = "memberId", required = false) Long memberId) {
-        return ApiResponse.ok(savingGroupService.getSavingGroupNoticeDetail(groupId, noticeId, memberId));
+        return ApiResponse.ok(savingGroupService.getSavingGroupNoticeDetail(savingGroupId, noticeId, memberId));
     }
 
     // AI작성: JSON 입력을 검증하고 JWT 회원 ID만 전달하며 모임 상태·권한·저장은 Service에서 처리한다.
@@ -263,13 +305,13 @@ public class SavingGroupController {
     }
 
     // AI작성: JWT 필터가 검증해 요청에 저장한 회원 ID만 상세 역할 조회에 사용한다.
-    @GetMapping("/{id}")
+    @GetMapping("/{savingGroupId}")
     public ApiResponse<SavingGroupDetailResponse> detail(
-            @PathVariable("id") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long id,
+            @PathVariable("savingGroupId") @Positive(message = "계모임 ID는 1 이상이어야 합니다.") Long savingGroupId,
             @RequestAttribute(name = "memberId", required = false) Long memberId,
             @Valid @ModelAttribute SavingGroupNoticeSearchCondition condition) {
         // AI작성: 기존 상세 데이터는 data에 유지하고 검증된 공지 조회 조건의 페이징 정보만 meta로 전달한다.
-        SavingGroupDetailPageResponse result = savingGroupService.getSavingGroupDetail(id, memberId, condition);
+        SavingGroupDetailPageResponse result = savingGroupService.getSavingGroupDetail(savingGroupId, memberId, condition);
         return ApiResponse.ok(result.getDetail(), result.getPageMeta());
     }
 

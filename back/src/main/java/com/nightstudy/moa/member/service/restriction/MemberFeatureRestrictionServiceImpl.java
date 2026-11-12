@@ -26,7 +26,7 @@ public class MemberFeatureRestrictionServiceImpl
             Long memberId,
             MemberRestrictionScope restrictionScope
     ) {
-        if (restrictionMapper.existsActiveRestriction(memberId, restrictionScope)) {
+        if (isRestricted(memberId, restrictionScope)) {
             throw new ApiException(
                     HttpStatus.FORBIDDEN,
                     "FEATURE_RESTRICTED",
@@ -34,4 +34,18 @@ public class MemberFeatureRestrictionServiceImpl
             );
         }
     }
+
+    @Override
+    @Transactional(readOnly = true)
+// AI작성: 영구 제한 또는 만료되지 않은 기능 제한 여부를 조회한다.
+    public boolean isRestricted(
+            Long memberId,
+            MemberRestrictionScope restrictionScope
+    ) {
+        return restrictionMapper.existsActiveRestriction(
+                memberId,
+                restrictionScope
+        );
+    }
+
 }

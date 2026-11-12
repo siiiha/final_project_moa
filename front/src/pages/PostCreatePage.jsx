@@ -6,6 +6,12 @@ import ConfirmModal from '../components/common/ConfirmModal';
 import PostCreateForm from '../components/post/PostCreateForm';
 import useAuthStore from '../store/authStore';
 
+// AI작성: 일반 공백과 한글 채움 문자(U+3164)만 입력한 제목·내용을 빈 값으로 처리한다.
+const isBlankPostInput = (value) => {
+  const trimmedValue = String(value || '').trim();
+  return !trimmedValue || /^[\u200B-\u200D\u2060\uFEFF\u180E\u3164]*$/u.test(trimmedValue);
+};
+
 
 const Page = styled.div`
   width: min(100% - 32px, ${({ theme }) => theme.maxWidth});
@@ -72,6 +78,7 @@ function PostCreatePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [inputNotice, setInputNotice] = useState('');
   const postDraftKey = memberId
     ? `moa-post-draft:${memberId}:${isEditMode ? postId : 'new'}`
     : null;
@@ -204,6 +211,15 @@ function PostCreatePage() {
       return;
     }
 
+    // AI작성: 네이버식 작성 흐름처럼 제목·내용을 순서대로 검사해 두 값이 모두 비어도 제목부터 안내한다.
+    if (isBlankPostInput(title)) {
+      setInputNotice('제목을 입력해 주세요.');
+      return;
+    }
+    if (isBlankPostInput(content)) {
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
     const categoryId = categories.find((item) => item.categoryName === category)?.categoryId;
     if (!categoryId) {
       setErrorMessage('올바른 카테고리를 선택해주세요.');
@@ -327,6 +343,16 @@ function PostCreatePage() {
           cancelFirst
           onConfirm={handleDiscardAndLeave}
           onCancel={() => setIsCancelModalOpen(false)}
+        />
+      )}
+      {inputNotice && (
+        <ConfirmModal
+          title="입력 내용을 확인해 주세요"
+          description={inputNotice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setInputNotice('')}
+          onCancel={() => setInputNotice('')}
         />
       )}
     </Page>

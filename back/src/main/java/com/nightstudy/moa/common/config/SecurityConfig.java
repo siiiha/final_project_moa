@@ -119,6 +119,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/saving-groups",
+                                // AI작성: 목록의 대표 이미지 GET만 공개한다.
+                                "/api/saving-groups/{savingGroupId:[0-9]+}/image",
                                 "/api/small-groups",
                                 "/api/community/list",
                                 "/api/community/categories"
@@ -133,17 +135,19 @@ public class SecurityConfig {
 
                         // AI작성: 게시글의 댓글 목록은 작성·수정 권한과 분리해 공개 조회만 허용한다.
                         .requestMatchers(
-                                new RegexRequestMatcher("^/api/post/\\d+/comments$", HttpMethod.GET.name())
+                                HttpMethod.GET,
+                                "/api/post/*/comments",
+                                "/post/*/comments"
                         ).permitAll()
 
-                        // AI작성: 숫자 ID 상세만 공개하고 지역·카테고리 등 다른 소모임 API는 기존 인증 정책을 유지한다.
+                        // AI작성: 정규식 비교에 포함되는 공지 쿼리 문자열도 허용하되 숫자 ID 상세 GET만 공개한다.
                         .requestMatchers(
-                                new RegexRequestMatcher("^/api/small-groups/\\d+$", HttpMethod.GET.name())
+                                new RegexRequestMatcher("^/api/small-groups/\\d+(?:\\?.*)?$", HttpMethod.GET.name())
                         ).permitAll()
 
-                        // AI작성: 후기 목록 GET만 공개하며 같은 경로의 POST 등록은 기존 인증 정책을 유지한다.
+                        // AI작성: 페이지 쿼리가 있는 후기 목록 GET도 공개하며 POST와 /reviews/me는 기존 인증을 유지한다.
                         .requestMatchers(
-                                new RegexRequestMatcher("^/api/small-groups/\\d+/reviews$", HttpMethod.GET.name())
+                                new RegexRequestMatcher("^/api/small-groups/\\d+/reviews(?:\\?.*)?$", HttpMethod.GET.name())
                         ).permitAll()
 
                         .requestMatchers(

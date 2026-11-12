@@ -75,7 +75,8 @@ const Field = styled.label`
   font-size: 12px;
   font-weight: 700;
   select, textarea { width: 100%; padding: 10px 12px; color: ${({ theme }) => theme.colors.text}; background: ${({ theme }) => theme.colors.white}; border: 1px solid ${({ theme }) => theme.colors.border}; border-radius: ${({ theme }) => theme.radius.sm}; font: inherit; }
-  textarea { min-height: 92px; resize: vertical; }
+  /* AI작성: 관리자 처리 사유 입력칸은 화면 구성과 확인 모달 크기를 유지하도록 드래그 변경을 막는다. */
+  textarea { min-height: 92px; resize: none; }
 `;
 
 // AI작성: 승인 처리에 필요한 선택 항목을 한 줄에 배치해 관리자가 값을 빠르게 비교할 수 있게 한다.
@@ -163,9 +164,11 @@ const DeleteOption = styled.label`
 `;
 
 // AI작성: 신고 사건 정보와 처리 입력 영역을 분리해 관리자에게 처리 대상과 결과를 명확히 안내한다.
-function AdminReportDetail({ report, action, restrictionScope, restrictionType, deleteTargetContent, processReason, submitting, onActionChange, onRestrictionScopeChange, onRestrictionTypeChange, onDeleteTargetContentChange, onProcessReasonChange, onSubmit, onBack }) {
+function AdminReportDetail({ report, action, restrictionScope, restrictionType, deleteTargetContent, processReason, submitting, onActionChange, onRestrictionTypeChange, onDeleteTargetContentChange, onProcessReasonChange, onSubmit, onDeleteReportedContent, onBack }) {
   const pending = report.statusCode === 'PENDING';
   const contentReport = ['POST', 'COMMENT'].includes(report.typeCode);
+  const restrictionLabel = restrictionScope === 'CONTENT' ? '게시글·댓글 작성 제한'
+    : restrictionScope === 'CHAT' ? '채팅 제한' : null;
   return (
     <Card>
       <TitleRow><Title>신고 사건 #{report.id}</Title><StatusBadge $pending={pending}>{report.status}</StatusBadge></TitleRow>
@@ -190,6 +193,12 @@ function AdminReportDetail({ report, action, restrictionScope, restrictionType, 
             <TargetMeta>작성자: {report.targetContent.writer}</TargetMeta>
             <TargetText>{report.targetContent.content || '내용을 확인할 수 없습니다.'}</TargetText>
           </TargetPreview>
+          {!pending && report.statusCode === 'CONFIRMED' && contentReport && !report.targetContent.deleted && (
+            <Actions>
+              {/* AI작성: 승인 당시 삭제하지 않은 콘텐츠도 신고 상세에서 근거를 확인한 뒤 사후 삭제할 수 있게 한다. */}
+              <Button type="button" $variant="danger" onClick={onDeleteReportedContent}>신고 콘텐츠 삭제</Button>
+            </Actions>
+          )}
         </>
       )}
       <SectionTitle>개별 신고 내용</SectionTitle>
@@ -198,9 +207,9 @@ function AdminReportDetail({ report, action, restrictionScope, restrictionType, 
         <SectionTitle>신고 처리</SectionTitle>
         <ProcessFields>
           <Field>처리 결과<select value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting}><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option></select></Field>
-          {/* AI작성: 신고 승인 시 관리자가 실제로 제한할 기능 범위를 명시적으로 선택한다. */}
-          {action === 'CONFIRMED' && <Field>제한 영역<select value={restrictionScope} onChange={(event) => onRestrictionScopeChange(event.target.value)} disabled={submitting}><option value="CONTENT">게시글·댓글</option><option value="CHAT">채팅</option><option value="REPORT">신고</option></select></Field>}
-          {action === 'CONFIRMED' && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
+          {/* AI작성: 게시글·댓글·채팅 신고는 신고 유형에 맞는 제한 영역만 고정해 다른 기능 제한을 막는다. */}
+          {action === 'CONFIRMED' && restrictionLabel && <Field>제한 영역<strong>{restrictionLabel}</strong></Field>}
+          {action === 'CONFIRMED' && restrictionLabel && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
         </ProcessFields>
         {/* AI작성: 게시글·댓글 신고 승인 시에만 대상 콘텐츠 삭제 여부를 선택할 수 있습니다. */}
         {action === 'CONFIRMED' && contentReport && (

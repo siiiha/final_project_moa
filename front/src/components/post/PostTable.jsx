@@ -76,18 +76,30 @@ const Table = styled.table`
 const PostTitle = styled.button`
   width: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: ${({ theme }) => theme.colors.text};
   background: transparent;
   border: 0;
   font-size: inherit;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 
   &:hover {
     color: ${({ theme }) => theme.colors.primary};
     text-decoration: underline;
   }
+`;
+
+const PostTitleText = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const CommentCount = styled.span`
+  flex: 0 0 auto;
 `;
 
 const Empty = styled.p`
@@ -108,7 +120,17 @@ const PageButton = styled(Button)`
   min-width: 30px;
 `;
 
-function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, onPostClick }) {
+function PostTable({
+  posts,
+  totalCount,
+  currentPage,
+  pageNumbers,
+  previousGroupPage,
+  nextGroupPage,
+  totalPages,
+  onPageChange,
+  onPostClick,
+}) {
   return (
     <>
       <Card>
@@ -139,7 +161,8 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
                     </td>
                     <td>
                       <PostTitle type="button" onClick={() => onPostClick(post.id)}>
-                        {post.title}
+                        <PostTitleText>{post.title}</PostTitleText>
+                        {post.commentCount > 0 && <CommentCount>[{post.commentCount}]</CommentCount>}
                       </PostTitle>
                     </td>
                     <td>{post.author}</td>
@@ -161,8 +184,8 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
             type="button"
             $variant="secondary"
             $size="small"
-            disabled={currentPage === 1}
-            onClick={() => onPageChange(currentPage - 1)}
+            disabled={previousGroupPage < 1}
+            onClick={() => onPageChange(previousGroupPage)}
           >
             이전
           </PageButton>
@@ -182,8 +205,8 @@ function PostTable({ posts, totalCount, currentPage, pageNumbers, onPageChange, 
             type="button"
             $variant="secondary"
             $size="small"
-            disabled={currentPage === pageNumbers[pageNumbers.length - 1]}
-            onClick={() => onPageChange(currentPage + 1)}
+            disabled={nextGroupPage > totalPages}
+            onClick={() => onPageChange(nextGroupPage)}
           >
             다음
           </PageButton>

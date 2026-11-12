@@ -227,7 +227,6 @@ function PostCreateForm({
             onChange={(event) => onTitleChange(event.target.value)}
             placeholder="제목을 입력하세요"
             maxLength={100}
-            required
           />
         </Field>
       </TopFields>
@@ -239,7 +238,6 @@ function PostCreateForm({
           onChange={(event) => onContentChange(event.target.value)}
           placeholder="내용을 입력하세요"
           maxLength={5000}
-          required
         />
       </ContentField>
       <Attachment>

@@ -53,8 +53,10 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
     }
 
     @Override @Transactional
-    public SavingGroupDepositResponse deposit(Long groupId, Long memberId, SavingGroupDepositRequest request) {
-        Long accountId = target(groupId, memberId);
+    public SavingGroupDepositResponse deposit(Long savingGroupId, Long memberId, SavingGroupDepositRequest request) {
+        var target = target(savingGroupId, memberId);
+        Long groupId = target.groupId();
+        Long accountId = target.accountId();
         if (request == null || request.amount() == null || request.amount().signum() <= 0
                 || request.amount().stripTrailingZeros().scale() > 0
                 || request.amount().compareTo(new BigDecimal("9999999999999")) > 0 || !validKey(request.requestKey()))
@@ -78,13 +80,15 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
         saveTransaction(groupId, row, now);
         row.setStatus("COMPLETED");
         requireOne(mapper.insertDepositRequest(row));
-        sendPaymentConfirmed(groupId, memberId, row.getAmount());
+        sendPaymentConfirmed(savingGroupId, memberId, row.getAmount());
         return completed(groupId, row);
     }
 
     @Override @Transactional
-    public SavingGroupDepositResponse confirm(Long groupId, Long memberId, SavingGroupDepositConfirmRequest request) {
-        Long accountId = target(groupId, memberId);
+    public SavingGroupDepositResponse confirm(Long savingGroupId, Long memberId, SavingGroupDepositConfirmRequest request) {
+        var target = target(savingGroupId, memberId);
+        Long groupId = target.groupId();
+        Long accountId = target.accountId();
         if (request == null || !validKey(request.requestKey()) || request.confirmationToken() == null
                 || !request.confirmationToken().matches("[A-Za-z0-9_-]{43}"))
             throw error(HttpStatus.BAD_REQUEST, "DEPOSIT_INVALID_INPUT", "입금 확인 정보를 확인해주세요.");
@@ -103,16 +107,18 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
             throw error(HttpStatus.FORBIDDEN, "DEPOSIT_CONFIRMATION_INVALID", "유효하지 않은 입금 확인 정보입니다.");
         saveTransaction(groupId, row, now);
         requireOne(mapper.completeDepositRequest(row));
-        sendPaymentConfirmed(groupId, memberId, row.getAmount());
+        sendPaymentConfirmed(savingGroupId, memberId, row.getAmount());
         return completed(groupId, row);
     }
 
-    private Long target(Long groupId, Long memberId) {
+    private DepositTarget target(Long savingGroupId, Long memberId) {
         if (memberId == null || memberId <= 0) throw error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
-        if (groupId == null || groupId <= 0) throw error(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
+        if (savingGroupId == null || savingGroupId <= 0) throw error(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
         delay.run(); // AI작성: DB 잠금을 잡기 전에만 Mock 지연을 적용한다.
-        var group = mapper.selectPayoutTargetForUpdate(groupId);
+        // AI작성: 계모임 ID로 잠근 행에서 계좌와 원장 조회에 필요한 공통 ID를 얻는다.
+        var group = mapper.selectSavingGroupJoinTargetForUpdate(savingGroupId);
         if (group == null) throw error(HttpStatus.NOT_FOUND, "NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        Long groupId = group.getGroupId();
         var relation = mapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole())
@@ -122,8 +128,10 @@ public class SavingGroupDepositServiceImpl implements SavingGroupDepositService 
             throw error(HttpStatus.CONFLICT, "DEPOSIT_INACTIVE", "진행중인 계모임에서만 테스트 입금할 수 있습니다.");
         Long accountId = mapper.selectDepositAccountForUpdate(groupId);
         if (accountId == null) throw error(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "입금할 공용 계좌가 없습니다.");
-        return accountId;
+        return new DepositTarget(groupId, accountId);
     }
+
+    private record DepositTarget(Long groupId, Long accountId) {}
 
     private SavingGroupDepositResponse pending(SavingGroupDepositRow row, LocalDateTime now, boolean insert) {
         byte[] bytes = new byte[32]; random.nextBytes(bytes);

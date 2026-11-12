@@ -56,7 +56,7 @@ class SmallGroupJoinRequestControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].crewMemberId").value("9007199254740993"))
-                .andExpect(jsonPath("$.data[0].applicant").value("가**"))
+                .andExpect(jsonPath("$.data[0].applicant").value("테스트닉네임"))
                 .andExpect(jsonPath("$.meta.page").value(2))
                 .andExpect(jsonPath("$.meta.size").value(10))
                 .andExpect(jsonPath("$.meta.total").value(11));
@@ -85,11 +85,11 @@ class SmallGroupJoinRequestControllerTest {
     private SmallGroupJoinRequestRow joinRequestRow() {
         SmallGroupJoinRequestRow row = new SmallGroupJoinRequestRow();
         row.setCrewMemberId("9007199254740993");
-        row.setApplicant("가**");
+        row.setApplicant("테스트닉네임");
         row.setRegionName("서울");
         row.setIdentityVerified(true);
         row.setRegionVerified(true);
-        row.setApplicationMessage("함께하고 싶습니다.");
+        // AI작성: 가입 신청 목록은 신청 메시지를 반환하지 않는다.
         row.setMembershipStatus("PENDING");
         return row;
     }

@@ -190,6 +190,13 @@ const MapButton = styled(Button)`
   font-size: 11px;
 `;
 
+// AI작성: 계모임 목록 버튼과 같은 보조 스타일·높이를 사용하고 장소 카드 너비에 맞춘다.
+const BackButton = styled(Button)`
+  width: 100%;
+  min-height: 38px;
+  font-size: 12px;
+`;
+
 const ScheduleRow = styled.div`
   margin-top: 13px;
   display: grid;
@@ -407,6 +414,8 @@ function SmallGroupDetail({
   group,
   groupId,
   smallGroupId,
+  // AI작성: 목록의 검색 조건과 페이지를 복원하는 상위 화면의 이동 함수를 받는다.
+  onBack,
   myRole = null,
   activeMenu,
   settings,
@@ -460,7 +469,8 @@ function SmallGroupDetail({
   }).formatToParts(reviewNow);
   const datePart = (type) => koreaDateParts.find((part) => part.type === type)?.value;
   const todayInKorea = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
-  const reviewRestriction = myRole !== 'MEMBER'
+  // AI작성: 공개 후기 조회는 유지하되 로그아웃 직후 이전 MEMBER 역할이 남아도 작성 버튼과 모달을 숨긴다.
+  const reviewRestriction = !hasLogin ? '후기 작성은 로그인 후 승인된 일반 모임원만 가능합니다.' : myRole !== 'MEMBER'
     ? (myRole === 'OWNER' ? '소모임 개설자는 후기를 작성할 수 없습니다.' : '승인된 일반 모임원만 후기를 작성할 수 있습니다.')
     : !group.meetDate ? '모임 날짜가 설정되지 않아 후기를 작성할 수 없습니다.'
       : group.meetDate >= todayInKorea ? '후기는 모임 다음 날부터 작성할 수 있습니다.' : '';
@@ -671,6 +681,8 @@ function SmallGroupDetail({
                 </MapButton>
               </PlaceContent>
             </Card>
+            {/* AI작성: 소모임 목록 복귀 버튼은 장소 카드 바로 아래에 배치한다. */}
+            <BackButton type="button" $variant="secondary" onClick={onBack}>소모임 목록으로</BackButton>
           </Column>
         </ContentGrid>
       )}

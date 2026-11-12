@@ -74,6 +74,9 @@ function toSmallGroupDetailView(data) {
 function SmallGroupDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  // AI작성: 상세에서 목록으로 이동할 때 적용된 검색 조건을 복원한다.
+  const goToList = () => navigate({ pathname: '/small-groups',
+    search: new URLSearchParams(location.search).get('listSearch') ?? '' });
   const { id } = useParams();
   const noticeQuery = readSmallGroupNoticeQuery(location.search);
   // AI작성: 로그인 계정이 바뀌면 이전 계정의 신청 상태와 응답을 재사용하지 않는다.
@@ -300,7 +303,7 @@ function SmallGroupDetailPage() {
               {!['NOT_FOUND', 'ACCESS_DENIED', 'UNAUTHORIZED', 'LOGIN_REQUIRED'].includes(errorCode) && (
                 <Button type="button" onClick={() => setRetry((value) => value + 1)}>다시 시도</Button>
               )}
-              <Button type="button" $variant="secondary" onClick={() => navigate('/small-groups')}>
+              <Button type="button" $variant="secondary" onClick={goToList}>
                 소모임 목록으로
               </Button>
             </EmptyCard>
@@ -310,6 +313,8 @@ function SmallGroupDetailPage() {
               group={group}
               groupId={current.group.groupId}
               smallGroupId={current.group.smallGroupId}
+              // AI작성: 장소 카드 아래 목록 버튼에서도 기존 검색·페이지 복원 함수를 재사용한다.
+              onBack={goToList}
               myRole={current.group.myRole}
               activeMenu={menu.id === id ? menu.value : 'notice'}
               settings={currentSettings?.settings}

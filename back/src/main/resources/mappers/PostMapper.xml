@@ -62,8 +62,10 @@
     <select id="selectPostList" parameterType="PostSearchCondition" resultType="PostDto">
         SELECT p.post_id, p.writer_id, p.category_id, p.title,
         p.content, p.view_count, p.created_at, p.updated_at,
-        <!-- AI작성: 게시글 작성일을 댓글과 동일한 날짜·시간 형식으로 반환한다. -->
-        DATE_FORMAT(p.created_at, '%Y. %m. %d. %H:%i') AS created_at_str,
+        <!-- AI작성: 원댓글과 대댓글을 포함하되 삭제된 댓글은 목록 개수에서 제외한다. -->
+        (SELECT COUNT(*) FROM comment c WHERE c.post_id = p.post_id AND c.deleted_at IS NULL) AS comment_count,
+        <!-- AI작성: 게시글 목록에서는 작성 시간을 제외한 날짜만 반환한다. -->
+        DATE_FORMAT(p.created_at, '%Y. %m. %d.') AS created_at_str,
         m.nickname AS writer_nickname,
         pc.category_name
         FROM post p

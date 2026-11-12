@@ -33,10 +33,10 @@ public class SavingGroupPayoutServiceImpl implements SavingGroupPayoutService {
         this.notificationService = notificationService;
     }
     private ApiException error(HttpStatus status, String code, String message) { return new ApiException(status, code, message); }
-    private SavingGroupPayoutTargetRow target(Long groupId, Long memberId) {
+    private SavingGroupPayoutTargetRow target(Long savingGroupId, Long memberId) {
         if (memberId == null || memberId <= 0) throw error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
-        if (groupId == null || groupId <= 0) throw error(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
-        var group = mapper.selectPayoutTargetForUpdate(groupId);
+        if (savingGroupId == null || savingGroupId <= 0) throw error(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
+        var group = mapper.selectPayoutTargetForUpdate(savingGroupId);
         if (group == null) throw error(HttpStatus.NOT_FOUND, "NOT_FOUND", "계모임을 찾을 수 없습니다.");
         return group;
     }
@@ -48,8 +48,10 @@ public class SavingGroupPayoutServiceImpl implements SavingGroupPayoutService {
         return relation.getMemberRole();
     }
     private record Context(SavingGroupPayoutTargetRow group, SavingGroupPayoutRoundRow round) {}
-    private Context context(Long groupId, Long memberId) {
-        var group = target(groupId, memberId);
+    private Context context(Long savingGroupId, Long memberId) {
+        // AI작성: 잠근 계모임의 공통 ID로 소속과 지급 회차를 검사한다.
+        var group = target(savingGroupId, memberId);
+        Long groupId = group.getGroupId();
         String role = membership(groupId, memberId);
         if (!"02".equals(group.getStatus())) throw error(HttpStatus.CONFLICT, "PAYOUT_INACTIVE", "진행 중인 계모임에서만 요청할 수 있습니다.");
         if ("친목계".equals(group.getGroupType())) {
@@ -93,11 +95,12 @@ public class SavingGroupPayoutServiceImpl implements SavingGroupPayoutService {
                 ctx.round() == null ? null : ctx.round().getPayoutAmount(), ctx.round() == null, id, id == null ? null : "PENDING");
     }
     @Override @Transactional
-    public SavingGroupPayoutResponse getPayoutOptions(Long groupId, Long memberId) { return response(context(groupId, memberId), null); }
+    public SavingGroupPayoutResponse getPayoutOptions(Long savingGroupId, Long memberId) { return response(context(savingGroupId, memberId), null); }
 
     @Override @Transactional
-    public SavingGroupPayoutResponse createPayout(Long groupId, Long memberId, SavingGroupPayoutRequest request, MultipartFile receipt) {
-        var ctx = context(groupId, memberId);
+    public SavingGroupPayoutResponse createPayout(Long savingGroupId, Long memberId, SavingGroupPayoutRequest request, MultipartFile receipt) {
+        var ctx = context(savingGroupId, memberId);
+        Long groupId = ctx.group().getGroupId();
         var row = new SavingGroupPayoutInsertRow();
         row.setGroupId(groupId); row.setRequesterId(memberId);
         if (ctx.round() != null) {
@@ -131,14 +134,14 @@ public class SavingGroupPayoutServiceImpl implements SavingGroupPayoutService {
                         reviewerId,
                         NotificationType.SAVING_GROUP_PAYOUT_REQUESTED,
                         "새로운 계금·지출 요청이 등록되었습니다.",
-                        "/saving-groups/" + groupId
+                        "/saving-groups/" + savingGroupId
                 ));
         return new SavingGroupPayoutResponse(ctx.group().getGroupType(), ctx.round() == null ? null : ctx.round().getRoundNumber(),
                 row.getAmount(), ctx.round() == null, row.getId(), "PENDING");
     }
     @Override @Transactional
-    public Resource getReceipt(Long groupId, Long expenseId, Long memberId) {
-        target(groupId, memberId);
+    public Resource getReceipt(Long savingGroupId, Long expenseId, Long memberId) {
+        Long groupId = target(savingGroupId, memberId).getGroupId();
         if (!"OWNER".equals(membership(groupId, memberId))) throw error(HttpStatus.FORBIDDEN, "RECEIPT_FORBIDDEN", "계주만 영수증을 열람할 수 있습니다.");
         if (expenseId == null || expenseId <= 0) throw error(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "지출 번호를 확인해주세요.");
         String name = mapper.selectPayoutReceiptForOwner(groupId, expenseId);

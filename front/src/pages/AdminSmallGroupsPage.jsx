@@ -4,6 +4,7 @@ import SmallGroupFilterBar from '../components/admin/SmallGroupFilterBar';
 import SmallGroupTable from '../components/admin/SmallGroupTable';
 import AdminPageLayout from '../components/layout/AdminPageLayout';
 import client from '../api/client';
+import { formatAdminDate } from '../api/adminFormatters';
 import { getMemberRegions } from '../api/member';
 import ConfirmModal from '../components/common/ConfirmModal';
 
@@ -59,6 +60,13 @@ const ErrorMessage = styled.p`
   color: ${({ theme }) => theme.colors.danger};
   font-size: 12px;
 `;
+
+function formatLeaderInfo(name, nickname) {
+  if (!name && !nickname) return '-';
+  if (!name) return nickname;
+  if (!nickname) return name;
+  return `${name}(${nickname})`;
+}
 
 function AdminSmallGroupsPage() {
   const [groups, setGroups] = useState([]);
@@ -122,6 +130,8 @@ function AdminSmallGroupsPage() {
             provinceName: province || undefined,
             districtName: district || undefined,
             townName: town || undefined,
+            // AI작성: 화면 한글 상태를 API가 검증하는 운영 상태 코드로 변환해 전달한다.
+            status: status === '활동중' ? 'ACTIVE' : status === '정지' ? 'RESTRICTED' : undefined,
             page: currentPage,
           },
           signal: controller.signal,
@@ -136,9 +146,11 @@ function AdminSmallGroupsPage() {
           id: group.smallGroupId,
           name: group.groupName,
           category: group.likeCategory || '-',
-          leader: group.creatorNickname || '-',
+          leader: formatLeaderInfo(group.creatorName, group.creatorNickname),
           region: group.regionName,
           participants: group.memberCount ?? 0,
+          // AI작성: 소모임 생성 시각을 관리자 목록의 개설일 표시 형식으로 변환한다.
+          openedAt: formatAdminDate(group.createdAt, { fallback: '-', compact: false }),
           status: group.status === 'ACTIVE' ? '활동중' : group.status === 'RESTRICTED' ? '정지' : '-',
           statusCode: group.status,
         })));
@@ -156,7 +168,7 @@ function AdminSmallGroupsPage() {
 
     loadGroups();
     return () => controller.abort();
-  }, [currentPage, district, province, reloadKey, submittedQuery, town]);
+  }, [currentPage, district, province, reloadKey, status, submittedQuery, town]);
 
   const handleSearch = (event) => {
     event.preventDefault();

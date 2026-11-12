@@ -1,6 +1,10 @@
 package com.nightstudy.moa.savingGroup.service;
 
 import com.nightstudy.moa.savingGroup.dto.*;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseCategory;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassifierClient;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationStatus;
+import com.nightstudy.moa.savingGroup.cardExpense.CardExpenseClassificationSource;
 import com.nightstudy.moa.savingGroup.mapper.SavingGroupMapper;
 import com.nightstudy.moa.savingGroup.mapper.VirtualAccountStorageMapper;
 import com.nightstudy.moa.common.dto.PageMeta;
@@ -8,13 +12,17 @@ import com.nightstudy.moa.common.exception.ApiException;
 import com.nightstudy.moa.notification.dto.NotificationType;
 import com.nightstudy.moa.notification.service.NotificationService;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,6 +32,9 @@ import org.springframework.transaction.annotation.Propagation;
 // AI작성: 입력 검증은 Controller에 맡기고 조회와 응답 조합만 담당한다.
 @Service
 public class SavingGroupServiceImpl implements SavingGroupService {
+    // AI작성: 대시보드 추이는 현재 월을 포함한 최근 여섯 달만 보여주며, 집계 범위를 한곳에서 관리한다.
+    private static final int DASHBOARD_MONTH_COUNT = 6;
+
     // AI작성: 같은 읽기 스냅샷의 모임·회원·회비로 계산하며 실제 순번·회차·지급 상태는 변경하지 않는다.
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
@@ -43,23 +54,35 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TYPE_INVALID", "순번계에서만 순번을 추천받을 수 있습니다.");
         if (!"01".equals(group.getStatus()) && !"02".equals(group.getStatus()))
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "모집중 또는 진행중인 계모임에서만 이용할 수 있습니다.");
-        var members = new java.util.ArrayList<>(savingGroupMapper.selectTurnOrderRecommendationMembers(group.getGroupId()));
+        // AI작성: 실제 적용 순번으로 고정 계원을 판별하되 예상액은 전체 승인 인원을 기준으로 계산한다.
+        var today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        int startRound = SavingGroupTurnOrderPolicy.nextRound(group.getStatus(), group.getStartDate(), today);
+        var approved = savingGroupMapper.selectTurnOrderRecommendationMembers(group.getGroupId(), savingGroupId,
+                startRound > 1 ? today.withDayOfMonth(1) : null);
+        var members = new java.util.ArrayList<>(approved);
+        if (startRound > 1) {
+            var fixed = SavingGroupTurnOrderPolicy.fixedMembers(approved, SavingGroupTurnOrderMemberRow::getMemberId,
+                    SavingGroupTurnOrderMemberRow::isPaid, SavingGroupTurnOrderMemberRow::getSequenceNumber, startRound);
+            members.removeIf(member -> fixed.contains(member.getMemberId()));
+            if (members.size() < 2) return List.of();
+        }
         if (members.isEmpty()) return List.of();
         BigDecimal dues = group.getDuesAmount();
         if (dues == null || dues.signum() <= 0 || dues.stripTrailingZeros().scale() > 0)
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DUES_INVALID", "원 단위 기본 회비를 확인해주세요.");
-        // AI작성: 사용자 승인 정책이다. 모든 회원을 동등하게 섞으며 이전 순번·개인정보·납부 이력은 사용하지 않는다.
+        // AI작성: 추천 대상에게 우선순위를 부여하지 않고 무작위로 섞는다.
         java.util.Collections.shuffle(members);
         BigDecimal extra = dues.multiply(new BigDecimal("0.01")).setScale(0, java.math.RoundingMode.DOWN);
-        BigDecimal base = dues.multiply(BigDecimal.valueOf(members.size()));
+        BigDecimal base = dues.multiply(BigDecimal.valueOf(approved.size()));
         var result = new java.util.ArrayList<SavingGroupTurnOrderRecommendationResponse>();
         for (int i = 0; i < members.size(); i++) {
             var member = members.get(i);
             // AI작성: 인원·회비 유지 및 앞 순번 전원 지급을 가정한 예상액이며 확정 회차 금액과 무관하다.
-            BigDecimal expected = base.add(extra.multiply(BigDecimal.valueOf(i)));
+            int round = startRound + i;
+            BigDecimal expected = base.add(extra.multiply(BigDecimal.valueOf(round - 1L)));
             if (expected.compareTo(new BigDecimal("9999999999999")) > 0)
                 throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_DUES_INVALID", "예상 지급 금액의 허용 범위를 확인해주세요.");
-            result.add(new SavingGroupTurnOrderRecommendationResponse(member.getMemberId(), member.getNickname(), i + 1, expected));
+            result.add(new SavingGroupTurnOrderRecommendationResponse(member.getMemberId(), member.getNickname(), round, expected));
         }
         return List.copyOf(result);
     }
@@ -271,20 +294,22 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 수정·고정과 같은 모임→회원→공지 잠금 순서로 검증하고 물리 삭제 없이 삭제 시각만 저장한다.
     @Override
     @Transactional
-    public void deleteSavingGroupNotice(Long groupId, Long noticeId, Long memberId) {
+    public void deleteSavingGroupNotice(Long savingGroupId, Long noticeId, Long memberId) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
         }
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
         }
+        // AI작성: 잠근 계모임의 공통 ID로 회원과 공지의 소속을 확인한다.
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
@@ -305,20 +330,22 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 기존 고정 변경과 같은 모임→회원 관계→공지 잠금 순서로 권한과 소속을 검증한다.
     @Override
     @Transactional
-    public Long updateSavingGroupNotice(Long groupId, Long noticeId, Long memberId, String title, String content) {
+    public Long updateSavingGroupNotice(Long savingGroupId, Long noticeId, Long memberId, String title, String content) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
         }
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
         }
+        // AI작성: 잠근 계모임의 공통 ID로 회원과 공지의 소속을 확인한다.
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
@@ -341,6 +368,19 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         }
         return noticeId;
     }
+    // AI작성: 물리 경로 대신 공개 모임에 연결된 이미지 조회 주소를 전달한다.
+    private String groupImageUrl(SavingGroupRow row) {
+        return row.getGroupImagePath() == null || row.getGroupImagePath().isBlank() ? null
+                : "/api/saving-groups/" + row.getSavingGroupId() + "/image";
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.core.io.Resource getSavingGroupImage(Long savingGroupId) {
+        // AI작성: 공개 상세와 같은 조건으로 심사중·정지·삭제 모임을 제외한다.
+        var row = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+        if (row == null) throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
+        return com.nightstudy.moa.common.service.FileStorageService.loadGroupImage(row.getGroupImagePath());
+    }
     private static final int PAGE_SIZE = 6;
     // AI작성: 계모임 전체 목록의 페이지 크기와 별개로 공지는 페이지당 4개를 제공한다.
     private static final int NOTICE_PAGE_SIZE = 4;
@@ -361,9 +401,10 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     @Override
     @Transactional(readOnly = true)
     public com.nightstudy.moa.savingGroup.dto.SavingGroupPaymentStatusListResponse getSavingGroupPaymentStatus(
-            Long groupId, Long memberId, java.time.YearMonth month, int page) {
-        var relation = requireSavingGroupAccountMember(groupId, memberId);
-        if (!"OWNER".equals(relation.getMemberRole())) {
+            Long savingGroupId, Long memberId, java.time.YearMonth month, int page) {
+        var access = requireSavingGroupAccountMember(savingGroupId, memberId);
+        Long groupId = access.groupId();
+        if (!"OWNER".equals(access.role())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_PAYMENT_STATUS_FORBIDDEN",
                     "계주만 회비 납부 현황을 확인할 수 있습니다.");
         }
@@ -391,22 +432,27 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     }
 
     // AI작성: 계좌 조회와 거래내역 조회에 동일한 현재 모임원 권한을 적용한다.
-    private com.nightstudy.moa.savingGroup.dto.SavingGroupMembershipRelationRow requireSavingGroupAccountMember(Long groupId, Long memberId) {
+    private AccountAccess requireSavingGroupAccountMember(Long savingGroupId, Long memberId) {
         if (memberId == null || memberId <= 0) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
-        if (groupId == null || groupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
-        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null)
+        if (savingGroupId == null || savingGroupId <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호가 올바르지 않습니다.");
+        // AI작성: 계모임 ID를 확인한 뒤 기존 계좌와 소속의 공통 모임 ID를 사용한다.
+        var target = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+        if (target == null)
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
+        Long groupId = target.getGroupId();
         var relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || !List.of("OWNER", "MANAGER", "MEMBER").contains(relation.getMemberRole() == null ? "" : relation.getMemberRole()))
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_ACCOUNT_FORBIDDEN", "승인된 모임원만 계좌 정보를 확인할 수 있습니다.");
-        return relation;
+        return new AccountAccess(groupId, relation.getMemberRole());
     }
+
+    private record AccountAccess(Long groupId, String role) {}
 
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long groupId, Long memberId, int page) {
-        requireSavingGroupAccountMember(groupId, memberId);
+    public SavingGroupTransactionListResponse getSavingGroupTransactions(Long savingGroupId, Long memberId, int page) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
         if (page < 1)
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "페이지는 1 이상이어야 합니다.");
         var account = accountMapper.selectAccount(groupId);
@@ -418,23 +464,149 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         var meta = PageMeta.of(page, size, total);
         long offset = (page - 1L) * size;
         if (offset >= total) return new SavingGroupTransactionListResponse(List.of(), meta);
-        var items = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size)
-                .stream().map(this::toTransactionResponse).toList();
+        List<SavingGroupTransactionRow> rows = savingGroupMapper.selectSavingGroupTransactions(account.getAccountId(), offset, size);
+        Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications =
+                expenseClassificationService.findStoredClassifications(rows);
+        List<SavingGroupTransactionResponse> items = rows.stream()
+                .map(row -> toTransactionResponse(row, classifications.get(row.transactionId())))
+                .toList();
         return new SavingGroupTransactionListResponse(items, meta);
     }
 
-    // AI작성: 잘못된 장부 행은 원본 메모나 거래 정보를 공개하지 않고 조회 오류로 처리한다.
-    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row) {
-        if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
-                    "거래내역을 확인할 수 없습니다.");
-        return new SavingGroupTransactionResponse(row.transactedAt(), row.transactionType(), row.amount(), row.balanceAfter());
+    // AI작성: 최근 여섯 달의 거래를 월별로 합산하며, 검토 상태와 ML 추천 분류를 분리해 제공한다.
+    @Override
+    @Transactional(readOnly = true)
+    public SavingGroupDashboardResponse getSavingGroupDashboard(Long savingGroupId, Long memberId, YearMonth month) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
+        EncryptedGroupAccountRow account = accountMapper.selectAccount(groupId);
+        if (account == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+        }
+        YearMonth firstMonth = month.minusMonths(DASHBOARD_MONTH_COUNT - 1L);
+        LocalDateTime start = firstMonth.atDay(1).atStartOfDay();
+        LocalDateTime end = month.plusMonths(1).atDay(1).atStartOfDay();
+        LinkedHashMap<YearMonth, BigDecimal[]> totals = new LinkedHashMap<>();
+        for (int index = 0; index < DASHBOARD_MONTH_COUNT; index += 1) {
+            totals.put(firstMonth.plusMonths(index), new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+        }
+        LinkedHashMap<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
+        BigDecimal monthlyDues = BigDecimal.ZERO;
+        BigDecimal monthlyExpense = BigDecimal.ZERO;
+        int reviewRequiredCount = 0;
+
+        List<SavingGroupTransactionRow> rows = savingGroupMapper.selectSavingGroupDashboardTransactions(account.getAccountId(), start, end);
+        Map<Long, CardExpenseClassifierClient.ClassificationResult> classifications =
+                expenseClassificationService.findStoredClassifications(rows);
+        for (SavingGroupTransactionRow row : rows) {
+            // AI작성: 오래된 원장에 날짜·금액이 누락돼도 대시보드 전체 조회를 실패시키지 않는다.
+            if (row.transactedAt() == null || row.amount() == null) {
+                continue;
+            }
+            YearMonth transactionMonth = YearMonth.from(row.transactedAt());
+            BigDecimal amount = row.amount().abs();
+            if ("DEPOSIT".equals(row.transactionType())) {
+                totals.get(transactionMonth)[0] = totals.get(transactionMonth)[0].add(amount);
+                if (transactionMonth.equals(month)) monthlyDues = monthlyDues.add(amount);
+                continue;
+            }
+            if (!"EXPENSE".equals(row.purposeType())) continue;
+            CardExpenseClassifierClient.ClassificationResult classification = classifications.get(row.transactionId());
+            boolean finalCategorySaved = row.finalCategory() != null && !row.finalCategory().isBlank();
+            boolean reviewRequired = !finalCategorySaved && classification != null
+                    && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED;
+            // AI작성: "확인 필요"는 검토 상태일 뿐이므로, 추천 분류가 있으면 사용처 통계에는 함께 반영한다.
+            String category = finalCategorySaved ? row.finalCategory()
+                    : classification == null || classification.suggestedCategory() == null
+                        ? CardExpenseCategory.NEEDS_REVIEW.name() : classification.suggestedCategory().name();
+            totals.get(transactionMonth)[1] = totals.get(transactionMonth)[1].add(amount);
+            if (transactionMonth.equals(month)) {
+                monthlyExpense = monthlyExpense.add(amount);
+                categoryTotals.merge(category, amount, BigDecimal::add);
+                if (reviewRequired) reviewRequiredCount += 1;
+            }
+        }
+        ArrayList<SavingGroupDashboardResponse.MonthlyTrend> trends = new ArrayList<>();
+        totals.forEach((trendMonth, value) -> trends.add(new SavingGroupDashboardResponse.MonthlyTrend(
+                trendMonth.toString(), value[0], value[1])));
+        List<SavingGroupDashboardResponse.ExpenseCategoryRatio> ratios = categoryTotals.entrySet().stream()
+                .map(entry -> new SavingGroupDashboardResponse.ExpenseCategoryRatio(entry.getKey(), entry.getValue())).toList();
+        BigDecimal currentBalance = savingGroupMapper.selectSavingGroupLatestTransactionBalance(account.getAccountId());
+        return new SavingGroupDashboardResponse(currentBalance == null ? BigDecimal.ZERO : currentBalance, monthlyDues,
+                monthlyExpense, reviewRequiredCount, trends, ratios);
     }
 
     @Override
+    @Transactional
+    public void updateSavingGroupTransactionCategories(Long savingGroupId, Long memberId,
+            SavingGroupTransactionCategoryUpdateRequest request) {
+        var access = requireSavingGroupAccountMember(savingGroupId, memberId);
+        if (!List.of("OWNER", "MANAGER").contains(access.role())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_TRANSACTION_CATEGORY_FORBIDDEN",
+                    "계주 또는 회계만 지출 항목을 변경할 수 있습니다.");
+        }
+        var account = accountMapper.selectAccount(access.groupId());
+        if (account == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "DEPOSIT_ACCOUNT_NOT_FOUND", "공용 계좌가 없습니다.");
+        }
+
+        for (var item : request.items()) {
+            if (item.category() == CardExpenseCategory.NEEDS_REVIEW) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "SAVING_GROUP_TRANSACTION_CATEGORY_INVALID",
+                        "확인 필요는 최종 지출 항목으로 저장할 수 없습니다.");
+            }
+            var row = savingGroupMapper.selectSavingGroupTransactionForCategoryUpdate(
+                    account.getAccountId(), item.transactionId());
+            if (row == null) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_TRANSACTION_NOT_FOUND", "거래내역을 찾을 수 없습니다.");
+            }
+            CardExpenseClassifierClient.ClassificationResult classification = expenseClassificationService.classifyInCurrentTransaction(row);
+            if (classification == null) {
+                throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CARD_EXPENSE_CLASSIFIER_UNAVAILABLE",
+                        "자동 분류 서비스를 확인할 수 없습니다.");
+            }
+            if (classification.classificationStatus() != CardExpenseClassificationStatus.REVIEW_REQUIRED) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TRANSACTION_CATEGORY_NOT_REVIEW_REQUIRED",
+                        "확인 필요한 출금만 지출 항목을 변경할 수 있습니다.");
+            }
+            if (savingGroupMapper.updateSavingGroupTransactionFinalCategory(
+                    account.getAccountId(), item.transactionId(), item.category().name()) != 1) {
+                throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_TRANSACTION_CATEGORY_UPDATE_CONFLICT",
+                        "거래내역이 변경되어 지출 항목을 저장하지 못했습니다.");
+            }
+        }
+    }
+
+    // AI작성: 잘못된 장부 행은 원본 메모나 거래 정보를 공개하지 않고 조회 오류로 처리한다.
+    private SavingGroupTransactionResponse toTransactionResponse(SavingGroupTransactionRow row,
+            CardExpenseClassifierClient.ClassificationResult classification) {
+        if (row.description() == null || row.description().isBlank() || row.balanceAfter() == null)
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "SAVING_GROUP_TRANSACTION_INVALID_DATA",
+                    "거래내역을 확인할 수 없습니다.");
+        if (classification == null) {
+            expenseClassificationService.classifyAndSaveAsync(row);
+        }
+        // AI작성: 사용자가 확정한 분류는 매 조회마다 계산하는 자동 분류 결과보다 우선한다.
+        boolean hasFinalCategory = row.finalCategory() != null && !row.finalCategory().isBlank();
+        return new SavingGroupTransactionResponse(row.transactionId(), row.transactedAt(), row.transactionType(), row.amount(),
+                row.balanceAfter(), row.description(), row.purposeType(),
+                hasFinalCategory ? row.finalCategory() : classification == null || classification.suggestedCategory() == null
+                        ? null : classification.suggestedCategory().name(),
+                hasFinalCategory ? CardExpenseClassificationStatus.CONFIRMED.name()
+                        : classification == null ? null : classification.classificationStatus().name(),
+                // AI작성: 자동 확정 건은 제외하고, 원래 확인이 필요했던 MOCK 출금만 재분류를 허용한다.
+                classification != null && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED);
+    }
+
+    // AI작성: 읽기 전용 조회와 분류 결과 저장 트랜잭션을 분리한 전용 서비스에 위임한다.
+    private CardExpenseClassifierClient.ClassificationResult classifyDemoExpense(SavingGroupTransactionRow row) {
+        return expenseClassificationService.classify(row);
+    }
+
+
+    @Override
     @Transactional(readOnly = true)
-    public SavingGroupAccountResponse getSavingGroupAccount(Long groupId, Long memberId) {
-        requireSavingGroupAccountMember(groupId, memberId);
+    public SavingGroupAccountResponse getSavingGroupAccount(Long savingGroupId, Long memberId) {
+        Long groupId = requireSavingGroupAccountMember(savingGroupId, memberId).groupId();
         var account = accountMapper.selectAccount(groupId);
         if (account == null) return new SavingGroupAccountResponse(false, null, null, BigDecimal.ZERO, true);
         BigDecimal balance = savingGroupMapper.selectSavingGroupBalance(groupId);
@@ -446,20 +618,22 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 모임 → 승인 관계 → 공지 순서로 잠그고 현재 고정 목록으로 동시 지정의 두 개 제한을 검증한다.
     @Override
     @Transactional
-    public void updateSavingGroupNoticePinned(Long groupId, Long noticeId, Long memberId, Boolean pinned) {
+    public void updateSavingGroupNoticePinned(Long savingGroupId, Long noticeId, Long memberId, Boolean pinned) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0 || pinned == null) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0 || pinned == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 공지 번호 또는 고정 여부가 올바르지 않습니다.");
         }
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(groupId);
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupNoticeTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
         if (!"01".equals(target.getStatus()) && !"02".equals(target.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "SAVING_GROUP_ACTIVITY_RESTRICTED", "현재 상태에서는 계모임 활동을 이용할 수 없습니다.");
         }
+        // AI작성: 잠근 계모임의 공통 ID로 회원과 공지의 소속을 확인한다.
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembershipForUpdate(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())
                 || (!"OWNER".equals(relation.getMemberRole()) && !"MANAGER".equals(relation.getMemberRole()))) {
@@ -485,17 +659,19 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 공개 상세와 동일한 모임 조건을 적용한 뒤 승인 관계를 확인하고 본문을 조회한다.
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupNoticeDetailResponse getSavingGroupNoticeDetail(Long groupId, Long noticeId, Long memberId) {
+    public SavingGroupNoticeDetailResponse getSavingGroupNoticeDetail(Long savingGroupId, Long noticeId, Long memberId) {
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
-        if (groupId == null || groupId <= 0 || noticeId == null || noticeId <= 0) {
+        if (savingGroupId == null || savingGroupId <= 0 || noticeId == null || noticeId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 또는 공지 번호가 올바르지 않습니다.");
         }
         // AI작성: 기존 Mapper가 삭제된 모임과 상태 01·02 외의 계모임을 제외한다.
-        if (savingGroupMapper.selectSavingGroupDetail(groupId) == null) {
+        var target = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
+        if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
+        Long groupId = target.getGroupId();
         SavingGroupMembershipRelationRow relation = savingGroupMapper.selectSavingGroupMembership(groupId, memberId);
         if (relation == null || !"APPROVED".equals(relation.getMembershipStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "SAVING_GROUP_NOTICE_READ_FORBIDDEN",
@@ -652,15 +828,16 @@ public class SavingGroupServiceImpl implements SavingGroupService {
     // AI작성: 계주 권한과 대상의 승인 관계를 같은 트랜잭션에서 잠가 확인한 뒤 추방 상태로 변경한다.
     @Override
     @Transactional
-    public void expelApprovedSavingGroupMember(Long groupId, Long targetMemberId, Long memberId) {
-        if (groupId == null || groupId <= 0 || targetMemberId == null || targetMemberId <= 0) {
+    public void expelApprovedSavingGroupMember(Long savingGroupId, Long targetMemberId, Long memberId) {
+        if (savingGroupId == null || savingGroupId <= 0 || targetMemberId == null || targetMemberId <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "계모임 또는 추방 대상 회원 번호가 올바르지 않습니다.");
         }
         if (memberId == null || memberId <= 0) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "로그인이 필요합니다.");
         }
 
-        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(groupId);
+        // AI작성: 계모임 ID로 대상을 잠근 뒤 기존 회원 소속 검증을 수행한다.
+        SavingGroupJoinTargetRow target = savingGroupMapper.selectSavingGroupExpulsionTargetForUpdate(savingGroupId);
         if (target == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "SAVING_GROUP_NOT_FOUND", "계모임을 찾을 수 없습니다.");
         }
@@ -904,43 +1081,62 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         return new SavingGroupJoinDecisionTarget(request, target);
     }
 
-    // AI작성: 기존 프로젝트의 생성자 주입 방식을 사용한다.
+    // AI작성: 실제 실행에서는 Spring 프록시가 적용된 쓰기 전용 분류 서비스를 주입받는다.
+    private final CardExpenseClassificationService expenseClassificationService;
+
+    @Autowired
     public SavingGroupServiceImpl(
             SavingGroupMapper savingGroupMapper,
             VirtualAccountStorageMapper accountMapper,
             AccountNumberCipher accountCipher,
-            NotificationService notificationService
+            NotificationService notificationService,
+            CardExpenseClassificationService expenseClassificationService
     ) {
         this.savingGroupMapper = savingGroupMapper;
         this.accountMapper = accountMapper;
         this.accountCipher = accountCipher;
         this.notificationService = notificationService;
+        this.expenseClassificationService = expenseClassificationService;
+    }
+
+    // AI작성: 기존 단위 테스트와 직접 생성 호출의 호환성을 유지하며 분류 로직은 전용 서비스로 통일한다.
+    public SavingGroupServiceImpl(
+            SavingGroupMapper savingGroupMapper,
+            VirtualAccountStorageMapper accountMapper,
+            AccountNumberCipher accountCipher,
+            NotificationService notificationService,
+            CardExpenseClassifierClient classifierClient
+    ) {
+        this(savingGroupMapper, accountMapper, accountCipher, notificationService,
+                new CardExpenseClassificationService(savingGroupMapper, classifierClient));
     }
 
     // AI작성: 대상 조건을 먼저 확인하고 승인 계원·공지·역할을 같은 읽기 트랜잭션에서 조합한다.
     @Override
     @Transactional(readOnly = true)
-    public SavingGroupDetailResponse getSavingGroupDetail(Long groupId, Long memberId) {
+    public SavingGroupDetailResponse getSavingGroupDetail(Long savingGroupId, Long memberId) {
         // AI작성: 기존 Controller와 호출자는 최신순 1페이지로 동작하도록 기존 메서드를 유지한다.
-        return getSavingGroupDetail(groupId, memberId, new SavingGroupNoticeSearchCondition()).getDetail();
+        return getSavingGroupDetail(savingGroupId, memberId, new SavingGroupNoticeSearchCondition()).getDetail();
     }
 
     // AI작성: 개수와 목록을 같은 읽기 트랜잭션에서 조회하고 기존 상세의 역할·가입 제한 처리를 유지한다.
     @Override
     @Transactional(readOnly = true)
     public SavingGroupDetailPageResponse getSavingGroupDetail(
-            Long groupId, Long memberId, SavingGroupNoticeSearchCondition condition) {
+            Long savingGroupId, Long memberId, SavingGroupNoticeSearchCondition condition) {
         // AI작성: Controller를 거치지 않는 호출에서도 잘못된 조건과 경로 ID를 차단한다.
-        if (groupId == null || groupId <= 0 || condition == null
+        if (savingGroupId == null || savingGroupId <= 0 || condition == null
                 || condition.getNoticePage() == null || condition.getNoticePage() < 1
                 || condition.getNoticeSort() == null
                 || !List.of("LATEST", "OLDEST").contains(condition.getNoticeSort())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "모임 번호, 공지 페이지 또는 정렬이 올바르지 않습니다.");
         }
-        SavingGroupRow row = savingGroupMapper.selectSavingGroupDetail(groupId);
+        SavingGroupRow row = savingGroupMapper.selectSavingGroupDetailBySavingGroupId(savingGroupId);
         if (row == null) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "조회할 수 있는 계모임이 없습니다.");
         }
+        // AI작성: 계모임 ID로 찾은 공통 모임 ID를 소속과 공지 조회에 사용한다.
+        Long groupId = row.getGroupId();
         long count = savingGroupMapper.selectDetailMemberCount(groupId);
         int noticeTotal = savingGroupMapper.selectSavingGroupNoticeCount(groupId);
         PageMeta pageMeta = PageMeta.of(condition.getNoticePage(), NOTICE_PAGE_SIZE, noticeTotal);
@@ -971,6 +1167,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         detail.setPinnedNotices(savingGroupMapper.selectSavingGroupPinnedNotices(groupId));
         // AI작성: 실제 상세 응답에도 유형을 포함해 순번계 전용 추천 버튼을 노출한다.
         detail.setGroupType(row.getGroupType());
+        detail.setGroupImageUrl(groupImageUrl(row));
         return new SavingGroupDetailPageResponse(detail, pageMeta);
     }
 
@@ -998,11 +1195,14 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                                 rows.stream().map(SavingGroupRow::getGroupId).distinct().toList())
                         .stream().collect(Collectors.toMap(
                                 SavingGroupMemberCount::getGroupId, SavingGroupMemberCount::getMemberCount));
-        List<SavingGroupSummaryResponse> items = rows.stream().map(row ->
-                new SavingGroupSummaryResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(),
+        List<SavingGroupSummaryResponse> items = rows.stream().map(row -> {
+                var item = new SavingGroupSummaryResponse(row.getSavingGroupId(), row.getGroupId(), row.getGroupName(),
                         row.getDescription(), row.getRegionName(), row.getMaxMembers(),
                         counts.getOrDefault(row.getGroupId(), 0L), row.getDuesAmount(),
-                        row.getDuesDay(), row.getStatus())).toList();
+                        row.getDuesDay(), row.getStatus());
+                item.setGroupImageUrl(groupImageUrl(row));
+                return item;
+        }).toList();
         return new SavingGroupListResponse(items, pageMeta);
     }
 
@@ -1315,7 +1515,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
                 target.getOwnerMemberId(),
                 NotificationType.SAVING_GROUP_JOIN_REQUEST,
                 "새로운 계모임 가입 신청이 접수되었습니다.",
-                "/saving-groups/" + savingGroupId
+                "/saving-groups/" + savingGroupId + "?menu=members"
         );
     }
 
