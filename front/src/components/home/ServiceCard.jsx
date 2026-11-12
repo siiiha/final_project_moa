@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 const Card = styled.article`
@@ -25,7 +26,7 @@ const Description = styled.p`
   letter-spacing: -0.45px;
   line-height: 1.6;
 `;
-const MoreButton = styled.button`
+const MoreButton = styled(Link)`
   width: fit-content;
   margin-top: 13px;
   padding: 0;
@@ -38,15 +39,13 @@ const MoreButton = styled.button`
     text-decoration: underline;
   }
 `;
-function ServiceCard({ title, description, actionLabel }) {
-  const handleFeatureClick = () => {
-    /* TODO: Spring Boot API 연동 후 해당 서비스의 목록 또는 안내 화면으로 이동합니다. */
-  };
+// AI작성: 서비스 카드에서 전달받은 목록 페이지로 이동합니다.
+function ServiceCard({ title, description, actionLabel, to }) {
   return (
     <Card>
       <Title>{title}</Title>
       <Description>{description}</Description>
-      <MoreButton type="button" onClick={handleFeatureClick} aria-label={`${title} ${actionLabel}`}>
+      <MoreButton to={to} aria-label={`${title} ${actionLabel}`}>
         {actionLabel} ›
       </MoreButton>
     </Card>
