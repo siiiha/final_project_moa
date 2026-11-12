@@ -13,6 +13,12 @@ const Message = styled.p`
   border-radius: ${({ theme }) => theme.radius.md};
 `;
 
+function getRestrictionScopeForReportType(reportType) {
+  if (['POST', 'COMMENT'].includes(reportType)) return 'CONTENT';
+  if (reportType === 'CHAT_MESSAGE') return 'CHAT';
+  return null;
+}
+
 // AI작성: 신고 상세를 서버에서 재조회해 중복 처리와 오래된 Mock 상태를 방지한다.
 function AdminReportDetailPage() {
   const navigate = useNavigate();
@@ -37,6 +43,7 @@ function AdminReportDetailPage() {
       try {
         const result = await getAdminReport(id, controller.signal);
         setReport(result.report);
+        setRestrictionScope(getRestrictionScopeForReportType(result.report.typeCode) || '');
       } catch (failure) {
         if (failure.code !== 'ERR_CANCELED') setError(failure.message);
       } finally {
@@ -58,8 +65,9 @@ function AdminReportDetailPage() {
     try {
       await processAdminReport(report.processId, {
         status: action,
-        restrictionScope: action === 'CONFIRMED' ? restrictionScope : undefined,
-        restrictionType: action === 'CONFIRMED' ? restrictionType : undefined,
+        // AI작성: 신고 유형과 무관한 기능 제한을 보내지 않도록 허용 범위가 있을 때만 제한값을 전송한다.
+        restrictionScope: action === 'CONFIRMED' && restrictionScope ? restrictionScope : undefined,
+        restrictionType: action === 'CONFIRMED' && restrictionScope ? restrictionType : undefined,
         // AI작성: 게시글·댓글 신고 승인일 때만 관리자가 선택한 콘텐츠 삭제 여부를 전송한다.
         deleteTargetContent: action === 'CONFIRMED'
           && ['POST', 'COMMENT'].includes(report.typeCode)
@@ -81,7 +89,7 @@ function AdminReportDetailPage() {
   if (!loading && report) {
     content = <>
       {error && <Message role="alert">{error}</Message>}
-      <AdminReportDetail report={report} action={action} restrictionScope={restrictionScope} restrictionType={restrictionType} deleteTargetContent={deleteTargetContent} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionScopeChange={setRestrictionScope} onRestrictionTypeChange={setRestrictionType} onDeleteTargetContentChange={setDeleteTargetContent} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onBack={() => navigate('/admin/reposts')} />
+      <AdminReportDetail report={report} action={action} restrictionScope={restrictionScope} restrictionType={restrictionType} deleteTargetContent={deleteTargetContent} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionTypeChange={setRestrictionType} onDeleteTargetContentChange={setDeleteTargetContent} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onBack={() => navigate('/admin/reposts')} />
     </>;
   }
 

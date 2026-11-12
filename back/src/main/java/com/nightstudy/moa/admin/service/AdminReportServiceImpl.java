@@ -123,12 +123,12 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        validateProcessRequest(request);
+        validateProcessRequest(report.getReportType(), request);
         validateContentDeletionRequest(report.getReportType(), request);
 
         // AI작성: 반려는 신고 상태와 사유만 변경하고, 정상 처리일 때만 회원을 이용 제한한다.
         LocalDateTime restrictedUntil = null;
-        if ("CONFIRMED".equals(request.getStatus())) {
+        if ("CONFIRMED".equals(request.getStatus()) && request.getRestrictionScope() != null) {
             restrictedUntil = applyMemberRestriction(
                     reportId,
                     request.getRestrictionScope(),
@@ -175,12 +175,13 @@ public class AdminReportServiceImpl implements AdminReportService {
     }
 
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
-    private void validateProcessRequest(AdminReportProcessRequest request) {
+    private void validateProcessRequest(String reportType, AdminReportProcessRequest request) {
         boolean confirmed = "CONFIRMED".equals(request.getStatus());
         boolean hasRestrictionType = request.getRestrictionType() != null;
         boolean hasRestrictionScope = request.getRestrictionScope() != null;
+        MemberRestrictionScope allowedScope = getAllowedRestrictionScope(reportType);
 
-        if (confirmed && (!hasRestrictionType || !hasRestrictionScope)) {
+        if (confirmed && allowedScope != null && (!hasRestrictionType || !hasRestrictionScope)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_REQUIRED",
@@ -195,6 +196,25 @@ public class AdminReportServiceImpl implements AdminReportService {
                     "반려 처리에는 이용 제한 범위와 기간을 입력할 수 없습니다."
             );
         }
+
+        if (confirmed && allowedScope == null && (hasRestrictionType || hasRestrictionScope)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REPORT_TYPE_RESTRICTION_NOT_ALLOWED",
+                    "회원 또는 모임 신고에는 이용 제한을 적용할 수 없습니다.");
+        }
+
+        if (confirmed && allowedScope != null && request.getRestrictionScope() != allowedScope) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REPORT_TYPE_RESTRICTION_SCOPE_MISMATCH",
+                    "신고 유형에 맞는 이용 제한 영역만 선택할 수 있습니다.");
+        }
+    }
+
+    // AI작성: 신고 유형별로 관련된 이용 기능만 제한하도록 고정 매핑한다.
+    private MemberRestrictionScope getAllowedRestrictionScope(String reportType) {
+        return switch (reportType) {
+            case "POST", "COMMENT" -> MemberRestrictionScope.CONTENT;
+            case "CHAT_MESSAGE" -> MemberRestrictionScope.CHAT;
+            default -> null;
+        };
     }
 
     // AI작성: 콘텐츠 삭제는 승인된 게시글·댓글 신고에서만 선택할 수 있도록 제한합니다.

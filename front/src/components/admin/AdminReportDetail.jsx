@@ -163,9 +163,11 @@ const DeleteOption = styled.label`
 `;
 
 // AI작성: 신고 사건 정보와 처리 입력 영역을 분리해 관리자에게 처리 대상과 결과를 명확히 안내한다.
-function AdminReportDetail({ report, action, restrictionScope, restrictionType, deleteTargetContent, processReason, submitting, onActionChange, onRestrictionScopeChange, onRestrictionTypeChange, onDeleteTargetContentChange, onProcessReasonChange, onSubmit, onBack }) {
+function AdminReportDetail({ report, action, restrictionScope, restrictionType, deleteTargetContent, processReason, submitting, onActionChange, onRestrictionTypeChange, onDeleteTargetContentChange, onProcessReasonChange, onSubmit, onBack }) {
   const pending = report.statusCode === 'PENDING';
   const contentReport = ['POST', 'COMMENT'].includes(report.typeCode);
+  const restrictionLabel = restrictionScope === 'CONTENT' ? '게시글·댓글 작성 제한'
+    : restrictionScope === 'CHAT' ? '채팅 제한' : null;
   return (
     <Card>
       <TitleRow><Title>신고 사건 #{report.id}</Title><StatusBadge $pending={pending}>{report.status}</StatusBadge></TitleRow>
@@ -198,9 +200,9 @@ function AdminReportDetail({ report, action, restrictionScope, restrictionType, 
         <SectionTitle>신고 처리</SectionTitle>
         <ProcessFields>
           <Field>처리 결과<select value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting}><option value="CONFIRMED">승인</option><option value="REJECTED">반려</option></select></Field>
-          {/* AI작성: 신고 승인 시 관리자가 실제로 제한할 기능 범위를 명시적으로 선택한다. */}
-          {action === 'CONFIRMED' && <Field>제한 영역<select value={restrictionScope} onChange={(event) => onRestrictionScopeChange(event.target.value)} disabled={submitting}><option value="CONTENT">게시글·댓글</option><option value="CHAT">채팅</option><option value="REPORT">신고</option></select></Field>}
-          {action === 'CONFIRMED' && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
+          {/* AI작성: 게시글·댓글·채팅 신고는 신고 유형에 맞는 제한 영역만 고정해 다른 기능 제한을 막는다. */}
+          {action === 'CONFIRMED' && restrictionLabel && <Field>제한 영역<strong>{restrictionLabel}</strong></Field>}
+          {action === 'CONFIRMED' && restrictionLabel && <Field>이용 제한<select value={restrictionType} onChange={(event) => onRestrictionTypeChange(event.target.value)} disabled={submitting}><option value="7_DAYS">7일</option><option value="30_DAYS">30일</option><option value="PERMANENT">영구</option></select></Field>}
         </ProcessFields>
         {/* AI작성: 게시글·댓글 신고 승인 시에만 대상 콘텐츠 삭제 여부를 선택할 수 있습니다. */}
         {action === 'CONFIRMED' && contentReport && (
