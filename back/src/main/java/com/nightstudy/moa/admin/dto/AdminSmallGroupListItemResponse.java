@@ -1,6 +1,7 @@
 package com.nightstudy.moa.admin.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,7 +20,10 @@ public class AdminSmallGroupListItemResponse {
     private String likeCategory;
     private LocalDate meetDate;
     private String location;
+    private String creatorName;
     private String creatorNickname;
     private String status;
     private long memberCount;
+    // AI작성: 관리자 소모임 목록에서 개설일을 표시하기 위한 공통 모임 생성 시각이다.
+    private LocalDateTime createdAt;
 }

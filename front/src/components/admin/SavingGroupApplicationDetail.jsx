@@ -140,6 +140,15 @@ function formatAmount(amount) {
   return Number.isFinite(value) ? `${value.toLocaleString('ko-KR')}원` : '금액 확인 필요';
 }
 
+function formatProcessedAt(value) {
+  if (!value) return '심사 전';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '날짜 확인 필요';
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(date).replace(/\./g, '.').replace(/\s/g, '');
+}
+
 function SavingGroupApplicationDetail({ application, isProcessing, onApprove, onReject, onBack }) {
   const [rejectReason, setRejectReason] = useState('');
   // AI작성: 심사 상태와 유형 비교는 API 공통 코드를 재사용해 화면별 문자열 불일치를 막는다.
@@ -248,6 +257,8 @@ function SavingGroupApplicationDetail({ application, isProcessing, onApprove, on
         ) : (
           <>
             <ReviewDescription>처리 완료된 신청입니다.</ReviewDescription>
+            {/* AI작성: 심사 결과의 증빙 시점을 상태·반려 사유와 함께 날짜와 시간으로 표시한다. */}
+            <Description>심사 일시: {formatProcessedAt(application.processedAt)}</Description>
             {application.rejectReason && <Description>반려 사유: {application.rejectReason}</Description>}
           </>
         )}

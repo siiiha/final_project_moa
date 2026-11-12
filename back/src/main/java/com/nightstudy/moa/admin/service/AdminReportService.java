@@ -20,6 +20,9 @@ public interface AdminReportService {
     // AI작성: 신고를 처리하고 필요한 경우 신고 대상 회원에게 이용 제한을 적용한다.
     void processReport(Long reportId, AdminReportProcessRequest request);
 
+    // AI작성: 승인된 콘텐츠 신고에서만 관리자가 나중에 대상 게시글·댓글을 삭제한다.
+    void deleteApprovedReportedContent(Long reportId);
+
     // AI작성: 제한 종료 시각이 지난 회원을 찾아 정상 상태로 자동 복귀시킨다.
     int releaseExpiredMemberRestrictions();
 }

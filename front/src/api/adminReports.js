@@ -119,3 +119,13 @@ export async function processAdminReport(reportId, request) {
     throw toAdminReportError(error, '신고를 처리하지 못했습니다.');
   }
 }
+
+// AI작성: 승인된 콘텐츠 신고의 대상 게시글·댓글을 사후 조치로 삭제한다.
+export async function deleteApprovedReportedContent(reportId) {
+  try {
+    const response = await client.delete(`/admin/reports/${encodeURIComponent(reportId)}/content`);
+    if (!response.data?.success) throw new Error('신고 콘텐츠 삭제 응답을 확인할 수 없습니다.');
+  } catch (error) {
+    throw toAdminReportError(error, '신고 콘텐츠를 삭제하지 못했습니다.');
+  }
+}

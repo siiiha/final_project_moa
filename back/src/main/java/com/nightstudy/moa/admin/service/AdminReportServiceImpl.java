@@ -123,12 +123,12 @@ public class AdminReportServiceImpl implements AdminReportService {
             );
         }
 
-        validateProcessRequest(request);
+        validateProcessRequest(report.getReportType(), request);
         validateContentDeletionRequest(report.getReportType(), request);
 
         // AI작성: 반려는 신고 상태와 사유만 변경하고, 정상 처리일 때만 회원을 이용 제한한다.
         LocalDateTime restrictedUntil = null;
-        if ("CONFIRMED".equals(request.getStatus())) {
+        if ("CONFIRMED".equals(request.getStatus()) && request.getRestrictionScope() != null) {
             restrictedUntil = applyMemberRestriction(
                     reportId,
                     request.getRestrictionScope(),
@@ -168,6 +168,31 @@ public class AdminReportServiceImpl implements AdminReportService {
 
     @Override
     @Transactional
+    // AI작성: 승인된 게시글·댓글 신고의 대상만 잠금 확인 후 후속 삭제하며, 임의 콘텐츠 삭제를 막는다.
+    public void deleteApprovedReportedContent(Long reportId) {
+        AdminReportListItemResponse report = adminReportMapper.selectReportForUpdate(reportId);
+        if (report == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "REPORT_NOT_FOUND", "신고를 찾을 수 없습니다.");
+        }
+        if (!"CONFIRMED".equals(report.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "REPORT_CONTENT_DELETE_REQUIRES_CONFIRMATION",
+                    "승인된 신고의 콘텐츠만 삭제할 수 있습니다.");
+        }
+
+        int deletedCount = switch (report.getReportType()) {
+            case "POST" -> adminReportMapper.deleteReportedPost(reportId);
+            case "COMMENT" -> adminReportMapper.deleteReportedComment(reportId);
+            default -> throw new ApiException(HttpStatus.BAD_REQUEST, "REPORT_CONTENT_DELETE_NOT_ALLOWED",
+                    "게시글 또는 댓글 신고의 콘텐츠만 삭제할 수 있습니다.");
+        };
+        if (deletedCount != 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "REPORT_CONTENT_ALREADY_DELETED",
+                    "이미 삭제되었거나 삭제할 수 없는 신고 콘텐츠입니다.");
+        }
+    }
+
+    @Override
+    @Transactional
     // AI작성: 스케줄러가 호출하면 만료된 기간제 제한을 일괄 해제하고 처리 건수를 반환한다.
     // 서비스 단위의 DB변경이라 @Transactional을 붙였는데 UPDATE는 한 번만 일어나서... 삭제해도 무방합니다.
     public int releaseExpiredMemberRestrictions() {
@@ -175,12 +200,13 @@ public class AdminReportServiceImpl implements AdminReportService {
     }
 
     // AI작성: 처리 결과와 이용 제한 값이 서로 맞는 조합인지 검증한다.
-    private void validateProcessRequest(AdminReportProcessRequest request) {
+    private void validateProcessRequest(String reportType, AdminReportProcessRequest request) {
         boolean confirmed = "CONFIRMED".equals(request.getStatus());
         boolean hasRestrictionType = request.getRestrictionType() != null;
         boolean hasRestrictionScope = request.getRestrictionScope() != null;
+        MemberRestrictionScope allowedScope = getAllowedRestrictionScope(reportType);
 
-        if (confirmed && (!hasRestrictionType || !hasRestrictionScope)) {
+        if (confirmed && allowedScope != null && (!hasRestrictionType || !hasRestrictionScope)) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "RESTRICTION_REQUIRED",
@@ -195,6 +221,25 @@ public class AdminReportServiceImpl implements AdminReportService {
                     "반려 처리에는 이용 제한 범위와 기간을 입력할 수 없습니다."
             );
         }
+
+        if (confirmed && allowedScope == null && (hasRestrictionType || hasRestrictionScope)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REPORT_TYPE_RESTRICTION_NOT_ALLOWED",
+                    "회원 또는 모임 신고에는 이용 제한을 적용할 수 없습니다.");
+        }
+
+        if (confirmed && allowedScope != null && request.getRestrictionScope() != allowedScope) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REPORT_TYPE_RESTRICTION_SCOPE_MISMATCH",
+                    "신고 유형에 맞는 이용 제한 영역만 선택할 수 있습니다.");
+        }
+    }
+
+    // AI작성: 신고 유형별로 관련된 이용 기능만 제한하도록 고정 매핑한다.
+    private MemberRestrictionScope getAllowedRestrictionScope(String reportType) {
+        return switch (reportType) {
+            case "POST", "COMMENT" -> MemberRestrictionScope.CONTENT;
+            case "CHAT_MESSAGE" -> MemberRestrictionScope.CHAT;
+            default -> null;
+        };
     }
 
     // AI작성: 콘텐츠 삭제는 승인된 게시글·댓글 신고에서만 선택할 수 있도록 제한합니다.

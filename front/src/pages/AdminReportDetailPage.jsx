@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import AdminReportDetail from '../components/admin/AdminReportDetail';
 import AdminPageLayout from '../components/layout/AdminPageLayout';
-import { getAdminReport, processAdminReport } from '../api/adminReports';
+import { deleteApprovedReportedContent, getAdminReport, processAdminReport } from '../api/adminReports';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 const Message = styled.p`
   padding: 24px;
@@ -12,6 +13,12 @@ const Message = styled.p`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
 `;
+
+function getRestrictionScopeForReportType(reportType) {
+  if (['POST', 'COMMENT'].includes(reportType)) return 'CONTENT';
+  if (reportType === 'CHAT_MESSAGE') return 'CHAT';
+  return null;
+}
 
 // AI작성: 신고 상세를 서버에서 재조회해 중복 처리와 오래된 Mock 상태를 방지한다.
 function AdminReportDetailPage() {
@@ -27,6 +34,8 @@ function AdminReportDetailPage() {
   const [processReason, setProcessReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [contentDeleteConfirmOpen, setContentDeleteConfirmOpen] = useState(false);
+  const [deletingContent, setDeletingContent] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,6 +46,7 @@ function AdminReportDetailPage() {
       try {
         const result = await getAdminReport(id, controller.signal);
         setReport(result.report);
+        setRestrictionScope(getRestrictionScopeForReportType(result.report.typeCode) || '');
       } catch (failure) {
         if (failure.code !== 'ERR_CANCELED') setError(failure.message);
       } finally {
@@ -58,8 +68,9 @@ function AdminReportDetailPage() {
     try {
       await processAdminReport(report.processId, {
         status: action,
-        restrictionScope: action === 'CONFIRMED' ? restrictionScope : undefined,
-        restrictionType: action === 'CONFIRMED' ? restrictionType : undefined,
+        // AI작성: 신고 유형과 무관한 기능 제한을 보내지 않도록 허용 범위가 있을 때만 제한값을 전송한다.
+        restrictionScope: action === 'CONFIRMED' && restrictionScope ? restrictionScope : undefined,
+        restrictionType: action === 'CONFIRMED' && restrictionScope ? restrictionType : undefined,
         // AI작성: 게시글·댓글 신고 승인일 때만 관리자가 선택한 콘텐츠 삭제 여부를 전송한다.
         deleteTargetContent: action === 'CONFIRMED'
           && ['POST', 'COMMENT'].includes(report.typeCode)
@@ -76,12 +87,27 @@ function AdminReportDetailPage() {
     }
   };
 
+  const handleContentDeleteConfirm = async () => {
+    if (!report?.processId || deletingContent) return;
+    setDeletingContent(true);
+    setError('');
+    try {
+      await deleteApprovedReportedContent(report.processId);
+      setContentDeleteConfirmOpen(false);
+      setReloadKey((value) => value + 1);
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setDeletingContent(false);
+    }
+  };
+
   let content = <Message role="status">신고 상세를 불러오는 중입니다.</Message>;
   if (!loading && !report) content = <Message role="alert">{error || '신고 사건을 찾을 수 없습니다.'}</Message>;
   if (!loading && report) {
     content = <>
       {error && <Message role="alert">{error}</Message>}
-      <AdminReportDetail report={report} action={action} restrictionScope={restrictionScope} restrictionType={restrictionType} deleteTargetContent={deleteTargetContent} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionScopeChange={setRestrictionScope} onRestrictionTypeChange={setRestrictionType} onDeleteTargetContentChange={setDeleteTargetContent} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onBack={() => navigate('/admin/reposts')} />
+      <AdminReportDetail report={report} action={action} restrictionScope={restrictionScope} restrictionType={restrictionType} deleteTargetContent={deleteTargetContent} processReason={processReason} submitting={submitting} onActionChange={setAction} onRestrictionTypeChange={setRestrictionType} onDeleteTargetContentChange={setDeleteTargetContent} onProcessReasonChange={setProcessReason} onSubmit={handleSubmit} onDeleteReportedContent={() => setContentDeleteConfirmOpen(true)} onBack={() => navigate('/admin/reposts')} />
     </>;
   }
 
@@ -92,6 +118,18 @@ function AdminReportDetailPage() {
       activeItem="reports"
     >
       {content}
+      {contentDeleteConfirmOpen && (
+        <ConfirmModal
+          title="신고 콘텐츠 삭제"
+          description="승인된 신고의 대상 콘텐츠를 삭제하시겠습니까?"
+          confirmLabel={deletingContent ? '삭제 중...' : '콘텐츠 삭제'}
+          confirmVariant="danger"
+          cancelFirst
+          isBusy={deletingContent}
+          onConfirm={handleContentDeleteConfirm}
+          onCancel={() => !deletingContent && setContentDeleteConfirmOpen(false)}
+        />
+      )}
     </AdminPageLayout>
   );
 }

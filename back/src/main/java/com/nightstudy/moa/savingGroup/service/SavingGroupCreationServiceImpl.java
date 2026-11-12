@@ -253,6 +253,6 @@ public class SavingGroupCreationServiceImpl implements SavingGroupCreationServic
         String keywordPattern = keyword == null ? null : "%" + keyword.replace("!", "!!")
                 .replace("%", "!%").replace("_", "!_") + "%";
         return new SavingGroupCreationApplicationListCondition(
-                keywordPattern, condition.getStatus(), condition.getType(), offset, APPLICATION_PAGE_SIZE);
+                keywordPattern, condition.getStatus(), condition.getType(), condition.getSort(), offset, APPLICATION_PAGE_SIZE);
     }
 }
