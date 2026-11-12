@@ -88,4 +88,13 @@
         INSERT INTO member_report (case_id, reporter_id, reason)
         VALUES (#{caseId}, #{reporterId}, #{reason})
     </insert>
+
+    <!-- AI작성: 비활성·탈퇴 관리자는 알림 수신 대상에서 제외한다. -->
+    <select id="selectActiveAdminIds" resultType="long">
+        SELECT member_id
+        FROM members
+        WHERE system_role = 'ADMIN'
+          AND deleted_at IS NULL
+          AND account_status = 'ACTIVE'
+    </select>
 </mapper>

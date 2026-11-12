@@ -2,6 +2,7 @@ package com.nightstudy.moa.admin.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,6 +24,10 @@ public class AdminSmallGroupSearchCondition {
 
     @Size(max = 50, message = "읍·면·동 지역명을 다시 선택해 주세요.")
     private String townName;
+
+    // AI작성: 관리자 소모임 목록에서 화면이 지원하는 활동·제한 상태만 검색 조건으로 허용한다.
+    @Pattern(regexp = "ACTIVE|RESTRICTED", message = "소모임 상태를 다시 선택해 주세요.")
+    private String status;
 
     @NotNull(message = "페이지 번호를 올바르게 입력해 주세요.")
     @Min(value = 1, message = "페이지 번호는 1 이상이어야 합니다.")

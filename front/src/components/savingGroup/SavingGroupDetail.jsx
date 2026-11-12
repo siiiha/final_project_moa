@@ -429,7 +429,10 @@ function SavingGroupDetail({ group, activeMenu, onMenuChange, onJoinRequest, isJ
           canViewOutstanding={group.myRole === 'OWNER' && group.membershipStatus === 'APPROVED'}
         />
       ) : currentMenu === 'transactionHistory' ? (
-        <SavingGroupTransactionHistoryPanel key={group.savingGroupId} savingGroupId={group.savingGroupId} />
+        /* AI작성: OWNER·MANAGER에게만 확인 필요 출금의 분류 선택 권한을 전달한다. */
+        <SavingGroupTransactionHistoryPanel
+          key={group.savingGroupId} savingGroupId={group.savingGroupId} myRole={group.myRole}
+        />
       ) : currentMenu === 'payoutRequest' ? (
         /* AI작성: 공개 상세의 유형 추정 대신 서버가 savingGroupId로 계모임을 찾고 권한과 회차를 판단한다. */
         <SavingGroupPayoutRequestPanel savingGroupId={group.savingGroupId} />

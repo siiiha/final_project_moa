@@ -128,6 +128,24 @@ const EllipsisText = styled.span`
   white-space: nowrap;
 `;
 
+const CommentContentButton = styled.button`
+  width: 100%;
+  overflow: hidden;
+  display: block;
+  color: ${({ theme }) => theme.colors.text};
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: underline;
+  }
+`;
+
 const PostTitle = styled(EllipsisText)`
   color: ${({ theme }) => theme.colors.secondaryText};
 `;
@@ -186,7 +204,7 @@ function getPageNumbers(currentPage, totalPages) {
   return Array.from({ length }, (_, index) => start + index);
 }
 
-function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPageChange, onDelete, loading, deleting }) {
+function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPageChange, onCommentClick, onDelete, loading, deleting }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
@@ -210,7 +228,10 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
                 {comments.map((comment) => (
                   <tr key={comment.id}>
                     <td data-label="댓글 내용">
-                      <EllipsisText>{comment.content}</EllipsisText>
+                      {/* AI작성: 댓글 본문을 누르면 해당 댓글이 작성된 일반 게시글 상세로 이동한다. */}
+                      <CommentContentButton type="button" onClick={() => onCommentClick(comment.postId)}>
+                        {comment.content}
+                      </CommentContentButton>
                     </td>
                     <td data-label="작성자">{comment.author}</td>
                     <td data-label="게시글">
@@ -248,8 +269,8 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
             <Pagination aria-label="관리자 댓글 목록 페이지">
               <PageButton
                 type="button"
-                onClick={() => onPageChange(currentPage - 1)}
-                disabled={currentPage === 1}
+                onClick={() => onPageChange(Math.floor((currentPage - 1) / 5) * 5)}
+                disabled={currentPage <= 5}
                 aria-label="이전 페이지"
               >
                 이전
@@ -267,8 +288,8 @@ function AdminCommentTable({ comments, totalCount, currentPage, totalPages, onPa
               ))}
               <PageButton
                 type="button"
-                onClick={() => onPageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
+                onClick={() => onPageChange(Math.min(totalPages, (Math.floor((currentPage - 1) / 5) + 1) * 5 + 1))}
+                disabled={Math.ceil(currentPage / 5) * 5 >= totalPages}
                 aria-label="다음 페이지"
               >
                 다음

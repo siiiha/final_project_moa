@@ -15,6 +15,8 @@ public class SavingGroupCreationApplicationListItemResponse {
     private String applicantName;
     private String regionName;
     private LocalDateTime appliedAt;
+    // AI작성: 승인·반려 처리 완료 시각을 관리자 심사 목록의 증빙 정보로 제공한다.
+    private LocalDateTime processedAt;
     private String status;
     private String type;
 }

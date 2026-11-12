@@ -70,12 +70,6 @@ function HomePage() {
         </CardGrid>
       </Services>
       <Footer>
-        <span>학습 · 개발 · 일상 자료를 이곳에 기록하며 만들어갑니다.</span>
-        <div>
-          <a href="#current-gatherings">현재 54개 모임</a>
-          <a href="#members">회원 보기</a>
-          <a href="#admin">관리자 전용</a>
-        </div>
       </Footer>
     </Page>
   );

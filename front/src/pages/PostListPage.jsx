@@ -233,6 +233,9 @@ function PostListPage() {
     { length: Math.min(PAGE_BUTTON_COUNT, totalPages - pageStart + 1) },
     (_, index) => pageStart + index
   );
+  // AI작성: 이전·다음 버튼은 한 페이지가 아니라 5개 단위 페이지 묶음의 경계로 이동한다.
+  const previousGroupPage = pageStart - 1;
+  const nextGroupPage = pageStart + PAGE_BUTTON_COUNT;
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -240,7 +243,8 @@ function PostListPage() {
   };
 
   const handlePostClick = (postId) => {
-    navigate(`/post/${postId}`);
+    // AI작성: 상세에서 목록으로 돌아올 때 필터·검색·정렬·페이지 조건을 복원할 수 있도록 URL 조건을 함께 전달한다.
+    navigate(`/post/${postId}${location.search}`);
   };
 
   const handleWrite = () => {
@@ -284,6 +288,9 @@ function PostListPage() {
             totalCount={totalCount}
             currentPage={currentPage}
             pageNumbers={pageNumbers}
+            previousGroupPage={previousGroupPage}
+            nextGroupPage={nextGroupPage}
+            totalPages={totalPages}
             onPageChange={handlePageChange}
             onPostClick={handlePostClick}
           />

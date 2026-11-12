@@ -146,6 +146,7 @@ function PostFilterBar({
           <Select value={sort} onChange={(event) => onSortChange(event.target.value)}>
             <option value="최신순">최신순</option>
             <option value="과거순">과거순</option>
+            <option value="조회수 순">조회수 순</option>
           </Select>
         </Field>
         <FormActions>

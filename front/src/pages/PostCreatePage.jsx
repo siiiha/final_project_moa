@@ -209,6 +209,11 @@ function PostCreatePage() {
       setErrorMessage('올바른 카테고리를 선택해주세요.');
       return;
     }
+    // AI작성: 붙여넣기로 공백만 입력된 본문은 저장 요청 전에 차단한다.
+    if (!content.trim()) {
+      setErrorMessage('내용을 입력해주세요.');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage('');

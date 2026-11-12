@@ -135,7 +135,32 @@ public class MemberServiceImpl implements MemberService {
             MemberSignupRequest request,
             boolean socialSignup
     ) {
+        // AI작성: 일반·소셜 회원가입의 생년월일 범위를 동일하게 검증합니다.
+        LocalDate birthDate = request.getBirthDate();
+
+        if (birthDate == null
+                || birthDate.isBefore(LocalDate.of(1900, 1, 1))
+                || !birthDate.isBefore(LocalDate.now())) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_BIRTH_DATE",
+                    "생년월일은 1900년 1월 1일부터 오늘 이전 날짜로 입력해 주세요."
+            );
+        }
+
         String email = socialSignup ? null : request.getEmail().trim();
+        // AI작성: 일반·소셜 회원가입 모두 완성된 010 휴대전화번호만 허용합니다.
+        String phone = request.getPhone();
+
+        if (phone == null
+                || !phone.trim().matches("^010([0-9]{8}|-[0-9]{4}-[0-9]{4})$")) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_PHONE_NUMBER",
+                    "010으로 시작하는 휴대전화번호 11자리를 입력해 주세요."
+            );
+        }
+
         String nickname = request.getNickname().trim();
 
         if (!socialSignup && memberMapper.countByEmail(email) > 0) {
@@ -747,7 +772,7 @@ public class MemberServiceImpl implements MemberService {
         if (newPassword == null
                 || !newPassword.matches(
                 "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!-/:-@\\[-`{-~])[!-~]{8,20}$"
-                )) {
+        )) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_NEW_PASSWORD",

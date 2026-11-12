@@ -57,19 +57,22 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 18%;
+    width: 14%;
   }
   th:nth-child(2) {
-    width: 47%;
+    width: 39%;
   }
   th:nth-child(3) {
-    width: 15%;
+    width: 13%;
   }
   th:nth-child(4) {
-    width: 12%;
+    width: 13%;
   }
   th:nth-child(5) {
-    width: 8%;
+    width: 9%;
+  }
+  th:nth-child(6) {
+    width: 12%;
   }
 
   /* AI작성: 긴 게시글 제목은 내용값만 왼쪽 정렬해 읽기 쉽게 표시한다. */
@@ -123,13 +126,23 @@ const Table = styled.table`
   }
 `;
 
-const PostTitle = styled.strong`
+const PostTitle = styled.button`
+  width: 100%;
   overflow: hidden;
   display: block;
   color: ${({ theme }) => theme.colors.text};
+  background: transparent;
+  border: 0;
   font-size: 12px;
+  font-weight: 400;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: underline;
+  }
 `;
 
 const ActionArea = styled.div`
@@ -177,7 +190,7 @@ function getPageNumbers(currentPage, totalPages) {
   return Array.from({ length }, (_, index) => start + index);
 }
 
-function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onDelete, loading }) {
+function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChange, onPostClick, onDelete, loading }) {
   return (
     <Card>
       <Title>조회 결과 {totalCount}건</Title>
@@ -193,6 +206,7 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                   <th scope="col">제목</th>
                   <th scope="col">작성자</th>
                   <th scope="col">작성일</th>
+                  <th scope="col">조회</th>
                   <th scope="col">관리</th>
                 </tr>
               </thead>
@@ -203,13 +217,17 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
                       <PostCategoryBadge category={post.category} />
                     </td>
                     <td data-label="제목">
-                      <PostTitle>{post.title}</PostTitle>
+                      {/* AI작성: 관리 목록에서도 제목을 누르면 일반 게시글 상세를 확인할 수 있게 한다. */}
+                      <PostTitle type="button" onClick={() => onPostClick(post.id)}>
+                        {post.title}{post.commentCount > 0 && ` [${post.commentCount}]`}
+                      </PostTitle>
                     </td>
                     <td data-label="작성자">{post.author}</td>
                     <td data-label="작성일">
                       {/* AI작성: 게시글 작성 시점의 연도와 날짜 안내 문구가 잘리지 않도록 전체 값을 표시한다. */}
                       {post.date}
                     </td>
+                    <td data-label="조회">{post.views}</td>
                     <td data-label="관리">
                       <ActionArea>
                         <ActionButton type="button" $variant="danger" onClick={() => onDelete(post.id)}>
@@ -227,8 +245,8 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
               <PageButton
                 type="button"
                 $active={false}
-                disabled={currentPage === 1}
-                onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 5}
+              onClick={() => onPageChange(Math.floor((currentPage - 1) / 5) * 5)}
                 aria-label="이전 페이지"
               >
                 이전
@@ -247,8 +265,8 @@ function AdminPostTable({ posts, totalCount, currentPage, totalPages, onPageChan
               <PageButton
                 type="button"
                 $active={false}
-                disabled={currentPage === totalPages}
-                onClick={() => onPageChange(currentPage + 1)}
+              disabled={Math.ceil(currentPage / 5) * 5 >= totalPages}
+              onClick={() => onPageChange(Math.min(totalPages, (Math.floor((currentPage - 1) / 5) + 1) * 5 + 1))}
                 aria-label="다음 페이지"
               >
                 다음

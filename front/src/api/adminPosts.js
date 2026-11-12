@@ -10,11 +10,14 @@ function toAdminPostError(error, fallbackMessage) {
 }
 
 // AI작성: 관리자 게시글 API 응답을 기존 테이블 표시 형식으로 변환한다.
-export async function getAdminPosts({ keyword, page = 1, size = 10, signal } = {}) {
+export async function getAdminPosts({ categoryId, keyword, searchType, order, page = 1, size = 10, signal } = {}) {
   try {
     const response = await client.get('/admin/posts', {
       params: {
+        categoryId: categoryId || undefined,
         keyword: keyword || undefined,
+        searchType: searchType || undefined,
+        order: order || undefined,
         page,
         size,
       },
@@ -32,6 +35,8 @@ export async function getAdminPosts({ keyword, page = 1, size = 10, signal } = {
         title: post.title,
         author: post.writerNickname || '알 수 없음',
         date: formatAdminDate(post.createdAt || post.createdAtStr),
+        views: post.viewCount ?? 0,
+        commentCount: post.commentCount ?? 0,
       })),
       meta: response.data.meta,
     };

@@ -62,25 +62,28 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 23%;
+    width: 20%;
   }
   th:nth-child(2) {
-    width: 12%;
+    width: 9%;
   }
   th:nth-child(3) {
-    width: 13%;
+    width: 11%;
   }
   th:nth-child(4) {
-    width: 15%;
+    width: 13%;
   }
   th:nth-child(5) {
-    width: 14%;
+    width: 13%;
   }
   th:nth-child(6) {
-    width: 10%;
+    width: 15%;
   }
   th:nth-child(7) {
-    width: 14%;
+    width: 8%;
+  }
+  th:nth-child(8) {
+    width: 11%;
   }
 
   /* AI작성: 희망 지역은 길이가 달라 비교하기 쉽도록 제목과 값을 왼쪽 정렬한다. */
@@ -213,6 +216,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
               <th scope="col">신청자</th>
               <th scope="col">희망 지역</th>
               <th scope="col">신청일</th>
+              <th scope="col">심사일</th>
               <th scope="col">상태</th>
               <th scope="col">심사</th>
             </tr>
@@ -220,7 +224,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
           <tbody>
             {applications.length === 0 ? (
               <tr>
-                <Empty colSpan="7">검색 조건에 맞는 신청 내역이 없습니다.</Empty>
+                <Empty colSpan="8">검색 조건에 맞는 신청 내역이 없습니다.</Empty>
               </tr>
             ) : (
               applications.map((application) => (
@@ -232,6 +236,7 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
                   <td data-label="신청자">{application.applicant}</td>
                   <td data-label="희망 지역">{application.region}</td>
                   <td data-label="신청일">{application.appliedAt}</td>
+                  <td data-label="심사일">{application.processedAt}</td>
                   <td data-label="상태">
                     <Status $status={application.status}>{application.status}</Status>
                   </td>
@@ -250,8 +255,8 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
             <PageButton
               type="button"
               $active={false}
-              disabled={currentPage === 1}
-              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 5}
+              onClick={() => onPageChange(Math.floor((currentPage - 1) / 5) * 5)}
               aria-label="이전 페이지"
             >
               이전
@@ -270,8 +275,8 @@ function SavingGroupApplicationTable({ applications, filter, currentPage, totalP
             <PageButton
               type="button"
               $active={false}
-              disabled={currentPage === totalPages}
-              onClick={() => onPageChange(currentPage + 1)}
+              disabled={Math.ceil(currentPage / 5) * 5 >= totalPages}
+              onClick={() => onPageChange(Math.min(totalPages, (Math.floor((currentPage - 1) / 5) + 1) * 5 + 1))}
               aria-label="다음 페이지"
             >
               다음

@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import styled from 'styled-components';
 import Button from '../common/Button';
+
+const REPLIES_PER_LOAD = 5;
 
 const ArticleCard = styled.article`
   padding: 22px 18px 14px;
@@ -76,6 +78,76 @@ const ListActions = styled.div`
   margin-top: 10px;
   display: flex;
   justify-content: flex-end;
+`;
+
+// AI작성: 긴 게시글과 댓글 사이를 빠르게 이동할 수 있도록 본문 옆에 고정 네비게이터를 배치한다.
+const DetailLayout = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  align-items: start;
+  gap: 16px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+`;
+
+const DetailBody = styled.div`
+  min-width: 0;
+`;
+
+const FloatingNavigator = styled.nav`
+  position: sticky;
+  top: 104px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.md};
+  box-shadow: ${({ theme }) => theme.shadow.card};
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    position: static;
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    padding: 8px;
+  }
+`;
+
+const NavigatorButton = styled.button`
+  min-height: 48px;
+  padding: 7px 5px;
+  color: ${({ theme }) => theme.colors.primary};
+  background: ${({ theme }) => theme.colors.primarySoft};
+  border: 1px solid transparent;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.colors.white};
+    background: ${({ theme }) => theme.colors.primary};
+    outline: none;
+  }
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
+    flex: 1;
+    min-height: 42px;
+    padding: 7px 10px;
+  }
+`;
+
+const ScrollAnchor = styled.div`
+  height: 1px;
+  scroll-margin-top: 104px;
 `;
 
 const Comments = styled.section`
@@ -182,6 +254,11 @@ const TextAction = styled.button`
   font-weight: 700;
 `;
 
+const ReplyMoreButton = styled(TextAction)`
+  margin: 12px 0 0 28px;
+  font-size: 13px;
+`;
+
 const CommentForm = styled.form`
   margin-top: 14px;
   padding-top: 14px;
@@ -218,6 +295,18 @@ const CommentInput = styled.textarea`
     outline: 0;
     box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
   }
+
+  /* AI작성: 비로그인 상태의 댓글 입력창은 회색으로 비활성 상태를 분명히 표시합니다. */
+  &:disabled {
+    color: ${({ theme }) => theme.colors.muted};
+    background: ${({ theme }) => theme.colors.background};
+    border-color: ${({ theme }) => theme.colors.border};
+    cursor: not-allowed;
+  }
+
+  &:disabled::placeholder {
+    color: ${({ theme }) => theme.colors.muted};
+  }
 `;
 
 // AI작성: 댓글 입력창 높이만큼 버튼이 늘어나지 않도록 하단에 고정된 크기로 표시한다.
@@ -225,6 +314,19 @@ const CommentSubmitButton = styled(Button)`
   width: 76px;
   min-width: 76px;
   align-self: stretch;
+
+  /* AI작성: 로그인 안내용 등록 버튼은 회색으로 보이지만 클릭하면 로그인 화면으로 이동합니다. */
+  ${({ $loginRequired, theme }) => $loginRequired && `
+    color: ${theme.colors.muted};
+    background: ${theme.colors.background};
+    border-color: ${theme.colors.border};
+    cursor: pointer;
+
+    &:hover {
+      background: ${theme.colors.border};
+      border-color: ${theme.colors.border};
+    }
+  `}
 `;
 
 const CommentEditForm = styled.form`
@@ -276,6 +378,7 @@ function PostDetail({
   replyingCommentId,
   replyText,
   isSubmittingReply,
+  newReplyParentId,
   editingCommentId,
   editingCommentText,
   isUpdatingComment,
@@ -286,6 +389,7 @@ function PostDetail({
   onReplyChange,
   onReplySubmit,
   onReplyCancel,
+  onReplyMoreViewed,
   onCommentEditStart,
   onCommentEditChange,
   onCommentEditSubmit,
@@ -297,8 +401,29 @@ function PostDetail({
   onReport,
   onBack,
 }) {
+  const pageTopRef = useRef(null);
+  const contentEndRef = useRef(null);
+  const pageBottomRef = useRef(null);
+
+  // AI작성: 버튼 선택 시 긴 화면 안에서 목적 위치로 부드럽게 이동한다.
+  const moveTo = (targetRef) => {
+    targetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const [visibleReplyCounts, setVisibleReplyCounts] = useState({});
+  const getVisibleReplyCount = (commentId) => visibleReplyCounts[commentId] || REPLIES_PER_LOAD;
+
+  const handleReplyMore = (commentId) => {
+    // AI작성: 숫자 페이지 대신 같은 부모 댓글 아래 답글을 5개씩 추가로 표시합니다.
+    setVisibleReplyCounts((currentCounts) => ({
+      ...currentCounts,
+      [commentId]: (currentCounts[commentId] || REPLIES_PER_LOAD) + REPLIES_PER_LOAD,
+    }));
+    onReplyMoreViewed(commentId);
+  };
+
   return (
-    <>
+    <DetailLayout>
+      <DetailBody>
+      <ScrollAnchor ref={pageTopRef} />
       <ArticleCard>
         <Meta>
           {post.author} · {post.date} · 조회 {post.views}
@@ -311,16 +436,17 @@ function PostDetail({
             ))}
           </PostImages>
         )}
+        <ScrollAnchor ref={contentEndRef} />
         <PostActions>
           {Number(post.writerId) === Number(memberId) ? <>
             <Button type="button" $size="small" onClick={onEdit}>수정</Button>
             <Button type="button" $variant="danger" $size="small" onClick={onDelete}>삭제</Button>
-          </> : <>
-            {/* AI작성: 신고 버튼은 하나로 표시하고 모달에서 게시글 또는 작성자를 선택하도록 대상 정보를 함께 전달한다. */}
+          </> : memberId && (
+            /* AI작성: 비로그인 상태에서는 신고 기능 진입 버튼을 표시하지 않습니다. */
             <Button type="button" $variant="danger" $size="small" onClick={() => onReport('POST', post.id, post.writerId, '게시글')}>
               신고하기
             </Button>
-          </>}
+          )}
         </PostActions>
       </ArticleCard>
       <ListActions>
@@ -353,10 +479,10 @@ function PostDetail({
                     {Number(comment.memberId) === Number(memberId) ? <>
                       <TextAction type="button" onClick={() => onCommentEditStart(comment)}>수정</TextAction>
                       <TextAction type="button" $danger onClick={() => onCommentDelete(comment.id)}>삭제</TextAction>
-                    </> : <>
-                      {/* AI작성: 댓글과 작성자 신고를 하나의 진입점으로 합치고 실제 대상은 모달에서 선택한다. */}
+                    </> : memberId && (
+                      /* AI작성: 비로그인 상태에서는 댓글 신고 버튼을 표시하지 않습니다. */
                       <TextAction type="button" $danger onClick={() => onReport('COMMENT', comment.id, comment.memberId, '댓글')}>신고하기</TextAction>
-                    </>}
+                    )}
                   </ReplyActions>
                 )}
               </CommentHeader>
@@ -391,8 +517,15 @@ function PostDetail({
                   <CommentInput
                     value={replyText}
                     onChange={(event) => onReplyChange(event.target.value)}
+                    // AI작성: 일반 Enter는 줄바꿈으로 두고 Ctrl/Cmd+Enter로 답글을 등록합니다.
+                    onKeyDown={(event) => {
+                      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                        event.preventDefault();
+                        onReplySubmit(event);
+                      }
+                    }}
                     maxLength={500}
-                    placeholder="답글을 입력해주세요."
+                    placeholder="댓글은 ctrl+enter로 등록이 가능합니다."
                     autoFocus
                     required
                   />
@@ -410,7 +543,7 @@ function PostDetail({
                   </Button>
                 </ReplyForm>
               )}
-              {comment.replies.map((reply) => (
+              {comment.replies.slice(0, getVisibleReplyCount(comment.id)).map((reply) => (
                 <Reply key={reply.id}>
                   <CommentHeader>
                     <AuthorInfo>
@@ -423,9 +556,10 @@ function PostDetail({
                         {Number(reply.memberId) === Number(memberId) ? <>
                           <TextAction type="button" onClick={() => onCommentEditStart(reply)}>수정</TextAction>
                           <TextAction type="button" $danger onClick={() => onCommentDelete(reply.id)}>삭제</TextAction>
-                        </> : <>
+                        </> : memberId && (
+                          /* AI작성: 비로그인 상태에서는 답글 신고 버튼을 표시하지 않습니다. */
                           <TextAction type="button" $danger onClick={() => onReport('COMMENT', reply.id, reply.memberId, '댓글')}>신고하기</TextAction>
-                        </>}
+                        )}
                       </ReplyActions>
                     )}
                   </CommentHeader>
@@ -455,6 +589,13 @@ function PostDetail({
                   )}
                 </Reply>
               ))}
+              {comment.replies.length > getVisibleReplyCount(comment.id) && (
+                <ReplyMoreButton type="button" onClick={() => handleReplyMore(comment.id)}>
+                  {newReplyParentId === comment.id
+                    ? '새 답글이 등록되었습니다. 답글 더보기'
+                    : `답글 더보기 (남은 ${comment.replies.length - getVisibleReplyCount(comment.id)}개)`}
+                </ReplyMoreButton>
+              )}
             </Comment>
           ))}
           </CommentList>
@@ -505,14 +646,28 @@ function PostDetail({
               }
             }}
             maxLength={500}
-            placeholder="댓글은 ctrl+enter로 등록이 가능합니다."
+            // AI작성: 비로그인 회원은 댓글을 작성할 수 없도록 입력 영역을 비활성화합니다.
+            disabled={!memberId}
+            placeholder={memberId ? '댓글은 ctrl+enter로 등록이 가능합니다.' : '댓글 작성하려면 로그인이 필요합니다.'}
           />
-          <CommentSubmitButton type="submit" $size="small" disabled={isSubmittingComment}>
+          <CommentSubmitButton
+            type="submit"
+            $size="small"
+            $loginRequired={!memberId}
+            disabled={isSubmittingComment}
+          >
             {isSubmittingComment ? '등록 중...' : '등록'}
           </CommentSubmitButton>
         </CommentForm>
       </Comments>
-    </>
+      <ScrollAnchor ref={pageBottomRef} />
+      </DetailBody>
+      <FloatingNavigator aria-label="게시글 위치 이동">
+        <NavigatorButton type="button" onClick={() => moveTo(pageTopRef)}>↑ 맨 위</NavigatorButton>
+        <NavigatorButton type="button" onClick={() => moveTo(contentEndRef)}>본문 끝</NavigatorButton>
+        <NavigatorButton type="button" onClick={() => moveTo(pageBottomRef)}>↓ 맨 아래</NavigatorButton>
+      </FloatingNavigator>
+    </DetailLayout>
   );
 }
 

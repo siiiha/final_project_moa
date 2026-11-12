@@ -35,6 +35,8 @@ public enum NotificationType {
     DUES_PAYMENT_DUE,
     DUES_PAYMENT_CONFIRMED,
     DUES_PAYMENT_OVERDUE,
+    // AI작성: 새 신고가 접수되었을 때 관리자가 처리 대기 목록을 확인하도록 알립니다.
+    REPORT_RECEIVED,
     // AI작성: 관리자가 신고 처리를 완료했을 때 신고자에게 결과를 알립니다.
     REPORT_PROCESSED,
 
