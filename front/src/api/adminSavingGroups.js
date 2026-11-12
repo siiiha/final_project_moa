@@ -1,4 +1,5 @@
 import client from './client.js';
+import { formatAdminDate } from './adminFormatters.js';
 
 function toAdminSavingGroupError(error, fallbackMessage) {
   const responseError = error.response?.data?.error;
@@ -25,6 +26,8 @@ function mapSavingGroup(group) {
     description: group.description,
     region: group.regionName,
     members: group.memberCount ?? 0,
+    // AI작성: 관리자 목록에서 개설일을 일관된 날짜 형식으로 보여준다.
+    openedAt: formatAdminDate(group.createdAt, { fallback: '-', compact: false }),
     status: formatStatus(group.status, group.adminRestricted),
     statusCode: group.status,
     adminRestricted: group.adminRestricted === true,

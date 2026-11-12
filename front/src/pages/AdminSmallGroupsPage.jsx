@@ -4,6 +4,7 @@ import SmallGroupFilterBar from '../components/admin/SmallGroupFilterBar';
 import SmallGroupTable from '../components/admin/SmallGroupTable';
 import AdminPageLayout from '../components/layout/AdminPageLayout';
 import client from '../api/client';
+import { formatAdminDate } from '../api/adminFormatters';
 import { getMemberRegions } from '../api/member';
 import ConfirmModal from '../components/common/ConfirmModal';
 
@@ -139,6 +140,8 @@ function AdminSmallGroupsPage() {
           leader: group.creatorNickname || '-',
           region: group.regionName,
           participants: group.memberCount ?? 0,
+          // AI작성: 소모임 생성 시각을 관리자 목록의 개설일 표시 형식으로 변환한다.
+          openedAt: formatAdminDate(group.createdAt, { fallback: '-', compact: false }),
           status: group.status === 'ACTIVE' ? '활동중' : group.status === 'RESTRICTED' ? '정지' : '-',
           statusCode: group.status,
         })));

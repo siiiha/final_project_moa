@@ -58,7 +58,8 @@
                sg.meet_date,
                sg.location,
                creator.nickname AS creator_nickname,
-               sg.status
+               sg.status,
+               g.created_at
         FROM small_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         JOIN region r ON r.region_id = g.region_id

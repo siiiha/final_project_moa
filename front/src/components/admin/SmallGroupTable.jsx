@@ -63,25 +63,28 @@ const Table = styled.table`
   }
 
   th:nth-child(1) {
-    width: 25%;
+    width: 19%;
   }
   th:nth-child(2) {
-    width: 11%;
-  }
-  th:nth-child(3) {
-    width: 13%;
-  }
-  th:nth-child(4) {
-    width: 17%;
-  }
-  th:nth-child(5) {
-    width: 11%;
-  }
-  th:nth-child(6) {
     width: 10%;
   }
+  th:nth-child(3) {
+    width: 12%;
+  }
+  th:nth-child(4) {
+    width: 15%;
+  }
+  th:nth-child(5) {
+    width: 10%;
+  }
+  th:nth-child(6) {
+    width: 12%;
+  }
   th:nth-child(7) {
-    width: 13%;
+    width: 10%;
+  }
+  th:nth-child(8) {
+    width: 12%;
   }
 
   /* AI작성: 활동 지역은 길이가 달라 비교하기 쉽도록 제목과 값을 왼쪽 정렬한다. */
@@ -217,6 +220,7 @@ function SmallGroupTable({
               <th scope="col">모임장</th>
               <th scope="col">활동 지역</th>
               <th scope="col">참여자 수</th>
+              <th scope="col">개설일</th>
               <th scope="col">상태</th>
               <th scope="col">관리</th>
             </tr>
@@ -224,7 +228,7 @@ function SmallGroupTable({
           <tbody>
             {loading || errorMessage || groups.length === 0 ? (
               <tr>
-                <Empty colSpan="7">
+                <Empty colSpan="8">
                   {loading ? '소모임 목록을 불러오는 중입니다.' : errorMessage || '검색 조건에 맞는 소모임이 없습니다.'}
                 </Empty>
               </tr>
@@ -243,6 +247,7 @@ function SmallGroupTable({
                     <td data-label="모임장">{group.leader}</td>
                     <td data-label="활동 지역">{group.region}</td>
                     <td data-label="참여자 수">{group.participants}명</td>
+                    <td data-label="개설일">{group.openedAt}</td>
                     <td data-label="상태">
                       <Status $status={group.status}>{group.status}</Status>
                     </td>
