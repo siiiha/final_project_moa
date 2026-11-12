@@ -21,6 +21,15 @@ import { createReport } from '../api/reports';
 const COMMENTS_PER_PAGE = 20;
 const COMMENT_PAGE_BUTTON_COUNT = 5;
 
+// AI작성: 일반 공백 외 제로폭·형식 공백만 붙여넣은 경우에도 댓글 내용을 비어 있는 값으로 처리합니다.
+const normalizeCommentContent = (content) => {
+  const trimmedContent = content.trim();
+
+  return /^[\u200B-\u200D\u2060\uFEFF\u180E]*$/u.test(trimmedContent)
+    ? ''
+    : trimmedContent;
+};
+
 // AI작성: 로그인 JWT의 subject는 백엔드가 발급한 회원 번호이므로 댓글 작성 권한 비교에 사용한다.
 const getMemberIdFromToken = (token) => {
   try {
@@ -131,6 +140,7 @@ function PostDetailPage() {
   const [replyingCommentId, setReplyingCommentId] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [newReplyParentId, setNewReplyParentId] = useState(null);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [isUpdatingComment, setIsUpdatingComment] = useState(false);
@@ -390,7 +400,7 @@ function PostDetailPage() {
       goToLogin();
       return;
     }
-    const trimmedComment = commentText.trim();
+    const trimmedComment = normalizeCommentContent(commentText);
     if (!trimmedComment || isSubmittingComment) return;
 
     setIsSubmittingComment(true);
@@ -456,7 +466,7 @@ function PostDetailPage() {
 
   const handleReplySubmit = async (event) => {
     event.preventDefault();
-    const trimmedReply = replyText.trim();
+    const trimmedReply = normalizeCommentContent(replyText);
     if (!replyingCommentId || !trimmedReply || isSubmittingReply) return;
 
     setIsSubmittingReply(true);
@@ -470,35 +480,15 @@ function PostDetailPage() {
         throw new Error(response.error?.message || '답글 등록에 실패했습니다.');
       }
 
-      // AI작성: 등록된 대댓글을 해당 원댓글의 replies 배열 끝에 추가합니다.
-      setComments((currentComments) =>
-        currentComments.map((comment) =>
-          comment.id === replyingCommentId
-            ? {
-                ...comment,
-                replies: [
-                  ...comment.replies,
-                  {
-                    id: response.data.commentId,
-                    // AI작성: 등록 직후에도 본인 대댓글의 수정·삭제 버튼이 표시되도록 회원 번호를 유지합니다.
-                    memberId: response.data.memberId,
-                    // AI작성: 답글도 등록 직후부터 서버가 반환한 닉네임으로 표시합니다.
-                    author: response.data.writerNickname || '알 수 없음',
-                    content: response.data.content,
-                    createdAt: response.data.createdAt,
-                    deleted: false,
-                  },
-                ],
-              }
-            : comment
-        )
-      );
       setReplyingCommentId(null);
       setReplyText('');
       if (replyDraftKey) sessionStorage.removeItem(replyDraftKey);
-      setCommentTotal((currentTotal) => currentTotal + 1);
+      // AI작성: 접힌 답글 목록에서는 새로 등록한 답글을 더보기 안내로 찾을 수 있게 부모 번호를 보관합니다.
+      setNewReplyParentId(replyingCommentId);
 
       try {
+        // AI작성: 임시 답글의 작성자 정보가 비어 보이지 않도록 서버 목록을 다시 조회합니다.
+        setIsLoadingComments(true);
         await refreshComments();
       } catch (refreshError) {
         setCommentErrorMessage(
@@ -506,6 +496,8 @@ function PostDetailPage() {
             refreshError.message ||
             '답글은 등록되었지만 최신 목록을 불러오지 못했습니다.'
         );
+      } finally {
+        setIsLoadingComments(false);
       }
     } catch (error) {
       setCommentErrorMessage(
@@ -513,6 +505,12 @@ function PostDetailPage() {
       );
     } finally {
       setIsSubmittingReply(false);
+    }
+  };
+
+  const handleReplyMoreViewed = (commentId) => {
+    if (newReplyParentId === commentId) {
+      setNewReplyParentId(null);
     }
   };
 
@@ -528,7 +526,7 @@ function PostDetailPage() {
       goToLogin();
       return;
     }
-    const trimmedComment = editingCommentText.trim();
+    const trimmedComment = normalizeCommentContent(editingCommentText);
     if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
 
     setIsUpdatingComment(true);
@@ -703,6 +701,7 @@ function PostDetailPage() {
           replyingCommentId={replyingCommentId}
           replyText={replyText}
           isSubmittingReply={isSubmittingReply}
+          newReplyParentId={newReplyParentId}
           editingCommentId={editingCommentId}
           editingCommentText={editingCommentText}
           isUpdatingComment={isUpdatingComment}
@@ -713,6 +712,7 @@ function PostDetailPage() {
           onReplyChange={handleReplyChange}
           onReplySubmit={handleReplySubmit}
           onReplyCancel={handleReplyCancel}
+          onReplyMoreViewed={handleReplyMoreViewed}
           onCommentEditStart={handleCommentEditStart}
           onCommentEditChange={setEditingCommentText}
           onCommentEditSubmit={handleCommentEditSubmit}

@@ -135,7 +135,9 @@ public class SecurityConfig {
 
                         // AI작성: 게시글의 댓글 목록은 작성·수정 권한과 분리해 공개 조회만 허용한다.
                         .requestMatchers(
-                                new RegexRequestMatcher("^/api/post/\\d+/comments$", HttpMethod.GET.name())
+                                HttpMethod.GET,
+                                "/api/post/*/comments",
+                                "/post/*/comments"
                         ).permitAll()
 
                         // AI작성: 정규식 비교에 포함되는 공지 쿼리 문자열도 허용하되 숫자 ID 상세 GET만 공개한다.
