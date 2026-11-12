@@ -25,7 +25,7 @@ const COMMENT_PAGE_BUTTON_COUNT = 5;
 const normalizeCommentContent = (content) => {
   const trimmedContent = content.trim();
 
-  return /^[\u200B-\u200D\u2060\uFEFF\u180E]*$/u.test(trimmedContent)
+  return /^[\u200B-\u200D\u2060\uFEFF\u180E\u3164]*$/u.test(trimmedContent)
     ? ''
     : trimmedContent;
 };
@@ -153,6 +153,7 @@ function PostDetailPage() {
   const [reportErrorMessage, setReportErrorMessage] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportNotice, setReportNotice] = useState('');
+  const [inputNotice, setInputNotice] = useState('');
   const postDetailRequestRef = useRef(null);
   const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
   const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
@@ -376,7 +377,7 @@ function PostDetailPage() {
   };
 
   // AI작성: 새 원댓글은 마지막 페이지에서 보이도록 서버의 최신 페이지 정보를 기준으로 다시 조회합니다.
-  const refreshComments = async ({ moveToLastPage = false } = {}) => {
+  const refreshComments = async ({ moveToLastPage = false, page = commentPage } = {}) => {
     const firstPageResponse = await getComments(id, { page: 1, size: COMMENTS_PER_PAGE });
     if (!firstPageResponse.success) {
       throw new Error(firstPageResponse.error?.message || '최신 댓글을 불러오지 못했습니다.');
@@ -385,7 +386,10 @@ function PostDetailPage() {
     const lastPage = Math.max(1, firstPageResponse.meta?.totalPages || 1);
     const response = moveToLastPage && lastPage > 1
       ? await getComments(id, { page: lastPage, size: COMMENTS_PER_PAGE })
-      : firstPageResponse;
+      // AI작성: 대댓글 등록 후에는 사용자가 보던 댓글 페이지를 그대로 다시 조회한다.
+      : page === 1
+        ? firstPageResponse
+        : await getComments(id, { page, size: COMMENTS_PER_PAGE });
 
     if (!response.success) {
       throw new Error(response.error?.message || '최신 댓글을 불러오지 못했습니다.');
@@ -404,7 +408,12 @@ function PostDetailPage() {
       return;
     }
     const trimmedComment = normalizeCommentContent(commentText);
-    if (!trimmedComment || isSubmittingComment) return;
+    if (!trimmedComment) {
+      // AI작성: 브라우저 기본 필수 입력 안내 대신 공백 입력 사유를 모달로 알린다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (isSubmittingComment) return;
 
     setIsSubmittingComment(true);
     setCommentErrorMessage('');
@@ -470,7 +479,12 @@ function PostDetailPage() {
   const handleReplySubmit = async (event) => {
     event.preventDefault();
     const trimmedReply = normalizeCommentContent(replyText);
-    if (!replyingCommentId || !trimmedReply || isSubmittingReply) return;
+    if (!trimmedReply) {
+      // AI작성: 대댓글도 공백·한글 채움 문자만 입력하면 공통 안내 모달을 표시한다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (!replyingCommentId || isSubmittingReply) return;
 
     setIsSubmittingReply(true);
     setCommentErrorMessage('');
@@ -530,7 +544,12 @@ function PostDetailPage() {
       return;
     }
     const trimmedComment = normalizeCommentContent(editingCommentText);
-    if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
+    if (!trimmedComment) {
+      // AI작성: 댓글·대댓글 수정에서도 빈 내용 저장을 모달로 안내한다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (!editingCommentId || isUpdatingComment) return;
 
     setIsUpdatingComment(true);
     setCommentErrorMessage('');
@@ -776,6 +795,16 @@ function PostDetailPage() {
           showCancel={false}
           onConfirm={() => setReportNotice('')}
           onCancel={() => setReportNotice('')}
+        />
+      )}
+      {inputNotice && (
+        <ConfirmModal
+          title="입력 내용을 확인해 주세요"
+          description={inputNotice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setInputNotice('')}
+          onCancel={() => setInputNotice('')}
         />
       )}
     </Page>

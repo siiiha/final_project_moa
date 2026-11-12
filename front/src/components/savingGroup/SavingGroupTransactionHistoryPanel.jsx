@@ -189,6 +189,13 @@ const PageButton = styled(Button)`
 
 const formatWon = (amount) => `${amount.toLocaleString('ko-KR')}원`;
 
+// AI작성: 게시판 댓글과 동일하게 현재 페이지를 기준으로 5개씩 페이지 번호를 노출한다.
+const getPageNumbers = (currentPage, totalPages) => {
+  const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+  const end = Math.min(totalPages, start + 4);
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
+
 // AI작성: 장부 목적과 카드 분류 코드에 표시용 이름을 적용한다.
 const purposeLabels = { DUES: '회비', PAYOUT: '계금 지급', EXPENSE: '일반 지출' };
 
@@ -392,7 +399,18 @@ export function SavingGroupTransactionHistoryView({
             <PageButton type="button" $variant="secondary" $size="small" disabled={page === 1} onClick={() => loadPage(page - 1)}>
               이전
             </PageButton>
-            <span aria-current="page">{page} / {totalPages}</span>
+            {getPageNumbers(page, totalPages).map((pageNumber) => (
+              <PageButton
+                key={pageNumber}
+                type="button"
+                $variant={pageNumber === page ? 'primary' : 'secondary'}
+                $size="small"
+                aria-current={pageNumber === page ? 'page' : undefined}
+                onClick={() => loadPage(pageNumber)}
+              >
+                {pageNumber}
+              </PageButton>
+            ))}
             <PageButton type="button" $variant="secondary" $size="small" disabled={page >= totalPages} onClick={() => loadPage(page + 1)}>
               다음
             </PageButton>
