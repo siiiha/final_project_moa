@@ -49,11 +49,12 @@ const Title = styled.h3`
 `;
 const Description = styled.p`
   margin-top: 8px;
-  min-height: 42px;
+  min-height: 50px;
   color: ${({ theme }) => theme.colors.secondaryText};
   font-size: 13px;
   letter-spacing: -0.45px;
   line-height: 1.6;
+  white-space: pre-line;
 `;
 const MoreButton = styled.span`
   width: fit-content;
