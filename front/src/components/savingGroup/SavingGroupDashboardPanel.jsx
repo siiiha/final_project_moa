@@ -28,6 +28,39 @@ const Description = styled.p`
   line-height: 1.6;
 `;
 
+const FilterBar = styled.div`
+  margin-top: 16px;
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+`;
+
+const MonthField = styled.label`
+  display: grid;
+  gap: 7px;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const MonthInput = styled.input`
+  width: 140px;
+  height: 40px;
+  padding: 0 10px;
+  color: ${({ theme }) => theme.colors.text};
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12px;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.primary};
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(23, 107, 91, 0.12);
+  }
+`;
+
 const Summary = styled.div`
   margin-top: 16px;
   display: grid;
@@ -203,7 +236,7 @@ function useDashboardResult(savingGroupId, month, load) {
   return result?.savingGroupId === savingGroupId && result?.month === month ? result : null;
 }
 
-export function SavingGroupDashboardView({ dashboard, outstanding, canViewOutstanding }) {
+export function SavingGroupDashboardView({ dashboard, outstanding, canViewOutstanding, month, onMonthChange }) {
   const format = (value) => value == null ? '—' : value.toLocaleString('ko-KR') + '원';
   const data = dashboard?.value;
   const categoryData = (data?.expenseCategoryRatios ?? []).map((item) => ({
@@ -226,6 +259,14 @@ export function SavingGroupDashboardView({ dashboard, outstanding, canViewOutsta
           <Description>함께 모은 회비와 사용 내역을 투명하게 확인하세요.</Description>
         </div>
       </Heading>
+
+      <FilterBar>
+        <MonthField>
+          조회 월
+          <MonthInput type="month" min="0001-01" max="9999-12" value={month}
+            onChange={(event) => onMonthChange(event.target.value)} />
+        </MonthField>
+      </FilterBar>
 
       <Summary>
         {dashboardSummary.map((item) => (
@@ -288,8 +329,10 @@ export function SavingGroupDashboardView({ dashboard, outstanding, canViewOutsta
 
 // AI작성: 한국 시간의 현재 월로 승인 계주에게만 미납을 요청한다.
 export default function SavingGroupDashboardPanel({ savingGroupId, canViewOutstanding }) {
-  const month = koreanMonth.format(new Date());
+  // AI작성: 납부 현황과 동일하게 선택한 월을 대시보드 집계 기준으로 사용한다.
+  const [month, setMonth] = useState(() => koreanMonth.format(new Date()));
   const dashboard = useDashboardResult(savingGroupId, month, loadDashboard);
   const outstanding = useDashboardResult(canViewOutstanding ? savingGroupId : null, month, loadOutstanding);
-  return <SavingGroupDashboardView dashboard={dashboard} outstanding={outstanding} canViewOutstanding={canViewOutstanding} />;
+  return <SavingGroupDashboardView dashboard={dashboard} outstanding={outstanding}
+    canViewOutstanding={canViewOutstanding} month={month} onMonthChange={setMonth} />;
 }
