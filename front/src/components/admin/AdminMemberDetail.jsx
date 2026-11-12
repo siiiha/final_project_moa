@@ -227,7 +227,6 @@ function AdminMemberDetail({
   submitting,
   message,
   errorMessage,
-  onActionChange,
   onRestrictionScopeChange,
   onReasonChange,
   onRestrictionTypeChange,
@@ -309,7 +308,8 @@ function AdminMemberDetail({
               ))}
         </RestrictionList>
         <ManagementForm onSubmit={onSubmit}>
-          <Control aria-label="회원 상태 처리" value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting || isAdminMember}>
+          {/* AI작성: 제한 영역 변경 시 자동 결정된 처리만 표시해 제한이 없는 영역의 해제 시도를 막는다. */}
+          <Control aria-label="회원 상태 처리" value={action} disabled>
             <option value="이용 제한">이용 제한</option>
             <option value="제한 해제">제한 해제</option>
           </Control>
