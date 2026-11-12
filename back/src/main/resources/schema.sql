@@ -726,15 +726,16 @@ CREATE TABLE IF NOT EXISTS `group_transaction` (
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='모임 계좌 거래 내역';
 
 -- 계모임 거래의 자동 분류 결과 저장
+-- AI작성: COMMENT 문자열 표기와 키워드 오타, 최초 분류 일시 설명을 수정함.
 CREATE TABLE IF NOT EXISTS `saving_group_transaction_classification` (
-    `transaction_id` BIGINT NOT NULL COMMENT `거래 ID`,
-    `suggested_category` VARCHAR(30) NULL COMMNET '자동 추천 분류',
+    `transaction_id` BIGINT NOT NULL COMMENT '거래 ID',
+    `suggested_category` VARCHAR(30) NULL COMMENT '자동 추천 분류',
     `classification_status` VARCHAR(30) NOT NULL COMMENT '자동 분류 상태',
     `confidence` DECIMAL(5,4) NULL COMMENT '분류 신뢰도',
     `prediction_source` VARCHAR(30) NULL COMMENT '분류 출처',
     `review_reason` VARCHAR(255) NULL COMMENT '확인 필요 사유',
     `model_version` VARCHAR(100) NULL COMMENT '분류 모델 버전',
-    `classified_at` DATETIME NOT NULL COMMENT '최ㅊ 분류 일시',
+    `classified_at` DATETIME NOT NULL COMMENT '최초 분류 일시',
     `updated_at` DATETIME NOT NULL COMMENT '분류 결과 수정 일시',
 
     PRIMARY KEY (`transaction_id`)
