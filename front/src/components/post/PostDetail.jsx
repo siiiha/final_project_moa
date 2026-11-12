@@ -495,7 +495,6 @@ function PostDetail({
                     value={editingCommentText}
                     onChange={(event) => onCommentEditChange(event.target.value)}
                     maxLength={500}
-                    required
                   />
                   <Button type="submit" $size="small" disabled={isUpdatingComment}>
                     {isUpdatingComment ? '저장 중...' : '저장'}
@@ -529,7 +528,6 @@ function PostDetail({
                     maxLength={500}
                     placeholder="댓글은 ctrl+enter로 등록이 가능합니다."
                     autoFocus
-                    required
                   />
                   <Button type="submit" $size="small" disabled={isSubmittingReply}>
                     {isSubmittingReply ? '등록 중...' : '등록'}
@@ -571,7 +569,6 @@ function PostDetail({
                         value={editingCommentText}
                         onChange={(event) => onCommentEditChange(event.target.value)}
                         maxLength={500}
-                        required
                       />
                       <Button type="submit" $size="small" disabled={isUpdatingComment}>
                         {isUpdatingComment ? '저장 중...' : '저장'}
