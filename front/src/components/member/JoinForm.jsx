@@ -764,7 +764,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
     }
   };
 
-   // AI작성: 확인 요청 이후 닉네임이 바뀌면 이전 응답을 적용하지 않습니다.
+  // AI작성: 확인 요청 이후 닉네임이 바뀌면 이전 응답을 적용하지 않습니다.
   const handleDuplicateCheck = async () => {
     if (isCheckingNickname || isSubmitting) return;
 
@@ -794,22 +794,21 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
       setNicknameMessage(
         available
           ? '사용 가능한 닉네임입니다.'
-          : '이미 사용 중인 닉네임입니다.',
+          : '중복된 닉네임입니다. 다른 닉네임을 입력해 주세요.',
       );
 
-      if (available) {
-        setSignupError((previous) =>
-          previous === '현재 닉네임의 중복 확인을 완료해 주세요.'
-            ? ''
-            : previous,
-        );
-      }
+      // AI작성: 중복 여부와 관계없이 이전 재확인 안내를 지우고 실제 결과를 표시합니다.
+      setSignupError((previous) =>
+        previous === '현재 닉네임의 중복 확인을 완료해 주세요.'
+          ? ''
+          : previous,
+      );
     } catch (error) {
       if (requestVersion !== nicknameCheckVersionRef.current) return;
 
       setNicknameMessage(
         error.response?.data?.error?.message ??
-          '닉네임 중복 확인에 실패했습니다.',
+        '닉네임 중복 확인에 실패했습니다.',
       );
     } finally {
       setIsCheckingNickname(false);
@@ -1179,6 +1178,14 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
   const hasBirthDateError =
     signupError === '올바른 생년월일을 입력해 주세요.';
 
+  // AI작성: 전화번호 형식 오류를 구분합니다.
+  const hasPhoneError =
+    signupError === '010으로 시작하는 휴대전화번호 11자리를 입력해 주세요.';
+
+  // AI작성: 닉네임 중복 재확인이 필요한 오류를 구분합니다.
+  const hasNicknameError =
+    signupError === '현재 닉네임의 중복 확인을 완료해 주세요.';
+
   const fields = {
     name: (
       <>
@@ -1286,10 +1293,18 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             const parts = [digits.slice(0, 3), digits.slice(3, 7), digits.slice(7)];
 
             setPhone(parts.filter(Boolean).join('-'));
+            if (hasPhoneError) setSignupError('');
           }}
           required
         />
-        {signupStep === 'phone' && (<p id="signup-phone-hint">사용 중인 전화번호를 입력해 주세요.</p>)}
+        {/* AI작성: 전화번호 오류는 기본 안내를 대신해 빨간색으로 표시합니다. */}
+        {hasPhoneError ? (
+          <EmailFeedback id="signup-phone-hint" role="alert">
+            {signupError}
+          </EmailFeedback>
+        ) : signupStep === 'phone' ? (
+          <p id="signup-phone-hint">사용 중인 전화번호를 입력해 주세요.</p>
+        ) : null}
       </>
     ),
     email: (
@@ -1468,6 +1483,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
             onChange={(event) => {
               setNickname(event.target.value);
               setNicknameMessage('');
+              if (hasNicknameError) setSignupError('');
               // AI작성: 닉네임이 바뀌면 이전 확인 결과와 진행 중인 응답을 무효화합니다.
               setCheckedNickname('');
               nicknameCheckVersionRef.current += 1;
@@ -1490,8 +1506,10 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
           />
 
         </FieldList>
-        {/* AI작성: 닉네임 안내 위치에서 성공은 초록색, 오류는 빨간색으로 표시합니다. */}
-        {(signupStep === 'nickname' || nicknameMessage) && (
+        {/* AI작성: 중복 재확인 오류도 닉네임 안내 위치에 표시합니다. */}
+        {hasNicknameError ? (
+          <EmailFeedback role="alert">{signupError}</EmailFeedback>
+        ) : (signupStep === 'nickname' || nicknameMessage) ? (
           <p role={nicknameMessage ? 'status' : undefined}>
             {nicknameMessage ? (
               <span
@@ -1508,7 +1526,7 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
               '모아에서 사용할 닉네임을 2~12자로 입력해 주세요.'
             )}
           </p>
-        )}
+        ) : null}
       </>
     ),
     region: (
@@ -1803,7 +1821,9 @@ function JoinForm({ isSocialSignup = false, signupToken = '' }) {
               ))
             )}
 
-            {signupError && !hasBirthDateError && <p role="alert">{signupError}</p>}
+            {signupError && !hasBirthDateError && !hasPhoneError && !hasNicknameError && (
+              <p role="alert">{signupError}</p>
+            )}
 
             {/* AI작성: 관심사를 선택하고 입력 정보를 확인한 뒤 가입하도록 버튼을 아래에 배치합니다. */}
             {signupStep === 'details' ? (
