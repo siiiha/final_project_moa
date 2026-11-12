@@ -2365,3 +2365,86 @@ JDK 17로 관련 백엔드 테스트 38개 통과, 전용 DB 테스트 2개 건�
 - 목록·상세 응답에 `groupImageUrl` 추가. 미등록 시 null, 등록 시 `/api/saving-groups/{savingGroupId}/image`.
 - GET `/api/saving-groups/{savingGroupId}/image`: 모집중·진행중이며 삭제되지 않은 모임의 등록 이미지만 공개. 이미지·모임 미존재 시 404.
 - JPG/JPEG·PNG·WEBP Content-Type, no-store, nosniff 적용. 미등록·로딩 실패 시 화면의 기본 영역 표시.
+
+### 계모임 채팅 도배 제한 (2026-11-11)
+
+<!-- AI작성: 위 최초 채팅 구현 당시 기록과 구분하여 최종 제한 계약과 검증 범위를 기록한다. -->
+
+#### 감지·제한 정책
+
+- 동일 회원·동일 채팅방의 최근 10초 동안 유효한 발송 시도를 집계하고 6번째 시도에서 도배를 감지한다. 정확히 10초 전 기록은 제외한다. 공백·1,000자 초과 본문, 권한·관리자 제재로 거절된 요청은 집계하지 않는다.
+- 감지 메시지부터 저장·방송하지 않으며 감지 시각부터 180초 동안 발송을 제한한다. 제한 중 재시도·상태 조회는 종료 시각을 연장하지 않는다. 종료 시각과 같거나 이후이면 도배 제한을 해제한다.
+- 기존 관리자 제재는 별도로 유지한다. 도배 제한이 끝나도 관리자 제재가 남아 있으면 발송할 수 없다. 대화 조회는 기존 참여 권한을 따른다.
+- SavingGroupChatServiceImpl 내부에서 인증된 회원 ID·방 ID로 상태를 보관하고, 같은 잠금 안에서 발송 횟수 검사·제한 설정을 처리한다. 별도 제한 Service·제한 상태 DTO·DB 테이블·의존성은 추가하지 않았다.
+- 단일 서버 메모리 방식이다. 새로고침·재로그인·재연결로 초기화되지 않지만 서버 재시작 시 초기화되며 다중 서버 간 공유되지 않는다. 공유 저장이 필요하면 DB 등 저장 방식의 별도 설계가 필요하다.
+- 발송 검사·상태 조회 때 만료 기록을 정리한다. 유효한 발송으로 기록한 시도는 이후 DB 저장 실패 시에도 10초 집계에 남는다.
+
+#### 채팅방 조회 응답
+
+GET `/api/saving-groups/{savingGroupId}/chat-room`의 경로와 기존 필드를 유지한다. 로그인·참여 권한 검증 후 현재 회원의 상태만 반환한다.
+
+| data 필드 | 타입 | 의미 |
+|---|---|---|
+| roomId | number | STOMP 송수신 채팅방 ID |
+| chatRestricted | boolean | 기존 관리자 채팅 제재 여부 |
+| spamRestricted | boolean | 해당 채팅방의 현재 도배 제한 여부 |
+| restrictedUntil | ISO 8601 UTC 문자열 또는 null | 도배 제한 종료 시각. 도배 제한이 없으면 null |
+| serverTime | ISO 8601 UTC 문자열 | 응답 상태를 계산한 서버 시각 |
+
+```json
+{
+  "success": true,
+  "data": {
+    "roomId": 10,
+    "chatRestricted": false,
+    "spamRestricted": true,
+    "restrictedUntil": "2026-11-11T00:03:00Z",
+    "serverTime": "2026-11-11T00:00:00Z"
+  },
+  "meta": null,
+  "error": null
+}
+```
+
+#### 발송 오류와 화면 흐름
+
+- STOMP SEND `/app/chat/rooms/{roomId}`에서 도배 제한이면 기존 `/user/queue/errors`로 공통 실패 응답의 `error.code = CHAT_RATE_LIMITED`와 3분 제한 안내를 반환한다. 서버 예외 상태는 429이나 STOMP 발송이므로 HTTP 429 응답을 받는 구조는 아니다.
+- 공통 오류 응답에 시간 필드를 추가하지 않는다. 화면이 채팅방 조회 API로 종료 시각·서버 시각을 재조회한다. 관리자 제재 오류 `FEATURE_RESTRICTED`도 상태를 재조회한다.
+- 화면은 `restrictedUntil - serverTime`과 단조 증가 시계의 경과 시간으로 남은 시간을 계산해 `분:초`로 표시한다. 카운트다운은 매초 읽기 영역으로 만들지 않아 반복 음성 안내를 방지한다.
+- 관리자 제재·도배 제한·서버 확인 중에는 입력과 보내기를 비활성화한다. 최초 입장·STOMP 재연결·탭 복귀 시 서버 상태를 조회하고, 오래된 조회 응답은 최신 상태를 덮지 못하게 한다.
+- 타이머 만료 시 서버 상태를 재확인하여 발송 상태를 복구한다. 확인 실패 시 발송을 차단한 상태에서 `제한 상태 다시 확인` 버튼을 제공한다. 실제 발송 허용 여부는 매번 서버가 검증한다.
+
+#### 검증 결과
+
+- 설치된 JDK 17 경로 지정 후 운영 코드 컴파일 및 채팅 Service·Controller 테스트 9건 통과. 전체 테스트 소스는 기존 다른 영역 import 오류 11건으로 컴파일이 실패해 임시 Gradle init으로 채팅 테스트 소스만 포함했다. 저장소 빌드 설정은 변경하지 않았다.
+- 서버 테스트는 10초 직전·정확한 10초 경계, 180초 직전·정확한 만료 시점, 차단 메시지 미저장, 다른 Principal 객체의 동일 회원 재발송, 동시 발송, 회원·방 격리, 관리자 제재 유지, 개인 오류 응답·방송 차단을 검증한다.
+- 프론트 API 테스트 1건과 프로덕션 빌드 통과. lint는 오류 없이 경고를 보고한다. 채팅 컴포넌트의 기존 effect 내 상태 초기화 경고와 번들 크기 경고가 유지된다.
+- 실제 React 컴포넌트를 API 대역에 연결한 격리된 헤드리스 Chrome에서 화면 검사 14개 통과. 정상 발송·03:00 표시·재입장·재연결·조회 실패·수동 재확인·자동 만료 복구·만료 후 발송·관리자 제재 유지 등을 확인했다. 화면 만료 검사는 2초로 단축한 대역이며 서버의 180초 경계는 시간 제어 테스트로 검증했다.
+- 실제 로그인·MySQL·WebSocket/STOMP 브로커를 함께 연결한 E2E, 실제 3분 대기, Postman 검증은 미실행이다. Controller 검증은 실제 Service와 Mapper·메시징 대역을 연결한 검증이다.
+
+채팅 테스트만 컴파일하는 임시 init 내용:
+
+```groovy
+// AI작성: 기존 타 도메인 테스트 import 오류와 분리하여 실행한다.
+allprojects {
+    plugins.withId('java') {
+        sourceSets.test.java.setIncludes(['**/savingGroup/**/SavingGroupChat*Test.java'])
+    }
+}
+```
+
+back 폴더에서 다음과 같이 실행한다. init 파일은 임시 검증 파일이며 커밋하지 않는다.
+
+```powershell
+.\gradlew.bat '-Dorg.gradle.java.installations.paths=C:/dev/jdk-17.0.12_windows-x64_bin/jdk-17.0.12' -I build/chat-tests.init.gradle test --tests '*SavingGroupChat*Test' --console=plain
+```
+
+front 폴더에서 `node --test src/api/savingGroupChat.test.js`, `npm run build`, `npm run lint`를 실행한다.
+
+실제 서버 연동 후 수동 확인 절차:
+
+1. 승인 회원으로 입장해 10초 안에 6회 발송하고, 5개만 저장·수신되며 제한 안내와 남은 시간이 표시되는지 확인한다.
+2. 새로고침·재로그인·다른 탭·STOMP 재연결 후 종료 시각이 유지되는지 확인한다. 직접 STOMP SEND도 개인 오류 큐로 거절되고 방에 방송되지 않아야 한다.
+3. 제한 중 반복 시도해도 시간이 연장되지 않는지 확인한다. 상태 조회 실패 시 입력·발송 차단과 재확인 버튼을 확인한다.
+4. 실제 180초 뒤 새로고침 없이 재확인되어 발송·저장·상대방 수신이 가능한지 확인한다. 관리자 제재 계정은 도배 제한 만료 후에도 차단되어야 한다.
+5. 다른 회원·다른 채팅방에는 영향이 없는지 확인한다. 서버 재시작 시 초기화되는 것은 현재 방식의 한계다.
