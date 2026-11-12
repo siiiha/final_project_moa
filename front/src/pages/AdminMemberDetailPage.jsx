@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import Button from '../components/common/Button';
 import ConfirmModal from '../components/common/ConfirmModal';
@@ -33,7 +33,10 @@ const EmptyCard = styled.section`
 
 function AdminMemberDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
+  // AI작성: 목록에서 전달받은 쿼리 포함 주소가 없으면 기본 회원 목록으로 돌아간다.
+  const returnTo = location.state?.returnTo || '/admin/members';
   const [member, setMember] = useState(null);
   const [detail, setDetail] = useState(null);
   const [action, setAction] = useState('이용 제한');
@@ -143,7 +146,7 @@ function AdminMemberDetailPage() {
       <LoadingPage>
         <EmptyCard>
           <p>{loading ? '회원 정보를 불러오는 중입니다.' : errorMessage || '존재하지 않는 회원입니다.'}</p>
-          <Button type="button" $variant="secondary" onClick={() => navigate('/admin/members')}>
+          <Button type="button" $variant="secondary" onClick={() => navigate(returnTo)}>
             회원 목록으로
           </Button>
         </EmptyCard>
@@ -173,7 +176,7 @@ function AdminMemberDetailPage() {
             onReasonChange={setReason}
             onRestrictionTypeChange={setRestrictionType}
             onSubmit={handleStatusSubmit}
-            onBack={() => navigate('/admin/members')}
+            onBack={() => navigate(returnTo)}
           />
       </AdminPageLayout>
       {confirmOpen && (
