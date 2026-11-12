@@ -25,7 +25,7 @@ const COMMENT_PAGE_BUTTON_COUNT = 5;
 const normalizeCommentContent = (content) => {
   const trimmedContent = content.trim();
 
-  return /^[\u200B-\u200D\u2060\uFEFF\u180E]*$/u.test(trimmedContent)
+  return /^[\u200B-\u200D\u2060\uFEFF\u180E\u3164]*$/u.test(trimmedContent)
     ? ''
     : trimmedContent;
 };
@@ -153,6 +153,7 @@ function PostDetailPage() {
   const [reportErrorMessage, setReportErrorMessage] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportNotice, setReportNotice] = useState('');
+  const [inputNotice, setInputNotice] = useState('');
   const postDetailRequestRef = useRef(null);
   const commentDraftKey = memberId && id ? `moa-comment-draft:${memberId}:${id}` : null;
   const replyDraftKey = memberId && id ? `moa-reply-draft:${memberId}:${id}` : null;
@@ -407,7 +408,12 @@ function PostDetailPage() {
       return;
     }
     const trimmedComment = normalizeCommentContent(commentText);
-    if (!trimmedComment || isSubmittingComment) return;
+    if (!trimmedComment) {
+      // AI작성: 브라우저 기본 필수 입력 안내 대신 공백 입력 사유를 모달로 알린다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (isSubmittingComment) return;
 
     setIsSubmittingComment(true);
     setCommentErrorMessage('');
@@ -473,7 +479,12 @@ function PostDetailPage() {
   const handleReplySubmit = async (event) => {
     event.preventDefault();
     const trimmedReply = normalizeCommentContent(replyText);
-    if (!replyingCommentId || !trimmedReply || isSubmittingReply) return;
+    if (!trimmedReply) {
+      // AI작성: 대댓글도 공백·한글 채움 문자만 입력하면 공통 안내 모달을 표시한다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (!replyingCommentId || isSubmittingReply) return;
 
     setIsSubmittingReply(true);
     setCommentErrorMessage('');
@@ -533,7 +544,12 @@ function PostDetailPage() {
       return;
     }
     const trimmedComment = normalizeCommentContent(editingCommentText);
-    if (!editingCommentId || !trimmedComment || isUpdatingComment) return;
+    if (!trimmedComment) {
+      // AI작성: 댓글·대댓글 수정에서도 빈 내용 저장을 모달로 안내한다.
+      setInputNotice('내용을 입력해 주세요.');
+      return;
+    }
+    if (!editingCommentId || isUpdatingComment) return;
 
     setIsUpdatingComment(true);
     setCommentErrorMessage('');
@@ -779,6 +795,16 @@ function PostDetailPage() {
           showCancel={false}
           onConfirm={() => setReportNotice('')}
           onCancel={() => setReportNotice('')}
+        />
+      )}
+      {inputNotice && (
+        <ConfirmModal
+          title="입력 내용을 확인해 주세요"
+          description={inputNotice}
+          confirmLabel="확인"
+          showCancel={false}
+          onConfirm={() => setInputNotice('')}
+          onCancel={() => setInputNotice('')}
         />
       )}
     </Page>
