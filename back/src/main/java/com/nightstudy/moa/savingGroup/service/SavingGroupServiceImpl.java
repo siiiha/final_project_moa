@@ -473,7 +473,7 @@ public class SavingGroupServiceImpl implements SavingGroupService {
         return new SavingGroupTransactionListResponse(items, meta);
     }
 
-    // AI작성: 최근 여섯 달의 거래를 월별로 합산하고, 미확정 확인 필요 출금은 별도 분류로 보존한다.
+    // AI작성: 최근 여섯 달의 거래를 월별로 합산하며, 검토 상태와 ML 추천 분류를 분리해 제공한다.
     @Override
     @Transactional(readOnly = true)
     public SavingGroupDashboardResponse getSavingGroupDashboard(Long savingGroupId, Long memberId, YearMonth month) {
@@ -514,8 +514,9 @@ public class SavingGroupServiceImpl implements SavingGroupService {
             boolean finalCategorySaved = row.finalCategory() != null && !row.finalCategory().isBlank();
             boolean reviewRequired = !finalCategorySaved && classification != null
                     && classification.classificationStatus() == CardExpenseClassificationStatus.REVIEW_REQUIRED;
+            // AI작성: "확인 필요"는 검토 상태일 뿐이므로, 추천 분류가 있으면 사용처 통계에는 함께 반영한다.
             String category = finalCategorySaved ? row.finalCategory()
-                    : reviewRequired || classification == null || classification.suggestedCategory() == null
+                    : classification == null || classification.suggestedCategory() == null
                         ? CardExpenseCategory.NEEDS_REVIEW.name() : classification.suggestedCategory().name();
             totals.get(transactionMonth)[1] = totals.get(transactionMonth)[1].add(amount);
             if (transactionMonth.equals(month)) {
