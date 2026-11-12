@@ -377,10 +377,10 @@ function formatApplicationDate(value) {
 }
 
 // AI작성: 관리자 심사 화면에서 개설·삭제 신청을 같은 API로 조회하고 화면 필드로 변환한다.
-export async function getSavingGroupCreationApplications({ status, type, keyword, page = 1, signal } = {}) {
+export async function getSavingGroupCreationApplications({ status, type, sort = 'LATEST', keyword, page = 1, signal } = {}) {
   try {
     const response = await client.get('/admin/saving-group-applications', {
-      params: { status: status || undefined, type: type || undefined, keyword: keyword || undefined, page },
+      params: { status: status || undefined, type: type || undefined, sort, keyword: keyword || undefined, page },
       signal,
     });
     if (!response.data?.success || !Array.isArray(response.data.data) || !response.data.meta) {
@@ -396,6 +396,8 @@ export async function getSavingGroupCreationApplications({ status, type, keyword
         applicant: item.applicantName,
         region: item.regionName,
         appliedAt: formatApplicationDate(item.appliedAt),
+        // AI작성: 목록에서는 심사 완료일만 표시하고 대기 건은 하이픈으로 구분한다.
+        processedAt: item.processedAt ? formatApplicationDate(item.processedAt) : '-',
         status: savingGroupReviewStatusLabel[item.status] || '상태 확인 필요',
         type: item.type,
         reviewType: savingGroupReviewTypeLabel[item.type] || '유형 확인 필요',

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -62,6 +63,13 @@ public class AdminReportController {
             @PathVariable Long reportId,
             @Valid @RequestBody AdminReportProcessRequest request) {
         adminReportService.processReport(reportId, request);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/{reportId}/content")
+    // AI작성: 승인된 게시글·댓글 신고의 대상 콘텐츠만 후속 조치로 삭제한다.
+    public ApiResponse<Void> deleteApprovedReportedContent(@PathVariable Long reportId) {
+        adminReportService.deleteApprovedReportedContent(reportId);
         return ApiResponse.ok(null);
     }
 

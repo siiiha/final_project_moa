@@ -10,12 +10,13 @@ function AdminSavingGroupApplicationsPage() {
   // AI작성: 빈 문자열은 전체 조회, 나머지는 백엔드 검증 코드로 유지해 별도 변환 없이 API에 전달한다.
   const [status, setStatus] = useState('');
   const [type, setType] = useState('');
+  const [sort, setSort] = useState('LATEST');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [result, setResult] = useState({ items: [], meta: null, requestKey: null, error: '' });
   const [retry, setRetry] = useState(0);
-  const requestKey = JSON.stringify([type, status, submittedQuery, currentPage, retry]);
+  const requestKey = JSON.stringify([type, status, sort, submittedQuery, currentPage, retry]);
   const loading = result.requestKey !== requestKey;
 
   // AI작성: 필터·페이지별 요청을 취소해 늦게 도착한 이전 응답이 화면을 덮어쓰지 않게 한다.
@@ -25,6 +26,7 @@ function AdminSavingGroupApplicationsPage() {
     getSavingGroupCreationApplications({
       status: status || undefined,
       type: type || undefined,
+      sort,
       keyword: submittedQuery,
       page: currentPage,
       signal: controller.signal,
@@ -41,7 +43,7 @@ function AdminSavingGroupApplicationsPage() {
       active = false;
       controller.abort();
     };
-  }, [type, status, submittedQuery, currentPage, retry, requestKey]);
+  }, [type, status, sort, submittedQuery, currentPage, retry, requestKey]);
 
   const handleSearch = (event) => {
     event.preventDefault();
@@ -79,6 +81,7 @@ function AdminSavingGroupApplicationsPage() {
                 <SavingGroupApplicationFilterBar
                   status={status}
                   type={type}
+                  sort={sort}
                   query={query}
                   onStatusChange={(value) => {
                     setStatus(value);
@@ -86,6 +89,10 @@ function AdminSavingGroupApplicationsPage() {
                   }}
                   onTypeChange={(value) => {
                     setType(value);
+                    setCurrentPage(1);
+                  }}
+                  onSortChange={(value) => {
+                    setSort(value);
                     setCurrentPage(1);
                   }}
                   onQueryChange={setQuery}

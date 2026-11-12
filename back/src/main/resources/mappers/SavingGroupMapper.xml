@@ -1398,11 +1398,16 @@
         <include refid="savingGroupApplicationApplicantName"/>,
         r.region_name,
         CASE WHEN ma.type = 'CREATE' THEN g.created_at ELSE NULL END AS applied_at,
+        ma.processed_at,
         ma.status,
         ma.type
         <include refid="creationApplicationFromWhere"/>
-        <!-- AI작성: 심사 신청 시각 컬럼이 없으므로 단조 증가하는 승인 번호로 최신 신청을 우선한다. -->
-        ORDER BY ma.approval_id DESC
+        <!-- AI작성: 검증된 정렬 코드에 따라 승인 번호를 기준으로 최신·과거 신청 순서를 고정한다. -->
+        ORDER BY ma.approval_id
+        <choose>
+            <when test="sort == 'OLDEST'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
         LIMIT #{limit} OFFSET #{offset}
     </select>
 

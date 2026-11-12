@@ -128,6 +128,32 @@ const ManagementCard = styled(Card)`
   margin-top: 14px;
 `;
 
+const ManagementHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+`;
+
+const InactiveBadge = styled.span`
+  padding: 4px 8px;
+  color: ${({ theme }) => theme.colors.muted};
+  background: ${({ theme }) => theme.colors.background};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: 10px;
+  font-weight: 700;
+`;
+
+const InactiveGuide = styled.p`
+  margin-top: 14px;
+  padding: 14px;
+  color: ${({ theme }) => theme.colors.muted};
+  background: ${({ theme }) => theme.colors.background};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: 12px;
+  text-align: center;
+`;
+
 const ManagementForm = styled.form`
   margin-top: 14px;
   display: grid;
@@ -227,7 +253,6 @@ function AdminMemberDetail({
   submitting,
   message,
   errorMessage,
-  onActionChange,
   onRestrictionScopeChange,
   onReasonChange,
   onRestrictionTypeChange,
@@ -236,6 +261,9 @@ function AdminMemberDetail({
 }) {
   const actionIsRestrict = action === '이용 제한';
   const isAdminMember = member.systemRole === 'ADMIN';
+  // AI작성: 탈퇴 회원은 서비스 기능을 사용하지 않으므로 추가 이용 제한 처리를 막는다.
+  const isWithdrawnMember = member.status === '탈퇴';
+  const isRestrictionManagementDisabled = submitting || isAdminMember;
 
   return (
     <>
@@ -297,7 +325,10 @@ function AdminMemberDetail({
       </DetailGrid>
 
       <ManagementCard>
-        <CardTitle>이용 제한 관리</CardTitle>
+        <ManagementHeader>
+          <CardTitle>이용 제한 관리</CardTitle>
+          {isWithdrawnMember && <InactiveBadge>탈퇴 회원 · 관리 불가</InactiveBadge>}
+        </ManagementHeader>
         {/* AI작성: 현재 적용 중인 기능별 제한을 관리자에게 범위와 종료 시각으로 구분해 표시한다. */}
         <RestrictionList>
           {detail.restrictions.length === 0
@@ -308,8 +339,13 @@ function AdminMemberDetail({
                 </RestrictionItem>
               ))}
         </RestrictionList>
-        <ManagementForm onSubmit={onSubmit}>
-          <Control aria-label="회원 상태 처리" value={action} onChange={(event) => onActionChange(event.target.value)} disabled={submitting || isAdminMember}>
+        {isWithdrawnMember ? (
+          // AI작성: 탈퇴 회원은 조작 요소 대신 관리 불가 사유만 안내하고 기존 제한 내역은 유지한다.
+          <InactiveGuide>탈퇴한 회원은 서비스 기능을 이용하지 않으므로 이용 제한을 관리할 수 없습니다.</InactiveGuide>
+        ) : (
+          <ManagementForm onSubmit={onSubmit}>
+          {/* AI작성: 제한 영역 변경 시 자동 결정된 처리만 표시해 제한이 없는 영역의 해제 시도를 막는다. */}
+          <Control aria-label="회원 상태 처리" value={action} disabled>
             <option value="이용 제한">이용 제한</option>
             <option value="제한 해제">제한 해제</option>
           </Control>
@@ -317,7 +353,7 @@ function AdminMemberDetail({
             aria-label="이용 제한 영역"
             value={restrictionScope}
             onChange={(event) => onRestrictionScopeChange(event.target.value)}
-            disabled={submitting || isAdminMember}
+            disabled={isRestrictionManagementDisabled}
           >
             <option value="CONTENT">게시글·댓글</option>
             <option value="CHAT">채팅</option>
@@ -328,7 +364,7 @@ function AdminMemberDetail({
               aria-label="이용 제한 기간"
               value={restrictionType}
               onChange={(event) => onRestrictionTypeChange(event.target.value)}
-              disabled={submitting || isAdminMember}
+              disabled={isRestrictionManagementDisabled}
             >
               <option value="7_DAYS">7일</option>
               <option value="30_DAYS">30일</option>
@@ -341,12 +377,13 @@ function AdminMemberDetail({
             placeholder="처리 사유를 입력해주세요"
             maxLength={500}
             required
-            disabled={submitting || isAdminMember}
+            disabled={isRestrictionManagementDisabled}
           />
-          <ListButton type="submit" $variant={actionIsRestrict ? 'danger' : 'primary'} disabled={submitting || isAdminMember}>
+          <ListButton type="submit" $variant={actionIsRestrict ? 'danger' : 'primary'} disabled={isRestrictionManagementDisabled}>
             {submitting ? '처리 중...' : action}
           </ListButton>
-        </ManagementForm>
+          </ManagementForm>
+        )}
         {errorMessage && <ResultMessage $error role="alert">{errorMessage}</ResultMessage>}
         {message && <ResultMessage role="status">{message}</ResultMessage>}
       </ManagementCard>

@@ -49,6 +49,8 @@
             p.view_count,
             p.created_at,
             p.updated_at,
+            <!-- AI작성: 관리자 목록에서도 일반 목록과 같은 삭제되지 않은 댓글 수를 제목 옆에 표시한다. -->
+            (SELECT COUNT(*) FROM comment c WHERE c.post_id = p.post_id AND c.deleted_at IS NULL) AS comment_count,
             DATE_FORMAT(p.created_at, '%Y-%m-%d %H:%i') AS created_at_str,
             m.nickname AS writer_nickname,
             pc.category_name AS category_name
@@ -59,6 +61,9 @@
         <choose>
             <when test="order == 'asc'">
                 ORDER BY p.post_id ASC
+            </when>
+            <when test="order == 'views'">
+                ORDER BY p.view_count DESC, p.post_id DESC
             </when>
             <otherwise>
                 ORDER BY p.post_id DESC

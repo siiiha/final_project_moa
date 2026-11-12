@@ -64,7 +64,7 @@ const SearchButton = styled(Button)`
   }
 `;
 
-function SavingGroupApplicationFilterBar({ type, status, query, onTypeChange, onStatusChange, onQueryChange, onSearch }) {
+function SavingGroupApplicationFilterBar({ type, status, sort, query, onTypeChange, onStatusChange, onSortChange, onQueryChange, onSearch }) {
   return (
     <Form onSubmit={onSearch}>
       {/* AI작성: 화면 문구와 무관하게 option 값은 백엔드가 검증하는 심사 유형 코드를 그대로 사용한다. */}
@@ -79,6 +79,11 @@ function SavingGroupApplicationFilterBar({ type, status, query, onTypeChange, on
         <option value={savingGroupReviewStatus.PENDING}>대기</option>
         <option value={savingGroupReviewStatus.APPROVED}>승인</option>
         <option value={savingGroupReviewStatus.REJECTED}>반려</option>
+      </Control>
+      {/* AI작성: 심사 목록의 날짜 기준 정렬은 서버에서 허용하는 두 코드로만 전달한다. */}
+      <Control aria-label="심사 목록 정렬" value={sort} onChange={(event) => onSortChange(event.target.value)}>
+        <option value="LATEST">최신순</option>
+        <option value="OLDEST">과거순</option>
       </Control>
       <SearchInput
         value={query}

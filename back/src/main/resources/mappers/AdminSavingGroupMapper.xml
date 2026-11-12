@@ -30,6 +30,7 @@
         FROM saving_group sg
         JOIN `groups` g ON g.group_id = sg.group_id
         JOIN region r ON r.region_id = g.region_id
+        JOIN members owner ON owner.member_id = g.member_id
         <where>
             g.deleted_at IS NULL
             <if test="keywordPattern != null">
@@ -56,6 +57,8 @@
             g.group_name,
             g.description,
             r.region_name,
+            owner.name AS owner_name,
+            owner.nickname AS owner_nickname,
             g.max_members,
             (SELECT COUNT(DISTINCT gm.member_id)
                FROM group_member gm

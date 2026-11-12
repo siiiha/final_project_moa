@@ -16,6 +16,8 @@ public class AdminSavingGroupListItemResponse {
     private String groupName;
     private String description;
     private String regionName;
+    private String ownerName;
+    private String ownerNickname;
     private Integer maxMembers;
     private Integer memberCount;
     private BigDecimal duesAmount;
