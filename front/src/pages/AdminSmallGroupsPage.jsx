@@ -123,6 +123,8 @@ function AdminSmallGroupsPage() {
             provinceName: province || undefined,
             districtName: district || undefined,
             townName: town || undefined,
+            // AI작성: 화면 한글 상태를 API가 검증하는 운영 상태 코드로 변환해 전달한다.
+            status: status === '활동중' ? 'ACTIVE' : status === '정지' ? 'RESTRICTED' : undefined,
             page: currentPage,
           },
           signal: controller.signal,
@@ -159,7 +161,7 @@ function AdminSmallGroupsPage() {
 
     loadGroups();
     return () => controller.abort();
-  }, [currentPage, district, province, reloadKey, submittedQuery, town]);
+  }, [currentPage, district, province, reloadKey, status, submittedQuery, town]);
 
   const handleSearch = (event) => {
     event.preventDefault();

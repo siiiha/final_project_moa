@@ -34,6 +34,9 @@
         <if test="townName != null">
             AND r.town_name = #{townName}
         </if>
+        <if test="status != null">
+            AND sg.status = #{status}
+        </if>
     </sql>
 
     <!-- AI작성: 관리자 화면에만 모임장·운영 상태를 포함하고 공개 목록 SQL과 분리한다. -->
